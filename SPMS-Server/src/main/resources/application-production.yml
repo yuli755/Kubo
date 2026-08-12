@@ -1,0 +1,27 @@
+spring:
+  jpa:
+    show-sql: false
+    hibernate:
+      # 生产模式请严格使用 validate
+      ddl-auto: update
+  datasource:
+    url: "jdbc:mysql://kubo-mysql:3306/kubo?allowPublicKeyRetrieval=true&serverTimezone=UTC&useUnicode=true&characterEncoding=utf8&useSSL=false"
+    username: "kubo"
+    password: "kubo"
+  data:
+    redis:
+      host: "kubo-redis"
+      port: 6379
+      database: 5
+app:
+  upload-platform: local
+  login-url: "https://kubo.hamm.cn/login"
+
+# SpringDoc OpenAPI 3 生产环境配置
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: false  # 生产环境建议关闭 UI
+  show-actuator: false

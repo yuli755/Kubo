@@ -9,8 +9,8 @@ import '@airpower/web/dist/web.css'
 import '@/assets/css/main.scss'
 
 WebConfig.elementPlusLocale = zhCn
-WebConfig.appKey = 'spms'
-WebConfig.product = 'SPMS'
+WebConfig.appKey = 'kubo'
+WebConfig.product = 'Kubo'
 WebConfig.uploadUrl = '/api/file/upload'
 WebConfig.staticUrl = '/static/'
 

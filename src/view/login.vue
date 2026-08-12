@@ -167,7 +167,7 @@ getAppInfo()
       class="card"
     >
       <div class="app-name">
-        {{ appInfo.appName || '请先登录 SPMS!' }}
+        {{ appInfo.appName || '请先登录 Kubo!' }}
       </div>
       <div
         v-if="false"

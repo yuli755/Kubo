@@ -29,3 +29,52 @@ package-lock.json
 
 airpower
 
+# Generated API types (auto-generated, do not commit)
+src/api/generated/
+infra/scripts/temp-openapi-spec.json
+
+# ============================================================
+# SPMS-Server (Spring Boot / Maven 后端)
+# 原 SPMS-Server/.gitignore 合并入统一仓库
+# ============================================================
+HELP.md
+target/
+out/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/~
+
+### VS Code ###
+.vscode/
+.DS_Store
+
+### Environment ###
+SPMS-Server/src/main/resources/application-local-**.yml
+SPMS-Server/src/main/resources/application-production-*.yml
+*.log
+init.lock
+

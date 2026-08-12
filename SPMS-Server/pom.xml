@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>cn.hamm</groupId>
+        <artifactId>airpower</artifactId>
+        <version>6.4.3</version>
+    </parent>
+    <groupId>cn.hamm.spms</groupId>
+    <artifactId>server</artifactId>
+    <version>4.0.0</version>
+    <name>Kubo</name>
+    <description>Kubo Smart Production Management System</description>
+    <dependencies>
+        <dependency>
+            <groupId>cn.hamm</groupId>
+            <artifactId>airpower-curd</artifactId>
+            <version>${airpower.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>cn.hamm</groupId>
+            <artifactId>airpower-mqtt</artifactId>
+            <version>${airpower.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>cn.hamm</groupId>
+            <artifactId>airpower-ai</artifactId>
+            <version>${airpower.version}</version>
+
+        </dependency>
+        <dependency>
+            <groupId>cn.hamm</groupId>
+            <artifactId>airpower-open</artifactId>
+            <version>${airpower.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>cn.hamm</groupId>
+            <artifactId>airpower-email</artifactId>
+            <version>${airpower.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>cn.hamm</groupId>
+            <artifactId>airpower-websocket</artifactId>
+            <version>${airpower.version}</version>
+        </dependency>
+        <!-- WebAuthn 相关依赖 -->
+        <dependency>
+            <groupId>com.yubico</groupId>
+            <artifactId>webauthn-server-core</artifactId>
+            <version>2.6.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.yubico</groupId>
+            <artifactId>webauthn-server-attestation</artifactId>
+            <version>2.6.0</version>
+        </dependency>
+
+        <!-- 阿里云OSS开始 -->
+        <dependency>
+            <groupId>com.aliyun.oss</groupId>
+            <artifactId>aliyun-sdk-oss</artifactId>
+            <version>3.17.4</version>
+        </dependency>
+        <dependency>
+            <groupId>javax.xml.bind</groupId>
+            <artifactId>jaxb-api</artifactId>
+            <version>2.3.1</version>
+        </dependency>
+        <dependency>
+            <groupId>javax.activation</groupId>
+            <artifactId>activation</artifactId>
+            <version>1.1.1</version>
+        </dependency>
+        <!-- no more than 2.3.3-->
+
+        <dependency>
+            <groupId>org.glassfish.jaxb</groupId>
+            <artifactId>jaxb-runtime</artifactId>
+            <version>2.3.3</version>
+        </dependency>
+        <!-- 阿里云OSS结束 -->
+
+        <dependency>
+            <groupId>com.influxdb</groupId>
+            <artifactId>influxdb-client-java</artifactId>
+            <version>6.5.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-logging</artifactId>
+        </dependency>
+
+        <!-- API 文档: SpringDoc OpenAPI 3 + Knife4j UI -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.6.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.xiaoymin</groupId>
+            <artifactId>knife4j-spring-boot-starter</artifactId>
+            <version>4.5.0</version>
+        </dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${springboot.version}</version>
+                <configuration>
+                    <mainClass>cn.hamm.spms.Application</mainClass>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

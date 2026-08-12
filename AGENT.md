@@ -1,10 +1,10 @@
-# SPMS-Web 开发规范
+# Kubo Web 开发规范
 
-> 本文档供 AI 编程助手（如 Qwen Code、Cursor、GitHub Copilot 等）参考，遵循本文档规范可以保证代码风格一致。使用 VibeCoding 开发时请严格遵循本文档约定。
+> 本文档供 AI 编程助手（Cursor、GitHub Copilot、Claude Code 等）参考，遵循本文档规范可以保证代码风格一致。
 
 ## 项目概述
 
-SPMS-Web 是 SPMS 智能生产管理系统的 Web 前端项目，基于 **Vue 3 + TypeScript + Vite** 开发，使用 **Element Plus** 作为 UI 组件库，依赖 **@airpower/web** 基础框架。
+Kubo Web 是 Kubo 智能生产管理系统的 Web 前端项目，基于 **Vue 3 + TypeScript + Vite** 开发，使用 **Element Plus** 作为 UI 组件库，依赖 **@airpower/web** 基础框架。
 
 ## 技术栈
 
@@ -409,17 +409,6 @@ const {
 </template>
 ```
 
-## 新增功能完整 Checklist
-
-- [ ] 在 `model/business-module/function-module/` 创建实体类
-- [ ] 在同目录创建服务类
-- [ ] (如果需要) 创建枚举类
-- [ ] 在 `view/console/business-module/function-module/` 创建 `list.vue`
-- [ ] 在同目录创建 `component/editor.vue`
-- [ ] (如果需要) 创建 `component/selector.vue`
-- [ ] 运行 `yarn lint` 检查代码格式
-- [ ] 测试功能正常运行
-
 ## 可用命令
 
 ```bash
@@ -454,7 +443,3 @@ yarn production
 5. ✅ **继承基类**: 实体继承 `BaseEntity`，服务继承 `AbstractBaseService`，获得通用能力
 6. ✅ **使用装饰器**: 正确使用 `@Table` → `@Form` → `@Search` → `@Field` 装饰器，框架自动生成表格和表单
 7. ✅ **遵循约定**: 保持项目目录结构和命名规范，便于维护
-
----
-
-**AI 开发提示**: 在使用 VibeCoding 开发时，请将本文档作为系统提示的一部分，让 AI 遵循此开发规范。每次开发前，AI 都应该回顾本文档，确保输出的代码符合项目约定。

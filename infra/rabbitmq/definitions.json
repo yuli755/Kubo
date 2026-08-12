@@ -1,0 +1,598 @@
+{
+  "rabbit_version": "3.12.0",
+  "rabbitmq_version": "3.12.0",
+  "users": [
+    {
+      "name": "kubo",
+      "password_hash": "kubo",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": ["administrator"]
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "kubo"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "kubo",
+      "vhost": "kubo",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "topic_permissions": [],
+  "parameters": [],
+  "global_parameters": [
+    {
+      "name": "cluster_name",
+      "value": "kubo-rabbitmq-cluster"
+    }
+  ],
+  "policies": [
+    {
+      "vhost": "kubo",
+      "name": "ha-quorum",
+      "pattern": "^kubo\\.",
+      "definition": {
+        "ha-mode": "exactly",
+        "ha-params": 3,
+        "ha-sync-mode": "automatic",
+        "queue-type": "quorum"
+      },
+      "priority": 10
+    },
+    {
+      "vhost": "kubo",
+      "name": "ha-classic",
+      "pattern": "^kubo\\.classic\\.",
+      "definition": {
+        "ha-mode": "all",
+        "ha-sync-mode": "automatic"
+      },
+      "priority": 5
+    },
+    {
+      "vhost": "kubo",
+      "name": "dlx-policy",
+      "pattern": "^kubo\\.dlx\\.",
+      "definition": {
+        "ha-mode": "all",
+        "ha-sync-mode": "automatic",
+        "message-ttl": 604800000
+      },
+      "priority": 1
+    }
+  ],
+  "queues": [
+    {
+      "name": "kubo.wms.inventory.deduct.shard.0",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.1",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.2",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.3",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.4",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.5",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.6",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.7",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.8",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.9",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.10",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.11",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.12",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.13",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.14",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.shard.15",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 5,
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "wms.inventory.deduct.dlq"
+      }
+    },
+    {
+      "name": "kubo.wms.inventory.deduct.dlq",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-message-ttl": 604800000
+      }
+    },
+    {
+      "name": "kubo.wms.stock.alert",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "kubo.mes.workorder.status.changed",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "kubo.finance.cost.calculation",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "kubo.notification.email",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "kubo.notification.sms",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "kubo.notification.push",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "kubo.audit.log",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "kubo.system.delay",
+      "vhost": "kubo",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "kubo.dlx.exchange",
+        "x-dead-letter-routing-key": "system.delay.execute"
+      }
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "type": "topic",
+      "durable": true,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "kubo.mes.workorder",
+      "vhost": "kubo",
+      "type": "topic",
+      "durable": true,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "kubo.finance",
+      "vhost": "kubo",
+      "type": "topic",
+      "durable": true,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "kubo.notification",
+      "vhost": "kubo",
+      "type": "topic",
+      "durable": true,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "kubo.audit",
+      "vhost": "kubo",
+      "type": "topic",
+      "durable": true,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "kubo.dlx.exchange",
+      "vhost": "kubo",
+      "type": "topic",
+      "durable": true,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "kubo.delay.exchange",
+      "vhost": "kubo",
+      "type": "topic",
+      "durable": true,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "kubo.system",
+      "vhost": "kubo",
+      "type": "topic",
+      "durable": true,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.0",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.0",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.1",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.1",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.2",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.2",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.3",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.3",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.4",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.4",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.5",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.5",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.6",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.6",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.7",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.7",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.8",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.8",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.9",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.9",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.10",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.10",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.11",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.11",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.12",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.12",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.13",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.13",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.14",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.14",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.shard.15",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.shard.15",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.dlq",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.dlq",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.wms.inventory",
+      "vhost": "kubo",
+      "destination": "kubo.wms.stock.alert",
+      "destination_type": "queue",
+      "routing_key": "wms.stock.alert",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.mes.workorder",
+      "vhost": "kubo",
+      "destination": "kubo.mes.workorder.status.changed",
+      "destination_type": "queue",
+      "routing_key": "mes.workorder.status.changed",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.finance",
+      "vhost": "kubo",
+      "destination": "kubo.finance.cost.calculation",
+      "destination_type": "queue",
+      "routing_key": "finance.cost.calculation",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.notification",
+      "vhost": "kubo",
+      "destination": "kubo.notification.email",
+      "destination_type": "queue",
+      "routing_key": "notification.email",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.notification",
+      "vhost": "kubo",
+      "destination": "kubo.notification.sms",
+      "destination_type": "queue",
+      "routing_key": "notification.sms",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.notification",
+      "vhost": "kubo",
+      "destination": "kubo.notification.push",
+      "destination_type": "queue",
+      "routing_key": "notification.push",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.audit",
+      "vhost": "kubo",
+      "destination": "kubo.audit.log",
+      "destination_type": "queue",
+      "routing_key": "audit.log",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.dlx.exchange",
+      "vhost": "kubo",
+      "destination": "kubo.wms.inventory.deduct.dlq",
+      "destination_type": "queue",
+      "routing_key": "wms.inventory.deduct.dlq",
+      "arguments": {}
+    },
+    {
+      "source": "kubo.delay.exchange",
+      "vhost": "kubo",
+      "destination": "kubo.system.delay",
+      "destination_type": "queue",
+      "routing_key": "system.delay",
+      "arguments": {}
+    }
+  ]
+}
