@@ -3,9 +3,9 @@ import type { FormInstance } from 'element-plus'
 
 import { ADialog, AInput, DialogProps, DialogUtil } from '@airpower/web'
 import { ref } from 'vue'
+import { useInputAddFinish } from '@/hook/wms/useInput'
 import { InputDetailEntity } from '@/model/wms/input/InputDetailEntity'
 import { InputDetailService } from '@/model/wms/input/InputDetailService'
-import { InputService } from '@/model/wms/input/InputService'
 import { StorageSelector } from '@/view/console/factory/storage/component'
 
 const props = defineProps(DialogProps.withParam(new InputDetailEntity()))
@@ -16,11 +16,13 @@ const isLoading = ref(false)
 
 const formRef = ref<FormInstance>()
 
+const { mutateAsync: addFinishMutate } = useInputAddFinish()
+
 async function onSubmit() {
   const form = formData.value.copy()
   form.expose('id', 'quantity', 'billId', 'storage')
   formData.value.storage.exposeOnlyId()
-  await InputService.create(isLoading).addDetailFinishQuantity(form)
+  await addFinishMutate({ id: form.id, finishQuantity: form.quantity })
   props.onConfirm()
 }
 

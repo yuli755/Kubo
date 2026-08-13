@@ -7,7 +7,7 @@ import { InventoryTypeEnum } from '@/model/wms/inventory/InventoryTypeEnum'
 
 import { OutputDetailEntity } from '@/model/wms/output/OutputDetailEntity'
 import { OutputDetailService } from '@/model/wms/output/OutputDetailService'
-import { OutputService } from '@/model/wms/output/OutputService'
+import { useOutputAddFinish } from '@/hook/wms/useOutput'
 import { InventorySelector } from '../../inventory/component'
 
 const props = defineProps(DialogProps.withParam(new OutputDetailEntity()))
@@ -18,11 +18,13 @@ const isLoading = ref(false)
 
 const formRef = ref<FormInstance>()
 
+const { mutateAsync: addFinishMutate } = useOutputAddFinish()
+
 async function onSubmit() {
   const form = formData.value.copy()
   form.expose('id', 'quantity', 'billId', 'inventory')
   form.inventory.exposeOnlyId()
-  await OutputService.create(isLoading).addDetailFinishQuantity(form)
+  await addFinishMutate({ id: form.id, finishQuantity: form.quantity })
   props.onConfirm()
 }
 

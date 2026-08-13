@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import type { BomQuery } from '@/api/mes/types'
-import { APanel, ATable } from '@airpower/web'
+import { APanel, ATable, FeedbackUtil } from '@airpower/web'
 import { computed, watch } from 'vue'
 import PublishButton from '@/component/PublishButton.vue'
-import { useBomList } from '@/hook/mes/useBom'
+import { useBomList, useBomPublish } from '@/hook/mes/useBom'
 import { useMyTable } from '@/hook/useMyTable'
 import { BomService } from '@/model/mes/bom/BomService'
 import { BomDetail, BomEditor } from './component'
@@ -28,18 +28,27 @@ const query = computed<BomQuery>(() => {
   }
 })
 
-const { data: _bomData, isFetching, refetch } = useBomList(query)
+const { data, isLoading } = useBomList(query)
 
-// 覆写 service.getPage，使用 @tanstack/vue-query 替代 airpower 的 AbstractCurdService.getPage
-hook.service.getPage = async () => {
-  const result = await refetch()
-  return { list: result.data?.list ?? [], total: result.data?.total ?? 0 }
-}
+// 将新 API 响应同步到 airpower QueryResponsePage 格式，保持 ATable 兼容
+watch(data, (value) => {
+  if (value) {
+    hook.response.value.list = value.list
+    hook.response.value.total = value.total
+  }
+})
 
 // 同步加载状态到 hook，保持 ATable v-loading 正常工作
-watch(isFetching, (v) => {
+watch(isLoading, (v) => {
   hook.isLoading.value = v
 })
+
+// ── Mutation: 发布 ──
+const { mutateAsync: publishMutate } = useBomPublish()
+async function onPublish(entity: { id: number }) {
+  await FeedbackUtil.confirmWarning('发布后将无法再次修改，是否确认？', '确认发布')
+  await publishMutate({ id: entity.id })
+}
 </script>
 
 <template>
@@ -54,7 +63,7 @@ watch(isFetching, (v) => {
       <template #customRow="{ data }">
         <PublishButton
           :data
-          @click="hook.onPublish"
+          @click="onPublish"
         />
       </template>
     </ATable>

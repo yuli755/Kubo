@@ -25,16 +25,18 @@ const query = computed<OperationQuery>(() => {
   }
 })
 
-const { data: _operationData, isFetching, refetch } = useOperationList(query)
+const { data, isLoading } = useOperationList(query)
 
-// 覆写 service.getPage，使用 @tanstack/vue-query 替代 airpower 的 AbstractCurdService.getPage
-hook.service.getPage = async () => {
-  const result = await refetch()
-  return { list: result.data?.list ?? [], total: result.data?.total ?? 0 }
-}
+// 将新 API 响应同步到 airpower QueryResponsePage 格式，保持 ATable 兼容
+watch(data, (value) => {
+  if (value) {
+    hook.response.value.list = value.list
+    hook.response.value.total = value.total
+  }
+})
 
 // 同步加载状态到 hook，保持 ATable v-loading 正常工作
-watch(isFetching, (v) => {
+watch(isLoading, (v) => {
   hook.isLoading.value = v
 })
 </script>

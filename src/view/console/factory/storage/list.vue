@@ -14,15 +14,16 @@ const hook = useTableTree(StorageService, {
 })
 
 // 使用 @tanstack/vue-query 替代 airpower service.getList
-const { isFetching, refetch } = useStorageTree()
+// 树形实体走 unPaginate 路径，onGetList 将结果赋给 hook.list.value
+const { data, isLoading } = useStorageTree()
 
-hook.service.getList = async () => {
-  const result = await refetch()
-  return result.data ?? []
-}
+// 将新 API 响应同步到 airpower list，保持 ATable 树渲染兼容
+watch(data, (value) => {
+  hook.list.value = value ?? []
+})
 
 // 同步加载状态到 hook，保持 ATable v-loading 正常工作
-watch(isFetching, (v) => {
+watch(isLoading, (v) => {
   hook.isLoading.value = v
 })
 </script>
