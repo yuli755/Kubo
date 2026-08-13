@@ -23,22 +23,22 @@ Java 实体类 (Entity)  →  Hibernate  →  自动生成 SQL  →  创建数�
 @Entity
 @Table(name = "user")
 public class UserEntity extends BaseEntity {
-    
+
     @Column(columnDefinition = "varchar(255) default '' comment '昵称'")
     @NotBlank(message = "昵称不能为空")
     private String nickname;
-    
+
     @Column(columnDefinition = "varchar(255) default '' comment '邮箱'", unique = true)
     @Email(message = "邮箱格式不正确")
     private String email;
-    
+
     @Column(columnDefinition = "varchar(255) default '' comment '手机号'", unique = true)
     private String phone;
-    
+
     @Column(columnDefinition = "varchar(255) default '' comment '密码'")
     @JsonProperty(access = WRITE_ONLY)
     private String password;
-    
+
     // ... 更多字段
 }
 ```
@@ -77,9 +77,9 @@ CREATE TABLE `user` (
 ```yaml
 spring:
   jpa:
-    show-sql: true              # 显示生成的 SQL 语句
+    show-sql: true # 显示生成的 SQL 语句
     hibernate:
-      ddl-auto: update          # 自动更新表结构
+      ddl-auto: update # 自动更新表结构
 ```
 
 ### ddl-auto 选项说明
@@ -213,13 +213,13 @@ public class DevDataInitRunner implements CommandLineRunner {
             .setEmail("admin@hamm.cn")
             .setPassword(encodePassword("Aa123456", salt))
         );
-        
+
         // 2. 初始化部门
         departmentService.add(new DepartmentEntity()
             .setName("生产部")
             .setCode("a1")
         );
-        
+
         // 3. 初始化设备、物料、仓库...
         // ...
     }

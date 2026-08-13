@@ -7,6 +7,7 @@ import { authApi } from '@/api/system'
 import Copyright from '@/component/login/Copyright.vue'
 import Logo from '@/component/login/Logo.vue'
 import ThirdLogin from '@/component/login/ThirdLogin.vue'
+import { useRoutePreload } from '@/composables/useRoutePreload'
 import { LoginAction } from '@/model/common/LoginAction'
 import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
 import { OpenAppService } from '@/model/open/app/OpenAppService'
@@ -14,6 +15,8 @@ import { UserService } from '@/model/personnel/user/UserService'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
+
+const { preload } = useRoutePreload()
 
 /**
  * ### 是否二维码登录
@@ -91,6 +94,12 @@ async function loginRedirect(res: { token: string, refreshToken?: string, user?:
   if (res.user) {
     userStore.setUserInfo(res.user)
   }
+
+  // 登录成功后预加载首屏需要的 chunk，缩短进入控制台的等待时间
+  preload([
+    () => import('@/component/Console.vue'),
+    () => import('@/view/home.vue'),
+  ])
 
   if (appKey) {
     if (appInfo.value.isInternal) {

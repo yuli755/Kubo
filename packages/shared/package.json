@@ -1,0 +1,10 @@
+{
+  "name": "@kubo/shared",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "src/index.ts"
+}

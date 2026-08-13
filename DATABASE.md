@@ -306,15 +306,15 @@ DESC user;
 SHOW CREATE TABLE user;
 
 # 查看表数据量
-SELECT 
+SELECT
   TABLE_NAME as '表名',
   TABLE_ROWS as '行数',
   TABLE_COMMENT as '说明'
-FROM 
+FROM
   information_schema.TABLES
-WHERE 
+WHERE
   TABLE_SCHEMA = 'kubo'
-ORDER BY 
+ORDER BY
   TABLE_ROWS DESC;
 ```
 

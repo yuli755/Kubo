@@ -1,7 +1,7 @@
 # Kubo Platform Infrastructure Overview
 
-> **Version**: 1.0  
-> **Status**: 🟢 Active  
+> **Version**: 1.0
+> **Status**: 🟢 Active
 > **Last Updated**: 2026-08-02
 
 ---
@@ -207,14 +207,14 @@ Policies:
 # 生产环境典型配额
 resources:
   limits:
-    cpu: "20"
-    memory: "64Gi"
-    pods: "100"
-    services: "20"
-    persistentvolumeclaims: "20"
+    cpu: '20'
+    memory: 64Gi
+    pods: '100'
+    services: '20'
+    persistentvolumeclaims: '20'
   requests:
-    cpu: "10"
-    memory: "32Gi"
+    cpu: '10'
+    memory: 32Gi
 ```
 
 ---
@@ -308,7 +308,7 @@ IngressRules:
 ## 🔄 CI/CD Pipeline
 
 ```
-Git Push (feature/fix) 
+Git Push (feature/fix)
     │
     ▼
 ┌─────────────────────────────────────┐
@@ -406,5 +406,5 @@ Git Push (feature/fix)
 
 ---
 
-*Last Updated: 2026-08-02*  
+*Last Updated: 2026-08-02*
 *Next Review: 2026-11-02*

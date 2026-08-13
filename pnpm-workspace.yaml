@@ -1,0 +1,12 @@
+shellEmulator: true
+
+trustPolicy: no-downgrade
+
+# pnpm workspace 配置
+#
+# kubo-platform 统一仓库（SPMS-Web + SPMS-Server）
+# 当前仓库根目录仍是前端应用（kubo-web），未来迁移至 apps/web
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'tools/*'

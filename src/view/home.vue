@@ -2,7 +2,7 @@
 import { RouterUtil } from '@airpower/web'
 import { Avatar, Collection, OfficeBuilding, User } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
-import { userApi } from '@/api/system'
+import { authApi } from '@/api/system'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
@@ -59,7 +59,7 @@ const entries = [
 async function init() {
   try {
     if (!userStore.userInfo && userStore.token) {
-      const user = await userApi.getCurrentUser()
+      const user = await authApi.getCurrentUser()
       userStore.setUserInfo(user)
     }
   }

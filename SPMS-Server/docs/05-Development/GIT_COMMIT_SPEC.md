@@ -1,8 +1,8 @@
 # Kubo Platform Git Commit Specification
 
-> **Version**: 1.0  
-> **Status**: 🟢 Active  
-> **Last Updated**: 2026-08-02  
+> **Version**: 1.0
+> **Status**: 🟢 Active
+> **Last Updated**: 2026-08-02
 > **Enforcement**: Commitlint + Husky + CI Gate
 
 ---
@@ -286,16 +286,53 @@ module.exports = {
   extends: ['@commitlint/config-conventional'],
   rules: {
     'type-enum': [2, 'always', [
-      'feat', 'fix', 'perf', 'refactor', 'style', 'docs',
-      'test', 'chore', 'ci', 'build', 'revert', 'breaking', 'security'
+      'feat',
+      'fix',
+      'perf',
+      'refactor',
+      'style',
+      'docs',
+      'test',
+      'chore',
+      'ci',
+      'build',
+      'revert',
+      'breaking',
+      'security'
     ]],
     'scope-enum': [2, 'always', [
-      'auth', 'gateway', 'system', 'wms', 'mes', 'finance',
-      'procurement', 'sales', 'asset', 'personnel', 'factory',
-      'iot', 'report', 'notify', 'file', 'common', 'infra',
-      'web-main', 'web-admin', 'request', 'query', 'ws',
-      'permission', 'components', 'monitor', 'utils', 'config',
-      'locales', 'deps', 'release', 'deps', '*'
+      'auth',
+      'gateway',
+      'system',
+      'wms',
+      'mes',
+      'finance',
+      'procurement',
+      'sales',
+      'asset',
+      'personnel',
+      'factory',
+      'iot',
+      'report',
+      'notify',
+      'file',
+      'common',
+      'infra',
+      'web-main',
+      'web-admin',
+      'request',
+      'query',
+      'ws',
+      'permission',
+      'components',
+      'monitor',
+      'utils',
+      'config',
+      'locales',
+      'deps',
+      'release',
+      'deps',
+      '*'
     ]],
     'subject-case': [2, 'always', 'lower-case'],
     'subject-max-length': [2, 'always', 72],
@@ -348,7 +385,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 需要完整历史
+          fetch-depth: 0 # 需要完整历史
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -373,7 +410,7 @@ jobs:
 **A**: 同主分支，建议 scope 加 `hotfix`：`fix(wms/hotfix): 修复库存扣减死锁问题`。
 
 ### Q: 如何修改已推送的提交信息？
-**A**: 
+**A**:
 ```bash
 # 仅修改最近一条
 git commit --amend -m "feat(wms): 修正提交信息"
@@ -394,5 +431,5 @@ git rebase -i HEAD~3
 
 ---
 
-*Last Updated: 2026-08-02*  
+*Last Updated: 2026-08-02*
 *Enforcement: Commitlint + Husky + CI Gate Required*

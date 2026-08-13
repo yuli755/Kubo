@@ -1,8 +1,8 @@
 # Kubo 平台后端系统二次改造设计文档
 
-> **版本**: v2.0  
-> **状态**: 🟢 设计稿  
-> **最后更新**: 2026-08-13  
+> **版本**: v2.0
+> **状态**: 🟢 设计稿
+> **最后更新**: 2026-08-13
 > **适用场景**: 10,000+ 工厂用户 · 7×24 高并发 · 99.99% 可用性
 
 ---
@@ -423,7 +423,7 @@ tables:
       column: id
       keyGeneratorName: snowflake
 
-# 2. 操作日志 (按月分片)
+  # 2. 操作日志 (按月分片)
   sys_operation_log:
     actualDataNodes: ds0.sys_operation_log_$->{2026_01..2026_12}
     tableStrategy:
@@ -431,7 +431,7 @@ tables:
         shardingColumn: created_at
         shardingAlgorithmName: log_month_sharding
 
-# 3. 消息记录 (按用户 ID 取模分片)
+  # 3. 消息记录 (按用户 ID 取模分片)
   chat_message:
     actualDataNodes: ds$->{0..3}.chat_message
     databaseStrategy:
@@ -1941,11 +1941,11 @@ User Scale: 10,000 并发用户
 
 # 各服务 QPS 估算
 kubo-gateway: 10,000+ (聚合流量)
-kubo-auth:    2,000 (登录/Token 刷新)
-kubo-wms:     3,000 (库存查询/出入库)
-kubo-mes:     2,000 (工单/排产)
-kubo-iot:     5,000+ (设备数据采集)
-kubo-chat:    2,000 (消息推送)
+kubo-auth: 2,000 (登录/Token 刷新)
+kubo-wms: 3,000 (库存查询/出入库)
+kubo-mes: 2,000 (工单/排产)
+kubo-iot: 5,000+ (设备数据采集)
+kubo-chat: 2,000 (消息推送)
 
 # 数据库容量
 每微服务数据库: 100GB - 500GB
@@ -2159,6 +2159,6 @@ Data Rollback:
 
 ---
 
-> **文档版本**: v2.0  
-> **最后更新**: 2026-08-13  
+> **文档版本**: v2.0
+> **最后更新**: 2026-08-13
 > **审批**: 待定

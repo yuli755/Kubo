@@ -1,8 +1,8 @@
 # Kubo Platform Security Guide
 
-> **Version**: 1.0  
-> **Status**: 🟢 Active  
-> **Last Updated**: 2026-08-02  
+> **Version**: 1.0
+> **Status**: 🟢 Active
+> **Last Updated**: 2026-08-02
 **Compliance**: 等保三级、GDPR、ISO 27001 基线
 
 ---
@@ -461,68 +461,68 @@ public class AuditLogAspect {
 ```yaml
 # Prometheus 告警规则
 groups:
-- name: security-alerts
-  rules:
-  # 认证异常
-  - alert: HighFailedLoginAttempts
-    expr: rate(auth_login_failed_total[5m]) > 10
-    for: 2m
-    labels:
-      severity: warning
-      team: security
-    annotations:
-      summary: "登录失败频率异常"
-      description: "每分钟登录失败超过 10 次，可能存在暴力破解"
+  - name: security-alerts
+    rules:
+      # 认证异常
+      - alert: HighFailedLoginAttempts
+        expr: rate(auth_login_failed_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: 登录失败频率异常
+          description: 每分钟登录失败超过 10 次，可能存在暴力破解
 
-  - alert: BruteForceAttack
-    expr: increase(auth_login_failed_total[15m]) > 50
-    for: 1m
-    labels:
-      severity: critical
-      team: security
-    annotations:
-      summary: "疑似暴力破解攻击"
-      description: "15分钟内登录失败超过 50 次"
+      - alert: BruteForceAttack
+        expr: increase(auth_login_failed_total[15m]) > 50
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: 疑似暴力破解攻击
+          description: 15分钟内登录失败超过 50 次
 
-  # 授权异常
-  - alert: HighUnauthorizedAccess
-    expr: rate(http_server_requests_seconds_count{status="403"}[5m]) > 50
-    for: 5m
-    labels:
-      severity: warning
-      team: security
-    annotations:
-      summary: "非授权访问异常"
+      # 授权异常
+      - alert: HighUnauthorizedAccess
+        expr: rate(http_server_requests_seconds_count{status="403"}[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: 非授权访问异常
 
-  # 敏感操作
-  - alert: MassDataExport
-    expr: rate(audit_log_total{action="EXPORT"}[5m]) > 10
-    for: 1m
-    labels:
-      severity: warning
-      team: security
-    annotations:
-      summary: "大量数据导出"
-      description: "5分钟内导出操作超过 10 次"
+      # 敏感操作
+      - alert: MassDataExport
+        expr: rate(audit_log_total{action="EXPORT"}[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: 大量数据导出
+          description: 5分钟内导出操作超过 10 次
 
-  - alert: PermissionEscalation
-    expr: rate(audit_log_total{action=~"PERMISSION_GRANT|ROLE_ASSIGN"}[5m]) > 20
-    for: 2m
-    labels:
-      severity: critical
-      team: security
-    annotations:
-      summary: "权限提升异常"
+      - alert: PermissionEscalation
+        expr: rate(audit_log_total{action=~"PERMISSION_GRANT|ROLE_ASSIGN"}[5m]) > 20
+        for: 2m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: 权限提升异常
 
-  # 数据异常
-  - alert: AnomalousDataAccess
-    expr: rate(audit_log_total{action="READ",status=~"2.."}[5m]) > 1000
-    for: 5m
-    labels:
-      severity: warning
-      team: security
-    annotations:
-      summary: "异常数据访问量"
+      # 数据异常
+      - alert: AnomalousDataAccess
+        expr: rate(audit_log_total{action="READ",status=~"2.."}[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: 异常数据访问量
 ```
 
 ---
@@ -605,17 +605,17 @@ flowchart TD
     B -->|P1| D[1小时内: 分析、阻断、修复]
     B -->|P2| E[4小时内: 分析、评估、计划修复]
     B -->|P3| F[工单跟踪、定期处理]
-    
+
     C --> G[通知管理层、法务、合规]
     D --> H[通知安全负责人、技术总监]
     E --> I[通知相关技术负责人]
     F --> J[纳入季度复盘]
-    
+
     G --> K[事后复盘报告]
     H --> K
     I --> K
     J --> K
-    
+
     K --> L[更新防御措施、预案、规则]
     L --> M[演练验证]
 ```
@@ -690,6 +690,6 @@ flowchart TD
 
 ---
 
-*Last Updated: 2026-08-02*  
-*Classification: Internal - Security Sensitive*  
+*Last Updated: 2026-08-02*
+*Classification: Internal - Security Sensitive*
 *Review Cycle: Quarterly*

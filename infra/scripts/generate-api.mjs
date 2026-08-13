@@ -4,9 +4,9 @@
  * 从后端 OpenAPI 文档生成 TypeScript 类型和 API 客户端代码
  */
 
-import { execSync } from 'child_process'
-import fs from 'fs'
-import path from 'path'
+import { execSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
 
 const API_DOC_URL = process.env.API_DOC_URL || 'http://localhost:8080/v3/api-docs'
 const OUTPUT_DIR = path.resolve(__dirname, '../src/api/generated')
@@ -51,7 +51,7 @@ async function generateApiTypes() {
         --export-schemas true \
         --export-hooks false \
         --generate-meta false`,
-      { stdio: 'inherit', cwd: path.resolve(__dirname, '..') }
+      { stdio: 'inherit', cwd: path.resolve(__dirname, '..') },
     )
 
     // 4. 清理临时文件
@@ -62,7 +62,8 @@ async function generateApiTypes() {
 
     console.log('\n✅ API 类型生成完成!')
     console.log(`📁 输出目录: ${OUTPUT_DIR}`)
-  } catch (error) {
+  }
+  catch (error) {
     console.error('\n❌ 生成失败:', error)
     process.exit(1)
   }

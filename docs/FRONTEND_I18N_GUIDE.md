@@ -1,7 +1,7 @@
 # 前端国际化 (i18n) 方案设计
 
-> **版本**：v1.0  
-> **状态**：🟢 已定稿，强制执行  
+> **版本**：v1.0
+> **状态**：🟢 已定稿，强制执行
 > **适用范围**：Kubo Web 前端全平台
 
 ---
@@ -32,7 +32,7 @@
 ```json
 {
   "vue-i18n": "^9.13.0",
-  "@intlify/unplugin-vue-i18n": "^6.0.0"  // Vite 插件：编译时优化、类型生成
+  "@intlify/unplugin-vue-i18n": "^6.0.0" // Vite 插件：编译时优化、类型生成
 }
 ```
 
@@ -85,15 +85,15 @@ export const SUPPORTED_LOCALES = [
   { code: 'zh-CN', name: '中文 (简体)', flag: '🇨🇳', dir: 'ltr' },
   { code: 'en-US', name: 'English', flag: '🇺🇸', dir: 'ltr' },
   { code: 'zh-TW', name: '中文 (繁體)', flag: '🇹🇼', dir: 'ltr' },
-] as const;
+] as const
 
-export type LocaleCode = typeof SUPPORTED_LOCALES[number]['code'];
+export type LocaleCode = typeof SUPPORTED_LOCALES[number]['code']
 
-export const DEFAULT_LOCALE: LocaleCode = 'zh-CN';
+export const DEFAULT_LOCALE: LocaleCode = 'zh-CN'
 
-export const FALLBACK_LOCALE: LocaleCode = 'en-US';
+export const FALLBACK_LOCALE: LocaleCode = 'en-US'
 
-export const LOCALE_STORAGE_KEY = 'kubo-locale';
+export const LOCALE_STORAGE_KEY = 'kubo-locale'
 
 // 语言包加载配置
 export const LOCALE_LOAD_CONFIG = {
@@ -103,7 +103,7 @@ export const LOCALE_LOAD_CONFIG = {
   lazy: true,
   // 缓存时间
   cacheTTL: 1000 * 60 * 60 * 24, // 24h
-};
+}
 ```
 
 ```typescript
@@ -111,155 +111,155 @@ export const LOCALE_LOAD_CONFIG = {
 // 定义所有翻译键的 Schema，获得类型提示和完整性检查
 export interface I18nSchema {
   common: {
-    confirm: string;
-    cancel: string;
-    save: string;
-    delete: string;
-    edit: string;
-    create: string;
-    search: string;
-    reset: string;
-    submit: string;
-    loading: string;
-    success: string;
-    failed: string;
-    confirmDelete: string;
-    yes: string;
-    no: string;
-    close: string;
-    back: string;
-    next: string;
-    previous: string;
-    submit: string;
-    reset: string;
-  };
+    confirm: string
+    cancel: string
+    save: string
+    delete: string
+    edit: string
+    create: string
+    search: string
+    reset: string
+    submit: string
+    loading: string
+    success: string
+    failed: string
+    confirmDelete: string
+    yes: string
+    no: string
+    close: string
+    back: string
+    next: string
+    previous: string
+    submit: string
+    reset: string
+  }
   auth: {
-    login: string;
-    logout: string;
-    username: string;
-    password: string;
-    rememberMe: string;
-    forgotPassword: string;
-    loginSuccess: string;
-    loginFailed: string;
-    invalidCredentials: string;
-    accountLocked: string;
-    sessionExpired: string;
-  };
+    login: string
+    logout: string
+    username: string
+    password: string
+    rememberMe: string
+    forgotPassword: string
+    loginSuccess: string
+    loginFailed: string
+    invalidCredentials: string
+    accountLocked: string
+    sessionExpired: string
+  }
   validation: {
-    required: string;
-    minLength: string;
-    maxLength: string;
-    email: string;
-    phone: string;
-    number: string;
-    positiveNumber: string;
-    emailFormat: string;
-    phoneFormat: string;
-  };
+    required: string
+    minLength: string
+    maxLength: string
+    email: string
+    phone: string
+    number: string
+    positiveNumber: string
+    emailFormat: string
+    phoneFormat: string
+  }
   wms: {
-    inventory: string;
-    stock: string;
-    inbound: string;
-    outbound: string;
-    transfer: string;
-    check: string;
-    warehouse: string;
-    location: string;
-    material: string;
-    batch: string;
-    quantity: string;
-    availableQty: string;
-    lockedQty: string;
-    frozenQty: string;
-  };
+    inventory: string
+    stock: string
+    inbound: string
+    outbound: string
+    transfer: string
+    check: string
+    warehouse: string
+    location: string
+    material: string
+    batch: string
+    quantity: string
+    availableQty: string
+    lockedQty: string
+    frozenQty: string
+  }
   // ... 其他模块
   components: {
     table: {
-      noData: string;
-      loading: string;
-      total: string;
-      pageSize: string;
-      currentPage: string;
-      totalItems: string;
-    };
+      noData: string
+      loading: string
+      total: string
+      pageSize: string
+      currentPage: string
+      totalItems: string
+    }
     form: {
-      required: string;
-      placeholder: string;
-    };
+      required: string
+      placeholder: string
+    }
     modal: {
-      confirmTitle: string;
-      confirmContent: string;
-    };
+      confirmTitle: string
+      confirmContent: string
+    }
     select: {
-      placeholder: string;
-      noMatch: string;
-      loading: string;
-    };
+      placeholder: string
+      noMatch: string
+      loading: string
+    }
     pagination: {
-      total: string;
-      pageSize: string;
-      goto: string;
-      page: string;
-    };
-  };
+      total: string
+      pageSize: string
+      goto: string
+      page: string
+    }
+  }
   // 日期时间格式
   datetime: {
     formats: {
-      short: string;      // 'yyyy/MM/dd'
-      medium: string;     // 'yyyy/MM/dd HH:mm'
-      long: string;       // 'yyyy年M月d日 HH:mm:ss'
-      time: string;       // 'HH:mm:ss'
-      date: string;       // 'yyyy-MM-dd'
-    };
+      short: string // 'yyyy/MM/dd'
+      medium: string // 'yyyy/MM/dd HH:mm'
+      long: string // 'yyyy年M月d日 HH:mm:ss'
+      time: string // 'HH:mm:ss'
+      date: string // 'yyyy-MM-dd'
+    }
     relative: {
-      justNow: string;
-      minutesAgo: string;
-      hoursAgo: string;
-      daysAgo: string;
-      weeksAgo: string;
-      monthsAgo: string;
-      yearsAgo: string;
-    };
-  };
+      justNow: string
+      minutesAgo: string
+      hoursAgo: string
+      daysAgo: string
+      weeksAgo: string
+      monthsAgo: string
+      yearsAgo: string
+    }
+  }
   // 数字/货币格式
   number: {
-    currency: string;     // '¥#,##0.00'
-    percent: string;      // '#,##0%'
-    decimal: string;      // '#,##0.00'
-    integer: string;      // '#,##0'
-  };
+    currency: string // '¥#,##0.00'
+    percent: string // '#,##0%'
+    decimal: string // '#,##0.00'
+    integer: string // '#,##0'
+  }
 }
 
 // 导出键名类型，获得完整提示
-export type I18nKey = keyof I18nSchema;
+export type I18nKey = keyof I18nSchema
 export type NestedKeyOf<T> = T extends object
   ? { [K in keyof T]: K extends string ? (T[K] extends object ? `${K}.${NestedKeyOf<T[K]>}` : K) : never }[keyof T]
-  : never;
+  : never
 
-export type I18nKeyPath = NestedKeyOf<I18nSchema>;
+export type I18nKeyPath = NestedKeyOf<I18nSchema>
 ```
 
 ### 4.2 i18n 实例创建
 
 ```typescript
+import type { I18nSchema, LocaleCode } from './types'
 // src/locales/index.ts
-import { createI18n } from 'vue-i18n';
-import type { I18nSchema, LocaleCode } from './types';
-import { SUPPORTED_LOCALES, DEFAULT_LOCALE, FALLBACK_LOCALE, LOCALE_LOAD_CONFIG } from './config';
+import { createI18n } from 'vue-i18n'
+import { DEFAULT_LOCALE, FALLBACK_LOCALE, LOCALE_LOAD_CONFIG, SUPPORTED_LOCALES } from './config'
 
+import enUS from './messages/en-US/index'
 // 导入预加载语言包
-import zhCN from './messages/zh-CN/index';
-import enUS from './messages/en-US/index';
+import zhCN from './messages/zh-CN/index'
 
 const messages = {
   'zh-CN': zhCN,
   'en-US': enUS,
-} as const;
+} as const
 
 export const i18n = createI18n<I18nSchema, LocaleCode>({
-  legacy: false,                    // 使用 Composition API 模式
-  globalInjection: true,            // 全局注入 $t、$tc、$te 等
+  legacy: false, // 使用 Composition API 模式
+  globalInjection: true, // 全局注入 $t、$tc、$te 等
   locale: DEFAULT_LOCALE,
   fallbackLocale: FALLBACK_LOCALE,
   availableLocales: SUPPORTED_LOCALES.map(l => l.code),
@@ -267,10 +267,10 @@ export const i18n = createI18n<I18nSchema, LocaleCode>({
   missingWarn: import.meta.env.DEV,
   fallbackWarn: import.meta.env.DEV,
   missingHandler: (locale, key) => {
-    console.warn(`[i18n] Missing translation: ${key} for locale ${locale}`);
-    return key;
+    console.warn(`[i18n] Missing translation: ${key} for locale ${locale}`)
+    return key
   },
-  fallbackRoot: true,               // 允许回退到根键
+  fallbackRoot: true, // 允许回退到根键
   silentTranslationWarn: !import.meta.env.DEV,
   silentFallbackWarn: !import.meta.env.DEV,
   // 日期时间格式化器
@@ -305,62 +305,64 @@ export const i18n = createI18n<I18nSchema, LocaleCode>({
       integer: { style: 'decimal', minimumFractionDigits: 0 },
     },
   },
-});
+})
 
 // 类型声明增强
 declare module 'vue-i18n' {
   export interface DefineLocaleMessage extends I18nSchema {}
   export interface DefineDateTimeFormat {
-    'zh-CN': typeof datetimeFormats['zh-CN'];
-    'en-US': typeof datetimeFormats['en-US'];
+    'zh-CN': typeof datetimeFormats['zh-CN']
+    'en-US': typeof datetimeFormats['en-US']
   }
   export interface DefineNumberFormat {
-    'zh-CN': typeof numberFormats['zh-CN'];
-    'en-US': typeof numberFormats['en-US'];
+    'zh-CN': typeof numberFormats['zh-CN']
+    'en-US': typeof numberFormats['en-US']
   }
 }
 
-export default i18n;
+export default i18n
 ```
 
 ### 4.3 语言包懒加载与预加载
 
 ```typescript
 // src/locales/utils.ts
-import type { LocaleCode } from './config';
-import { SUPPORTED_LOCALES, LOCALE_LOAD_CONFIG } from './config';
+import type { LocaleCode } from './config'
+import { LOCALE_LOAD_CONFIG, SUPPORTED_LOCALES } from './config'
 
 // 语言包加载缓存
-const loadedLocales = new Set<LocaleCode>();
-const loadingPromises = new Map<LocaleCode, Promise<void>>();
+const loadedLocales = new Set<LocaleCode>()
+const loadingPromises = new Map<LocaleCode, Promise<void>>()
 
 /**
  * 懒加载语言包
  */
 export async function loadLocale(locale: LocaleCode): Promise<void> {
-  if (loadedLocales.has(locale)) return;
-  
+  if (loadedLocales.has(locale))
+    return
+
   if (loadingPromises.has(locale)) {
-    return loadingPromises.get(locale)!;
+    return loadingPromises.get(locale)!
   }
 
   const promise = (async () => {
     try {
       // 动态导入语言包入口
-      const module = await import(`./messages/${locale}/index`);
-      const messages = module.default || module;
-      
-      // 注册到 i18n
-      i18n.global.setLocaleMessage(locale, messages);
-      loadedLocales.add(locale);
-    } catch (error) {
-      console.error(`[i18n] Failed to load locale: ${locale}`, error);
-      throw error;
-    }
-  })();
+      const module = await import(`./messages/${locale}/index`)
+      const messages = module.default || module
 
-  loadingPromises.set(locale, promise);
-  return promise;
+      // 注册到 i18n
+      i18n.global.setLocaleMessage(locale, messages)
+      loadedLocales.add(locale)
+    }
+    catch (error) {
+      console.error(`[i18n] Failed to load locale: ${locale}`, error)
+      throw error
+    }
+  })()
+
+  loadingPromises.set(locale, promise)
+  return promise
 }
 
 /**
@@ -369,7 +371,7 @@ export async function loadLocale(locale: LocaleCode): Promise<void> {
 export async function preloadLocales(): Promise<void> {
   await Promise.all(
     LOCALE_LOAD_CONFIG.preload.map(loadLocale)
-  );
+  )
 }
 
 /**
@@ -377,36 +379,36 @@ export async function preloadLocales(): Promise<void> {
  */
 export async function switchLocale(locale: LocaleCode): Promise<void> {
   if (!SUPPORTED_LOCALES.some(l => l.code === locale)) {
-    throw new Error(`Unsupported locale: ${locale}`);
+    throw new Error(`Unsupported locale: ${locale}`)
   }
 
-  await loadLocale(locale);
-  i18n.global.locale.value = locale;
-  
+  await loadLocale(locale)
+  i18n.global.locale.value = locale
+
   // 持久化
-  localStorage.setItem('kubo-locale', locale);
-  
+  localStorage.setItem('kubo-locale', locale)
+
   // 触发自定义事件，通知其他组件
-  window.dispatchEvent(new CustomEvent('locale-changed', { detail: locale }));
-  
+  window.dispatchEvent(new CustomEvent('locale-changed', { detail: locale }))
+
   // 更新 HTML lang 属性
-  document.documentElement.lang = locale;
+  document.documentElement.lang = locale
 }
 
 /**
  * 获取当前语言
  */
 export function getCurrentLocale(): string {
-  return i18n.global.locale.value;
+  return i18n.global.locale.value
 }
 
 /**
  * 获取浏览器首选语言
  */
 export function getBrowserLocale(): string {
-  const navLang = navigator.language || (navigator as any).userLanguage;
-  const matched = SUPPORTED_LOCALES.find(l => l.code.startsWith(navLang.split('-')[0]));
-  return matched?.code || 'zh-CN';
+  const navLang = navigator.language || (navigator as any).userLanguage
+  const matched = SUPPORTED_LOCALES.find(l => l.code.startsWith(navLang.split('-')[0]))
+  return matched?.code || 'zh-CN'
 }
 
 /**
@@ -414,65 +416,66 @@ export function getBrowserLocale(): string {
  */
 export async function initI18n(): Promise<void> {
   // 1. 从本地存储获取
-  const saved = localStorage.getItem('kubo-locale') as any;
-  const browserLang = getBrowserLocale();
-  const initialLocale = SUPPORTED_LOCALES.some(l => l.code === saved) ? saved : browserLang;
-  
+  const saved = localStorage.getItem('kubo-locale') as any
+  const browserLang = getBrowserLocale()
+  const initialLocale = SUPPORTED_LOCALES.some(l => l.code === saved) ? saved : browserLang
+
   // 2. 预加载默认语言
-  await preloadLocales();
-  
+  await preloadLocales()
+
   // 3. 加载并设置初始语言
-  await loadLocale(initialLocale);
-  i18n.global.locale.value = initialLocale;
-  
+  await loadLocale(initialLocale)
+  i18n.global.locale.value = initialLocale
+
   // 4. 监听存储变化 (多标签页同步)
   window.addEventListener('storage', (e) => {
     if (e.key === 'kubo-locale' && e.newValue) {
-      const newLocale = e.newValue as any;
+      const newLocale = e.newValue as any
       if (SUPPORTED_LOCALES.some(l => l.code === newLocale)) {
-        switchLocale(newLocale);
+        switchLocale(newLocale)
       }
     }
-  });
+  })
 }
 ```
 
 ### 4.4 增强版 Composable
 
 ```typescript
+import type { I18nSchema } from '../index'
+import type { I18nKeyPath } from '../types'
 // src/locales/composables/useI18n.ts
-import { useI18n as useVueI18n } from 'vue-i18n';
-import type { I18nKeyPath } from '../types';
-import { i18n, type I18nSchema } from '../index';
+import { useI18n as useVueI18n } from 'vue-i18n'
+import { i18n } from '../index'
 
 /**
  * 增强版 useI18n，提供类型安全的翻译函数
  */
 export function useI18n() {
-  const { t, tc, te, d, n, locale, availableLocales, setLocaleMessage } = useVueI18n<I18nSchema>();
+  const { t, tc, te, d, n, locale, availableLocales, setLocaleMessage } = useVueI18n<I18nSchema>()
 
   // 类型安全的翻译函数
   const $t = <K extends keyof I18nSchema>(key: K, ...args: any[]) => {
-    return t(key as any, ...args);
-  };
+    return t(key as any, ...args)
+  }
 
   // 类型安全的复数翻译
   const $tc = <K extends keyof I18nSchema>(key: K, count: number, ...args: any[]) => {
-    return tc(key as any, count, ...args);
-  };
+    return tc(key as any, count, ...args)
+  }
 
   // 检查键是否存在
-  const $te = (key: string) => te(key);
+  const $te = (key: string) => te(key)
 
   // 日期格式化
   const $d = (value: Date | number | string, format?: keyof typeof datetimeFormats['zh-CN']) => {
-    return d(value, format);
-  };
+    return d(value, format)
+  }
 
   // 数字格式化
   const $n = (value: number, format?: keyof typeof numberFormats['zh-CN']) => {
-    return n(value, format);
-  };
+    return n(value, format)
+  }
 
   return {
     t: $t,
@@ -483,66 +486,72 @@ export function useI18n() {
     locale,
     availableLocales,
     setLocaleMessage,
-  };
+  }
 }
 
 /**
  * 语言切换 Composable
  */
 export function useLocale() {
-  const { locale, availableLocales } = useVueI18n();
-  const { switchLocale, loadLocale, getCurrentLocale } = await import('../utils');
+  const { locale, availableLocales } = useVueI18n()
+  const { switchLocale, loadLocale, getCurrentLocale } = await import('../utils')
 
-  const currentLocale = computed(() => locale.value);
-  const supportedLocales = computed(() => SUPPORTED_LOCALES);
+  const currentLocale = computed(() => locale.value)
+  const supportedLocales = computed(() => SUPPORTED_LOCALES)
 
   const changeLocale = async (locale: string) => {
-    await switchLocale(locale as any);
-  };
+    await switchLocale(locale as any)
+  }
 
   return {
     locale: currentLocale,
     availableLocales: supportedLocales,
     changeLocale,
     loadLocale,
-  };
+  }
 }
 
 /**
  * 格式化工具 Composable
  */
 export function useFormat() {
-  const { d, n } = useI18n();
+  const { d, n } = useI18n()
 
   // 相对时间格式化
   const relativeTime = (date: Date | number | string): string => {
-    const now = Date.now();
-    const then = typeof date === 'string' || typeof date === 'number' ? new Date(date).getTime() : date.getTime();
-    const diff = now - then;
+    const now = Date.now()
+    const then = typeof date === 'string' || typeof date === 'number' ? new Date(date).getTime() : date.getTime()
+    const diff = now - then
 
-    const minute = 60 * 1000;
-    const hour = minute * 60;
-    const day = hour * 24;
-    const week = day * 7;
-    const month = day * 30;
-    const year = day * 365;
+    const minute = 60 * 1000
+    const hour = minute * 60
+    const day = hour * 24
+    const week = day * 7
+    const month = day * 30
+    const year = day * 365
 
-    if (diff < minute) return '刚刚';
-    if (diff < hour) return `${Math.floor(diff / minute)}分钟前`;
-    if (diff < day) return `${Math.floor(diff / hour)}小时前`;
-    if (diff < week) return `${Math.floor(diff / day)}天前`;
-    if (diff < month) return `${Math.floor(diff / week)}周前`;
-    if (diff < year) return `${Math.floor(diff / month)}个月前`;
-    return `${Math.floor(diff / year)}年前`;
-  };
+    if (diff < minute)
+      return '刚刚'
+    if (diff < hour)
+      return `${Math.floor(diff / minute)}分钟前`
+    if (diff < day)
+      return `${Math.floor(diff / hour)}小时前`
+    if (diff < week)
+      return `${Math.floor(diff / day)}天前`
+    if (diff < month)
+      return `${Math.floor(diff / week)}周前`
+    if (diff < year)
+      return `${Math.floor(diff / month)}个月前`
+    return `${Math.floor(diff / year)}年前`
+  }
 
   // 数字格式化：千分位
   const formatNumber = (value: number, decimals = 0): string => {
     return new Intl.NumberFormat('zh-CN', {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
-    }).format(value);
-  };
+    }).format(value)
+  }
 
   // 货币格式化
   const formatCurrency = (value: number, currency = 'CNY', decimals = 2): string => {
@@ -551,8 +560,8 @@ export function useFormat() {
       currency,
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
-    }).format(value);
-  };
+    }).format(value)
+  }
 
   // 百分比格式化
   const formatPercent = (value: number, decimals = 0): string => {
@@ -560,34 +569,35 @@ export function useFormat() {
       style: 'percent',
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
-    }).format(value);
-  };
+    }).format(value)
+  }
 
   // 文件大小格式化
   const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+    if (bytes === 0)
+      return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`
+  }
 
   // 日期格式化
   const formatDate = (date: Date | string | number, format: 'short' | 'medium' | 'long' | 'time' = 'medium'): string => {
-    const d = new Date(date);
+    const d = new Date(date)
     const options: Record<string, Intl.DateTimeFormatOptions> = {
       short: { year: 'numeric', month: '2-digit', day: '2-digit' },
       medium: { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' },
       long: { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' },
       time: { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false },
-    };
-    return new Intl.DateTimeFormat('zh-CN', options[format]).format(d);
-  };
+    }
+    return new Intl.DateTimeFormat('zh-CN', options[format]).format(d)
+  }
 
   // 相对时间
   const relative = (date: Date | string | number): string => {
-    return relativeTime(date);
-  };
+    return relativeTime(date)
+  }
 
   return {
     relativeTime,
@@ -597,7 +607,7 @@ export function useFormat() {
     formatFileSize,
     formatDate,
     relative,
-  };
+  }
 }
 ```
 
@@ -755,7 +765,7 @@ export default {
   loginFailed: '登录失败',
   welcome: '欢迎使用',
   welcomeBack: '欢迎回来',
-};
+}
 ```
 
 ---
@@ -765,42 +775,51 @@ export default {
 ```vue
 <!-- 组件中使用 -->
 <script setup lang="ts">
-import { useI18n, useFormat, useLocale } from '@/locales';
+import { useFormat, useI18n, useLocale } from '@/locales'
 
-const { t, tc, locale, changeLocale } = useI18n();
-const { formatCurrency, formatDate, relativeTime } = useFormat();
-const { locale: currentLocale, changeLocale: switchLang } = useLocale();
+const { t, tc, locale, changeLocale } = useI18n()
+const { formatCurrency, formatDate, relativeTime } = useFormat()
+const { locale: currentLocale, changeLocale: switchLang } = useLocale()
 
 // 插值
-const userName = '张三';
-const welcomeMsg = t('auth.welcomeBack', { name: userName }); // "欢迎回来，张三"
+const userName = '张三'
+const welcomeMsg = t('auth.welcomeBack', { name: userName }) // "欢迎回来，张三"
 
 // 复数
-const itemCount = 5;
-const itemMsg = tc('common.itemCount', itemCount); // "5 项"
+const itemCount = 5
+const itemMsg = tc('common.itemCount', itemCount) // "5 项"
 
 // 日期格式化
-const now = new Date();
-const formatted = formatDate(now, 'medium'); // "2026/08/01 14:30"
+const now = new Date()
+const formatted = formatDate(now, 'medium') // "2026/08/01 14:30"
 
 // 相对时间
-const relative = relativeTime(Date.now() - 3600000); // "1小时前"
+const relative = relativeTime(Date.now() - 3600000) // "1小时前"
 
 // 货币格式化
-const price = formatCurrency(1234.56); // "¥1,234.56"
+const price = formatCurrency(1234.56) // "¥1,234.56"
 
 // 切换语言
-const handleLangChange = async (lang: string) => {
-  await switchLang(lang);
-};
+async function handleLangChange(lang: string) {
+  await switchLang(lang)
+}
 </script>
 
 <template>
   <div>
-    <el-select v-model="locale" @change="handleLangChange" placeholder="选择语言">
-      <el-option v-for="lang in supportedLocales" :key="lang.code" :label="lang.name" :value="lang.code" />
+    <el-select
+      v-model="locale"
+      placeholder="选择语言"
+      @change="handleLangChange"
+    >
+      <el-option
+        v-for="lang in supportedLocales"
+        :key="lang.code"
+        :label="lang.name"
+        :value="lang.code"
+      />
     </el-select>
-    
+
     <p>{{ t('common.welcome') }}</p>
     <p>{{ t('auth.welcomeBack', { name: userName }) }}</p>
     <p>{{ tc('common.itemCount', itemCount) }}</p>
@@ -817,7 +836,7 @@ const handleLangChange = async (lang: string) => {
 
 ```typescript
 // vite.config.ts
-import VueI18nPlugin from '@intlify/unplugin-vue-i18n/vite';
+import VueI18nPlugin from '@intlify/unplugin-vue-i18n/vite'
 
 export default defineConfig({
   plugins: [
@@ -834,7 +853,7 @@ export default defineConfig({
       forceStringify: true,
     }),
   ],
-});
+})
 ```
 
 ---
@@ -857,6 +876,6 @@ pnpm run test:unit
 
 ---
 
-*文档版本：v1.0*  
-*最后更新：2026-08-01*  
+*文档版本：v1.0*
+*最后更新：2026-08-01*
 *状态：🟢 已定稿，强制执行*

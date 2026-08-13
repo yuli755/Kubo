@@ -1,8 +1,8 @@
 # 数据库迁移策略文档
 
-> **版本**：v1.0  
-> **状态**：🟢 已定稿，强制执行  
-> **适用范围**：Kubo 平台全量数据迁移 (单体 → 微服务分库分表)  
+> **版本**：v1.0
+> **状态**：🟢 已定稿，强制执行
+> **适用范围**：Kubo 平台全量数据迁移 (单体 → 微服务分库分表)
 > **迁移目标**：零停机、零数据丢失、可回滚、可验证
 
 ---
@@ -59,7 +59,7 @@ public class DualWriteAspect {
 
     @Autowired
     private OldRepository oldRepository;
-    
+
     @Autowired
     private NewRepository newRepository;
 
@@ -67,7 +67,7 @@ public class DualWriteAspect {
     public Object dualWrite(ProceedingJoinPoint pjp) throws Throwable {
         // 1. 执行旧库操作
         Object result = pjp.proceed();
-        
+
         // 2. 异步写入新库 (不阻塞主流程)
         CompletableFuture.runAsync(() -> {
             try {
@@ -78,7 +78,7 @@ public class DualWriteAspect {
                 dualWriteFailureQueue.offer(new DualWriteFailure(pjp, result, e));
             }
         });
-        
+
         return result;
     }
 }
@@ -101,7 +101,7 @@ public class DualWriteAspect {
 sharding:
   tables:
     inventory_flow:
-      actualDataNodes: ds_${0..15}.inventory_flow_${0..11}  # 16库 x 12个月分表
+      actualDataNodes: ds_${0..15}.inventory_flow_${0..11} # 16库 x 12个月分表
       tableStrategy:
         standard:
           shardingColumn: warehouse_id
@@ -112,7 +112,7 @@ sharding:
       keyGenerateStrategy:
         column: id
         keyGeneratorClassName: cn.kubo.common.sharding.SnowflakeKeyGenerator
-    
+
     stock_qty:
       actualDataNodes: ds_${0..15}.stock_qty
       tableStrategy:
@@ -194,7 +194,7 @@ sharding:
 ```java
 @Component
 public class DataConsistencyChecker {
-    
+
     @Scheduled(cron = "0 0 * * * ?") // 每小时
     public void hourlyFullCheck() {
         List<String> tables = getShardedTables();
@@ -207,23 +207,23 @@ public class DataConsistencyChecker {
             }
         }
     }
-    
+
     private CheckResult checkTable(String table) {
         // 1. 行数对比
         long oldCount = oldJdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Long.class);
         long newCount = newJdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Long.class);
-        
+
         // 2. 校验和对比 (业务关键字段)
         String checksumSql = buildChecksumSql(table);
         String oldChecksum = oldJdbcTemplate.queryForObject(checksumSql, String.class);
         String newChecksum = newJdbcTemplate.queryForObject(checksumSql, String.class);
-        
+
         // 3. 抽样明细对比
         List<Map<String, Object>> oldSample = oldJdbcTemplate.queryForList(
             "SELECT * FROM " + table + " ORDER BY RAND() LIMIT 1000");
         List<Map<String, Object>> newSample = newJdbcTemplate.queryForList(
             "SELECT * FROM " + table + " ORDER BY RAND() LIMIT 1000");
-        
+
         return CheckResult.builder()
             .tableName(table)
             .rowCountMatch(oldCount == newCount)
@@ -299,6 +299,6 @@ send_alert "ROLLBACK_EXECUTED" "已回滚至旧架构，原因: $REASON"
 
 ---
 
-*文档版本：v1.0*  
-*最后更新：2026-08-01*  
+*文档版本：v1.0*
+*最后更新：2026-08-01*
 *状态：🟢 已定稿，强制执行*

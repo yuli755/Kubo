@@ -1,8 +1,8 @@
 # Kubo Platform Code Style Guide
 
-> **Version**: 1.0  
-> **Status**: 🟢 Active  
-> **Last Updated**: 2026-08-02  
+> **Version**: 1.0
+> **Status**: 🟢 Active
+> **Last Updated**: 2026-08-02
 > **Enforcement**: CI Gate (Checkstyle / Spotless / ESLint)
 
 ---
@@ -86,7 +86,7 @@
 public class InventoryEntity extends BaseEntity<InventoryEntity> {
 
     // 3. 字段顺序: ID -> 业务主键 -> 关联对象 -> 基础属性 -> 状态/审计字段
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Schema(description = "主键 ID")
@@ -294,7 +294,7 @@ const { check: hasPermission } = usePermission()
 const { data: pageData, loading, refetch } = useInventoryList(query)
 
 // 6. 计算属性
-const isLowStock = computed(() => (entity: InventoryEntity) => 
+const isLowStock = computed(() => (entity: InventoryEntity) =>
   entity.availableQty !== null && entity.availableQty.lt(entity.warningThreshold))
 
 // 7. 方法
@@ -374,9 +374,9 @@ onMounted(() => {
 // src/api/generated/inventory.ts (自动生成，勿手动修改)
 // 手动封装业务逻辑放在 src/api/business/inventory.ts
 
+import type { InventoryDeductCmd, InventoryEntity, InventoryQuery } from '@/api/generated'
 // src/api/business/inventory.ts
 import { inventoryApi } from '@/api/generated'
-import type { InventoryEntity, InventoryQuery, InventoryDeductCmd } from '@/api/generated'
 
 export const inventoryBusinessApi = {
   // 分页查询 (自动缓存 30s)
@@ -434,21 +434,21 @@ CREATE TABLE inventories (
     warehouse_id BIGINT UNSIGNED NOT NULL COMMENT '仓库 ID',
     material_id BIGINT UNSIGNED NOT NULL COMMENT '物料 ID',
     location_id BIGINT UNSIGNED DEFAULT NULL COMMENT '货位 ID',
-    
+
     available_qty DECIMAL(20,6) UNSIGNED NOT NULL DEFAULT 0 COMMENT '可用数量',
     locked_qty DECIMAL(20,6) UNSIGNED NOT NULL DEFAULT 0 COMMENT '锁定数量',
     frozen_qty DECIMAL(20,6) UNSIGNED NOT NULL DEFAULT 0 COMMENT '冻结数量',
     warning_threshold DECIMAL(20,6) UNSIGNED DEFAULT NULL COMMENT '预警阈值',
-    
+
     is_frozen BIT(1) NOT NULL DEFAULT 0 COMMENT '是否冻结',
     version INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '乐观锁版本',
-    
+
     created_by BIGINT UNSIGNED NOT NULL COMMENT '创建人',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_by BIGINT UNSIGNED NOT NULL COMMENT '更新人',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     is_deleted BIT(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除',
-    
+
     PRIMARY KEY (id),
     UNIQUE KEY uk_tenant_warehouse_material (tenant_id, warehouse_id, material_id),
     INDEX idx_warehouse_material (warehouse_id, material_id),
@@ -470,7 +470,7 @@ CREATE TABLE inventory_flows (
     reference_id BIGINT UNSIGNED DEFAULT NULL,
     operator_id BIGINT UNSIGNED NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
+
     PRIMARY KEY (id, created_at),
     INDEX idx_warehouse_material_time (warehouse_id, material_id, created_at),
     INDEX idx_reference (reference_type, reference_id)
@@ -498,7 +498,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
-        with: { java-version: '17', distribution: 'temurin' }
+        with: {java-version: '17', distribution: temurin}
       - run: ./mvnw spotless:check checkstyle:check -q
 
   frontend-style:
@@ -506,9 +506,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v2
-        with: { version: 9 }
+        with: {version: 9}
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: 'pnpm' }
+        with: {node-version: 20, cache: pnpm}
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
 
@@ -517,7 +517,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: sqlfluff-action@v1
-        with: { args: 'lint --dialect mysql' }
+        with: {args: lint --dialect mysql}
 ```
 
 ---
@@ -529,7 +529,7 @@ jobs:
 
 ## Backend
 - [ ] Spotless 格式检查通过
-- [ ] Checkstyle 检查通过  
+- [ ] Checkstyle 检查通过
 - [ ] 单元测试覆盖率 > 80% (核心 > 95%)
 - [ ] 无 Checkstyle/Spotless/Sonar 新增警告
 - [ ] 无硬编码字符串 (除常量类)
@@ -552,5 +552,5 @@ jobs:
 
 ---
 
-*Last Updated: 2026-08-02*  
+*Last Updated: 2026-08-02*
 *Enforcement: CI Gate Required*

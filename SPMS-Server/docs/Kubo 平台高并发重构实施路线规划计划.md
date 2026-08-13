@@ -1,9 +1,9 @@
 # Kubo 平台高并发重构实施路线规划计划
 
-> **文档版本**：v1.2  
-> **适用项目**：Kubo 智能生产管理系统 (原 SPMS)  
-> **目标规模**：10,000+ 并发用户、7×24 小时生产环境、多工厂多租户  
-> **核心技术栈**：Spring Cloud Alibaba (Nacos/Dubbo 3) + **MyBatis-Plus + 分页插件** + **RabbitMQ** + **MySQL 8.0 (InnoDB Cluster) + Redis Cluster** + Kubernetes + GitOps  
+> **文档版本**：v1.2
+> **适用项目**：Kubo 智能生产管理系统 (原 SPMS)
+> **目标规模**：10,000+ 并发用户、7×24 小时生产环境、多工厂多租户
+> **核心技术栈**：Spring Cloud Alibaba (Nacos/Dubbo 3) + **MyBatis-Plus + 分页插件** + **RabbitMQ** + **MySQL 8.0 (InnoDB Cluster) + Redis Cluster** + Kubernetes + GitOps
 > **服务命名规范**：`kubo-{domain}` (如 `kubo-wms`, `kubo-mes`, `kubo-auth`)
 
 ---
@@ -137,7 +137,7 @@ spring:
   rabbitmq:
     listener:
       simple:
-        concurrency: 16  # 与分片数一致
+        concurrency: 16 # 与分片数一致
         prefetch: 100
 ```
 ```java
@@ -155,10 +155,10 @@ rabbitTemplate.convertAndSend("kubo.wms.stock.deduct", "shard." + (warehouseId %
 class RabbitDelayConfig {
     @Bean
     Exchange delayExchange() { return ExchangeBuilder.topicExchange("kubo.delay.exchange").durable(true).build(); }
-    
+
     @Bean
     Exchange deadLetterExchange() { return ExchangeBuilder.topicExchange("kubo.dlx.exchange").durable(true).build(); }
-    
+
     @Bean
     Queue orderTimeoutQueue() {
         return QueueBuilder.durable("kubo.order.timeout.queue")
@@ -166,7 +166,7 @@ class RabbitDelayConfig {
             .withArgument("x-dead-letter-routing-key", "order.timeout.execute")
             .build();
     }
-    
+
     @Bean
     Binding delayBinding() {
         return BindingBuilder.bind(orderTimeoutQueue()).to(delayExchange()).with("order.timeout.#").noargs();
@@ -174,7 +174,7 @@ class RabbitDelayConfig {
 }
 
 // 2. 发送延时消息 (TTL = 延时时长)
-rabbitTemplate.convertAndSend("kubo.delay.exchange", "order.timeout." + orderNo, 
+rabbitTemplate.convertAndSend("kubo.delay.exchange", "order.timeout." + orderNo,
     msg, m -> { m.getMessageProperties().setExpiration(String.valueOf(delayMs)); return m; });
 
 // 3. 消费者监听死信队列执行真正逻辑
@@ -393,6 +393,6 @@ kubo-platform/ (Monorepo 推荐，或多仓库)
 
 ---
 
-**文档状态**：**已定稿，可执行**  
-**核心决策**：✅ **MyBatis-Plus + 分页插件** ✅ **RabbitMQ (集群模式 + 本地消息表补偿事务 + 分片顺序 + DLX延时)** ✅ **MySQL 8.0 InnoDB Cluster (主力 OLTP) + Redis Cluster (多级缓存)** ✅ **kubo-{domain} 命名**  
+**文档状态**：**已定稿，可执行**
+**核心决策**：✅ **MyBatis-Plus + 分页插件** ✅ **RabbitMQ (集群模式 + 本地消息表补偿事务 + 分片顺序 + DLX延时)** ✅ **MySQL 8.0 InnoDB Cluster (主力 OLTP) + Redis Cluster (多级缓存)** ✅ **kubo-{domain} 命名**
 **下一步行动**：**第 1 周启动会** → 分配任务 → 搭建 `kubo-infra` 基建 → 发布 `kubo-parent` & `kubo-common` 快照版 → **第 2 周末跑通「钢丝」链路 (含 RabbitMQ 可靠投递模式验证)**。

@@ -1,346 +1,346 @@
 groups:
-- name: kubo-platform-critical
-  interval: 30s
-  rules:
-  # 实例级告警
-  - alert: InstanceDown
-    expr: up{job=~"kubernetes-pods|spring-boot-actuator"} == 0
-    for: 1m
-    labels:
-      severity: critical
-      team: platform
-    annotations:
-      summary: "实例 {{ $labels.pod }} 停止运行"
-      description: "{{ $labels.pod }} 在 {{ $labels.namespace }} 命名空间下已停止超过 1 分钟"
-      runbook_url: "https://wiki.kubo.example.com/runbooks/instance-down"
+  - name: kubo-platform-critical
+    interval: 30s
+    rules:
+      # 实例级告警
+      - alert: InstanceDown
+        expr: up{job=~"kubernetes-pods|spring-boot-actuator"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: '实例 {{ $labels.pod }} 停止运行'
+          description: '{{ $labels.pod }} 在 {{ $labels.namespace }} 命名空间下已停止超过 1 分钟'
+          runbook_url: 'https://wiki.kubo.example.com/runbooks/instance-down'
 
-  - alert: TargetDown
-    expr: up == 0
-    for: 1m
-    labels:
-      severity: critical
-      team: platform
-    annotations:
-      summary: "监控目标 {{ $labels.job }} / {{ $labels.instance }} 停止响应"
-      description: "监控目标 {{ $labels.job }} / {{ $labels.instance }} 已停止响应超过 1 分钟"
+      - alert: TargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: '监控目标 {{ $labels.job }} / {{ $labels.instance }} 停止响应'
+          description: '监控目标 {{ $labels.job }} / {{ $labels.instance }} 已停止响应超过 1 分钟'
 
-  # JVM 级告警
-  - alert: JVMMemoryHigh
-    expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.85
-    for: 5m
-    labels:
-      severity: warning
-      team: platform
-    annotations:
-      summary: "JVM 堆内存使用率过高"
-      description: "{{ $labels.pod }} 堆内存使用率 {{ $value | humanizePercentage }}，超过 85%"
-      runbook_url: "https://wiki.kubo.example.com/runbooks/jvm-memory-high"
+      # JVM 级告警
+      - alert: JVMMemoryHigh
+        expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: JVM 堆内存使用率过高
+          description: '{{ $labels.pod }} 堆内存使用率 {{ $value | humanizePercentage }}，超过 85%'
+          runbook_url: 'https://wiki.kubo.example.com/runbooks/jvm-memory-high'
 
-  - alert: JVMMemoryCritical
-    expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.95
-    for: 2m
-    labels:
-      severity: critical
-      team: platform
-    annotations:
-      summary: "JVM 堆内存使用率严重过高"
-      description: "{{ $labels.pod }} 堆内存使用率 {{ $value | humanizePercentage }}，超过 95%，即将 OOM"
-      runbook_url: "https://wiki.kubo.example.com/runbooks/jvm-oom"
+      - alert: JVMMemoryCritical
+        expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: JVM 堆内存使用率严重过高
+          description: '{{ $labels.pod }} 堆内存使用率 {{ $value | humanizePercentage }}，超过 95%，即将 OOM'
+          runbook_url: 'https://wiki.kubo.example.com/runbooks/jvm-oom'
 
-  - alert: JVMNonHeapMemoryHigh
-    expr: (jvm_memory_used_bytes{area="nonheap"} / jvm_memory_max_bytes{area="nonheap"}) > 0.9
-    for: 5m
-    labels:
-      severity: warning
-      team: platform
-    annotations:
-      summary: "JVM 非堆内存使用率过高"
-      description: "{{ $labels.pod }} 非堆内存使用率 {{ $value | humanizePercentage }}"
+      - alert: JVMNonHeapMemoryHigh
+        expr: (jvm_memory_used_bytes{area="nonheap"} / jvm_memory_max_bytes{area="nonheap"}) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: JVM 非堆内存使用率过高
+          description: '{{ $labels.pod }} 非堆内存使用率 {{ $value | humanizePercentage }}'
 
-  - alert: JVMGCPressure
-    expr: rate(jvm_gc_pause_seconds_sum[5m]) / rate(jvm_gc_pause_seconds_count[5m]) > 0.1
-    for: 5m
-    labels:
-      severity: warning
-      team: platform
-    annotations:
-      summary: "JVM GC 压力过大"
-      description: "{{ $labels.pod }} 平均 GC 暂停时间过长，可能存在内存泄漏或堆过小"
+      - alert: JVMGCPressure
+        expr: rate(jvm_gc_pause_seconds_sum[5m]) / rate(jvm_gc_pause_seconds_count[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: JVM GC 压力过大
+          description: '{{ $labels.pod }} 平均 GC 暂停时间过长，可能存在内存泄漏或堆过小'
 
-  - alert: JVMGCFrequent
-    expr: rate(jvm_gc_pause_seconds_count[5m]) > 10
-    for: 5m
-    labels:
-      severity: warning
-      team: platform
-    annotations:
-      summary: "JVM GC 过于频繁"
-      description: "{{ $labels.pod }} GC 频率过高，每秒超过 10 次"
+      - alert: JVMGCFrequent
+        expr: rate(jvm_gc_pause_seconds_count[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: JVM GC 过于频繁
+          description: '{{ $labels.pod }} GC 频率过高，每秒超过 10 次'
 
-  - alert: JVMThreadCountHigh
-    expr: jvm_threads_live > 500
-    for: 5m
-    labels:
-      severity: warning
-      team: platform
-    annotations:
-      summary: "JVM 线程数过高"
-      description: "{{ $labels.pod }} 存活线程数 {{ $value }}，超过 500，可能存在线程泄漏"
+      - alert: JVMThreadCountHigh
+        expr: jvm_threads_live > 500
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: JVM 线程数过高
+          description: '{{ $labels.pod }} 存活线程数 {{ $value }}，超过 500，可能存在线程泄漏'
 
-  # 业务 API 级告警
-  - alert: APIHighErrorRate
-    expr: sum(rate(http_server_requests_seconds_count{status=~"5.."}[1m])) by (service) / sum(rate(http_server_requests_seconds_count[1m])) by (service) > 0.05
-    for: 2m
-    labels:
-      severity: critical
-      team: backend
-    annotations:
-      summary: "{{ $labels.service }} 错误率超过 5%"
-      description: "{{ $labels.service }} 5xx 错误率 {{ $value | humanizePercentage }}，持续超过 2 分钟"
+      # 业务 API 级告警
+      - alert: APIHighErrorRate
+        expr: sum(rate(http_server_requests_seconds_count{status=~"5.."}[1m])) by (service) / sum(rate(http_server_requests_seconds_count[1m])) by (service) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: '{{ $labels.service }} 错误率超过 5%'
+          description: '{{ $labels.service }} 5xx 错误率 {{ $value | humanizePercentage }}，持续超过 2 分钟'
 
-  - alert: APIHighLatency
-    expr: histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, service)) > 2
-    for: 3m
-    labels:
-      severity: warning
-      team: backend
-    annotations:
-      summary: "{{ $labels.service }} P99 延迟超过 2s"
-      description: "{{ $labels.service }} P99 延迟 {{ $value | humanizeDuration }}，持续超过 3 分钟"
+      - alert: APIHighLatency
+        expr: histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, service)) > 2
+        for: 3m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: '{{ $labels.service }} P99 延迟超过 2s'
+          description: '{{ $labels.service }} P99 延迟 {{ $value | humanizeDuration }}，持续超过 3 分钟'
 
-  - alert: APIVeryHighLatency
-    expr: histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, service)) > 5
-    for: 2m
-    labels:
-      severity: critical
-      team: backend
-    annotations:
-      summary: "{{ $labels.service }} P99 延迟严重超标"
-      description: "{{ $labels.service }} P99 延迟 {{ $value | humanizeDuration }}，超过 5 秒"
+      - alert: APIVeryHighLatency
+        expr: histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, service)) > 5
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: '{{ $labels.service }} P99 延迟严重超标'
+          description: '{{ $labels.service }} P99 延迟 {{ $value | humanizeDuration }}，超过 5 秒'
 
-  - alert: APIHighQPSDrop
-    expr: (rate(http_server_requests_seconds_count[5m]) / rate(http_server_requests_seconds_count[5m] offset 10m)) < 0.5
-    for: 5m
-    labels:
-      severity: warning
-      team: backend
-    annotations:
-      summary: "{{ $labels.service }} QPS 突然下降"
-      description: "{{ $labels.service }} QPS 相比 10 分钟前下降超过 50%"
+      - alert: APIHighQPSDrop
+        expr: (rate(http_server_requests_seconds_count[5m]) / rate(http_server_requests_seconds_count[5m] offset 10m)) < 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: '{{ $labels.service }} QPS 突然下降'
+          description: '{{ $labels.service }} QPS 相比 10 分钟前下降超过 50%'
 
-  # MQ 级告警
-  - alert: RabbitMQQueueBacklog
-    expr: rabbitmq_queue_messages_ready > 10000
-    for: 5m
-    labels:
-      severity: warning
-      team: platform
-    annotations:
-      summary: "RabbitMQ 队列 {{ $labels.queue }} 堆积"
-      description: "队列 {{ $labels.queue }} 消息堆积 {{ $value }} 条，消费速度跟不上生产速度"
+      # MQ 级告警
+      - alert: RabbitMQQueueBacklog
+        expr: rabbitmq_queue_messages_ready > 10000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: 'RabbitMQ 队列 {{ $labels.queue }} 堆积'
+          description: '队列 {{ $labels.queue }} 消息堆积 {{ $value }} 条，消费速度跟不上生产速度'
 
-  - alert: RabbitMQQueueCriticalBacklog
-    expr: rabbitmq_queue_messages_ready > 50000
-    for: 2m
-    labels:
-      severity: critical
-      team: platform
-    annotations:
-      summary: "RabbitMQ 队列严重堆积"
-      description: "队列 {{ $labels.queue }} 消息堆积 {{ $value }} 条，严重阻塞"
+      - alert: RabbitMQQueueCriticalBacklog
+        expr: rabbitmq_queue_messages_ready > 50000
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: RabbitMQ 队列严重堆积
+          description: '队列 {{ $labels.queue }} 消息堆积 {{ $value }} 条，严重阻塞'
 
-  - alert: RabbitMQConsumerDown
-    expr: rabbitmq_queue_consumers == 0
-    for: 1m
-    labels:
-      severity: critical
-      team: platform
-    annotations:
-      summary: "RabbitMQ 队列无消费者"
-      description: "队列 {{ $labels.queue }} 没有消费者，消息将无法被处理"
+      - alert: RabbitMQConsumerDown
+        expr: rabbitmq_queue_consumers == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: RabbitMQ 队列无消费者
+          description: '队列 {{ $labels.queue }} 没有消费者，消息将无法被处理'
 
-  - alert: RabbitMQConnectionHigh
-    expr: rabbitmq_connections > 1000
-    for: 5m
-    labels:
-      severity: warning
-      team: platform
-    annotations:
-      summary: "RabbitMQ 连接数过高"
-      description: "RabbitMQ 连接数 {{ $value }}，超过 1000，可能存在连接泄漏"
+      - alert: RabbitMQConnectionHigh
+        expr: rabbitmq_connections > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: RabbitMQ 连接数过高
+          description: 'RabbitMQ 连接数 {{ $value }}，超过 1000，可能存在连接泄漏'
 
-  # 数据库级告警
-  - alert: MySQLConnectionsHigh
-    expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections > 0.8
-    for: 5m
-    labels:
-      severity: warning
-      team: dba
-    annotations:
-      summary: "MySQL 连接数使用率超过 80%"
-      description: "MySQL 连接数使用率 {{ $value | humanizePercentage }}，接近上限"
+      # 数据库级告警
+      - alert: MySQLConnectionsHigh
+        expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: dba
+        annotations:
+          summary: 'MySQL 连接数使用率超过 80%'
+          description: 'MySQL 连接数使用率 {{ $value | humanizePercentage }}，接近上限'
 
-  - alert: MySQLConnectionsCritical
-    expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections > 0.95
-    for: 2m
-    labels:
-      severity: critical
-      team: dba
-    annotations:
-      summary: "MySQL 连接数即将耗尽"
-      description: "MySQL 连接数使用率 {{ $value | humanizePercentage }}，即将耗尽"
+      - alert: MySQLConnectionsCritical
+        expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: dba
+        annotations:
+          summary: MySQL 连接数即将耗尽
+          description: 'MySQL 连接数使用率 {{ $value | humanizePercentage }}，即将耗尽'
 
-  - alert: MySQLSlowQueriesHigh
-    expr: rate(mysql_global_status_slow_queries[5m]) > 10
-    for: 5m
-    labels:
-      severity: warning
-      team: dba
-    annotations:
-      summary: "MySQL 慢查询过多"
-      description: "MySQL 慢查询每秒超过 10 条，需要优化"
+      - alert: MySQLSlowQueriesHigh
+        expr: rate(mysql_global_status_slow_queries[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: dba
+        annotations:
+          summary: MySQL 慢查询过多
+          description: MySQL 慢查询每秒超过 10 条，需要优化
 
-  - alert: MySQLReplicationLag
-    expr: mysql_slave_status_seconds_behind_master > 30
-    for: 5m
-    labels:
-      severity: warning
-      team: dba
-    annotations:
-      summary: "MySQL 主从复制延迟"
-      description: "MySQL 从库复制延迟 {{ $value }} 秒，超过 30 秒"
+      - alert: MySQLReplicationLag
+        expr: mysql_slave_status_seconds_behind_master > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: dba
+        annotations:
+          summary: MySQL 主从复制延迟
+          description: 'MySQL 从库复制延迟 {{ $value }} 秒，超过 30 秒'
 
-  # 缓存级告警
-  - alert: RedisMemoryHigh
-    expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.85
-    for: 5m
-    labels:
-      severity: warning
-      team: platform
-    annotations:
-      summary: "Redis 内存使用率超过 85%"
-      description: "Redis 内存使用率 {{ $value | humanizePercentage }}"
+      # 缓存级告警
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: 'Redis 内存使用率超过 85%'
+          description: 'Redis 内存使用率 {{ $value | humanizePercentage }}'
 
-  - alert: RedisMemoryCritical
-    expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.95
-    for: 2m
-    labels:
-      severity: critical
-      team: platform
-    annotations:
-      summary: "Redis 内存即将耗尽"
-      description: "Redis 内存使用率 {{ $value | humanizePercentage }}，即将触发淘汰策略"
+      - alert: RedisMemoryCritical
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: Redis 内存即将耗尽
+          description: 'Redis 内存使用率 {{ $value | humanizePercentage }}，即将触发淘汰策略'
 
-  - alert: RedisHitRateLow
-    expr: (redis_keyspace_hits_total / (redis_keyspace_hits_total + redis_keyspace_misses_total)) < 0.8
-    for: 10m
-    labels:
-      severity: warning
-      team: platform
-    annotations:
-      summary: "Redis 命中率过低"
-      description: "Redis 缓存命中率 {{ $value | humanizePercentage }}，低于 80%"
+      - alert: RedisHitRateLow
+        expr: (redis_keyspace_hits_total / (redis_keyspace_hits_total + redis_keyspace_misses_total)) < 0.8
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: Redis 命中率过低
+          description: 'Redis 缓存命中率 {{ $value | humanizePercentage }}，低于 80%'
 
-  - alert: RedisConnectionsHigh
-    expr: redis_connected_clients / redis_config_maxclients > 0.8
-    for: 5m
-    labels:
-      severity: warning
-      team: platform
-    annotations:
-      summary: "Redis 连接数使用率超过 80%"
-      description: "Redis 连接数使用率 {{ $value | humanizePercentage }}"
+      - alert: RedisConnectionsHigh
+        expr: redis_connected_clients / redis_config_maxclients > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: 'Redis 连接数使用率超过 80%'
+          description: 'Redis 连接数使用率 {{ $value | humanizePercentage }}'
 
-  # 磁盘/节点级告警
-  - alert: DiskSpaceHigh
-    expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
-    for: 5m
-    labels:
-      severity: warning
-      team: platform
-    annotations:
-      summary: "磁盘空间不足"
-      description: "节点 {{ $labels.instance }} 根分区剩余空间不足 15%"
+      # 磁盘/节点级告警
+      - alert: DiskSpaceHigh
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: 磁盘空间不足
+          description: '节点 {{ $labels.instance }} 根分区剩余空间不足 15%'
 
-  - alert: DiskSpaceCritical
-    expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.05
-    for: 1m
-    labels:
-      severity: critical
-      team: platform
-    annotations:
-      summary: "磁盘空间严重不足"
-      description: "节点 {{ $labels.instance }} 根分区剩余空间不足 5%，即将写入失败"
+      - alert: DiskSpaceCritical
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.05
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: 磁盘空间严重不足
+          description: '节点 {{ $labels.instance }} 根分区剩余空间不足 5%，即将写入失败'
 
-  - alert: CPUHighLoad
-    expr: (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 0.85
-    for: 5m
-    labels:
-      severity: warning
-      team: platform
-    annotations:
-      summary: "CPU 负载过高"
-      description: "节点 {{ $labels.instance }} CPU 使用率 {{ $value | humanizePercentage }}"
+      - alert: CPUHighLoad
+        expr: (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: CPU 负载过高
+          description: '节点 {{ $labels.instance }} CPU 使用率 {{ $value | humanizePercentage }}'
 
-  # WebSocket 告警
-  - alert: WebSocketReconnectStorm
-    expr: rate(ws_reconnect_total[5m]) > 20
-    for: 2m
-    labels:
-      severity: critical
-      team: platform
-    annotations:
-      summary: "WebSocket 重连风暴"
-      description: "WebSocket 重连率每分钟超过 20 次，可能存在网络问题或服务端异常"
+      # WebSocket 告警
+      - alert: WebSocketReconnectStorm
+        expr: rate(ws_reconnect_total[5m]) > 20
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: WebSocket 重连风暴
+          description: WebSocket 重连率每分钟超过 20 次，可能存在网络问题或服务端异常
 
-  - alert: WebSocketHighLatency
-    expr: histogram_quantile(0.99, rate(ws_message_latency_seconds_bucket[5m])) > 1
-    for: 3m
-    labels:
-      severity: warning
-      team: platform
-    annotations:
-      summary: "WebSocket 消息延迟过高"
-      description: "WebSocket 消息 P99 延迟 {{ $value | humanizeDuration }}"
+      - alert: WebSocketHighLatency
+        expr: histogram_quantile(0.99, rate(ws_message_latency_seconds_bucket[5m])) > 1
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: WebSocket 消息延迟过高
+          description: 'WebSocket 消息 P99 延迟 {{ $value | humanizeDuration }}'
 
-  # 业务级告警
-  - alert: InventoryStockout
-    expr: inventory_stock_quantity < inventory_stock_warning_threshold
-    for: 1m
-    labels:
-      severity: warning
-      team: wms
-    annotations:
-      summary: "库存预警"
-      description: "物料 {{ $labels.material_code }} 库存 {{ $value }} 低于预警阈值 {{ $labels.warning_threshold }}"
+      # 业务级告警
+      - alert: InventoryStockout
+        expr: inventory_stock_quantity < inventory_stock_warning_threshold
+        for: 1m
+        labels:
+          severity: warning
+          team: wms
+        annotations:
+          summary: 库存预警
+          description: '物料 {{ $labels.material_code }} 库存 {{ $value }} 低于预警阈值 {{ $labels.warning_threshold }}'
 
-  - alert: OrderProcessingStuck
-    expr: order_processing_duration_seconds > 300
-    for: 5m
-    labels:
-      severity: warning
-      team: mes
-    annotations:
-      summary: "工单处理卡顿"
-      description: "工单 {{ $labels.work_order_id }} 处理耗时 {{ $value }} 秒，超过 5 分钟"
+      - alert: OrderProcessingStuck
+        expr: order_processing_duration_seconds > 300
+        for: 5m
+        labels:
+          severity: warning
+          team: mes
+        annotations:
+          summary: 工单处理卡顿
+          description: '工单 {{ $labels.work_order_id }} 处理耗时 {{ $value }} 秒，超过 5 分钟'
 
-  # 安全告警
-  - alert: HighFailedLoginAttempts
-    expr: rate(auth_login_failed_total[5m]) > 10
-    for: 2m
-    labels:
-      severity: warning
-      team: security
-    annotations:
-      summary: "登录失败次数异常"
-      description: "登录失败率每分钟超过 10 次，可能存在暴力破解"
+      # 安全告警
+      - alert: HighFailedLoginAttempts
+        expr: rate(auth_login_failed_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: 登录失败次数异常
+          description: 登录失败率每分钟超过 10 次，可能存在暴力破解
 
-  - alert: UnauthorizedAccessAttempts
-    expr: rate(http_server_requests_seconds_count{status="403"}[5m]) > 50
-    for: 5m
-    labels:
-      severity: warning
-      team: security
-    annotations:
-      summary: "非授权访问尝试异常"
-      description: "403 错误每分钟超过 50 次，可能存在恶意探测"
+      - alert: UnauthorizedAccessAttempts
+        expr: rate(http_server_requests_seconds_count{status="403"}[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: 非授权访问尝试异常
+          description: 403 错误每分钟超过 50 次，可能存在恶意探测

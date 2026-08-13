@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { IJson, IWebEnum } from '@airpower/web'
+import type { EChartsType } from 'echarts/core'
 import {
   ADialog,
   AEmpty,
@@ -11,7 +12,6 @@ import {
   WebColor,
 } from '@airpower/web'
 import { ArrowDown, Clock } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
 import { computed, onMounted, ref } from 'vue'
 import { AlarmStatusEnum } from '@/model/asset/device/AlarmStatusEnum'
 import { DeviceReportDuration } from '@/model/asset/device/DeviceReportDuration'
@@ -282,7 +282,7 @@ function handleCommand(cmd: string) {
   validDateTimeRange()
 }
 
-let myChart: echarts.ECharts
+let myChart: EChartsType
 
 function initLine() {
   const option = {
@@ -320,16 +320,23 @@ function initLine() {
           color: 'rgb(1, 191, 236)',
         },
         areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            {
-              offset: 0,
-              color: 'rgb(128, 255, 165)',
-            },
-            {
-              offset: 1,
-              color: 'rgb(1, 191, 236)',
-            },
-          ]),
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              {
+                offset: 0,
+                color: 'rgb(128, 255, 165)',
+              },
+              {
+                offset: 1,
+                color: 'rgb(1, 191, 236)',
+              },
+            ],
+          },
         },
         smooth: true,
         data: collectionList.value.map(item => Number.parseFloat(item.value).toFixed(2)),
@@ -339,12 +346,15 @@ function initLine() {
   myChart.setOption(option)
 }
 
-function loadData() {
+async function loadData() {
   switch (props.param.dataType) {
-    case ParameterTypeEnum.NUMBER.key:
-      myChart = echarts.init(document.getElementById('echart'))
+    case ParameterTypeEnum.NUMBER.key: {
+      // 动态按需加载 ECharts，避免全量打入主包
+      const echarts = await import('@/utils/echarts')
+      myChart = echarts.init(document.getElementById('echart')!)
       initLine()
       break
+    }
     default:
   }
 }
@@ -374,7 +384,10 @@ onMounted(() => {
 
 function onFull() {
   setTimeout(() => {
-    myChart.dispose()
+    // 全屏切换后需重新初始化图表实例（DOM 尺寸变化）
+    if (myChart) {
+      myChart.dispose()
+    }
     loadData()
   }, 500)
 }

@@ -45,12 +45,12 @@ cp src/main/resources/application-template.yml src/main/resources/application-lo
 ```yaml
 spring:
   datasource:
-    url: "jdbc:mysql://localhost:3306/kubo?allowPublicKeyRetrieval=true&serverTimezone=UTC&useUnicode=true&characterEncoding=utf8&useSSL=false"
-    username: "root"
-    password: "your_password"
+    url: 'jdbc:mysql://localhost:3306/kubo?allowPublicKeyRetrieval=true&serverTimezone=UTC&useUnicode=true&characterEncoding=utf8&useSSL=false'
+    username: root
+    password: your_password
   data:
     redis:
-      host: "localhost"
+      host: localhost
       port: 6379
 ```
 

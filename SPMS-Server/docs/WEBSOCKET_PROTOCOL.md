@@ -1,8 +1,8 @@
 # Kubo 平台 WebSocket 协议规范文档
 
-> **版本**：v1.0  
-> **状态**：🟢 已定稿，强制执行  
-> **适用范围**：全平台实时通信 (设备遥测、报警推送、工单流转、协作通知)  
+> **版本**：v1.0
+> **状态**：🟢 已定稿，强制执行
+> **适用范围**：全平台实时通信 (设备遥测、报警推送、工单流转、协作通知)
 > **协议选型**：**STOMP over WebSocket** (基于标准 STOMP 1.2 协议)
 
 ---
@@ -25,7 +25,7 @@
 sequenceDiagram
     participant Client as 前端
     participant Server as 后端
-    
+
     Client->>Server: 1. HTTP Upgrade (WebSocket Handshake)
     Note over Client,Server: Header: Authorization: Bearer <token><br/>Header: X-Tenant-Id: <id>
     Server-->>Client: 101 Switching Protocols
@@ -236,11 +236,11 @@ flowchart TD
 ```typescript
 // 前端实现参考
 function calculateBackoff(attempt: number): number {
-  const baseDelay = 1000; // 1s
-  const maxDelay = 30000; // 30s
-  const delay = Math.min(baseDelay * Math.pow(1.5, attempt), maxDelay);
-  const jitter = Math.random() * 0.3 * delay; // 0-30% 抖动
-  return Math.floor(delay + jitter);
+  const baseDelay = 1000 // 1s
+  const maxDelay = 30000 // 30s
+  const delay = Math.min(baseDelay * 1.5 ** attempt, maxDelay)
+  const jitter = Math.random() * 0.3 * delay // 0-30% 抖动
+  return Math.floor(delay + jitter)
 }
 
 // 尝试次数与延迟对照
@@ -310,30 +310,31 @@ class PriorityMessageQueue {
     [Priority.HIGH, []],
     [Priority.NORMAL, []],
     [Priority.LOW, []],
-  ]);
-  
-  private processing = false;
-  private maxConcurrent = 3; // 并发处理上限
-  
+  ])
+
+  private processing = false
+  private maxConcurrent = 3 // 并发处理上限
+
   enqueue(message: StompMessage) {
-    const priority = this.parsePriority(message.headers);
-    this.queues.get(priority)!.push(message);
-    this.scheduleProcess();
+    const priority = this.parsePriority(message.headers)
+    this.queues.get(priority)!.push(message)
+    this.scheduleProcess()
   }
-  
+
   private async process() {
-    if (this.processing) return;
-    this.processing = true;
-    
+    if (this.processing)
+      return
+    this.processing = true
+
     while (this.hasMessages()) {
-      const msg = this.dequeueHighestPriority();
-      await this.processMessage(msg);
+      const msg = this.dequeueHighestPriority()
+      await this.processMessage(msg)
       // 背压控制：每帧处理不超过 16ms
       if (performance.now() - frameStart > 16) {
-        await nextFrame();
+        await nextFrame()
       }
     }
-    this.processing = false;
+    this.processing = false
   }
 }
 ```
@@ -353,71 +354,71 @@ class PriorityMessageQueue {
 ```typescript
 // 通用消息头
 interface StompHeaders {
-  destination: string;
-  subscription?: string;
-  'message-id': string;
-  timestamp: string;
-  priority?: 'CRITICAL' | 'HIGH' | 'NORMAL' | 'LOW';
-  'content-type': 'application/json';
-  'ack-required'?: 'true' | 'false';
-  'retry-count'?: string;
-  'x-resend'?: 'true';
-  [key: string]: string;
+  'destination': string
+  'subscription'?: string
+  'message-id': string
+  'timestamp': string
+  'priority'?: 'CRITICAL' | 'HIGH' | 'NORMAL' | 'LOW'
+  'content-type': 'application/json'
+  'ack-required'?: 'true' | 'false'
+  'retry-count'?: string
+  'x-resend'?: 'true'
+  [key: string]: string
 }
 
 // 基础消息结构
 interface StompFrame<T = unknown> {
-  command: 'CONNECT' | 'CONNECTED' | 'SUBSCRIBE' | 'UNSUBSCRIBE' 
-    | 'SEND' | 'MESSAGE' | 'ACK' | 'NACK' | 'ERROR' | 'RECEIPT';
-  headers: StompHeaders;
-  body?: T;
+  command: 'CONNECT' | 'CONNECTED' | 'SUBSCRIBE' | 'UNSUBSCRIBE'
+    | 'SEND' | 'MESSAGE' | 'ACK' | 'NACK' | 'ERROR' | 'RECEIPT'
+  headers: StompHeaders
+  body?: T
 }
 
 // 业务消息基类
 interface BaseMessage<T = unknown> {
-  messageId: string;
-  timestamp: string;
-  type: string;
-  payload: T;
+  messageId: string
+  timestamp: string
+  type: string
+  payload: T
 }
 
 // 报警消息
 interface AlarmMessage extends BaseMessage<AlarmPayload> {
-  type: 'ALARM';
+  type: 'ALARM'
   payload: {
-    alarmId: number;
-    deviceId: string;
-    alarmType: string;
-    level: 'INFO' | 'WARNING' | 'CRITICAL';
-    message: string;
-    timestamp: string;
-  };
+    alarmId: number
+    deviceId: string
+    alarmType: string
+    level: 'INFO' | 'WARNING' | 'CRITICAL'
+    message: string
+    timestamp: string
+  }
 }
 
 // 工单状态变更
 interface WorkOrderMessage extends BaseMessage<WorkOrderPayload> {
-  type: 'WORK_ORDER_STATUS_CHANGED';
+  type: 'WORK_ORDER_STATUS_CHANGED'
   payload: {
-    workOrderId: number;
-    oldStatus: string;
-    newStatus: string;
-    operatorId: number;
-  };
+    workOrderId: number
+    oldStatus: string
+    newStatus: string
+    operatorId: number
+  }
 }
 
 // 库存变动
 interface InventoryMessage extends BaseMessage<InventoryPayload> {
-  type: 'INVENTORY_CHANGED';
+  type: 'INVENTORY_CHANGED'
   payload: {
-    warehouseId: number;
-    materialId: number;
-    quantityChange: number;
-    currentQuantity: number;
-  };
+    warehouseId: number
+    materialId: number
+    quantityChange: number
+    currentQuantity: number
+  }
 }
 
 // 联合类型
-type BusinessMessage = AlarmMessage | WorkOrderMessage | InventoryMessage;
+type BusinessMessage = AlarmMessage | WorkOrderMessage | InventoryMessage
 ```
 
 ---
@@ -461,7 +462,7 @@ type BusinessMessage = AlarmMessage | WorkOrderMessage | InventoryMessage;
   labels:
     severity: warning
   annotations:
-    summary: "WebSocket 连接数过高"
+    summary: WebSocket 连接数过高
 
 - alert: WebSocketHighReconnectRate
   expr: rate(ws_reconnect_total[5m]) > 20
@@ -469,7 +470,7 @@ type BusinessMessage = AlarmMessage | WorkOrderMessage | InventoryMessage;
   labels:
     severity: critical
   annotations:
-    summary: "WebSocket 重连率异常高"
+    summary: WebSocket 重连率异常高
 
 - alert: WebSocketMessageLatencyHigh
   expr: histogram_quantile(0.99, rate(ws_message_latency_ms_bucket[5m])) > 500
@@ -477,7 +478,7 @@ type BusinessMessage = AlarmMessage | WorkOrderMessage | InventoryMessage;
   labels:
     severity: warning
   annotations:
-    summary: "WebSocket 消息延迟过高"
+    summary: WebSocket 消息延迟过高
 ```
 
 ---
@@ -552,6 +553,6 @@ type BusinessMessage = AlarmMessage | WorkOrderMessage | InventoryMessage;
 
 ---
 
-**文档状态**：🟢 **已定稿，强制执行**  
-**维护者**：前端架构师 + 后端架构师  
+**文档状态**：🟢 **已定稿，强制执行**
+**维护者**：前端架构师 + 后端架构师
 **变更流程**：任何修改需通过架构评审，更新版本号，通知全栈团队

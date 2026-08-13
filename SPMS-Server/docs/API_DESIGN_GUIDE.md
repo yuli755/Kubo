@@ -1,7 +1,7 @@
 # API 设计规范指南
 
-> **版本**：v1.0  
-> **状态**：🟢 已定稿，强制执行  
+> **版本**：v1.0
+> **状态**：🟢 已定稿，强制执行
 > **适用范围**：Kubo 平台所有对外 API (REST/gRPC/Dubbo)
 
 ---
@@ -342,8 +342,8 @@ Content-Type: multipart/form-data
     "success": 995,
     "failed": 5,
     "errors": [
-      {"row": 10, "field": "quantity", "message": "数量必须大于 0"},
-      {"row": 25, "field": "materialCode", "message": "物料编码不存在"}
+      { "row": 10, "field": "quantity", "message": "数量必须大于 0" },
+      { "row": 25, "field": "materialCode", "message": "物料编码不存在" }
     ]
   }
 }
@@ -478,6 +478,6 @@ Warning: 299 - "API v1 is deprecated, will sunset on 2027-01-01. Please migrate 
 
 ---
 
-*文档版本：v1.0*  
-*最后更新：2026-08-01*  
+*文档版本：v1.0*
+*最后更新：2026-08-01*
 *状态：🟢 已定稿，强制执行*

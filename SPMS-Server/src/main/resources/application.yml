@@ -1,6 +1,6 @@
-#file: noinspection SpellCheckingInspection
+# file: noinspection SpellCheckingInspection
 logging:
-  config: "classpath:logback-spring.xml"
+  config: 'classpath:logback-spring.xml'
   level:
     org.springframework.beans: debug
     org.springframework.context: debug
@@ -25,12 +25,12 @@ spring:
       max-lifetime: 1800000
       leak-detection-threshold: 60000
   jpa:
-    database-platform: "org.hibernate.dialect.MySQL8Dialect"
+    database-platform: org.hibernate.dialect.MySQL8Dialect
     hibernate:
       ddl-auto: validate
     properties:
       hibernate:
-        column_ordering_strategy: "legacy"
+        column_ordering_strategy: legacy
   mail:
     properties:
       mail:
@@ -41,7 +41,7 @@ spring:
             # 启用SSL加密传输
             enable: true
           # 使用SSL Socket Factory
-          socketFactory-class: "javax.net.ssl.SSLSocketFactory"
+          socketFactory-class: javax.net.ssl.SSLSocketFactory
           socketFactory-fallback: false
           starttls:
             # 不需要StartTLS
@@ -51,13 +51,13 @@ spring:
       add-mappings: false
   mvc:
     view:
-      suffix: ".html"
+      suffix: .html
       prefix: /
 airpower:
   websocket:
     support: redis
   api:
-    access-token-secret: "1234567890"
+    access-token-secret: '1234567890'
     request-log: true
     response-log: true
 

@@ -8,9 +8,9 @@ datasources:
     isDefault: true
     editable: false
     jsonData:
-      timeInterval: "15s"
-      queryTimeout: "60s"
-      httpMethod: "POST"
+      timeInterval: 15s
+      queryTimeout: 60s
+      httpMethod: POST
 
   - name: Loki
     type: loki
@@ -20,9 +20,9 @@ datasources:
     jsonData:
       derivedFields:
         - name: traceId
-          matcherRegex: "traceId=(\\w+)"
-          url: "http://skywalking-ui:8080/trace/$${__value.raw}"
-          datasourceUid: "skywalking"
+          matcherRegex: 'traceId=(\w+)'
+          url: 'http://skywalking-ui:8080/trace/$${__value.raw}'
+          datasourceUid: skywalking
 
   - name: SkyWalking
     type: grafana-skywalking-datasource

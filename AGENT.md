@@ -122,9 +122,9 @@ view/console/business-module/function-module/
 
 **正确示例**:
 ```typescript
+import { WebEnum } from '@airpower/web'
 import { AbstractBaseService } from '@/base/AbstractBaseService'
 import { MaterialEntity } from './MaterialEntity'
-import { WebEnum } from '@airpower/web'
 ```
 
 ## Vue 组件规范
@@ -396,8 +396,8 @@ const {
 <template>
   <ADialog
     :title="title"
-    @confirm="onConfirm"
     width="800px"
+    @confirm="onConfirm"
   >
     <APanel>
       <ATable

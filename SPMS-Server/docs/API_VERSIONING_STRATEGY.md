@@ -1,7 +1,7 @@
 # API 版本管理策略
 
-> **版本**：v1.0  
-> **状态**：🟢 已定稿，强制执行  
+> **版本**：v1.0
+> **状态**：🟢 已定稿，强制执行
 > **适用范围**：Kubo 平台所有对外 API (REST/gRPC/Dubbo/WebSocket)
 
 ---
@@ -205,7 +205,7 @@ contract_testing:
   consumer: Pact
   base_class: ContractTestBase
   contracts_dir: src/test/resources/contracts
-  
+
   # 版本兼容性矩阵测试
   compatibility_matrix:
     - provider: v2.1.0
@@ -247,6 +247,6 @@ contract_testing:
 
 ---
 
-*文档版本：v1.0*  
-*最后更新：2026-08-01*  
+*文档版本：v1.0*
+*最后更新：2026-08-01*
 *状态：🟢 已定稿，强制执行*

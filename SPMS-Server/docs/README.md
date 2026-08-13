@@ -1,7 +1,7 @@
 # Kubo Platform Documentation Index
 
-> **Version**: 2026-08-02  
-> **Status**: 🟢 Active  
+> **Version**: 2026-08-02
+> **Status**: 🟢 Active
 > **Last Updated**: 2026-08-02
 
 ---
@@ -212,5 +212,5 @@ pnpm run s   # http://localhost:3000
 
 ---
 
-*Last Updated: 2026-08-02*  
+*Last Updated: 2026-08-02*
 *Next Review: 2026-11-02*

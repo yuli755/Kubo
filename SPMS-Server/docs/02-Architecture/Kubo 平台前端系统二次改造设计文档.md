@@ -1,8 +1,8 @@
 # Kubo 平台前端系统二次改造设计文档
 
-> **版本**: v2.0  
-> **状态**: 🟢 设计稿  
-> **最后更新**: 2026-08-13  
+> **版本**: v2.0
+> **状态**: 🟢 设计稿
+> **最后更新**: 2026-08-13
 > **适用场景**: 10,000+ 工厂用户 · 7×24 高并发 · 流畅操作体验
 
 ---
@@ -290,15 +290,15 @@
 ```json
 {
   "dependencies": {
-    "vue": "^3.5.25",                    // 保留
-    "element-plus": "^2.12.0",           // 保留
-    "pinia": "^3.0.4",                   // 保留 (现为独立使用)
-    "@tanstack/vue-query": "^5.x",       // 新增: 服务端状态管理
-    "@vueuse/core": "^11.x",             // 新增: 标准 Composable 工具
-    "vue-i18n": "^9.x",                  // 新增: 国际化
-    "vue-virtual-scroller": "^2.x",      // 新增: 虚拟滚动
-    "@stomp/stompjs": "^7.x",            // 新增: STOMP WebSocket
-    "sockjs-client": "^1.x",             // 新增: WebSocket 回退
+    "vue": "^3.5.25", // 保留
+    "element-plus": "^2.12.0", // 保留
+    "pinia": "^3.0.4", // 保留 (现为独立使用)
+    "@tanstack/vue-query": "^5.x", // 新增: 服务端状态管理
+    "@vueuse/core": "^11.x", // 新增: 标准 Composable 工具
+    "vue-i18n": "^9.x", // 新增: 国际化
+    "vue-virtual-scroller": "^2.x", // 新增: 虚拟滚动
+    "@stomp/stompjs": "^7.x", // 新增: STOMP WebSocket
+    "sockjs-client": "^1.x", // 新增: WebSocket 回退
 
     // 保留 (已有)
     "axios": "1.13.2",
@@ -310,20 +310,20 @@
     "@element-plus/icons-vue": "^2.3.2"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^6.0.3",      // 保留
-    "vite": "^7.3.0",                    // 保留
-    "typescript": "^5.9.3",              // 保留
-    "sass": "^1.96.0",                   // 保留
-    "eslint": "^9.39.2",                 // 保留
+    "@vitejs/plugin-vue": "^6.0.3", // 保留
+    "vite": "^7.3.0", // 保留
+    "typescript": "^5.9.3", // 保留
+    "sass": "^1.96.0", // 保留
+    "eslint": "^9.39.2", // 保留
 
     // 新增
-    "vite-plugin-compression": "^1.x",   // 新增: gzip/brotli 压缩
-    "vite-plugin-pwa": "^0.x",           // 新增: PWA 支持
-    "vite-plugin-inspect": "^0.x",       // 新增: 构建分析
-    "vitest": "^2.x",                    // 新增: 单元测试
-    "@vue/test-utils": "^2.x",           // 新增: Vue 测试工具
-    "playwright": "^1.x",                // 新增: E2E 测试
-    "vite-plugin-vue-devtools": "^8.x",  // 保留
+    "vite-plugin-compression": "^1.x", // 新增: gzip/brotli 压缩
+    "vite-plugin-pwa": "^0.x", // 新增: PWA 支持
+    "vite-plugin-inspect": "^0.x", // 新增: 构建分析
+    "vitest": "^2.x", // 新增: 单元测试
+    "@vue/test-utils": "^2.x", // 新增: Vue 测试工具
+    "playwright": "^1.x", // 新增: E2E 测试
+    "vite-plugin-vue-devtools": "^8.x", // 保留
 
     // 保留 (已有)
     "@antfu/eslint-config": "^6.7.1",
@@ -399,13 +399,27 @@
 ```typescript
 // ── 改造前: src/main.ts ──
 import { RouterUtil, WebConfig } from '@airpower/web'
+import { VueQueryPlugin } from '@tanstack/vue-query'
 import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import { createPinia } from 'pinia'
 import { createApp, version } from 'vue'
+// ── 改造后: src/main.ts ──
+import { createApp } from 'vue'
+import { createI18n } from 'vue-i18n'
+
+import { queryClient } from '@/api/queryClient'
 import App from '@/App.vue'
+import { i18nConfig } from '@/config/i18n'
+import { createAppRouter } from '@/config/router'
 import { routes } from '@/config/routes'
+import { initAuthGuard } from '@/guard/authGuard'
+import { initPermissionGuard } from '@/guard/permissionGuard'
+import { registerSW } from '@/pwa/registerSW'
+import { initWebSocketManager } from '@/websocket'
 import '@airpower/web/dist/web.css'
 import '@/assets/css/main.scss'
+import 'element-plus/dist/index.css'
 
 WebConfig.elementPlusLocale = zhCn
 WebConfig.appKey = 'kubo'
@@ -417,24 +431,6 @@ createApp(App)
   .use(RouterUtil.createRouter(routes))
   .use(ElementPlus, { zIndex: 3000, locale: zhCn })
   .mount('#app')
-
-// ── 改造后: src/main.ts ──
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
-import { VueQueryPlugin } from '@tanstack/vue-query'
-import { createI18n } from 'vue-i18n'
-import ElementPlus from 'element-plus'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import App from '@/App.vue'
-import { createAppRouter } from '@/config/router'
-import { queryClient } from '@/api/queryClient'
-import { i18nConfig } from '@/config/i18n'
-import { initWebSocketManager } from '@/websocket'
-import { initAuthGuard } from '@/guard/authGuard'
-import { initPermissionGuard } from '@/guard/permissionGuard'
-import { registerSW } from '@/pwa/registerSW'
-import 'element-plus/dist/index.css'
-import '@/assets/css/main.scss'
 
 async function bootstrap() {
   const app = createApp(App)
@@ -465,8 +461,8 @@ async function bootstrap() {
   app.mount('#app')
 
   // 8. 后台初始化
-  initWebSocketManager()   // WebSocket 连接
-  registerSW()             // Service Worker 注册
+  initWebSocketManager() // WebSocket 连接
+  registerSW() // Service Worker 注册
 }
 
 bootstrap().catch(console.error)
@@ -583,9 +579,9 @@ export const useUserStore = defineStore('user', {
   }),
 
   getters: {
-    isLoggedIn: (state) => !!state.token,
-    isAdmin: (state) => state.roles.includes('ROLE_SUPER_ADMIN'),
-    hasPermission: (state) => (perm: string) => state.permissions.includes(perm),
+    isLoggedIn: state => !!state.token,
+    isAdmin: state => state.roles.includes('ROLE_SUPER_ADMIN'),
+    hasPermission: state => (perm: string) => state.permissions.includes(perm),
   },
 
   actions: {
@@ -632,7 +628,8 @@ export const useUserStore = defineStore('user', {
           const data = JSON.parse(saved)
           this.$patch(data)
         }
-      } catch { /* ignore */ }
+      }
+      catch { /* ignore */ }
     },
 
     clearPersist() {
@@ -652,19 +649,20 @@ export const usePermissionStore = defineStore('permission', {
   }),
 
   getters: {
-    hasDataScope: (state) => (dimension: string, id: number) => {
+    hasDataScope: state => (dimension: string, id: number) => {
       const ids = state.dataScopes[dimension]
       return ids?.includes(id) ?? false
     },
 
-    getFieldPolicy: (state) => (entity: string, field: string) => {
+    getFieldPolicy: state => (entity: string, field: string) => {
       return state.fieldPolicies[`${entity}:${field}`]
     },
   },
 
   actions: {
     async loadPermissions() {
-      if (this.loaded) return
+      if (this.loaded)
+        return
       const { data } = await permissionApi.getMyPermissions()
       this.menuTree = data.menus
       this.flatMenus = flattenMenuTree(data.menus)
@@ -690,12 +688,12 @@ import { QueryClient } from '@tanstack/vue-query'
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30 * 1000,          // 30s 内不重新请求
-      gcTime: 5 * 60 * 1000,         // 缓存保留 5 分钟
-      refetchOnWindowFocus: true,     // 窗口聚焦时重新验证
-      retry: 3,                       // 失败重试 3 次
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-      refetchOnReconnect: true,       // 网络重连时重新验证
+      staleTime: 30 * 1000, // 30s 内不重新请求
+      gcTime: 5 * 60 * 1000, // 缓存保留 5 分钟
+      refetchOnWindowFocus: true, // 窗口聚焦时重新验证
+      retry: 3, // 失败重试 3 次
+      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 10000),
+      refetchOnReconnect: true, // 网络重连时重新验证
     },
     mutations: {
       retry: 1,
@@ -710,9 +708,9 @@ export const queryClient = new QueryClient({
 // ── 使用示例: 列表查询 ──
 export function useInventoryList(query: Ref<InventoryQuery>) {
   return useQuery({
-    queryKey: ['inventory', 'list', query],  // 自动缓存键
+    queryKey: ['inventory', 'list', query], // 自动缓存键
     queryFn: () => inventoryApi.page(query.value),
-    placeholderData: keepPreviousData,  // 分页时保持上一页数据
+    placeholderData: keepPreviousData, // 分页时保持上一页数据
   })
 }
 
@@ -776,7 +774,8 @@ export function createPersistPlugin(options: PersistOptions) {
       if (saved) {
         store.$patch(JSON.parse(saved))
       }
-    } catch { /* ignore */ }
+    }
+    catch { /* ignore */ }
 
     // 订阅变化
     store.$subscribe((mutation, state) => {
@@ -831,11 +830,12 @@ export function createPersistPlugin(options: PersistOptions) {
 ### 7.2 Axios 实例改造
 
 ```typescript
+import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
 // ── src/api/request.ts (改造后) ──
-import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios'
+import axios from 'axios'
 import { useUserStore } from '@/stores/user'
-import { handleTokenExpiry } from './tokenRefresh'
 import { handleApiError } from './errorHandler'
+import { handleTokenExpiry } from './tokenRefresh'
 
 const API_PREFIX = '/api'
 
@@ -872,7 +872,7 @@ export function createRequest(): AxiosInstance {
 
       return config
     },
-    (error) => Promise.reject(error),
+    error => Promise.reject(error),
   )
 
   // ── 响应拦截器 ──
@@ -881,7 +881,7 @@ export function createRequest(): AxiosInstance {
       const { code, message, data } = response.data
 
       if (code === 200) {
-        return data  // 直接返回业务数据
+        return data // 直接返回业务数据
       }
 
       // 业务错误
@@ -892,7 +892,7 @@ export function createRequest(): AxiosInstance {
         // Token 过期 → 尝试刷新
         const refreshed = await handleTokenExpiry()
         if (refreshed) {
-          return instance(error.config)  // 重试原请求
+          return instance(error.config) // 重试原请求
         }
         // 刷新失败 → 跳转登录
         useUserStore().logout()
@@ -913,9 +913,12 @@ export const request = createRequest()
 ### 7.3 业务 API 封装
 
 ```typescript
+import type { InventoryCreateCmd, InventoryQuery, InventoryUpdateCmd, InventoryVO } from '@/api/generated/models'
+// ── @tanstack/vue-query hooks ──
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+
 // ── src/api/services/inventory.api.ts (新结构) ──
 import { request } from '@/api/request'
-import type { InventoryVO, InventoryQuery, InventoryCreateCmd, InventoryUpdateCmd } from '@/api/generated/models'
 
 const BASE_URL = '/v1/wms/inventory'
 
@@ -953,9 +956,6 @@ export const inventoryApi = {
     })
   },
 }
-
-// ── @tanstack/vue-query hooks ──
-import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 
 export function useInventoryList(query: Ref<InventoryQuery>) {
   return useQuery({
@@ -1072,8 +1072,9 @@ src/api/generated/
 ### 8.2 WebSocket 管理器实现
 
 ```typescript
+import type { IFrame, IMessage, StompSubscription } from '@stomp/stompjs'
 // ── src/websocket/manager.ts ──
-import { Client, type IFrame, type IMessage, type StompSubscription } from '@stomp/stompjs'
+import { Client } from '@stomp/stompjs'
 import { useUserStore } from '@/stores/user'
 
 export enum ConnectionState {
@@ -1084,10 +1085,10 @@ export enum ConnectionState {
 }
 
 export enum MessagePriority {
-  CRITICAL = 0,  // 库存变更、订单状态
-  HIGH = 1,      // 通知提醒
-  NORMAL = 2,    // 数据同步
-  LOW = 3,       // 日志、非关键更新
+  CRITICAL = 0, // 库存变更、订单状态
+  HIGH = 1, // 通知提醒
+  NORMAL = 2, // 数据同步
+  LOW = 3, // 日志、非关键更新
 }
 
 interface Subscription {
@@ -1108,19 +1109,20 @@ class WebSocketManager {
 
   connect() {
     const userStore = useUserStore()
-    if (!userStore.token) return
+    if (!userStore.token)
+      return
 
     this.connectionState.value = ConnectionState.CONNECTING
 
     this.client = new Client({
       brokerURL: `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`,
       connectHeaders: {
-        Authorization: `Bearer ${userStore.token}`,
+        'Authorization': `Bearer ${userStore.token}`,
         'X-Tenant-Id': userStore.tenantId?.toString() ?? '',
       },
-      heartbeatIncoming: 30000,   // 30s 心跳
+      heartbeatIncoming: 30000, // 30s 心跳
       heartbeatOutgoing: 30000,
-      reconnectDelay: this.getReconnectDelay(),  // 指数退避
+      reconnectDelay: this.getReconnectDelay(), // 指数退避
       onConnect: () => {
         this.connectionState.value = ConnectionState.CONNECTED
         this.reconnectAttempts = 0
@@ -1130,7 +1132,7 @@ class WebSocketManager {
         this.connectionState.value = ConnectionState.DISCONNECTED
       },
       onStompError: (frame: IFrame) => {
-        console.error('STOMP error:', frame.headers['message'])
+        console.error('STOMP error:', frame.headers.message)
         this.connectionState.value = ConnectionState.RECONNECTING
       },
     })
@@ -1159,7 +1161,8 @@ class WebSocketManager {
 
   private subscribeToDestination(destination: string) {
     const sub = this.subscriptions.get(destination)
-    if (!sub || !this.client?.connected) return
+    if (!sub || !this.client?.connected)
+      return
 
     sub.stompSub = this.client.subscribe(destination, (message: IMessage) => {
       try {
@@ -1167,7 +1170,8 @@ class WebSocketManager {
         sub.handler(parsed)
         // 手动 ACK (client-individual)
         message.ack()
-      } catch (e) {
+      }
+      catch (e) {
         console.error('Failed to parse WS message:', e)
       }
     }, { ack: 'client-individual' })
@@ -1185,7 +1189,7 @@ class WebSocketManager {
 
   private getReconnectDelay(): number {
     // 指数退避 + 随机抖动
-    const base = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000)
+    const base = Math.min(1000 * 2 ** this.reconnectAttempts, 30000)
     const jitter = Math.random() * 1000
     return base + jitter
   }
@@ -1197,7 +1201,7 @@ export const wsManager = new WebSocketManager()
 // 在组件中订阅
 wsManager.subscribe(
   '/exchange/kubo.notification',
-  (msg) => handleNotification(msg),
+  msg => handleNotification(msg),
   MessagePriority.HIGH,
 )
 
@@ -1254,7 +1258,7 @@ export function setupMessageRouter() {
   }
 
   wsManager.subscribe('/exchange/kubo.notification', (msg) => {
-    const typed = msg as { type: MessageType; payload: unknown }
+    const typed = msg as { type: MessageType, payload: unknown }
     router[typed.type]?.(typed.payload)
   })
 }
@@ -1301,9 +1305,12 @@ export function setupMessageRouter() {
 ### 9.2 路由权限控制
 
 ```typescript
+// ── src/directives/permission.ts ──
+import type { Directive } from 'vue'
 // ── src/guard/permissionGuard.ts ──
 import type { Router } from 'vue-router'
 import { usePermissionStore } from '@/stores/permission'
+
 import { useUserStore } from '@/stores/user'
 
 export function initPermissionGuard(router: Router) {
@@ -1342,9 +1349,6 @@ export function initPermissionGuard(router: Router) {
   })
 }
 
-// ── src/directives/permission.ts ──
-import type { Directive } from 'vue'
-
 export const vPermission: Directive<HTMLElement, string | string[]> = {
   mounted(el, binding) {
     const userStore = useUserStore()
@@ -1354,7 +1358,7 @@ export const vPermission: Directive<HTMLElement, string | string[]> = {
 
     const hasPermission = permissions.some(p => userStore.hasPermission(p))
     if (!hasPermission) {
-      el.parentNode?.removeChild(el)  // 无权限直接移除元素
+      el.parentNode?.removeChild(el) // 无权限直接移除元素
     }
   },
 }
@@ -1390,7 +1394,7 @@ export const vMask: Directive<HTMLElement, {
       const permissionStore = usePermissionStore()
       const policy = permissionStore.getFieldPolicy(entity, field)
       if (policy?.visible) {
-        el.textContent = value  // 可见
+        el.textContent = value // 可见
         return
       }
     }
@@ -1409,7 +1413,7 @@ function maskValue(value: string, type: MaskType): string {
     case 'bankCard':
       return value.replace(/(\d{4})\d{8}(\d{4})/, '$1 **** **** $2')
     case 'email':
-      return value.replace(/(.{1}).*(@.*)/, '$1***$2')
+      return value.replace(/(.).*(@.*)/, '$1***$2')
     default:
       return value
   }
@@ -1526,9 +1530,9 @@ src/
 ### 10.2 路由配置
 
 ```typescript
+import type { RouteRecordRaw } from 'vue-router'
 // ── src/router/index.ts ──
 import { createRouter, createWebHistory } from 'vue-router'
-import type { RouteRecordRaw } from 'vue-router'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -1667,31 +1671,6 @@ export function createAppRouter() {
 
 ```vue
 <!-- ── src/components/common/KuboTable.vue (简化) ── -->
-<template>
-  <div ref="containerRef" class="kubo-table" :style="{ height: height + 'px' }">
-    <RecycleScroller
-      :items="data"
-      :item-size="rowHeight"
-      key-field="id"
-      v-slot="{ item }"
-    >
-      <div class="kubo-table-row" :class="{ selected: selectedId === item.id }" @click="$emit('rowClick', item)">
-        <slot name="row" :item="item">
-          <div v-for="col in columns" :key="col.prop" class="kubo-table-cell" :style="{ width: col.width + 'px' }">
-            <!-- 脱敏字段 -->
-            <span v-if="col.mask" v-mask="{ type: col.mask, value: item[col.prop], entity: entity, field: col.prop }">
-              {{ item[col.prop] }}
-            </span>
-            <template v-else>
-              {{ item[col.prop] }}
-            </template>
-          </div>
-        </slot>
-      </div>
-    </RecycleScroller>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
@@ -1710,13 +1689,57 @@ defineProps<{
   height: number
   rowHeight?: number
   selectedId?: string | number
-  entity?: string  // 用于列级权限
+  entity?: string // 用于列级权限
 }>()
 
 defineEmits<{
   rowClick: [item: Record<string, unknown>]
 }>()
 </script>
+
+<template>
+  <div
+    ref="containerRef"
+    class="kubo-table"
+    :style="{ height: `${height}px` }"
+  >
+    <RecycleScroller
+      v-slot="{ item }"
+      :items="data"
+      :item-size="rowHeight"
+      key-field="id"
+    >
+      <div
+        class="kubo-table-row"
+        :class="{ selected: selectedId === item.id }"
+        @click="$emit('rowClick', item)"
+      >
+        <slot
+          name="row"
+          :item="item"
+        >
+          <div
+            v-for="col in columns"
+            :key="col.prop"
+            class="kubo-table-cell"
+            :style="{ width: `${col.width}px` }"
+          >
+            <!-- 脱敏字段 -->
+            <span
+              v-if="col.mask"
+              v-mask="{ type: col.mask, value: item[col.prop], entity, field: col.prop }"
+            >
+              {{ item[col.prop] }}
+            </span>
+            <template v-else>
+              {{ item[col.prop] }}
+            </template>
+          </div>
+        </slot>
+      </div>
+    </RecycleScroller>
+  </div>
+</template>
 ```
 
 ### 11.3 主题定制
@@ -1776,17 +1799,6 @@ defineEmits<{
 
 ```vue
 <!-- ── 使用虚拟滚动表格 ── -->
-<template>
-  <kubo-table
-    :data="inventoryList"
-    :columns="columns"
-    :height="tableHeight"
-    :row-height="48"
-    entity="Inventory"
-    @row-click="handleRowClick"
-  />
-</template>
-
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useInventoryList } from '@/api/services/inventory.api'
@@ -1794,7 +1806,7 @@ import KuboTable from '@/components/common/KuboTable.vue'
 
 const query = reactive({
   page: 1,
-  size: 1000,  // 一次加载 1000 条
+  size: 1000, // 一次加载 1000 条
   warehouseId: null,
 })
 
@@ -1814,6 +1826,17 @@ const columns = [
   { prop: 'phone', label: '联系电话', width: 150, mask: 'phone' },
 ]
 </script>
+
+<template>
+  <KuboTable
+    :data="inventoryList"
+    :columns="columns"
+    :height="tableHeight"
+    :row-height="48"
+    entity="Inventory"
+    @row-click="handleRowClick"
+  />
+</template>
 ```
 
 ### 12.3 WebWorker 导出
@@ -1880,15 +1903,15 @@ import { createI18n } from 'vue-i18n'
 // 按模块拆分语言包
 const messages = {
   'zh-CN': {
-    common: {},       // 通用
-    login: {},        // 登录
-    wms: {},          // 仓储
-    mes: {},          // 生产
-    factory: {},      // 工厂
-    finance: {},      // 财务
-    system: {},       // 系统
-    validation: {},   // 验证消息
-    error: {},        // 错误信息
+    common: {}, // 通用
+    login: {}, // 登录
+    wms: {}, // 仓储
+    mes: {}, // 生产
+    factory: {}, // 工厂
+    finance: {}, // 财务
+    system: {}, // 系统
+    validation: {}, // 验证消息
+    error: {}, // 错误信息
   },
   'en-US': {
     common: {},
@@ -1901,10 +1924,12 @@ const messages = {
 
 export function detectLocale(): string {
   const saved = localStorage.getItem('kubo:locale')
-  if (saved) return saved
+  if (saved)
+    return saved
 
   const browserLang = navigator.language
-  if (browserLang.startsWith('zh')) return 'zh-CN'
+  if (browserLang.startsWith('zh'))
+    return 'zh-CN'
   return 'en-US'
 }
 
@@ -1953,13 +1978,13 @@ router.beforeEach(async (to) => {
 ### 14.1 Vite 配置改造
 
 ```typescript
+import vue from '@vitejs/plugin-vue'
 // ── vite.config.mts (改造后) ──
 import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import vueDevTools from 'vite-plugin-vue-devtools'
 import { compression } from 'vite-plugin-compression'
 import { VitePWA } from 'vite-plugin-pwa'
 import { visualizer } from 'vite-plugin-visualizer'
+import vueDevTools from 'vite-plugin-vue-devtools'
 
 export default defineConfig({
   resolve: {
@@ -1998,7 +2023,7 @@ export default defineConfig({
     // Gzip/Brotli 压缩
     compression({
       algorithm: 'gzip',
-      threshold: 10240,     // 10KB 以上文件压缩
+      threshold: 10240, // 10KB 以上文件压缩
       deleteOriginFile: false,
     }),
     compression({
@@ -2238,10 +2263,10 @@ export function registerServiceWorker() {
 ### 16.2 测试配置
 
 ```typescript
+import path from 'node:path'
+import vue from '@vitejs/plugin-vue'
 // ── vitest.config.ts ──
 import { defineConfig } from 'vitest/config'
-import vue from '@vitejs/plugin-vue'
-import path from 'path'
 
 export default defineConfig({
   plugins: [vue()],
@@ -2469,6 +2494,6 @@ Phase 4                                                            ████�
 
 ---
 
-> **文档版本**: v2.0  
-> **最后更新**: 2026-08-13  
+> **文档版本**: v2.0
+> **最后更新**: 2026-08-13
 > **审批**: 待定

@@ -2,8 +2,8 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    cluster: 'kubo-dev'
-    environment: 'development'
+    cluster: kubo-dev
+    environment: development
 
 alerting:
   alertmanagers:
@@ -11,16 +11,16 @@ alerting:
         - targets: []
 
 rule_files:
-  - "rules/*.yml"
+  - 'rules/*.yml'
 
 scrape_configs:
   # Prometheus 自身监控
-  - job_name: 'prometheus'
+  - job_name: prometheus
     static_configs:
       - targets: ['localhost:9090']
 
   # Kubernetes 服务发现
-  - job_name: 'kubernetes-pods'
+  - job_name: kubernetes-pods
     kubernetes_sd_configs:
       - role: pod
     relabel_configs:
@@ -46,8 +46,8 @@ scrape_configs:
         target_label: kubernetes_pod_name
 
   # Spring Boot Actuator 端点
-  - job_name: 'spring-boot-actuator'
-    metrics_path: '/actuator/prometheus'
+  - job_name: spring-boot-actuator
+    metrics_path: /actuator/prometheus
     kubernetes_sd_configs:
       - role: pod
     relabel_configs:
@@ -67,7 +67,7 @@ scrape_configs:
         regex: __meta_kubernetes_pod_label_(.+)
 
   # Node Exporter (节点级指标)
-  - job_name: 'node-exporter'
+  - job_name: node-exporter
     kubernetes_sd_configs:
       - role: node
     relabel_configs:
@@ -75,7 +75,7 @@ scrape_configs:
         regex: __meta_kubernetes_node_label_(.+)
 
   # cAdvisor (容器级指标)
-  - job_name: 'cadvisor'
+  - job_name: cadvisor
     kubernetes_sd_configs:
       - role: node
     scheme: https
@@ -94,18 +94,18 @@ scrape_configs:
         replacement: /metrics/cadvisor
 
   # Kafka/RabbitMQ Exporter (如有)
-  - job_name: 'rabbitmq'
+  - job_name: rabbitmq
     static_configs:
       - targets: ['rabbitmq:15692']
         labels:
-          service: 'rabbitmq'
+          service: rabbitmq
 
   # Redis Exporter
-  - job_name: 'redis'
+  - job_name: redis
     static_configs:
       - targets: ['redis-exporter:9121']
 
   # MySQL Exporter
-  - job_name: 'mysql'
+  - job_name: mysql
     static_configs:
       - targets: ['mysql-exporter:9104']

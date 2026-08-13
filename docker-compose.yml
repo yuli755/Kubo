@@ -31,13 +31,13 @@ services:
       - --binlog-expire-days=7
       - --max-binlog-size=100M
     ports:
-      - "3306:3306"
+      - '3306:3306'
     volumes:
       - mysql-data:/var/lib/mysql
       - mysql-conf:/etc/mysql/conf.d
       - ./infra/init-sql:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      test: [CMD, mysqladmin, ping, -h, localhost, -u, root, -proot]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -69,12 +69,12 @@ services:
       - --save 300 10
       - --save 60 10000
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis-data:/data
       - redis-conf:/usr/local/etc/redis
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [CMD, redis-cli, ping]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -101,16 +101,16 @@ services:
       RABBITMQ_DEFAULT_USER: kubo
       RABBITMQ_DEFAULT_PASS: kubo
       RABBITMQ_DEFAULT_VHOST: kubo
-      RABBITMQ_DEFAULT_PERMISSIONS: ".* .* .*"
+      RABBITMQ_DEFAULT_PERMISSIONS: '.* .* .*'
     ports:
-      - "5672:5672"   # AMQP
-      - "15672:15672" # Management UI
+      - '5672:5672' # AMQP
+      - '15672:15672' # Management UI
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
       - rabbitmq-conf:/etc/rabbitmq
       - ./infra/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      test: [CMD, rabbitmq-diagnostics, check_running]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -142,14 +142,14 @@ services:
       MYSQL_SERVICE_DB_NAME: nacos
       MYSQL_SERVICE_USER: kubo
       MYSQL_SERVICE_PASSWORD: kubo
-      MYSQL_SERVICE_DB_PARAM: "characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false"
-      NACOS_AUTH_ENABLE: "true"
-      NACOS_AUTH_TOKEN_EXPIRE_SECONDS: "18000"
-      NACOS_AUTH_TOKEN: "SecretKey012345678901234567890123456789"
+      MYSQL_SERVICE_DB_PARAM: 'characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false'
+      NACOS_AUTH_ENABLE: 'true'
+      NACOS_AUTH_TOKEN_EXPIRE_SECONDS: '18000'
+      NACOS_AUTH_TOKEN: SecretKey012345678901234567890123456789
     ports:
-      - "8848:8848"  # Nacos 端口
-      - "9848:9848"  # gRPC 端口
-      - "9849:9849"  # Raft 端口
+      - '8848:8848' # Nacos 端口
+      - '9848:9848' # gRPC 端口
+      - '9849:9849' # Raft 端口
     volumes:
       - nacos-data:/home/nacos/data
       - nacos-logs:/home/nacos/logs
@@ -158,7 +158,7 @@ services:
       mysql:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/health"]
+      test: [CMD, curl, -f, 'http://localhost:8848/nacos/health']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -185,15 +185,15 @@ services:
     environment:
       MINIO_ROOT_USER: kubo
       MINIO_ROOT_PASSWORD: kubo123456
-      MINIO_BROWSER_REDIRECT_URL: "http://localhost:9001"
+      MINIO_BROWSER_REDIRECT_URL: 'http://localhost:9001'
     ports:
-      - "9000:9000"  # API
-      - "9001:9001"  # Console
+      - '9000:9000' # API
+      - '9001:9001' # Console
     volumes:
       - minio-data:/data
       - minio-config:/root/.minio
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [CMD, curl, -f, 'http://localhost:9000/minio/health/live']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -217,19 +217,19 @@ services:
     container_name: kubo-prometheus
     restart: unless-stopped
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=15d'
-      - '--web.enable-lifecycle'
-      - '--web.enable-admin-api'
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+      - --web.enable-admin-api
     ports:
-      - "9090:9090"
+      - '9090:9090'
     volumes:
       - prometheus-data:/prometheus
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./infra/prometheus/rules:/etc/prometheus/rules:ro
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      test: [CMD, wget, -q, --spider, 'http://localhost:9090/-/healthy']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -252,11 +252,11 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin123
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_USERS_ALLOW_ORG_CREATE: "false"
-      GF_INSTALL_PLUGINS: "grafana-piechart-panel"
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_USERS_ALLOW_ORG_CREATE: 'false'
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
     ports:
-      - "3001:3000"
+      - '3001:3000'
     volumes:
       - grafana-data:/var/lib/grafana
       - ./infra/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
@@ -264,7 +264,7 @@ services:
     depends_on:
       - prometheus
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: [CMD, curl, -f, 'http://localhost:3000/api/health']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -293,14 +293,14 @@ services:
       SW_ES_USER: elastic
       SW_ES_PASSWORD: kubo123456
     ports:
-      - "11800:11800" # gRPC
-      - "12800:12800" # HTTP
+      - '11800:11800' # gRPC
+      - '12800:12800' # HTTP
     volumes:
       - skywalking-oap-data:/home/skywalking/data
     depends_on:
       - elasticsearch
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:12800/health"]
+      test: [CMD, curl, -f, 'http://localhost:12800/health']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -323,11 +323,11 @@ services:
     environment:
       SW_OAP_ADDRESS: skywalking-oap:12800
     ports:
-      - "8081:8080"
+      - '8081:8080'
     depends_on:
       - skywalking-oap
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: [CMD, curl, -f, 'http://localhost:8080/health']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -356,14 +356,14 @@ services:
       - ELASTIC_PASSWORD=kubo123456
       - xpack.security.http.ssl.enabled=false
       - xpack.security.transport.ssl.enabled=false
-      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
     ports:
-      - "9200:9200"
-      - "9300:9300"
+      - '9200:9200'
+      - '9300:9300'
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "-u", "elastic:kubo123456", "http://localhost:9200/_cluster/health"]
+      test: [CMD, curl, -f, -u, 'elastic:kubo123456', 'http://localhost:9200/_cluster/health']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -388,12 +388,12 @@ services:
     restart: unless-stopped
     command: -config.file=/etc/loki/local-config.yaml
     ports:
-      - "3100:3100"
+      - '3100:3100'
     volumes:
       - loki-data:/loki
       - ./infra/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/ready"]
+      test: [CMD, wget, -q, --spider, 'http://localhost:3100/ready']
       interval: 10s
       timeout: 5s
       retries: 5

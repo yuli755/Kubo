@@ -1,9 +1,9 @@
 # ADR-006: 代码仓库管理策略 - Monorepo (pnpm) vs 多仓库
 
-> **状态**：✅ 已通过  
-> **日期**：2026-08-01  
-> **决策者**：前端架构师 + 后端架构师  
-> **技术栈影响**：工程化、CI/CD、代码管理  
+> **状态**：✅ 已通过
+> **日期**：2026-08-01
+> **决策者**：前端架构师 + 后端架构师
+> **技术栈影响**：工程化、CI/CD、代码管理
 > **关联文档**：[前端仓库结构规划](../Kubo 平台-前端高并发重构实施路线规划计划.md#10-附录前端代码仓库结构规划-重构后)
 
 ---
@@ -127,7 +127,7 @@ graph LR
     C --> D[发布 @kubo/api-types 到私有 npm]
     D --> E[前端 pnpm install @kubo/api-types]
     E --> F[前端业务代码开发]
-    
+
     G[错误码变更] --> H[同步生成 error-codes.ts]
     H --> I[发布 @kubo/error-codes]
     I --> J[前后端同步使用]
@@ -197,30 +197,30 @@ graph LR
 ```yaml
 # .gitlab-ci.yml / Jenkinsfile 关键阶段
 stages:
-  - validate          # 代码规范、依赖检查
-  - test              # 单测、集成测试、契约测试
-  - build             # 编译、打包、镜像构建
-  - security          # 漏洞扫描、依赖审计、敏感信息扫描
-  - deploy-dev        # 部署到 Dev 环境
-  - test-e2e          # 端到端测试
-  - deploy-staging    # 部署到 Staging 环境
-  - performance       # 性能压测 (仅 release 分支)
-  - deploy-prod       # 部署到生产 (手动确认)
+  - validate # 代码规范、依赖检查
+  - test # 单测、集成测试、契约测试
+  - build # 编译、打包、镜像构建
+  - security # 漏洞扫描、依赖审计、敏感信息扫描
+  - deploy-dev # 部署到 Dev 环境
+  - test-e2e # 端到端测试
+  - deploy-staging # 部署到 Staging 环境
+  - performance # 性能压测 (仅 release 分支)
+  - deploy-prod # 部署到生产 (手动确认)
 ```
 
 ### 前端流水线
 
 ```yaml
 stages:
-  - validate          # Lint、类型检查、依赖审计
-  - test              # 单测、组件测试
-  - build             # 构建、包体积分析、性能基线对比
-  - test-e2e          # Playwright E2E、视觉回归
-  - deploy-dev        # 部署到 Dev CDN
-  - test-e2e-staging  # Staging 环境 E2E
-  - deploy-staging    # 部署到 Staging CDN
-  - performance       # Lighthouse CI 性能回归
-  - deploy-prod       # 生产发布 (CDN 刷新、SW 版本更新)
+  - validate # Lint、类型检查、依赖审计
+  - test # 单测、组件测试
+  - build # 构建、包体积分析、性能基线对比
+  - test-e2e # Playwright E2E、视觉回归
+  - deploy-dev # 部署到 Dev CDN
+  - test-e2e-staging # Staging 环境 E2E
+  - deploy-staging # 部署到 Staging CDN
+  - performance # Lighthouse CI 性能回归
+  - deploy-prod # 生产发布 (CDN 刷新、SW 版本更新)
 ```
 
 ### 共享包发布流水线
@@ -230,9 +230,9 @@ stages:
 stages:
   - validate
   - test
-  - version-bump      # 语义化版本自动递增 (基于 conventional commits)
-  - publish           # 发布到私有 npm registry / Maven Central
-  - notify            # 通知下游仓库更新依赖
+  - version-bump # 语义化版本自动递增 (基于 conventional commits)
+  - publish # 发布到私有 npm registry / Maven Central
+  - notify # 通知下游仓库更新依赖
 ```
 
 ---
@@ -273,5 +273,5 @@ stages:
 
 ---
 
-*ADR 版本：v1.0*  
+*ADR 版本：v1.0*
 *最后更新：2026-08-01*

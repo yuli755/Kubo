@@ -1,8 +1,8 @@
 # Kubo Platform Testing Strategy
 
-> **Version**: 1.0  
-> **Status**: 🟢 Active  
-> **Last Updated**: 2026-08-02  
+> **Version**: 1.0
+> **Status**: 🟢 Active
+> **Last Updated**: 2026-08-02
 > **Scope**: Backend + Frontend + Integration + E2E + Performance + Contract
 
 ---
@@ -248,94 +248,94 @@ class ArchitectureTest {
 ### 1. Unit Tests (Vitest + Vue Test Utils)
 
 ```typescript
-// src/components/VirtualTable/VirtualTable.test.ts
-import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+// src/components/VirtualTable/VirtualTable.test.ts
+import { describe, expect, it, vi } from 'vitest'
 import VirtualTable from './VirtualTable.vue'
 
 describe('VirtualTable', () => {
-    const columns = [
-        { prop: 'id', label: 'ID' },
-        { prop: 'name', label: 'Name' }
-    ]
-    const data = Array.from({ length: 100 }, (_, i) => ({ id: i, name: `Item ${i}` }))
+  const columns = [
+    { prop: 'id', label: 'ID' },
+    { prop: 'name', label: 'Name' }
+  ]
+  const data = Array.from({ length: 100 }, (_, i) => ({ id: i, name: `Item ${i}` }))
 
-    it('renders visible rows only', () => {
-        const wrapper = mount(VirtualTable, {
-            props: { data, columns, itemHeight: 40, visibleCount: 10 }
-        })
-
-        // 只渲染可见行 + buffer
-        expect(wrapper.findAll('.virtual-row')).toHaveLength(12) // 10 + 2 buffer
+  it('renders visible rows only', () => {
+    const wrapper = mount(VirtualTable, {
+      props: { data, columns, itemHeight: 40, visibleCount: 10 }
     })
 
-    it('scrolls to correct position', async () => {
-        const wrapper = mount(VirtualTable, {
-            props: { data, columns, itemHeight: 40, visibleCount: 10 }
-        })
+    // 只渲染可见行 + buffer
+    expect(wrapper.findAll('.virtual-row')).toHaveLength(12) // 10 + 2 buffer
+  })
 
-        await wrapper.vm.scrollToIndex(50)
-        expect(wrapper.vm.scrollTop).toBe(50 * 40)
+  it('scrolls to correct position', async () => {
+    const wrapper = mount(VirtualTable, {
+      props: { data, columns, itemHeight: 40, visibleCount: 10 }
     })
 
-    it('handles empty data', () => {
-        const wrapper = mount(VirtualTable, {
-            props: { data: [], columns, itemHeight: 40, visibleCount: 10 }
-        })
-        expect(wrapper.text()).toContain('暂无数据')
+    await wrapper.vm.scrollToIndex(50)
+    expect(wrapper.vm.scrollTop).toBe(50 * 40)
+  })
+
+  it('handles empty data', () => {
+    const wrapper = mount(VirtualTable, {
+      props: { data: [], columns, itemHeight: 40, visibleCount: 10 }
     })
+    expect(wrapper.text()).toContain('暂无数据')
+  })
 })
 ```
 
 ### 2. Component Tests (Vue Test Utils + Happy DOM)
 
 ```typescript
-// src/views/console/wms/inventory/list.test.ts
-import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import InventoryList from './list.vue'
+// src/views/console/wms/inventory/list.test.ts
+import { beforeEach, describe, expect, it } from 'vitest'
 import { inventoryApi } from '@/api/generated'
+import InventoryList from './list.vue'
 
 vi.mock('@/api/generated', () => ({
-    inventoryApi: {
-        getInventoryList: vi.fn()
-    }
+  inventoryApi: {
+    getInventoryList: vi.fn()
+  }
 }))
 
 describe('InventoryList', () => {
-    beforeEach(() => {
-        setActivePinia(createPinia())
-        vi.clearAllMocks()
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('loads data on mount', async () => {
+    inventoryApi.getInventoryList.mockResolvedValue({
+      content: [{ id: 1, name: 'Test' }],
+      totalElements: 1
     })
 
-    it('loads data on mount', async () => {
-        inventoryApi.getInventoryList.mockResolvedValue({
-            content: [{ id: 1, name: 'Test' }],
-            totalElements: 1
-        })
-
-        const wrapper = mount(InventoryList, {
-            global: { plugins: [createPinia()] }
-        })
-
-        await flushPromises()
-        expect(wrapper.text()).toContain('Test')
+    const wrapper = mount(InventoryList, {
+      global: { plugins: [createPinia()] }
     })
 
-    it('handles search', async () => {
-        inventoryApi.getInventoryList.mockResolvedValue({ content: [], totalElements: 0 })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Test')
+  })
 
-        const wrapper = mount(InventoryList, { global: { plugins: [createPinia()] } })
-        await flushPromises()
+  it('handles search', async () => {
+    inventoryApi.getInventoryList.mockResolvedValue({ content: [], totalElements: 0 })
 
-        await wrapper.findComponent(ProSearch).vm.$emit('search', { keyword: 'test' })
-        await flushPromises()
+    const wrapper = mount(InventoryList, { global: { plugins: [createPinia()] } })
+    await flushPromises()
 
-        expect(inventoryApi.getInventoryList).toHaveBeenCalledWith(
-            expect.objectContaining({ filter: expect.objectContaining({ keyword: 'test' }) })
-        )
-    })
+    await wrapper.findComponent(ProSearch).vm.$emit('search', { keyword: 'test' })
+    await flushPromises()
+
+    expect(inventoryApi.getInventoryList).toHaveBeenCalledWith(
+      expect.objectContaining({ filter: expect.objectContaining({ keyword: 'test' }) })
+    )
+  })
 })
 ```
 
@@ -343,44 +343,44 @@ describe('InventoryList', () => {
 
 ```typescript
 // src/composables/useRequest.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRequest } from '@/composables/useRequest'
 
 describe('useRequest', () => {
-    beforeEach(() => {
-        vi.useFakeTimers()
-    })
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
 
-    afterEach(() => {
-        vi.useRealTimers()
-    })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
 
-    it('caches response for staleTime', async () => {
-        const mockFn = vi.fn().mockResolvedValue({ data: 'test' })
-        const { data, refresh } = useRequest(mockFn, { cache: 'memory', staleTime: 5000 })
+  it('caches response for staleTime', async () => {
+    const mockFn = vi.fn().mockResolvedValue({ data: 'test' })
+    const { data, refresh } = useRequest(mockFn, { cache: 'memory', staleTime: 5000 })
 
-        await data.value // 首次请求
-        expect(mockFn).toHaveBeenCalledTimes(1)
+    await data.value // 首次请求
+    expect(mockFn).toHaveBeenCalledTimes(1)
 
-        await data.value // 缓存命中
-        expect(mockFn).toHaveBeenCalledTimes(1)
+    await data.value // 缓存命中
+    expect(mockFn).toHaveBeenCalledTimes(1)
 
-        await vi.advanceTimersByTimeAsync(6000) // 超过 staleTime
-        await data.value // 重新请求
-        expect(mockFn).toHaveBeenCalledTimes(2)
-    })
+    await vi.advanceTimersByTimeAsync(6000) // 超过 staleTime
+    await data.value // 重新请求
+    expect(mockFn).toHaveBeenCalledTimes(2)
+  })
 
-    it('deduplicates concurrent requests', async () => {
-        const mockFn = vi.fn().mockImplementation(() => 
-            new Promise(r => setTimeout(() => r({ data: 'ok' }), 100))
-        )
-        const { execute } = useRequest(mockFn, { deduplicate: true })
+  it('deduplicates concurrent requests', async () => {
+    const mockFn = vi.fn().mockImplementation(() =>
+      new Promise(r => setTimeout(() => r({ data: 'ok' }), 100))
+    )
+    const { execute } = useRequest(mockFn, { deduplicate: true })
 
-        const [p1, p2, p3] = [execute(), execute(), execute()]
-        await Promise.all([p1, p2, p3])
+    const [p1, p2, p3] = [execute(), execute(), execute()]
+    await Promise.all([p1, p2, p3])
 
-        expect(mockFn).toHaveBeenCalledTimes(1)
-    })
+    expect(mockFn).toHaveBeenCalledTimes(1)
+  })
 })
 ```
 
@@ -388,54 +388,54 @@ describe('useRequest', () => {
 
 ```typescript
 // tests/e2e/inventory.spec.ts
-import { test, expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 test.describe('Inventory Management', () => {
-    test.beforeEach(async ({ page }) => {
-        await page.goto('/login')
-        await page.fill('[name=username]', 'admin')
-        await page.fill('[name=password]', 'Aa123456')
-        await page.click('button[type=submit]')
-        await page.waitForURL('/home')
-    })
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/login')
+    await page.fill('[name=username]', 'admin')
+    await page.fill('[name=password]', 'Aa123456')
+    await page.click('button[type=submit]')
+    await page.waitForURL('/home')
+  })
 
-    test('create inventory -> deduct -> verify', async ({ page }) => {
-        // 导航到库存页面
-        await page.goto('/console/wms/inventory')
-        await page.waitForSelector('.inventory-page')
+  test('create inventory -> deduct -> verify', async ({ page }) => {
+    // 导航到库存页面
+    await page.goto('/console/wms/inventory')
+    await page.waitForSelector('.inventory-page')
 
-        // 点击新建
-        await page.click('button:has-text("新建")')
-        await page.waitForSelector('.el-dialog')
+    // 点击新建
+    await page.click('button:has-text("新建")')
+    await page.waitForSelector('.el-dialog')
 
-        // 填写表单
-        await page.selectOption('select[name=warehouseId]', '1')
-        await page.selectOption('select[name=materialId]', '2')
-        await page.fill('input[name=availableQty]', '100')
-        await page.fill('input[name=warningThreshold]', '10')
-        await page.click('button:has-text("确定")')
+    // 填写表单
+    await page.selectOption('select[name=warehouseId]', '1')
+    await page.selectOption('select[name=materialId]', '2')
+    await page.fill('input[name=availableQty]', '100')
+    await page.fill('input[name=warningThreshold]', '10')
+    await page.click('button:has-text("确定")')
 
-        // 验证列表出现
-        await expect(page.locator('.inventory-page .el-table')).toContainText('100')
+    // 验证列表出现
+    await expect(page.locator('.inventory-page .el-table')).toContainText('100')
 
-        // 扣减库存
-        await page.click('button:has-text("扣减"):first-child')
-        await page.waitForSelector('.el-dialog')
-        await page.fill('input[name=quantity]', '30')
-        await page.click('button:has-text("确定")')
+    // 扣减库存
+    await page.click('button:has-text("扣减"):first-child')
+    await page.waitForSelector('.el-dialog')
+    await page.fill('input[name=quantity]', '30')
+    await page.click('button:has-text("确定")')
 
-        // 验证扣减结果
-        await expect(page.locator('.inventory-page .el-table')).toContainText('70')
-    })
+    // 验证扣减结果
+    await expect(page.locator('.inventory-page .el-table')).toContainText('70')
+  })
 
-    test('handles concurrent deduct correctly', async ({ page, context }) => {
-        // 打开两个标签页并发扣减
-        const page2 = await context.newPage()
-        await page2.goto('/console/wms/inventory')
-        
-        // 同时点击扣减...
-        // 验证最终结果正确
-    })
+  test('handles concurrent deduct correctly', async ({ page, context }) => {
+    // 打开两个标签页并发扣减
+    const page2 = await context.newPage()
+    await page2.goto('/console/wms/inventory')
+
+    // 同时点击扣减...
+    // 验证最终结果正确
+  })
 })
 ```
 
@@ -443,30 +443,30 @@ test.describe('Inventory Management', () => {
 
 ```typescript
 // tests/visual/inventory.spec.ts
-import { test, expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 test.describe('Visual Regression - Inventory', () => {
-    test('inventory list page', async ({ page }) => {
-        await page.goto('/console/wms/inventory')
-        await page.waitForLoadState('networkidle')
-        
-        // 截图对比
-        await expect(page).toHaveScreenshot('inventory-list.png', {
-            fullPage: true,
-            animations: 'disabled',
-            threshold: 0.2
-        })
-    })
+  test('inventory list page', async ({ page }) => {
+    await page.goto('/console/wms/inventory')
+    await page.waitForLoadState('networkidle')
 
-    test('inventory editor dialog', async ({ page }) => {
-        await page.goto('/console/wms/inventory')
-        await page.click('button:has-text("新建")')
-        await page.waitForSelector('.el-dialog')
-        
-        await expect(page.locator('.el-dialog')).toHaveScreenshot('inventory-editor.png', {
-            threshold: 0.1
-        })
+    // 截图对比
+    await expect(page).toHaveScreenshot('inventory-list.png', {
+      fullPage: true,
+      animations: 'disabled',
+      threshold: 0.2
     })
+  })
+
+  test('inventory editor dialog', async ({ page }) => {
+    await page.goto('/console/wms/inventory')
+    await page.click('button:has-text("新建")')
+    await page.waitForSelector('.el-dialog')
+
+    await expect(page.locator('.el-dialog')).toHaveScreenshot('inventory-editor.png', {
+      threshold: 0.1
+    })
+  })
 })
 ```
 
@@ -482,45 +482,45 @@ import { Pact } from '@pact-foundation/pact'
 import { inventoryApi } from '@/api/generated'
 
 const provider = new Pact({
-    consumer: 'kubo-web',
-    provider: 'kubo-wms',
-    port: 1234,
-    logLevel: 'WARN'
+  consumer: 'kubo-web',
+  provider: 'kubo-wms',
+  port: 1234,
+  logLevel: 'WARN'
 })
 
 describe('Inventory API Contract', () => {
-    beforeAll(() => provider.setup())
-    afterAll(() => provider.finalize())
+  beforeAll(() => provider.setup())
+  afterAll(() => provider.finalize())
 
-    test('GET /api/v1/inventory/page returns paginated inventory', async () => {
-        await provider.addInteraction({
-            state: 'inventory exists',
-            uponReceiving: 'a request for inventory list',
-            withRequest: {
-                method: 'GET',
-                path: '/api/v1/inventory/page',
-                query: { page: '1', pageSize: '20', warehouseId: '1' },
-                headers: { 'Accept': 'application/json' }
-            },
-            willRespondWith: {
-                status: 200,
-                headers: { 'Content-Type': 'application/json' },
-                body: like({
-                    code: 200,
-                    message: 'success',
-                    data: eachLike({
-                        id: 1,
-                        warehouseId: 1,
-                        materialId: 2,
-                        availableQty: 100
-                    })
-                })
-            }
+  test('GET /api/v1/inventory/page returns paginated inventory', async () => {
+    await provider.addInteraction({
+      state: 'inventory exists',
+      uponReceiving: 'a request for inventory list',
+      withRequest: {
+        method: 'GET',
+        path: '/api/v1/inventory/page',
+        query: { page: '1', pageSize: '20', warehouseId: '1' },
+        headers: { Accept: 'application/json' }
+      },
+      willRespondWith: {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: like({
+          code: 200,
+          message: 'success',
+          data: eachLike({
+            id: 1,
+            warehouseId: 1,
+            materialId: 2,
+            availableQty: 100
+          })
         })
-
-        const result = await inventoryApi.getInventoryList({ page: 1, pageSize: 20, warehouseId: 1 })
-        expect(result.content).toHaveLength(1)
+      }
     })
+
+    const result = await inventoryApi.getInventoryList({ page: 1, pageSize: 20, warehouseId: 1 })
+    expect(result.content).toHaveLength(1)
+  })
 })
 ```
 
@@ -597,17 +597,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
-        with: { java-version: '17' }
+        with: {java-version: '17'}
       - run: ./mvnw test jacoco:report
       - uses: codecov/codecov-action@v3
-        with: { flags: backend-unit, fail_ci_if_error: true }
+        with: {flags: backend-unit, fail_ci_if_error: true}
 
   backend-integration:
     runs-on: ubuntu-latest
     services:
-      mysql: { image: mysql:8.0, ports: [3306], env: { MYSQL_ROOT_PASSWORD: test } }
-      redis: { image: redis:7-alpine, ports: [6379] }
-      rabbitmq: { image: rabbitmq:3.12-alpine, ports: [5672] }
+      mysql: {image: mysql:8.0, ports: [3306], env: {MYSQL_ROOT_PASSWORD: test}}
+      redis: {image: redis:7-alpine, ports: [6379]}
+      rabbitmq: {image: rabbitmq:3.12-alpine, ports: [5672]}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -619,16 +619,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v2
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: 'pnpm' }
+        with: {node-version: 20, cache: pnpm}
       - run: pnpm install --frozen-lockfile
       - run: pnpm run test:unit --coverage
       - uses: codecov/codecov-action@v3
-        with: { flags: frontend-unit }
+        with: {flags: frontend-unit}
 
   frontend-e2e:
     runs-on: ubuntu-latest
     services:
-      backend: { image: kubo/backend:dev, ports: [8080] }
+      backend: {image: kubo/backend:dev, ports: [8080]}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v2
@@ -642,11 +642,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: ./mvnw test -Pcontract-test  # Provider 端
+      - run: ./mvnw test -Pcontract-test # Provider 端
     # Consumer 端在前端 CI 中运行
 
   performance:
-    if: github.event_name == 'release'  # 仅 Release 触发
+    if: github.event_name == 'release' # 仅 Release 触发
     runs-on: [self-hosted, gatling]
     steps:
       - uses: actions/checkout@v4
@@ -783,5 +783,5 @@ var inventory = InventoryEntityBuilder.anInventory()
 
 ---
 
-*Last Updated: 2026-08-02*  
+*Last Updated: 2026-08-02*
 *Enforcement: CI Gate Required*

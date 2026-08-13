@@ -1,9 +1,9 @@
 # Kubo 平台-前端高并发重构实施路线规划计划
 
-> **文档版本**：v1.0  
-> **适用项目**：Kubo 智能生产管理系统 Web 端 (原 SPMS-Web)  
-> **目标规模**：10,000+ 并发用户、7×24 小时生产环境、多工厂多租户、复杂交互场景  
-> **核心技术栈**：Vue 3.5+ (Composition API) + TypeScript 5.9+ + Vite 7+ + **Pinia 3+** + Element Plus 2.12+ + **@airpower/web 2.9+** + Vue Router 4.6+ + ECharts 6+  
+> **文档版本**：v1.0
+> **适用项目**：Kubo 智能生产管理系统 Web 端 (原 SPMS-Web)
+> **目标规模**：10,000+ 并发用户、7×24 小时生产环境、多工厂多租户、复杂交互场景
+> **核心技术栈**：Vue 3.5+ (Composition API) + TypeScript 5.9+ + Vite 7+ + **Pinia 3+** + Element Plus 2.12+ + **@airpower/web 2.9+** + Vue Router 4.6+ + ECharts 6+
 > **配套后端**：`kubo-{domain}` 微服务集群 (Spring Cloud Alibaba + MyBatis-Plus + RabbitMQ + MySQL 8.0 InnoDB Cluster + Redis Cluster)
 
 ---
@@ -60,16 +60,16 @@
 ```json
 {
   "dependencies": {
-    "vue": "^3.5.25",           // 保持最新 minor
+    "vue": "^3.5.25", // 保持最新 minor
     "vue-router": "^4.6.4",
     "pinia": "^3.0.4",
     "element-plus": "^2.12.0",
-    "@airpower/web": "^2.9.1",  // 锁定主版本，等重构稳定后再升大版本
+    "@airpower/web": "^2.9.1", // 锁定主版本，等重构稳定后再升大版本
     "axios": "^1.13.2",
     "echarts": "^6.0.0",
-    "@vueuse/core": "^11.0.0",  // **新增**：组合式工具库 (防抖、存储、网络状态等)
+    "@vueuse/core": "^11.0.0", // **新增**：组合式工具库 (防抖、存储、网络状态等)
     "@tanstack/vue-query": "^5.0.0", // **新增**：服务端状态管理 (缓存、去重、预取)
-    "mitt": "^3.0.1",           // **新增**：轻量事件总线 (解耦跨组件通信)
+    "mitt": "^3.0.1", // **新增**：轻量事件总线 (解耦跨组件通信)
     "workerize-loader": "^2.0.0", // **新增**：WebWorker 化大计算
     "virtual-scroller-vue3": "^1.0.0" // **新增**：大列表虚拟滚动
   },
@@ -79,9 +79,9 @@
     "vite-plugin-compression": "^0.5.1", // **新增**：gzip/brotli 压缩
     "vite-plugin-pwa": "^0.20.0", // **新增**：Service Worker 离线缓存
     "rollup-plugin-visualizer": "^5.12.0", // **新增**：包体积分析
-    "vitest": "^2.0.0",         // **新增**：单元测试
+    "vitest": "^2.0.0", // **新增**：单元测试
     "@vue/test-utils": "^2.4.0",
-    "playwright": "^1.45.0"     // **新增**：E2E 测试
+    "playwright": "^1.45.0" // **新增**：E2E 测试
   }
 }
 ```
@@ -144,14 +144,15 @@ interface RequestOptions<T> {
 ```typescript
 // 替代 Pinia 中的异步数据管理
 // stores/queries/useInventoryQuery.ts
-export const useInventoryList = (params: InventoryQueryParams) => 
-  useQuery({
+export function useInventoryList(params: InventoryQueryParams) {
+  return useQuery({
     queryKey: ['inventory', params],
     queryFn: () => inventoryApi.list(params),
-    staleTime: 30_000,      // 30s 内不重复请求
-    gcTime: 5 * 60_000,     // 5 分钟未使用才回收
+    staleTime: 30_000, // 30s 内不重复请求
+    gcTime: 5 * 60_000, // 5 分钟未使用才回收
     placeholderData: keepPreviousData, // 翻页不闪烁
   })
+}
 ```
 
 | 迁移清单 | 状态 |
@@ -167,12 +168,12 @@ export const useInventoryList = (params: InventoryQueryParams) =>
 class WebSocketManager {
   private ws: WebSocket | null = null
   private reconnectTimer: number = 0
-  private messageQueue: Message[] = []        // 离线/重连期间缓存
+  private messageQueue: Message[] = [] // 离线/重连期间缓存
   private priorityQueues: Map<Priority, Message[]> = new Map() // 优先级队列
   private heartbeatInterval: number = 30_000
   private maxReconnectAttempts: number = 10
   private backoffMultiplier: number = 1.5
-  
+
   // 背压控制：每帧处理上限、WebWorker 解析大消息
   // 断点续传：消息 ID 确认机制、服务端补发
 }
@@ -480,11 +481,11 @@ kubo-web/ (Monorepo 推荐)
 
 ---
 
-**文档状态**：**已定稿，可执行**  
-**核心决策**：✅ **Vue 3.5 + TS 5.9 + Vite 7 + Pinia 3 + Element Plus 2.12 + @airpower/web 2.9** ✅ **@tanstack/vue-query (服务端状态) + @vueuse/core (工具库) + 虚拟滚动 + WebWorker + PWA** ✅ **分层状态架构 + 请求网关 + WebSocket 管理器 + 权限引擎** ✅ **与后端 `kubo-{domain}` 微服务契约协同**  
+**文档状态**：**已定稿，可执行**
+**核心决策**：✅ **Vue 3.5 + TS 5.9 + Vite 7 + Pinia 3 + Element Plus 2.12 + @airpower/web 2.9** ✅ **@tanstack/vue-query (服务端状态) + @vueuse/core (工具库) + 虚拟滚动 + WebWorker + PWA** ✅ **分层状态架构 + 请求网关 + WebSocket 管理器 + 权限引擎** ✅ **与后端 `kubo-{domain}` 微服务契约协同**
 **下一步行动**：**第 1 周启动会** → 分配任务 → 搭建 `kubo-web` Monorepo 脚手架 → 发布 `kubo-web-config` + `kubo-web-utils` 快照版 → **第 2 周末完成构建工程化 + 性能基线测量 (M0)** → 同步后端「钢丝」链路联调。
 
 ---
 
-*文档生成时间：2026-08-01*  
+*文档生成时间：2026-08-01*
 *文档位置：`D:\JAVA\Code_repository\SPMS-Web\SPMS-Server\docs\Kubo 平台-前端高并发重构实施路线规划计划.md`*

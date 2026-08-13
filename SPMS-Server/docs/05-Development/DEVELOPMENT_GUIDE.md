@@ -1,8 +1,8 @@
 # Kubo Platform Development Guide
 
-> **Version**: 1.0  
-> **Status**: 🟢 Active  
-> **Last Updated**: 2026-08-02  
+> **Version**: 1.0
+> **Status**: 🟢 Active
+> **Last Updated**: 2026-08-02
 > **Audience**: All Developers (Frontend/Backend/DevOps)
 
 ---
@@ -378,5 +378,5 @@ pnpm run preview
 
 ---
 
-*Last Updated: 2026-08-02*  
+*Last Updated: 2026-08-02*
 *Maintainer: Platform Team*
