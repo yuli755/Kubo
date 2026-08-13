@@ -127,6 +127,8 @@ async function onStartOrPause(order: OrderEntity) {
         <template v-if="OrderStatusEnum.AUDITING.equalsKey(data.status)">
           <BillAuditOrReject
             :bill="data"
+            audit-permission="Order_audit"
+            reject-permission="Order_reject"
             @on-audit="onAudit"
             @on-reject="onReject"
           />

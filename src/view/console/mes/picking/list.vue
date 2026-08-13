@@ -72,6 +72,8 @@ async function onReject(bill: { id: number, rejectReason?: string }) {
       <template #customRow="{ data }">
         <BillAuditOrReject
           :bill="data"
+          audit-permission="Picking_audit"
+          reject-permission="Picking_reject"
           @on-audit="onAudit"
           @on-reject="onReject"
         />

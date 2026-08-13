@@ -24,6 +24,8 @@ const hook = useBillTable(SaleService, {
       <template #customRow="{ data }">
         <BillAuditOrReject
           :bill="data"
+          audit-permission="Sale_audit"
+          reject-permission="Sale_reject"
           @on-audit="hook.onAudit"
           @on-reject="hook.onReject"
         />
