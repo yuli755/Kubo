@@ -1,15 +1,19 @@
 <script lang="ts" setup>
-import { FeedbackUtil, RouterUtil, ValidateUtil, WebConfig } from '@airpower/web'
-import { ElMessageBox } from 'element-plus'
+import type { LoginRequest } from '@/api/types'
+import { RouterUtil, ValidateUtil } from '@airpower/web'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, ref } from 'vue'
+import { authApi } from '@/api/system'
 import Copyright from '@/component/login/Copyright.vue'
 import Logo from '@/component/login/Logo.vue'
 import ThirdLogin from '@/component/login/ThirdLogin.vue'
 import { LoginAction } from '@/model/common/LoginAction'
 import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
 import { OpenAppService } from '@/model/open/app/OpenAppService'
-import { UserEntity } from '@/model/personnel/user/UserEntity'
 import { UserService } from '@/model/personnel/user/UserService'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
 
 /**
  * ### 是否二维码登录
@@ -23,16 +27,19 @@ const currentAction = ref(LoginAction.LOGIN_VIA_PASSWORD)
  */
 const isRead = ref(true)
 
-const user = ref(new UserEntity())
+const user = ref({
+  email: '',
+  password: '',
+  code: '',
+  phone: '',
+  appKey: '',
+})
 
 const appKey = (RouterUtil.router.currentRoute.value.query.appKey || '').toString()
 const scope = (RouterUtil.router.currentRoute.value.query.scope || '').toString()
 const redirectUri = (RouterUtil.router.currentRoute.value.query.redirectUri || '/console').toString()
 
 const appInfo = ref(new OpenAppEntity())
-
-user.value.email = 'admin@hamm.cn'
-user.value.password = 'Aa123456'
 
 // 一些Loading状态
 const isLoadingApp = ref(false)
@@ -76,19 +83,26 @@ async function getAppInfo() {
 /**
  * ### 处理登录重定向
  */
-async function loginRedirect(result: string) {
-  WebConfig.saveAccessToken(result)
+async function loginRedirect(res: { token: string, refreshToken?: string, user?: unknown }) {
+  userStore.setToken(res.token)
+  if (res.refreshToken) {
+    userStore.setRefreshToken(res.refreshToken)
+  }
+  if (res.user) {
+    userStore.setUserInfo(res.user)
+  }
+
   if (appKey) {
     if (appInfo.value.isInternal) {
-      const result = await UserService.create(isLoadingLogin).authorize(appKey, scope)
-      window.location.replace(`${redirectUri}?code=${result}`)
+      const code = await UserService.create(isLoadingLogin).authorize(appKey, scope)
+      window.location.replace(`${redirectUri}?code=${code}`)
       return
     }
     // Oauth登录 重定向code
     window.location.replace(`/authorize${window.location.search}`)
     return
   }
-  // 正常登录 保存 AccessToken
+  // 正常登录
   window.location.replace(redirectUri)
 }
 
@@ -96,21 +110,36 @@ async function loginRedirect(result: string) {
  * ### 邮箱+密码登录
  */
 async function onLogin() {
-  const request = user.value.copy()
-  if (ValidateUtil.isNumber(request.email)) {
-    request.id = Number.parseInt(request.email, 10)
-    request.exclude('email')
+  isLoadingLogin.value = true
+  try {
+    const credentials: LoginRequest = {
+      username: user.value.email,
+      password: user.value.password,
+      rememberMe: true,
+    }
+    const res = await authApi.login(credentials)
+    loginRedirect(res)
   }
-  const result = await UserService.create(isLoadingLogin).login(request)
-  loginRedirect(result)
+  finally {
+    isLoadingLogin.value = false
+  }
 }
 
 /**
  * ### 邮箱+验证码登录
  */
 async function onEmailLogin() {
-  const result = await UserService.create(isLoadingLogin).loginViaEmail(user.value)
-  loginRedirect(result)
+  isLoadingLogin.value = true
+  try {
+    const res = await authApi.loginViaEmail({
+      email: user.value.email,
+      code: user.value.code,
+    })
+    loginRedirect(res)
+  }
+  finally {
+    isLoadingLogin.value = false
+  }
 }
 
 /**
@@ -139,15 +168,24 @@ async function onSubmit() {
  * ### 发送邮箱验证码事件
  */
 async function onSendEmailCode() {
-  const request = new UserEntity()
-  request.email = user.value.email
-  await UserService.create(isEmailCodeLoading).sendEmail(request)
-  FeedbackUtil.toastSuccess('邮箱验证码发送成功, 请注意查看是否被拦截')
+  isEmailCodeLoading.value = true
+  try {
+    await authApi.sendEmailCode(user.value.email)
+    ElMessage.success('邮箱验证码发送成功, 请注意查看是否被拦截')
+  }
+  finally {
+    isEmailCodeLoading.value = false
+  }
 }
 
 async function logout() {
-  WebConfig.removeAccessToken()
-  await UserService.create(isLoadingLogin).logout()
+  userStore.logout()
+  try {
+    await authApi.logout()
+  }
+  catch {
+    // 忽略服务端登出失败，本地状态已清除
+  }
 }
 
 function switchQrcodeLogin(item: LoginAction) {

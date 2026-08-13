@@ -5,7 +5,7 @@
  * 前端可通过 x-visibility、x-mask 等扩展自动实现行级/列级权限控制
  */
 
-import { OpenAPIV3 } from 'openapi-types'
+import type { OpenAPIV3 } from 'openapi-types'
 
 /**
  * 扩展字段定义
@@ -57,7 +57,7 @@ const exampleOpenApiSpec = {
   openapi: '3.1.0',
   info: {
     title: 'Kubo API',
-    version: '1.0.0'
+    version: '1.0.0',
   },
   components: {
     schemas: {
@@ -66,60 +66,60 @@ const exampleOpenApiSpec = {
         properties: {
           id: {
             type: 'integer',
-            format: 'int64'
+            format: 'int64',
           },
           name: {
             type: 'string',
-            description: '物料名称'
+            description: '物料名称',
           },
           code: {
             type: 'string',
-            description: '物料编码'
+            description: '物料编码',
           },
           costPrice: {
-            type: 'number',
-            format: 'double',
-            description: '成本价',
+            'type': 'number',
+            'format': 'double',
+            'description': '成本价',
             'x-mask': 'PARTIAL',
             'x-mask-roles': ['FINANCE', 'ADMIN'],
             'x-sensitive': true,
-            'x-category': 'FINANCIAL'
+            'x-category': 'FINANCIAL',
           },
           salePrice: {
-            type: 'number',
-            format: 'double',
-            description: '销售价',
+            'type': 'number',
+            'format': 'double',
+            'description': '销售价',
             'x-mask': 'PARTIAL',
             'x-mask-roles': ['SALES_MGR', 'ADMIN'],
             'x-sensitive': true,
-            'x-category': 'FINANCIAL'
+            'x-category': 'FINANCIAL',
           },
           supplierPhone: {
-            type: 'string',
-            description: '供应商电话',
+            'type': 'string',
+            'description': '供应商电话',
             'x-mask': 'PARTIAL',
             'x-mask-roles': ['PURCHASE_MGR', 'ADMIN'],
             'x-sensitive': true,
-            'x-category': 'PII'
+            'x-category': 'PII',
           },
           warehouseId: {
-            type: 'integer',
-            format: 'int64',
-            description: '仓库ID',
+            'type': 'integer',
+            'format': 'int64',
+            'description': '仓库ID',
             'x-visibility': ['WAREHOUSE_MGR', 'ADMIN'],
-            'x-ownership': ['WAREHOUSE_MGR']
-          }
-        }
-      }
-    }
-  }
+            'x-ownership': ['WAREHOUSE_MGR'],
+          },
+        },
+      },
+    },
+  },
 }
 
 export { exampleOpenApiSpec }
 
 // 脱敏策略枚举
 export enum MaskStrategy {
-  /** 完全隐藏: **** */
+  /** 完全隐藏: */
   REDACT = 'REDACT',
   /** 部分显示: 138****1234 */
   PARTIAL = 'PARTIAL',
@@ -127,10 +127,10 @@ export enum MaskStrategy {
   HASH = 'HASH',
   /** 仅显示最后4位: ***1234 */
   LAST4 = 'LAST4',
-  /** 仅显示前2位: 13******** */
+  /** 仅显示前2位: 13 */
   FIRST2 = 'FIRST2',
   /** 完全显示 (白名单角色) */
-  NONE = 'NONE'
+  NONE = 'NONE',
 }
 
 // 前端脱敏管道类型
@@ -141,28 +141,30 @@ export const maskPipes: Record<MaskStrategy, MaskPipe> = {
   [MaskStrategy.REDACT]: () => '****',
   [MaskStrategy.PARTIAL]: (value: unknown) => {
     const str = String(value)
-    if (str.length <= 4) return '****'
-    return str.slice(0, 2) + '****' + str.slice(-2)
+    if (str.length <= 4)
+      return '****'
+    return `${str.slice(0, 2)}****${str.slice(-2)}`
   },
   [MaskStrategy.HASH]: (value: unknown) => {
     // 实际项目中使用 crypto.subtle.digest
-    return `hash:${Buffer.from(String(value)).toString('base64').slice(0, 8)}...`
+    return `hash:${btoa(String(value)).slice(0, 8)}...`
   },
   [MaskStrategy.REDACT]: () => '****',
   [MaskStrategy.LAST4]: (value: unknown) => {
     const str = String(value)
-    return '***' + str.slice(-4)
+    return `***${str.slice(-4)}`
   },
   [MaskStrategy.FIRST2]: (value: unknown) => {
     const str = String(value)
     return str.slice(0, 2) + '*'.repeat(Math.max(0, str.length - 2))
   },
-  [MaskStrategy.NONE]: (value: unknown) => value
+  [MaskStrategy.NONE]: (value: unknown) => value,
 }
 
 // 权限检查工具
 export function hasPermission(userRoles: string[], requiredRoles: string[]): boolean {
-  if (!requiredRoles || requiredRoles.length === 0) return true
+  if (!requiredRoles || requiredRoles.length === 0)
+    return true
   return requiredRoles.some(role => userRoles.includes(role))
 }
 
@@ -171,7 +173,7 @@ export function applyMask(
   value: unknown,
   strategy: MaskStrategy,
   userRoles: string[],
-  allowedRoles: string[] = []
+  allowedRoles: string[] = [],
 ): unknown {
   // 有权限查看原值
   if (hasPermission(userRoles, allowedRoles)) {

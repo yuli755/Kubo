@@ -1,8 +1,4 @@
 <script lang="ts" setup>
-import {OutputDetailEntity} from '@/model/wms/output/OutputDetailEntity'
-import {OutputEntity} from '@/model/wms/output/OutputEntity'
-import {OutputService} from '@/model/wms/output/OutputService'
-import {OutputTypeEnum} from '@/model/wms/output/OutputTypeEnum'
 import {
   AButton,
   ADialog,
@@ -16,8 +12,12 @@ import {
   getTableConfigList,
   useEditor,
 } from '@airpower/web'
-import {computed} from 'vue'
-import {OutputDetailEditor} from '.'
+import { computed } from 'vue'
+import { OutputDetailEntity } from '@/model/wms/output/OutputDetailEntity'
+import { OutputEntity } from '@/model/wms/output/OutputEntity'
+import { OutputService } from '@/model/wms/output/OutputService'
+import { OutputTypeEnum } from '@/model/wms/output/OutputTypeEnum'
+import { OutputDetailEditor } from '.'
 
 const props = defineProps(DialogProps.withParam(new OutputEntity()))
 
@@ -58,52 +58,52 @@ async function deleteDetail(index: number) {
 
 <template>
   <ADialog
-      :form-ref="formRef"
-      :loading="isLoading"
-      :title="title"
-      height="80%"
-      width="80%"
-      @cancel="onCancel"
-      @confirm="onSubmit"
+    :form-ref="formRef"
+    :loading="isLoading"
+    :title="title"
+    height="80%"
+    width="80%"
+    @cancel="onCancel"
+    @confirm="onSubmit"
   >
     <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="rules"
-        label-width="120px"
-        @submit.prevent
+      ref="formRef"
+      :model="formData"
+      :rules="rules"
+      label-width="120px"
+      @submit.prevent
     >
       <AGroup
-          :column="2"
-          title="入库单"
+        :column="2"
+        title="入库单"
       >
-        <AFormField field="billCode"/>
+        <AFormField field="billCode" />
       </AGroup>
       <AGroup title="出库明细">
         <ATable
-            :column-list="
+          :column-list="
             getTableConfigList(OutputDetailEntity).filter((item) => !['createTime'].includes(item.key))
           "
-            :data-list="formData.details"
-            :entity="OutputDetailEntity"
-            hide-delete
-            hide-edit
+          :data-list="formData.details"
+          :entity="OutputDetailEntity"
+          hide-delete
+          hide-edit
         >
           <template #addButton>
             <AButton
-                v-if="isDetailEditable"
-                icon="ADD"
-                @click="addDetail()"
+              v-if="isDetailEditable"
+              icon="ADD"
+              @click="addDetail()"
             >
               添加{{ getFieldLabel(OutputEntity, 'details') }}
             </AButton>
           </template>
           <template #customRow="{ index }">
             <AButton
-                v-if="isDetailEditable"
-                danger
-                link
-                @click="deleteDetail(index)"
+              v-if="isDetailEditable"
+              danger
+              link
+              @click="deleteDetail(index)"
             >
               删除
             </AButton>

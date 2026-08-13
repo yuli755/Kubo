@@ -1,10 +1,12 @@
 <script lang="ts" setup>
 import type { MenuEntity } from '@/model/system/menu/MenuEntity'
-import { AFrame, PermissionUtil, RouterUtil } from '@airpower/web'
+import { AFrame, RouterUtil } from '@airpower/web'
 import { ref } from 'vue'
 import UserCard from '@/component/UserCard.vue'
 import { UserEntity } from '@/model/personnel/user/UserEntity'
 import { UserService } from '@/model/personnel/user/UserService'
+import { usePermissionStore } from '@/stores/permission'
+import { webSocketManager } from '@/websocket/WebSocketManager'
 
 const components = import.meta.glob('/src/view/**/*.vue')
 
@@ -21,8 +23,11 @@ async function getMenuList() {
 async function init() {
   currentUserInfo.value = await UserService.create().getMyInfo()
   const permissions = await UserService.create(isLoading).getMyPermissionList()
-  PermissionUtil.saveList(permissions)
+  const permissionStore = usePermissionStore()
+  permissionStore.setPermissions(permissions)
   await getMenuList()
+  // 用户信息加载完成后建立 WebSocket 连接（此时 token 已就绪）
+  webSocketManager.connect()
 }
 
 init()

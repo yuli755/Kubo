@@ -1,23 +1,21 @@
-import { request, type ApiResponse, type PageRequest, type PageResponse } from './axios'
-import type {
-  PermissionEntity,
-  UserEntity,
-  RoleEntity,
-  DepartmentEntity,
-  DictionaryEntity,
-  LoginRequest,
-  LoginResponse,
-  RefreshTokenRequest,
-  RefreshTokenResponse,
-  ChangePasswordRequest,
-  FileUploadResponse,
-} from './types'
+import type { ChangePasswordRequest, DepartmentEntity, DictionaryEntity, FileUploadResponse, LoginRequest, LoginResponse, PageRequest, PageResponse, PermissionEntity, RefreshTokenRequest, RefreshTokenResponse, RoleEntity, UserEntity } from './types'
+import { request } from './axios'
 
 // 认证相关 API
 export const authApi = {
   // 登录
   login(data: LoginRequest): Promise<LoginResponse> {
     return request.post('/auth/login', data)
+  },
+
+  // 邮箱验证码登录
+  loginViaEmail(data: { email: string, code: string }): Promise<LoginResponse> {
+    return request.post('/auth/login/email', data)
+  },
+
+  // 发送邮箱验证码
+  sendEmailCode(email: string): Promise<void> {
+    return request.post('/auth/code/email', { email })
   },
 
   // 登出
@@ -41,7 +39,7 @@ export const authApi = {
   },
 
   // 获取验证码
-  getCaptcha(): Promise<{ captchaId: string; image: string }> {
+  getCaptcha(): Promise<{ captchaId: string, image: string }> {
     return request.get('/auth/captcha')
   },
 }
@@ -299,7 +297,7 @@ export const fileApi = {
   // 批量上传
   uploadBatch(files: File[], onProgress?: (progress: number) => void): Promise<FileUploadResponse[]> {
     const formData = new FormData()
-    files.forEach((file) => formData.append('files', file))
+    files.forEach(file => formData.append('files', file))
     return request.post('/file/upload/batch', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (progressEvent) => {

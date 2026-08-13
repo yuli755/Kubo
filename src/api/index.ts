@@ -1,13 +1,9 @@
-// 统一导出
-export * from './axios'
-export * from './types'
-export * from './system'
-
-// 默认导出
-import { api } from './system'
 import { request } from './axios'
+
+export { request } from './axios'
+export * from './system'
+export * from './types'
 
 export default {
   request,
-  api,
 }

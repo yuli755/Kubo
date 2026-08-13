@@ -11,7 +11,6 @@ import { PurchaseStatusEnum } from '@/model/channel/purchase/PurchaseStatusEnum'
 const props = defineProps(DialogProps.withParam(new PurchaseEntity()))
 
 const {
-  title,
   formData,
   isLoading,
   addDetailFinishQuantity,

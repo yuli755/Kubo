@@ -1,4 +1,5 @@
-import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
+import type { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
+import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 
@@ -68,7 +69,7 @@ function createAxiosInstance(): AxiosInstance {
     },
     (error) => {
       return Promise.reject(error)
-    }
+    },
   )
 
   // 响应拦截器
@@ -108,16 +109,10 @@ function createAxiosInstance(): AxiosInstance {
       if (!error.response) {
         const message = error.code === 'ECONNABORTED' ? '请求超时' : '网络连接失败'
         ElMessage.error(message)
-        return Promise.reject({
-          code: -1,
-          message,
-          timestamp: new Date().toISOString(),
-          path: originalRequest?.url || '',
-        } as ApiError)
+        return Promise.reject(new Error(message))
       }
 
       const { status, data } = error.response
-      const apiError = data as ApiError
 
       // 处理特定状态码
       switch (status) {
@@ -130,7 +125,8 @@ function createAxiosInstance(): AxiosInstance {
               await userStore.refreshToken()
               // 重试原请求
               return instance(originalRequest)
-            } catch {
+            }
+            catch {
               // 刷新失败，跳转登录
               const userStore = useUserStore()
               userStore.logout()
@@ -147,11 +143,12 @@ function createAxiosInstance(): AxiosInstance {
           ElMessage.error('请求的资源不存在')
           break
 
-        case 422:
+        case 422: {
           // 参数校验错误
           const validationMessage = data?.message || '参数校验失败'
           ElMessage.error(validationMessage)
           break
+        }
 
         case 429:
           ElMessage.error('请求过于频繁，请稍后再试')
@@ -165,14 +162,13 @@ function createAxiosInstance(): AxiosInstance {
           ElMessage.error(data?.message || `请求失败 (${status})`)
       }
 
-      return Promise.reject({
+      return Promise.reject(Object.assign(new Error(data?.message || error.message), {
         code: status,
-        message: data?.message || error.message,
         data: data?.data,
         timestamp: data?.timestamp || new Date().toISOString(),
         path: originalRequest?.url || '',
-      } as ApiError)
-    }
+      }))
+    },
   )
 
   return instance
@@ -226,7 +222,8 @@ export const api = {
     return request.get(url, {
       params,
       responseType: 'blob',
-    }).then((blob: Blob) => {
+    }).then((response: AxiosResponse) => {
+      const blob = response.data as Blob
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -240,4 +237,4 @@ export const api = {
 }
 
 // 导出类型
-export type { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError }
+export type { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse }

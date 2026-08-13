@@ -14,45 +14,46 @@
  * @author Hamm.cn
  * @version 1.0.0
  * @sync-from ErrorCode.java
+ * @eslint-disable ts/no-duplicate-enum-values — 后端同步，重复值需在 ErrorCode.java 修复
  */
 
 // ============ 核心类型定义 ============
 
 /** 错误码基础接口 */
 export interface ErrorCodeDefinition {
-  code: number;
-  message: string;
-  module: string;
-  category: string;
-  description: string;
+  code: number
+  message: string
+  module: string
+  category: string
+  description: string
 }
 
 /** 错误码分类枚举 */
 export enum ErrorCategory {
-  VALIDATION = 'VALIDATION',           // 01 - 参数校验
-  BUSINESS = 'BUSINESS',               // 02 - 业务逻辑
-  PERMISSION = 'PERMISSION',           // 03 - 权限
-  NOT_FOUND = 'NOT_FOUND',             // 04 - 资源不存在
-  CONCURRENCY = 'CONCURRENCY',         // 05 - 并发冲突
-  EXTERNAL = 'EXTERNAL',               // 06 - 外部依赖
-  SYSTEM = 'SYSTEM',                   // 07 - 系统错误
-  RATE_LIMIT = 'RATE_LIMIT',           // 08 - 限流熔断
-  DATA_CONSISTENCY = 'DATA_CONSISTENCY' // 09 - 数据一致性
+  VALIDATION = 'VALIDATION', // 01 - 参数校验
+  BUSINESS = 'BUSINESS', // 02 - 业务逻辑
+  PERMISSION = 'PERMISSION', // 03 - 权限
+  NOT_FOUND = 'NOT_FOUND', // 04 - 资源不存在
+  CONCURRENCY = 'CONCURRENCY', // 05 - 并发冲突
+  EXTERNAL = 'EXTERNAL', // 06 - 外部依赖
+  SYSTEM = 'SYSTEM', // 07 - 系统错误
+  RATE_LIMIT = 'RATE_LIMIT', // 08 - 限流熔断
+  DATA_CONSISTENCY = 'DATA_CONSISTENCY', // 09 - 数据一致性
 }
 
 /** 错误码模块枚举 */
 export enum ErrorModule {
-  COMMON = 'COMMON',        // 0 - 通用
-  SYSTEM = 'SYSTEM',        // 1 - 系统管理
-  AUTH = 'AUTH',            // 2 - 认证授权
-  WMS = 'WMS',              // 3 - 仓储管理
-  MES = 'MES',              // 4 - 制造执行
-  FINANCE = 'FINANCE',      // 5 - 财务核算
+  COMMON = 'COMMON', // 0 - 通用
+  SYSTEM = 'SYSTEM', // 1 - 系统管理
+  AUTH = 'AUTH', // 2 - 认证授权
+  WMS = 'WMS', // 3 - 仓储管理
+  MES = 'MES', // 4 - 制造执行
+  FINANCE = 'FINANCE', // 5 - 财务核算
   PROCUREMENT = 'PROCUREMENT', // 6 - 采购管理
-  SALES = 'SALES',          // 7 - 销售管理
-  ASSET = 'ASSET',          // 8 - 资产设备
-  PERSONNEL = 'PERSONNEL',  // 9 - 人事管理
-  IOT = 'IOT'               // 0 扩展 - 物联网
+  SALES = 'SALES', // 7 - 销售管理
+  ASSET = 'ASSET', // 8 - 资产设备
+  PERSONNEL = 'PERSONNEL', // 9 - 人事管理
+  IOT = 'IOT', // 0 扩展 - 物联网
 }
 
 /** HTTP 状态码映射 */
@@ -68,7 +69,7 @@ export enum HttpStatus {
   UNPROCESSABLE_ENTITY = 422,
   TOO_MANY_REQUESTS = 429,
   INTERNAL_SERVER_ERROR = 500,
-  SERVICE_UNAVAILABLE = 503
+  SERVICE_UNAVAILABLE = 503,
 }
 
 // ============ 错误码枚举定义 ============
@@ -77,6 +78,7 @@ export enum HttpStatus {
  * 统一错误码枚举
  * 与后端 ErrorCode.java 强制同步
  */
+/* eslint-disable ts/no-duplicate-enum-values */
 export enum ErrorCode {
   // ============ 通用模块 (0xxxx) ============
 
@@ -603,12 +605,12 @@ export enum ErrorCode {
 
 /** 错误码元数据映射 */
 export interface ErrorCodeMeta {
-  code: ErrorCode;
-  httpStatus: HttpStatus;
-  category: ErrorCategory;
-  module: ErrorModule;
-  message: string;
-  description: string;
+  code: ErrorCode
+  httpStatus: HttpStatus
+  category: ErrorCategory
+  module: ErrorModule
+  message: string
+  description: string
 }
 
 /** 错误码元数据映射表 */
@@ -619,7 +621,7 @@ export const ERROR_CODE_META: Record<ErrorCode, ErrorCodeMeta> = {
     category: ErrorCategory.BUSINESS,
     module: ErrorModule.COMMON,
     message: '成功',
-    description: '操作成功'
+    description: '操作成功',
   },
   [ErrorCode.UNKNOWN_ERROR]: {
     code: ErrorCode.UNKNOWN_ERROR,
@@ -627,11 +629,11 @@ export const ERROR_CODE_META: Record<ErrorCode, ErrorCodeMeta> = {
     category: ErrorCategory.SYSTEM,
     module: ErrorModule.COMMON,
     message: '系统内部错误，请联系管理员',
-    description: '未知系统错误'
+    description: '未知系统错误',
   },
   // ... 此处省略完整映射，实际使用时建议从后端自动生成
   // 完整映射请参考 scripts/generate-error-codes.ts 生成脚本
-};
+}
 
 // ============ 核心工具类 ============
 
@@ -639,34 +641,42 @@ export const ERROR_CODE_META: Record<ErrorCode, ErrorCodeMeta> = {
  * API 错误响应结构
  */
 export interface ApiErrorResponse {
-  code: ErrorCode;
-  message: string;
-  data?: unknown;
-  timestamp: string;
-  path: string;
-  traceId?: string;
+  code: ErrorCode
+  message: string
+  data?: unknown
+  timestamp: string
+  path: string
+  traceId?: string
 }
 
 /** 格式化错误消息 */
 export function formatErrorMessage(template: string, ...args: (string | number)[]): string {
   return template.replace(/\{(\d+)\}/g, (match, index) => {
-    const arg = args[parseInt(index, 10)];
-    return arg !== undefined ? String(arg) : match;
-  });
+    const arg = args[Number.parseInt(index, 10)]
+    return arg !== undefined ? String(arg) : match
+  })
 }
 
 /** 根据错误码获取 HTTP 状态码 */
 export function getHttpStatus(code: ErrorCode): HttpStatus {
   // 简化映射，实际使用时建议完整映射表
-  if (code >= 30000 && code < 40000) return HttpStatus.FORBIDDEN; // 权限类
-  if (code >= 40000 && code < 50000) return HttpStatus.NOT_FOUND; // 资源不存在
-  if (code >= 50000 && code < 60000) return HttpStatus.CONFLICT; // 并发冲突
-  if (code >= 80000 && code < 90000) return HttpStatus.TOO_MANY_REQUESTS; // 限流
-  if (code >= 70000) return HttpStatus.INTERNAL_SERVER_ERROR; // 系统错误
-  if (code >= 10000 && code < 20000) return HttpStatus.BAD_REQUEST; // 参数校验
-  if (code >= 20000 && code < 30000) return HttpStatus.CONFLICT; // 资源已存在
-  if (code >= 60000) return HttpStatus.SERVICE_UNAVAILABLE; // 外部依赖
-  return HttpStatus.INTERNAL_SERVER_ERROR;
+  if (code >= 30000 && code < 40000)
+    return HttpStatus.FORBIDDEN // 权限类
+  if (code >= 40000 && code < 50000)
+    return HttpStatus.NOT_FOUND // 资源不存在
+  if (code >= 50000 && code < 60000)
+    return HttpStatus.CONFLICT // 并发冲突
+  if (code >= 80000 && code < 90000)
+    return HttpStatus.TOO_MANY_REQUESTS // 限流
+  if (code >= 70000)
+    return HttpStatus.INTERNAL_SERVER_ERROR // 系统错误
+  if (code >= 10000 && code < 20000)
+    return HttpStatus.BAD_REQUEST // 参数校验
+  if (code >= 20000 && code < 30000)
+    return HttpStatus.CONFLICT // 资源已存在
+  if (code >= 60000)
+    return HttpStatus.SERVICE_UNAVAILABLE // 外部依赖
+  return HttpStatus.INTERNAL_SERVER_ERROR
 }
 
 /** 判断是否为重试错误 */
@@ -678,7 +688,7 @@ export function isRetryableError(code: ErrorCode): boolean {
     ErrorCode.RATE_LIMIT_EXCEEDED,
     ErrorCode.CONCURRENT_CONFLICT,
     ErrorCode.VERSION_CONFLICT,
-  ].includes(code);
+  ].includes(code)
 }
 
 /** 判断是否为认证错误 */
@@ -689,63 +699,65 @@ export function isAuthError(code: ErrorCode): boolean {
     ErrorCode.TOKEN_INVALID,
     ErrorCode.REFRESH_TOKEN_EXPIRED,
     ErrorCode.REFRESH_TOKEN_INVALID,
-  ].includes(code);
+  ].includes(code)
 }
 
 /** 判断是否为权限错误 */
 export function isPermissionError(code: ErrorCode): boolean {
-  return code === ErrorCode.PERMISSION_DENIED;
+  return code === ErrorCode.PERMISSION_DENIED
 }
 
 /** 判断是否为资源不存在错误 */
-export function isNotFoundError(code: ErrorCode): boolean = code >= 40000 && code < 50000;
+export function isNotFoundError(code: ErrorCode): boolean {
+  return code >= 40000 && code < 50000
+}
 
 /** 格式化错误消息（带参数） */
-export function formatError(code: ErrorCode, ...args: (string | number)[]): string {
+export function formatError(code: ErrorCode, ..._args: (string | number)[]): string {
   // 实际使用时需要完整的消息模板映射表
   // 这里提供基础框架，实际使用时建议从后端同步完整映射
-  return String(code);
+  return String(code)
 }
 
 /** API 错误类 */
 export class ApiError extends Error {
-  public readonly code: ErrorCode;
-  public readonly httpStatus: HttpStatus;
-  public readonly data?: unknown;
-  public readonly timestamp: string;
-  public readonly path: string;
-  public readonly traceId?: string;
+  public readonly code: ErrorCode
+  public readonly httpStatus: HttpStatus
+  public readonly data?: unknown
+  public readonly timestamp: string
+  public readonly path: string
+  public readonly traceId?: string
 
   constructor(
     code: ErrorCode,
     message?: string,
     data?: unknown,
     path?: string,
-    traceId?: string
+    traceId?: string,
   ) {
-    super(message || String(code));
-    this.name = 'ApiError';
-    this.code = code;
-    this.httpStatus = getHttpStatus(code);
-    this.data = data;
-    this.timestamp = new Date().toISOString();
-    this.path = path || '';
-    this.traceId = traceId;
+    super(message || String(code))
+    this.name = 'ApiError'
+    this.code = code
+    this.httpStatus = getHttpStatus(code)
+    this.data = data
+    this.timestamp = new Date().toISOString()
+    this.path = path || ''
+    this.traceId = traceId
   }
 
   /** 判断是否可重试 */
   isRetryable(): boolean {
-    return isRetryableError(this.code);
+    return isRetryableError(this.code)
   }
 
   /** 判断是否为认证错误 */
   isAuthError(): boolean {
-    return isAuthError(this.code);
+    return isAuthError(this.code)
   }
 
   /** 判断是否为权限错误 */
   isPermissionError(): boolean {
-    return isPermissionError(this.code);
+    return isPermissionError(this.code)
   }
 
   /** 转换为普通对象 (用于上报/日志) */
@@ -757,7 +769,7 @@ export class ApiError extends Error {
       timestamp: this.timestamp,
       path: this.path,
       traceId: this.traceId,
-    };
+    }
   }
 }
 
@@ -766,25 +778,25 @@ export function createApiError(
   code: ErrorCode,
   message?: string,
   data?: unknown,
-  path?: string
+  path?: string,
 ): ApiError {
-  return new ApiError(code, message, data, path);
+  return new ApiError(code, message, data, path)
 }
 
 /** 从后端响应创建 API 错误 */
 export function createApiErrorFromResponse(response: {
-  code: number;
-  message: string;
-  data?: unknown;
-  timestamp: string;
-  path: string;
+  code: number
+  message: string
+  data?: unknown
+  timestamp: string
+  path: string
 }): ApiError {
   return new ApiError(
     response.code as ErrorCode,
     response.message,
     response.data,
-    response.path
-  );
+    response.path,
+  )
 }
 
 // ============ 导出 ============
@@ -803,4 +815,4 @@ export default {
   isAuthError,
   isPermissionError,
   formatErrorMessage,
-};
+}

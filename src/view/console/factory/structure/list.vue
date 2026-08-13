@@ -1,5 +1,7 @@
 <script lang="ts" setup>
 import { APanel, ATable, useTableTree } from '@airpower/web'
+import { watch } from 'vue'
+import { useStructureTree } from '@/hook/factory'
 import { StructureService } from '@/model/factory/structure/StructureService'
 import { StructureEditor } from './component'
 
@@ -9,6 +11,19 @@ const hook = useTableTree(StructureService, {
     param.parent = row
     return param
   },
+})
+
+// 使用 @tanstack/vue-query 替代 airpower service.getList
+const { isFetching, refetch } = useStructureTree()
+
+hook.service.getList = async () => {
+  const result = await refetch()
+  return result.data ?? []
+}
+
+// 同步加载状态到 hook，保持 ATable v-loading 正常工作
+watch(isFetching, (v) => {
+  hook.isLoading.value = v
 })
 </script>
 
