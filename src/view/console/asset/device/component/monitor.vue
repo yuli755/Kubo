@@ -9,7 +9,7 @@ import { DeviceStatusEnum } from '@/model/asset/device/DeviceStatusEnum'
 
 import { CollectionDefault } from '@/model/iot/collection/CollectionDefault'
 import { ParameterEditor } from '@/view/console/iot/parameter/component'
-import { DeviceCollectHistory } from '.'
+import DeviceCollectHistory from './history.vue'
 
 const props = defineProps(DialogProps.withParam(new DeviceEntity()))
 

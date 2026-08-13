@@ -16,6 +16,9 @@ export default config({
         singleline: 1, // 单行最多 1 个属性
         multiline: 1,
       }],
+      // airpower ATable 的 #customRow="{ data }" 插槽变量名固定，
+      // 与列表视图 useXxxList() 返回的 data 同名属既定约定，允许遮蔽
+      'vue/no-template-shadow': 'off',
     },
   },
   typescript: {
