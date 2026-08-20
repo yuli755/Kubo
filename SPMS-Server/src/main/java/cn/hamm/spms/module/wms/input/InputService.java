@@ -8,6 +8,8 @@ import cn.hamm.spms.module.channel.ChannelServices;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.wms.WmsServices;
 import cn.hamm.spms.module.wms.input.detail.InputDetailEntity;
 import cn.hamm.spms.module.wms.input.detail.InputDetailRepository;
@@ -17,10 +19,16 @@ import cn.hamm.spms.module.wms.input.enums.InputType;
 import cn.hamm.spms.module.wms.inventory.InventoryEntity;
 import cn.hamm.spms.module.wms.inventory.InventoryService;
 import cn.hamm.spms.module.wms.inventory.enums.InventoryType;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
@@ -34,6 +42,23 @@ import static cn.hamm.spms.module.system.config.enums.ConfigFlag.INPUT_BILL_AUTO
 @Slf4j
 @Service
 public class InputService extends AbstractBaseBillService<InputEntity, InputRepository, InputDetailEntity, InputDetailService, InputDetailRepository> {
+    @Autowired
+    private DataPermissionSpecification dataPermissionSpecification;
+
+    @Override
+    protected @NotNull List<Predicate> addSearchPredicate(
+            @NotNull Root<InputEntity> root,
+            @NotNull CriteriaBuilder builder,
+            @NotNull InputEntity search
+    ) {
+        List<Predicate> predicateList = new ArrayList<>();
+        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
+                root, builder, "wms.input", DataPermissionAction.QUERY
+        );
+        predicateList.addAll(dataPermissionPredicates);
+        return predicateList;
+    }
+
     @Override
     public IDictionary getAuditingStatus() {
         return InputStatus.AUDITING;

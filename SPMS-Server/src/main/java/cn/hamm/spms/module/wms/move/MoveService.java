@@ -5,6 +5,8 @@ import cn.hamm.spms.base.bill.AbstractBaseBillService;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.wms.WmsServices;
 import cn.hamm.spms.module.wms.input.InputEntity;
 import cn.hamm.spms.module.wms.input.detail.InputDetailEntity;
@@ -21,7 +23,11 @@ import cn.hamm.spms.module.wms.output.OutputEntity;
 import cn.hamm.spms.module.wms.output.detail.OutputDetailEntity;
 import cn.hamm.spms.module.wms.output.enums.OutputStatus;
 import cn.hamm.spms.module.wms.output.enums.OutputType;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -37,6 +43,23 @@ import static cn.hamm.spms.module.system.config.enums.ConfigFlag.MOVE_BILL_AUTO_
  */
 @Service
 public class MoveService extends AbstractBaseBillService<MoveEntity, MoveRepository, MoveDetailEntity, MoveDetailService, MoveDetailRepository> {
+    @Autowired
+    private DataPermissionSpecification dataPermissionSpecification;
+
+    @Override
+    protected @NotNull List<Predicate> addSearchPredicate(
+            @NotNull Root<MoveEntity> root,
+            @NotNull CriteriaBuilder builder,
+            @NotNull MoveEntity search
+    ) {
+        List<Predicate> predicateList = new ArrayList<>();
+        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
+                root, builder, "wms.move", DataPermissionAction.QUERY
+        );
+        predicateList.addAll(dataPermissionPredicates);
+        return predicateList;
+    }
+
     @Override
     public IDictionary getAuditedStatus() {
         return MoveStatus.MOVING;

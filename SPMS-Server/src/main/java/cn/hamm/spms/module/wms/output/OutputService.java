@@ -6,6 +6,8 @@ import cn.hamm.spms.base.bill.AbstractBaseBillService;
 import cn.hamm.spms.module.channel.ChannelServices;
 import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.wms.WmsServices;
 import cn.hamm.spms.module.wms.inventory.InventoryEntity;
 import cn.hamm.spms.module.wms.inventory.InventoryService;
@@ -14,8 +16,15 @@ import cn.hamm.spms.module.wms.output.detail.OutputDetailRepository;
 import cn.hamm.spms.module.wms.output.detail.OutputDetailService;
 import cn.hamm.spms.module.wms.output.enums.OutputStatus;
 import cn.hamm.spms.module.wms.output.enums.OutputType;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
 import static cn.hamm.spms.module.system.config.enums.ConfigFlag.OUTPUT_BILL_AUTO_AUDIT;
@@ -27,6 +36,23 @@ import static cn.hamm.spms.module.system.config.enums.ConfigFlag.OUTPUT_BILL_AUT
  */
 @Service
 public class OutputService extends AbstractBaseBillService<OutputEntity, OutputRepository, OutputDetailEntity, OutputDetailService, OutputDetailRepository> {
+    @Autowired
+    private DataPermissionSpecification dataPermissionSpecification;
+
+    @Override
+    protected @NotNull List<Predicate> addSearchPredicate(
+            @NotNull Root<OutputEntity> root,
+            @NotNull CriteriaBuilder builder,
+            @NotNull OutputEntity search
+    ) {
+        List<Predicate> predicateList = new ArrayList<>();
+        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
+                root, builder, "wms.output", DataPermissionAction.QUERY
+        );
+        predicateList.addAll(dataPermissionPredicates);
+        return predicateList;
+    }
+
     @Override
     public IDictionary getAuditedStatus() {
         return OutputStatus.OUTPUTTING;

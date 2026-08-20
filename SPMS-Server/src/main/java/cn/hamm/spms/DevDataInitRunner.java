@@ -145,11 +145,79 @@ public class DevDataInitRunner implements CommandLineRunner {
                             .setSupportedActions("QUERY,DETAIL,EXPORT")
                             .setStatus("ENABLED")
             );
-            // 创建默认租户隔离策略
             dataPolicyService.addAndGet(
                     new DataPolicyEntity()
                             .setPolicyCode("wms_inventory_tenant_isolation")
                             .setResourceId(inventoryResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 wms.input 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("wms.input")).isEmpty()) {
+            DataResourceEntity inputResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("wms.input")
+                            .setTableName("input")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("wms_input_tenant_isolation")
+                            .setResourceId(inputResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 wms.output 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("wms.output")).isEmpty()) {
+            DataResourceEntity outputResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("wms.output")
+                            .setTableName("output")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("wms_output_tenant_isolation")
+                            .setResourceId(outputResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 wms.move 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("wms.move")).isEmpty()) {
+            DataResourceEntity moveResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("wms.move")
+                            .setTableName("move")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("wms_move_tenant_isolation")
+                            .setResourceId(moveResource.getId())
                             .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
                             .setActionName("QUERY")
                             .setConditionJson("{}")
