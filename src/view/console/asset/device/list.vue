@@ -1,14 +1,15 @@
 <script lang="ts" setup>
 import { AButton, APanel, ATable, DialogUtil } from '@airpower/web'
 import { ref } from 'vue'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
 import { DeviceService } from '@/model/asset/device/DeviceService'
 import { DeviceEditor, DeviceMonitor } from './component'
 import { Permissions } from '@/config/permissions'
 
 const filter = ref(new DeviceEntity())
-const hook = useMyTable(DeviceService, {
+const hook = useTanStackTable(DeviceService, {
+  queryKey: ['asset:device'],
   editView: DeviceEditor,
 })
 

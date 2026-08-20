@@ -1,11 +1,12 @@
 <script lang="ts" setup>
 import { APanel, ATable } from '@airpower/web'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { OperationService } from '@/model/mes/operation/OperationService'
 import { Permissions } from '@/config/permissions'
 import { OperationEditor } from './component'
 
-const hook = useMyTable(OperationService, {
+const hook = useTanStackTable(OperationService, {
+  queryKey: ['mes:operation'],
   editView: OperationEditor,
 })
 </script>

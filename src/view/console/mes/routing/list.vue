@@ -4,14 +4,15 @@ import { AButton, APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web
 import { useQueryClient } from '@tanstack/vue-query'
 import PublishButton from '@/component/PublishButton.vue'
 import { useRoutingPublish } from '@/hook/mes/useRouting'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { RoutingService } from '@/model/mes/routing/RoutingService'
 import { Permissions } from '@/config/permissions'
 import { RoutingEditor, RoutingProgress } from './component'
 
 const queryClient = useQueryClient()
 
-const hook = useMyTable(RoutingService, {
+const hook = useTanStackTable(RoutingService, {
+  queryKey: ['mes:routing'],
   editView: RoutingEditor,
 })
 

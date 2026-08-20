@@ -4,13 +4,14 @@ import type { CodeRuleField } from '@/model/system/coderule/CodeRuleField'
 import type { CodeRuleParam } from '@/model/system/coderule/CodeRuleParam'
 import { APanel, ATable, DateTimeUtil } from '@airpower/web'
 import { ref } from 'vue'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { CodeRuleService } from '@/model/system/coderule/CodeRuleService'
 import { Permissions } from '@/config/permissions'
 
 import { CodeRuleEditor } from '@/view/console/system/coderule/component'
 
-const hook = useMyTable(CodeRuleService, {
+const hook = useTanStackTable(CodeRuleService, {
+  queryKey: ['system:coderule'],
   editView: CodeRuleEditor,
 })
 

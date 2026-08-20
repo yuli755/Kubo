@@ -2,13 +2,14 @@
 import type { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
 import { AButton, APanel, ATable, ClipboardUtil, DialogUtil, FeedbackUtil } from '@airpower/web'
 import { ElMessageBox } from 'element-plus'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { OpenAppService } from '@/model/open/app/OpenAppService'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
 import { OpenAppEditor, OpenAppLog, OpenAppTest } from './component'
 
-const hook = useMyTable(OpenAppService, {
+const hook = useTanStackTable(OpenAppService, {
+  queryKey: ['open:app'],
   editView: OpenAppEditor,
 })
 

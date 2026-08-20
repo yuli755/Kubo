@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { OpenLogEntity } from '@/model/open/log/OpenLogEntity'
 import { ADialog, ATable, DialogProps, DialogUtil } from '@airpower/web'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
 
 import { OpenLogService } from '@/model/open/log/OpenLogService'
@@ -9,7 +9,8 @@ import { OpenAppLogDetail } from './index'
 
 const props = defineProps(DialogProps.withParam(new OpenAppEntity()))
 
-const hook = useMyTable(OpenLogService, {
+const hook = useTanStackTable(OpenLogService, {
+  queryKey: ['open:log'],
   beforeSearch(requestData) {
     requestData.filter.openApp = props.param.copyOnlyId()
     return requestData

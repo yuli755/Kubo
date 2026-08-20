@@ -1,11 +1,12 @@
 <script lang="ts" setup>
 import { APanel, ATable } from '@airpower/web'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { ParameterService } from '@/model/iot/parameter/ParameterService'
 import { Permissions } from '@/config/permissions'
 import { ParameterEditor } from './component'
 
-const hook = useMyTable(ParameterService, {
+const hook = useTanStackTable(ParameterService, {
+  queryKey: ['iot:parameter'],
   editView: ParameterEditor,
 })
 </script>

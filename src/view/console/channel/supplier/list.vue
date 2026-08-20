@@ -1,11 +1,12 @@
 <script lang="ts" setup>
 import { APanel, ATable } from '@airpower/web'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { SupplierService } from '@/model/channel/supplier/SupplierService'
 import { Permissions } from '@/config/permissions'
 import { SupplierEditor } from './component'
 
-const hook = useMyTable(SupplierService, {
+const hook = useTanStackTable(SupplierService, {
+  queryKey: ['channel:supplier'],
   editView: SupplierEditor,
 })
 </script>

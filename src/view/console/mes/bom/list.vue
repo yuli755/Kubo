@@ -3,14 +3,15 @@ import { APanel, ATable, FeedbackUtil } from '@airpower/web'
 import { useQueryClient } from '@tanstack/vue-query'
 import PublishButton from '@/component/PublishButton.vue'
 import { useBomPublish } from '@/hook/mes/useBom'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { BomService } from '@/model/mes/bom/BomService'
 import { Permissions } from '@/config/permissions'
 import { BomDetail, BomEditor } from './component'
 
 const queryClient = useQueryClient()
 
-const hook = useMyTable(BomService, {
+const hook = useTanStackTable(BomService, {
+  queryKey: ['mes:bom'],
   editView: BomEditor,
   detailView: BomDetail,
 })

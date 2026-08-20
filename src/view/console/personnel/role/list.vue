@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { RoleEntity } from '@/model/personnel/role/RoleEntity'
 import { AButton, APanel, ATable, DialogUtil } from '@airpower/web'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { RoleService } from '@/model/personnel/role/RoleService'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
@@ -15,7 +15,8 @@ async function onPermissionEditor(role: RoleEntity) {
   DialogUtil.show(RolePermissionEditor, role)
 }
 
-const hook = useMyTable(RoleService, {
+const hook = useTanStackTable(RoleService, {
+  queryKey: ['personnel:role'],
   editView: RoleEditor,
 })
 </script>

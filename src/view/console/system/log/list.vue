@@ -1,12 +1,13 @@
 <script lang="ts" setup>
 import type { LogEntity } from '@/model/system/log/LogEntity'
 import { APanel, ATable, WebColor } from '@airpower/web'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { LogService } from '@/model/system/log/LogService'
 import { Permissions } from '@/config/permissions'
 import Detail from './detail.vue'
 
-const hook = useMyTable(LogService, {
+const hook = useTanStackTable(LogService, {
+  queryKey: ['system:log'],
   detailView: Detail,
 })
 

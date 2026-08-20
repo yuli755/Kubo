@@ -1,14 +1,15 @@
 <script lang="ts" setup>
 import { AButton, APanel, ATable, FeedbackUtil } from '@airpower/web'
 import { Constant } from '@/config/Constant'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { Permissions } from '@/config/permissions'
 
 import { ConfigService } from '@/model/system/config/ConfigService'
 import { ConfigType } from '@/model/system/config/ConfigType'
 import { ConfigurationEditor } from '@/view/console/system/config/component'
 
-const hook = useMyTable(ConfigService, {
+const hook = useTanStackTable(ConfigService, {
+  queryKey: ['system:config'],
   editView: ConfigurationEditor,
 })
 </script>

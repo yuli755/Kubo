@@ -1,14 +1,15 @@
 <script lang="ts" setup>
 import type { ContractEntity } from '@/model/asset/contract/ContractEntity'
 import { AButton, APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { ContractService } from '@/model/asset/contract/ContractService'
 import { ContractStatusEnum } from '@/model/asset/contract/ContractStatusEnum'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
 import { ContractDetail, ContractEditor } from './component'
 
-const hook = useMyTable(ContractService, {
+const hook = useTanStackTable(ContractService, {
+  queryKey: ['asset:contract'],
   editView: ContractEditor,
 })
 

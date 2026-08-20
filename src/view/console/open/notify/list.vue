@@ -2,12 +2,13 @@
 import type { IWebEnum } from '@airpower/web'
 import { APanel, ATable } from '@airpower/web'
 import { ref } from 'vue'
-import { useMyTable } from '@/hook/useMyTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { NotifyService } from '@/model/open/notify/NotifyService'
 import { Permissions } from '@/config/permissions'
 import { NotifyEditor } from '@/view/console/open/notify/component'
 
-const hook = useMyTable(NotifyService, {
+const hook = useTanStackTable(NotifyService, {
+  queryKey: ['open:notify'],
   editView: NotifyEditor,
 })
 
