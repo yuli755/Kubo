@@ -1,0 +1,158 @@
+import type { CurdServiceConstructor, ITableOption, ITableResult, QueryPage, QuerySort } from '@airpower/web'
+import type { AbstractBaseService } from '@/base/AbstractBaseService'
+import type { BaseEntity } from '@/base/BaseEntity'
+import type { Ref } from 'vue'
+import { DialogUtil, FeedbackUtil, QueryRequestPage, QueryResponsePage } from '@airpower/web'
+import { keepPreviousData, useQuery } from '@tanstack/vue-query'
+import { computed, ref, watch } from 'vue'
+
+/**
+ * # TanStack Query → airpower ATable 适配器
+ *
+ * 将 TanStack Query 的 `useQuery` 数据流适配为 `ITableResult` 接口，
+ * 使 ATable 组件可直接使用 TanStack Query 进行数据查询（缓存、去重、stale-while-revalidate），
+ * 同时保留 airpower 的 CRUD 对话框逻辑（add / edit / delete / detail / enable / disable）。
+ *
+ * 本质上是 airpower `useTable()` 的 TanStack 替代品 —— 查询走 TanStack，CRUD 复用 airpower Service。
+ *
+ * ## 使用示例
+ * ```ts
+ * const hook = useTanStackTable(InventoryService, {
+ *   queryKey: ['wms:inventory'],
+ *   editView: InventoryEditor,
+ * })
+ * ```
+ *
+ * @param serviceClass - airpower 实体 Service 类
+ * @param option - ATable 配置项 + TanStack queryKey
+ * @returns ITableResult 兼容对象
+ */
+export function useTanStackTable<E extends BaseEntity, S extends AbstractBaseService<E>>(
+  serviceClass: CurdServiceConstructor<E, S>,
+  option: ITableOption<E> & {
+    /** TanStack Query 的 queryKey 前缀 */
+    queryKey: string[]
+  },
+): ITableResult<E, S> {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const entity: E = new (serviceClass as unknown as { entityClass: new () => E }).entityClass()
+  const service = new serviceClass() as S
+
+  // ── 查询状态 ──
+  // QueryRequestPage 构造函数接受 ITransformerConstructor<E>，
+  // 运行时也接受实体实例（airpower 内部提取 constructor）
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const request = ref<QueryRequestPage<E>>(new (QueryRequestPage as any)(entity))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const response = ref<QueryResponsePage<E>>(new (QueryResponsePage as any)()) as Ref<QueryResponsePage<E>>
+  const selectList = ref<E[]>([])
+  const isLoading = ref(false)
+
+  const resolvedRequest = computed(() => request.value)
+
+  const { data, isFetching, refetch } = useQuery<QueryResponsePage<E>>({
+    queryKey: [...option.queryKey, 'list', resolvedRequest],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    queryFn: () => service.getPage(request.value as any),
+    placeholderData: keepPreviousData,
+  })
+
+  watch(isFetching, (val) => { isLoading.value = val })
+  watch(data, (val) => {
+    if (val) {
+      response.value = val
+    }
+  })
+
+  /** 提取 list 为 computed ref 以保持 ITableResult 兼容 */
+  const list = computed(() => response.value.list) as unknown as Ref<E[]>
+
+  // ── 数据操作方法 ──
+  function onGetList() {
+    refetch()
+  }
+
+  function onSearch(req: QueryRequestPage<E>) {
+    request.value = req
+  }
+
+  function onPageChanged(page: QueryPage) {
+    request.value.page = page
+  }
+
+  function onSortChanged(sort?: QuerySort) {
+    if (sort) {
+      request.value.setSort(sort)
+    }
+  }
+
+  function onReloadData() {
+    request.value.page.pageNum = 1
+    refetch()
+  }
+
+  async function onAdd() {
+    if (option.editView) {
+      await DialogUtil.show(option.editView)
+    }
+    onReloadData()
+  }
+
+  async function onEdit(row: E) {
+    if (option.editView) {
+      await DialogUtil.show(option.editView, row)
+    }
+    onReloadData()
+  }
+
+  async function onDetail(row: E) {
+    if (option.detailView) {
+      await DialogUtil.show(option.detailView, row)
+    }
+  }
+
+  async function onDelete(row: E) {
+    await FeedbackUtil.confirmWarning(`是否确认删除选择的数据？`)
+    await service.delete(row.id)
+    onReloadData()
+  }
+
+  async function onDisable(row: E) {
+    await FeedbackUtil.confirmWarning(`是否确认禁用选择的数据？`)
+    await service.disable(row.id)
+    onReloadData()
+  }
+
+  async function onEnable(row: E) {
+    await FeedbackUtil.confirmWarning(`是否确认启用选择的数据？`)
+    await service.enable(row.id)
+    onReloadData()
+  }
+
+  function onSelected(list: E[]) {
+    selectList.value = list
+  }
+
+  return {
+    isLoading,
+    response,
+    request,
+    list,
+    selectList,
+    entity,
+    service,
+    serviceClass,
+    onReloadData,
+    onSearch,
+    onPageChanged,
+    onSortChanged,
+    onDetail,
+    onAdd,
+    onEdit,
+    onDelete,
+    onDisable,
+    onEnable,
+    onSelected,
+    onGetList,
+  } as ITableResult<E, S>
+}
