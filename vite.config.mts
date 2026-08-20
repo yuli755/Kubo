@@ -24,7 +24,8 @@ export default defineConfig({
     // 会触发 element-plus 全量 80 组件进入 bundle（详见插件文件头注释）。
     // 此处在构建期将其替换为最小 shim（仅 v-loading 指令 + locale），恢复树摇。
     airpowerElementPlusShimPlugin(),
-    vueDevTools(),
+    // vueDevTools() — 已禁用：开发模式底部注入的悬浮按钮影响页面预览
+    // vueDevTools(),
 
     // PWA 支持 (离线缓存 + 预加载 + 后台同步)
     VitePWA({
@@ -92,8 +93,18 @@ export default defineConfig({
   },
   build: {
     assetsDir: 'assets',
-    // 暂时设置为false: vite的BUG keep_classnames不生效导致反射获取类失败
-    minify: false,
+    // 使用 terser 压缩，保留类名以兼容 airpower 反射机制
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        keep_classnames: true,
+        keep_fnames: true,
+      },
+      mangle: {
+        keep_classnames: true,
+        keep_fnames: true,
+      },
+    },
     cssMinify: 'esbuild',
     sourcemap: false,
     chunkSizeWarningLimit: 500,

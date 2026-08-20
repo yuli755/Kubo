@@ -6,15 +6,40 @@ function getIcon(item: ThirdLoginPlatform) {
   return `/img/thirdlogin/${item.flag}.png`
 }
 
+function getBrandColor(item: ThirdLoginPlatform): string {
+  switch (item.flag) {
+    case 'wecom':
+      return '#07c160'
+    case 'wechat':
+      return '#07c160'
+    case 'qq':
+      return '#12b7f5'
+    case 'weibo':
+      return '#e6162d'
+    case 'dingtalk':
+      return '#0089ff'
+    case 'feishu':
+      return '#3370ff'
+    case 'google':
+      return '#4285f4'
+    case 'github':
+      return '#24292e'
+    case 'gitee':
+      return '#c71d23'
+    case 'apple':
+      return '#000000'
+    default:
+      return '#909399'
+  }
+}
+
 function onLogin(item: ThirdLoginPlatform) {
-  if (item.disabled) {
-    FeedbackUtil.toastError(`暂不支持${item.label}`)
+  if (item.disabled || !item.oauthUrl) {
+    FeedbackUtil.toastError(`暂不支持${item.label}登录`)
     return
   }
   const redirectUri = `${window.location.origin}/callback/${item.flag}`
   const url = item.oauthUrl.replace('APP_KEY', item.appKey).replace('REDIRECT_URI', redirectUri)
-  // 使用window.open 小窗口 隐藏地址栏
-
   const features = `menubar=no,toolbar=no,status=no,width=${item.width},height=${item.height},left=${(window.screen.width - item.width) / 2},top=${(window.screen.height - item.height) / 2}`
   window.open(url, '_blank', features)
 }
@@ -29,12 +54,16 @@ function onLogin(item: ThirdLoginPlatform) {
       class="item"
       @click="onLogin(item)"
     >
-      <div class="icon">
+      <div
+        class="icon"
+        :style="{ backgroundColor: getBrandColor(item) }"
+      >
         <img
           :src="getIcon(item)"
           alt=""
         >
       </div>
+      <span class="label">{{ item.label }}</span>
     </div>
   </div>
 </template>
@@ -44,32 +73,41 @@ function onLogin(item: ThirdLoginPlatform) {
   display: flex;
   flex-direction: row;
   align-items: center;
+  justify-content: center;
+  gap: 16px;
 
   .item {
-    flex: 1;
     cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
 
     .icon {
-      margin: 2px 3px;
-      background-color: #ddd;
-      border-radius: 8px;
-      width: 20px;
-      height: 20px;
-      padding: 5px;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
       display: flex;
       justify-content: center;
       align-items: center;
-      color: white;
-      transition: all 0.5s;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 
       img {
-        width: 100%;
-        height: 100%;
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
       }
     }
 
-    .icon:hover {
-      background-color: #aaa;
+    .item:hover .icon {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .label {
+      font-size: 11px;
+      color: #999;
     }
   }
 }

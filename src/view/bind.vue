@@ -17,8 +17,13 @@ async function init() {
     return
   }
   FeedbackUtil.toastSuccess('绑定第三方账号成功')
-  await DateTimeUtil.sleep(3000)
-  window.close()
+  await DateTimeUtil.sleep(1000)
+  if (window.opener) {
+    window.close()
+  }
+  else {
+    window.location.replace('/console')
+  }
 }
 
 init()

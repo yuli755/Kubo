@@ -64,7 +64,11 @@ async function onUploadAvatar(file: FileEntity) {
               <template v-if="user.idCard">
                 {{ DesensitizeType.CHINESE_NAME.desensitize(user.realName) }}
               </template>
-              <el-link v-else>
+              <el-link
+                v-else
+                type="primary"
+                @click="onUserAccount()"
+              >
                 去实名
               </el-link>
             </div>
@@ -76,9 +80,20 @@ async function onUploadAvatar(file: FileEntity) {
             <div class="value">
               <template v-if="user.email">
                 {{ DesensitizeType.EMAIL.desensitize(user.email) }}
-                <a>更换</a>
+                <el-link
+                  type="primary"
+                  @click="onUserAccount()"
+                >
+                  更换
+                </el-link>
               </template>
-              <a v-else> 绑定邮箱 </a>
+              <el-link
+                v-else
+                type="primary"
+                @click="onUserAccount()"
+              >
+                绑定邮箱
+              </el-link>
             </div>
           </div>
           <div class="item">
@@ -88,9 +103,20 @@ async function onUploadAvatar(file: FileEntity) {
             <div class="value">
               <template v-if="user.phone">
                 {{ DesensitizeType.MOBILE.desensitize(user.phone) }}
-                <a>更换</a>
+                <el-link
+                  type="primary"
+                  @click="onUserAccount()"
+                >
+                  更换
+                </el-link>
               </template>
-              <a v-else> 绑定手机 </a>
+              <el-link
+                v-else
+                type="primary"
+                @click="onUserAccount()"
+              >
+                绑定手机
+              </el-link>
             </div>
           </div>
         </div>
@@ -102,15 +128,6 @@ async function onUploadAvatar(file: FileEntity) {
         @click="onUserAccount()"
       >
         账号安全
-      </div>
-      <div class="item">
-        我的设置
-      </div>
-      <div class="item">
-        我的设置
-      </div>
-      <div class="item">
-        我的设置
       </div>
     </div>
   </AUser>
@@ -161,34 +178,28 @@ async function onUploadAvatar(file: FileEntity) {
   }
 
   &-right {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
+    flex: 1;
 
     .info {
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      height: 100%;
-
       .item {
         display: flex;
-        flex-direction: row;
         align-items: center;
-        font-size: 14px;
-        color: #999;
-        padding: 3px 0;
+        margin-bottom: 8px;
 
         .key {
-          width: 50px;
+          width: 40px;
+          font-size: 13px;
+          color: #999;
         }
 
         .value {
-          color: #666;
-        }
+          font-size: 13px;
+          color: #333;
 
-        a {
-          color: var(--primary-color);
+          .el-link {
+            margin-left: 8px;
+            font-size: 12px;
+          }
         }
       }
     }
@@ -197,26 +208,23 @@ async function onUploadAvatar(file: FileEntity) {
 
 .setting {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
+  border-top: 1px solid #eee;
+  padding-top: 10px;
   margin-top: 10px;
-  margin: 10px -5px 0 -5px;
-  color: #999;
 
   .item {
-    flex: 1;
-    font-size: 12px;
-    background-color: #f5f5f5;
-    margin: 0 5px;
-    text-align: center;
-    padding: 7px 0;
-    border-radius: 5px;
+    padding: 8px 12px;
     cursor: pointer;
-    transition: all 0.3s;
-    user-select: none;
-  }
+    border-radius: 6px;
+    font-size: 14px;
+    color: #333;
+    transition: all 0.2s;
 
-  .item:hover {
-    background-color: #e5e5e5;
+    &:hover {
+      background: #f5f7fa;
+      color: var(--primary-color, #409eff);
+    }
   }
 }
 </style>

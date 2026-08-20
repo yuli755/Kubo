@@ -18,7 +18,7 @@ async function init() {
     return
   }
 
-  await DateTimeUtil.sleep(3000)
+  await DateTimeUtil.sleep(1000)
 
   // 判断当前窗口是否由 window.open 打开
   if (window.opener) {

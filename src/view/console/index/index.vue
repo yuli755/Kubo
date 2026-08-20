@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { IJson } from '@airpower/web'
+import { RouterUtil } from '@airpower/web'
 import { APanel } from '@airpower/web'
 import { ref } from 'vue'
 
@@ -7,100 +8,44 @@ const modules = ref<IJson[]>([
   {
     title: 'ERP资产管理',
     actions: [
-      {
-        name: '人员和权限',
-        desc: '统一管理人员、角色、权限等信息',
-      },
-      {
-        name: '采购和销售渠道',
-        desc: '通过供应商、客户、单价、单据了解企业采购和销售的支出和收入',
-      },
-      {
-        name: '物料和设备',
-        desc: '管理企业内部的物料、设备等资产',
-      },
-      {
-        name: '企业和工厂模型',
-        desc: '管理企业的组织架构、工厂的生产单元、仓库的存储结构',
-      },
+      { name: '人员和权限', desc: '统一管理人员、角色、权限等信息', path: '/console/personnel/user' },
+      { name: '采购和销售渠道', desc: '通过供应商、客户、单价、单据了解企业采购和销售的支出和收入', path: '/console/channel/customer' },
+      { name: '物料和设备', desc: '管理企业内部的物料、设备等资产', path: '/console/asset/material' },
+      { name: '企业和工厂模型', desc: '管理企业的组织架构、工厂的生产单元、仓库的存储结构', path: '/console/factory/storage' },
     ],
   },
   {
     title: 'WMS仓储管理',
     actions: [
-      {
-        name: '库存信息概览',
-        desc: '实时查看仓库各个单位的存储情况',
-      },
-      {
-        name: '多种入库方式',
-        desc: '关联生产、采购以及其他方式的入库，来源一目了然',
-      },
-      {
-        name: '库存盘点和移动',
-        desc: '随时盘点库存、移动存储的物料',
-      },
-      {
-        name: '多种出库方式',
-        desc: '关联销售、生产领料等其他方式的出库',
-      },
+      { name: '库存信息概览', desc: '实时查看仓库各个单位的存储情况', path: '/console/wms/inventory' },
+      { name: '多种入库方式', desc: '关联生产、采购以及其他方式的入库，来源一目了然', path: '/console/wms/input' },
+      { name: '库存盘点和移动', desc: '随时盘点库存、移动存储的物料', path: '/console/wms/move' },
+      { name: '多种出库方式', desc: '关联销售、生产领料等其他方式的出库', path: '/console/wms/output' },
     ],
   },
   {
     title: 'MES生产管理',
     actions: [
-      {
-        name: '生产准备',
-        desc: '管理工艺、工序、配料单等生产信息准备',
-      },
-      {
-        name: '生产计划',
-        desc: '可关联客户的销售单，提前指定生产计划',
-      },
-      {
-        name: '生产订单',
-        desc: '可关联生产计划，可直接下单生产',
-      },
-      {
-        name: '生产管控',
-        desc: '控制适当的领料、投料，规范生产过程',
-      },
-      {
-        name: '生产过程',
-        desc: '实时提交、采集生产过程中的关键数据以便质量控制和溯源',
-      },
-      {
-        name: '生产监控',
-        desc: '实时查看工厂生产状态、订单、工单执行状态',
-      },
+      { name: '生产准备', desc: '管理工艺、工序、配料单等生产信息准备', path: '/console/mes/routing' },
+      { name: '生产计划', desc: '可关联客户的销售单，提前指定生产计划', path: '/console/mes/plan' },
+      { name: '生产订单', desc: '可关联生产计划，可直接下单生产', path: '/console/mes/order' },
+      { name: '生产管控', desc: '控制适当的领料、投料，规范生产过程', path: '/console/mes/picking' },
     ],
   },
   {
-    title: 'QMS质量管控',
+    title: '系统管理',
     actions: [
-      {
-        name: '质量标准',
-        desc: '管理企业内部质量标准，可关联物料、设备等',
-      },
-      {
-        name: '质量数据',
-        desc: '实时采集生产过程、销售过程、生产过程等关键数据',
-      },
-      {
-        name: '智能质检和判定',
-        desc: '接入AI大模型，智能检验和判定生产数据是否正常',
-      },
-      {
-        name: '质量追踪',
-        desc: '监控生产过程中的异常信息，实时查看返工、返修、报废等状态',
-      },
-      {
-        name: '质检大盘',
-        desc: '通过监控大屏实时查看、分析异常生产',
-      },
+      { name: '菜单管理', desc: '管理系统菜单结构与路由配置', path: '/console/system/menu' },
+      { name: '权限管理', desc: '管理系统权限标识与分配', path: '/console/system/permission' },
+      { name: '系统配置', desc: '管理系统参数与业务规则', path: '/console/system/config' },
+      { name: '编码规则', desc: '管理各业务模块的单据编码规则', path: '/console/system/coderule' },
     ],
   },
 ])
+
+function goPage(path: string) {
+  RouterUtil.router.push(path)
+}
 </script>
 
 <template>
@@ -117,8 +62,9 @@ const modules = ref<IJson[]>([
         <div class="actions">
           <div
             v-for="action in module.actions"
-            :key="action"
+            :key="action.name"
             class="action"
+            @click="goPage(action.path)"
           >
             <div class="name">
               {{ action.name }}
@@ -139,6 +85,7 @@ const modules = ref<IJson[]>([
   inset: 10px;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 
   .module {
     display: flex;

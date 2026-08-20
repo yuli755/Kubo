@@ -29,25 +29,25 @@ const entries = [
     title: '用户管理',
     desc: '账号、角色、权限配置',
     icon: User,
-    path: '/console/system/user',
+    path: '/console/personnel/user',
   },
   {
     title: '角色管理',
     desc: '角色与权限分配',
     icon: Avatar,
-    path: '/console/system/role',
+    path: '/console/personnel/role',
   },
   {
     title: '部门管理',
     desc: '组织架构维护',
     icon: OfficeBuilding,
-    path: '/console/system/department',
+    path: '/console/personnel/department',
   },
   {
-    title: '字典管理',
-    desc: '数据字典定义',
+    title: '系统配置',
+    desc: '系统参数与规则配置',
     icon: Collection,
-    path: '/console/system/dictionary',
+    path: '/console/system/config',
   },
 ]
 

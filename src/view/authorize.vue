@@ -49,10 +49,10 @@ async function init() {
     window.location.replace('/')
     return
   }
-  user.value = await UserService.create(isLoading).getMyInfo()
-  getAppInfo()
-  getScopeList()
   scopeNeed.value = scope.split(',')
+  user.value = await UserService.create(isLoading).getMyInfo()
+  await getAppInfo()
+  await getScopeList()
 }
 
 async function onSwitchAccount() {
