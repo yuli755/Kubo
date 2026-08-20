@@ -61,6 +61,11 @@ import cn.hamm.spms.module.system.permission.PermissionEntity;
 import cn.hamm.spms.module.system.permission.PermissionService;
 import cn.hamm.spms.module.system.unit.UnitEntity;
 import cn.hamm.spms.module.system.unit.UnitService;
+import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
+import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionSubjectType;
+import cn.hamm.spms.module.system.datapermission.service.DataPolicyService;
+import cn.hamm.spms.module.system.datapermission.service.DataResourceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -112,6 +117,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         initParameters();
         permissionService.loadPermission();
         permissionService.ensureDataPermissionSystemPermissions();
+        initDataPermissionResources();
         initRootAuthorization();
         menuService.initMenu();
         initDevData();
@@ -123,6 +129,59 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
     }
 
+
+    private void initDataPermissionResources() {
+        DataResourceService dataResourceService = SystemServices.getDataResourceService();
+        DataPolicyService dataPolicyService = SystemServices.getDataPolicyService();
+
+        // 注册 wms.inventory 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("wms.inventory")).isEmpty()) {
+            DataResourceEntity inventoryResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("wms.inventory")
+                            .setTableName("inventory")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            // 创建默认租户隔离策略
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("wms_inventory_tenant_isolation")
+                            .setResourceId(inventoryResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 mes.order 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("mes.order")).isEmpty()) {
+            DataResourceEntity orderResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("mes.order")
+                            .setTableName("order_table")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            // 创建默认租户隔离策略
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("mes_order_tenant_isolation")
+                            .setResourceId(orderResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+    }
 
     private void initRootAuthorization() {
         UserService userService = PersonnelServices.getUserService();
