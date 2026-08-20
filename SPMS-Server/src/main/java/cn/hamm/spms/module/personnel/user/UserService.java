@@ -21,6 +21,8 @@ import cn.hamm.spms.module.system.config.ConfigEntity;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
 import cn.hamm.spms.module.system.menu.MenuEntity;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import jakarta.mail.MessagingException;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Join;
@@ -80,6 +82,9 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
 
     @Autowired
     private AccessConfig accessConfig;
+
+    @Autowired
+    private DataPermissionSpecification dataPermissionSpecification;
 
     /**
      * ���取新的密码��
@@ -491,11 +496,18 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
 
     @Override
     protected @NotNull List<Predicate> addSearchPredicate(@NotNull Root<UserEntity> root, @NotNull CriteriaBuilder builder, @NotNull UserEntity search) {
+        List<Predicate> predicateList = new ArrayList<>();
+
+        // 叠加数据权限过滤条件
+        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
+                root, builder, "personnel.user", DataPermissionAction.QUERY
+        );
+        predicateList.addAll(dataPermissionPredicates);
+
         Long departmentId = search.getDepartmentId();
         if (Objects.isNull(departmentId)) {
-            return new ArrayList<>();
+            return predicateList;
         }
-        List<Predicate> predicateList = new ArrayList<>();
         Set<Long> departmentIdList = PersonnelServices.getDepartmentService().getListByParentId(departmentId);
         departmentIdList.add(departmentId);
         Join<UserEntity, DepartmentEntity> departmentJoin = root.join("departmentList");

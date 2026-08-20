@@ -502,6 +502,190 @@ public class DevDataInitRunner implements CommandLineRunner {
                             .setEnabled(true)
             );
         }
+
+        // 注册 asset.contract 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("asset.contract")).isEmpty()) {
+            DataResourceEntity contractResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("asset.contract")
+                            .setTableName("contract")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("asset_contract_tenant_isolation")
+                            .setResourceId(contractResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 asset.device 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("asset.device")).isEmpty()) {
+            DataResourceEntity deviceResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("asset.device")
+                            .setTableName("device")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("asset_device_tenant_isolation")
+                            .setResourceId(deviceResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 asset.material 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("asset.material")).isEmpty()) {
+            DataResourceEntity materialResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("asset.material")
+                            .setTableName("material")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("asset_material_tenant_isolation")
+                            .setResourceId(materialResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 factory.storage 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("factory.storage")).isEmpty()) {
+            DataResourceEntity storageResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("factory.storage")
+                            .setTableName("storage")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("factory_storage_tenant_isolation")
+                            .setResourceId(storageResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 factory.structure 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("factory.structure")).isEmpty()) {
+            DataResourceEntity structureResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("factory.structure")
+                            .setTableName("structure")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("factory_structure_tenant_isolation")
+                            .setResourceId(structureResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 personnel.user 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("personnel.user")).isEmpty()) {
+            DataResourceEntity userResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("personnel.user")
+                            .setTableName("user")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("personnel_user_tenant_isolation")
+                            .setResourceId(userResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 personnel.role 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("personnel.role")).isEmpty()) {
+            DataResourceEntity roleResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("personnel.role")
+                            .setTableName("role")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("personnel_role_tenant_isolation")
+                            .setResourceId(roleResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 personnel.department 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("personnel.department")).isEmpty()) {
+            DataResourceEntity departmentResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("personnel.department")
+                            .setTableName("department")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("personnel_department_tenant_isolation")
+                            .setResourceId(departmentResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
     }
 
     private void initRootAuthorization() {

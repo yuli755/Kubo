@@ -2,11 +2,18 @@ package cn.hamm.spms.module.personnel.department;
 
 import cn.hamm.airpower.core.TreeUtil;
 import cn.hamm.spms.base.BaseService;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -22,6 +29,23 @@ import static cn.hamm.airpower.exception.Errors.FORBIDDEN_EXIST;
 @Slf4j
 @Service
 public class DepartmentService extends BaseService<DepartmentEntity, DepartmentRepository> {
+    @Autowired
+    private DataPermissionSpecification dataPermissionSpecification;
+
+    @Override
+    protected @NotNull List<Predicate> addSearchPredicate(
+            @NotNull Root<DepartmentEntity> root,
+            @NotNull CriteriaBuilder builder,
+            @NotNull DepartmentEntity search
+    ) {
+        List<Predicate> predicateList = new ArrayList<>();
+        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
+                root, builder, "personnel.department", DataPermissionAction.QUERY
+        );
+        predicateList.addAll(dataPermissionPredicates);
+        return predicateList;
+    }
+
     /**
      * 排序字段
      */

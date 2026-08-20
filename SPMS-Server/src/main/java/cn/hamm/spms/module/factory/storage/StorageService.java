@@ -3,9 +3,16 @@ package cn.hamm.spms.module.factory.storage;
 import cn.hamm.airpower.core.TreeUtil;
 import cn.hamm.airpower.curd.model.query.QueryListRequest;
 import cn.hamm.spms.base.BaseService;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -16,6 +23,23 @@ import java.util.Objects;
  */
 @Service
 public class StorageService extends BaseService<StorageEntity, StorageRepository> {
+    @Autowired
+    private DataPermissionSpecification dataPermissionSpecification;
+
+    @Override
+    protected @NotNull List<Predicate> addSearchPredicate(
+            @NotNull Root<StorageEntity> root,
+            @NotNull CriteriaBuilder builder,
+            @NotNull StorageEntity search
+    ) {
+        List<Predicate> predicateList = new ArrayList<>();
+        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
+                root, builder, "factory.storage", DataPermissionAction.QUERY
+        );
+        predicateList.addAll(dataPermissionPredicates);
+        return predicateList;
+    }
+
     @Override
     protected @NotNull List<StorageEntity> afterGetList(@NotNull List<StorageEntity> list) {
         list.forEach(item -> {

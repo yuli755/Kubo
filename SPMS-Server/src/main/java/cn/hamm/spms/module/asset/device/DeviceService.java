@@ -14,7 +14,12 @@ import cn.hamm.spms.module.iot.report.ReportInfluxPayload;
 import cn.hamm.spms.module.iot.report.ReportPayload;
 import cn.hamm.spms.module.iot.report.enums.ReportDataType;
 import cn.hamm.spms.module.iot.report.enums.ReportGranularity;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import jakarta.annotation.Resource;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -33,6 +38,23 @@ import static cn.hamm.spms.module.iot.report.ReportConstant.*;
  */
 @Service
 public class DeviceService extends BaseService<DeviceEntity, DeviceRepository> {
+    @Autowired
+    private DataPermissionSpecification dataPermissionSpecification;
+
+    @Override
+    protected @NotNull List<Predicate> addSearchPredicate(
+            @NotNull Root<DeviceEntity> root,
+            @NotNull CriteriaBuilder builder,
+            @NotNull DeviceEntity search
+    ) {
+        List<Predicate> predicateList = new ArrayList<>();
+        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
+                root, builder, "asset.device", DataPermissionAction.QUERY
+        );
+        predicateList.addAll(dataPermissionPredicates);
+        return predicateList;
+    }
+
     @Resource
     private RedisHelper redisHelper;
 
