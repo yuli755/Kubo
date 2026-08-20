@@ -3,6 +3,7 @@ import { APanel, APayload, ATable } from '@airpower/web'
 import { useMyTable } from '@/hook/useMyTable'
 import { PurchasePriceService } from '@/model/channel/purchasePrice/PurchasePriceService'
 import { SupplierDetail } from '../supplier/component'
+import { Permissions } from '@/config/permissions'
 import { PurchasePriceEditor } from './component'
 
 const hook = useMyTable(PurchasePriceService, {
@@ -14,9 +15,9 @@ const hook = useMyTable(PurchasePriceService, {
   <APanel>
     <ATable
       :use-hook="hook"
-      add-permission="PurchasePrice_add"
-      delete-permission="PurchasePrice_delete"
-      edit-permission="PurchasePrice_update"
+      :add-permission="Permissions.Channel.PurchasePrice.add"
+      :delete-permission="Permissions.Channel.PurchasePrice.delete"
+      :edit-permission="Permissions.Channel.PurchasePrice.update"
     >
       <template #supplier="{ data }">
         <APayload

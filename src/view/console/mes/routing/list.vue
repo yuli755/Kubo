@@ -6,6 +6,7 @@ import PublishButton from '@/component/PublishButton.vue'
 import { useRoutingPublish } from '@/hook/mes/useRouting'
 import { useMyTable } from '@/hook/useMyTable'
 import { RoutingService } from '@/model/mes/routing/RoutingService'
+import { Permissions } from '@/config/permissions'
 import { RoutingEditor, RoutingProgress } from './component'
 
 const queryClient = useQueryClient()
@@ -33,9 +34,9 @@ async function onProgress(data: RoutingEntity) {
       :disable-delete="(row) => row.isPublished"
       :disable-edit="(row) => row.isPublished"
       :use-hook="hook"
-      add-permission="Routing_add"
-      delete-permission="Routing_delete"
-      edit-permission="Routing_update"
+      :add-permission="Permissions.Mes.Routing.add"
+      :delete-permission="Permissions.Mes.Routing.delete"
+      :edit-permission="Permissions.Mes.Routing.update"
       ctrl-width="160"
     >
       <template #customRow="{ data }">

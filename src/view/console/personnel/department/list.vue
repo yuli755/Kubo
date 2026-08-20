@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { APanel, ATable, useTableTree } from '@airpower/web'
 import { DepartmentService } from '@/model/personnel/department/DepartmentService'
+import { Permissions } from '@/config/permissions'
 import { DepartmentEditor } from './component'
 
 const hook = useTableTree(DepartmentService, {
@@ -17,10 +18,10 @@ const hook = useTableTree(DepartmentService, {
     <ATable
       :disable-delete="(row) => row.children.length > 0"
       :use-hook="hook"
-      add-permission="Department_add"
-      add-row-permission="Department_add"
-      delete-permission="Department_delete"
-      edit-permission="Department_update"
+      :add-permission="Permissions.Personnel.Department.add"
+      :add-row-permission="Permissions.Personnel.Department.addRow"
+      :delete-permission="Permissions.Personnel.Department.delete"
+      :edit-permission="Permissions.Personnel.Department.update"
       ctrl-width="130"
       is-tree
       show-add-row

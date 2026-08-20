@@ -5,6 +5,7 @@ import { useBillTable } from '@/hook/billTable/useBillTable'
 import { useSaleAudit, useSaleReject } from '@/hook/channel/useSale'
 import { SaleService } from '@/model/channel/sale/SaleService'
 import { SaleStatusEnum } from '@/model/channel/sale/SaleStatusEnum'
+import { Permissions } from '@/config/permissions'
 import { SaleDetail, SaleEditor } from './component'
 
 const hook = useBillTable(SaleService, {
@@ -33,9 +34,9 @@ async function onReject(bill: { id: number, rejectReason?: string }) {
     <ATable
       :disable-edit="(row) => !SaleStatusEnum.REJECTED.equalsKey(row.status)"
       :use-hook="hook"
-      add-permission="Sale_add"
-      detail-permission="Sale_getDetail"
-      edit-permission="Sale_update"
+      :add-permission="Permissions.Channel.Sale.add"
+      :detail-permission="Permissions.Channel.Sale.getDetail"
+      :edit-permission="Permissions.Channel.Sale.update"
       ctrl-width="160"
       hide-delete
       show-detail
@@ -43,8 +44,8 @@ async function onReject(bill: { id: number, rejectReason?: string }) {
       <template #customRow="{ data }">
         <BillAuditOrReject
           :bill="data"
-          audit-permission="Sale_audit"
-          reject-permission="Sale_reject"
+          :audit-permission="Permissions.Channel.Sale.audit"
+          :reject-permission="Permissions.Channel.Sale.reject"
           @on-audit="onAudit"
           @on-reject="onReject"
         />

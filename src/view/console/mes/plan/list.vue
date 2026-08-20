@@ -7,6 +7,7 @@ import { useBillTable } from '@/hook/billTable/useBillTable'
 import { usePlanAudit, usePlanReject } from '@/hook/mes/usePlan'
 import { PlanService } from '@/model/mes/plan/PlanService'
 import { PlanStatusEnum } from '@/model/mes/plan/PlanStatusEnum'
+import { Permissions } from '@/config/permissions'
 import { PlanDetail, PlanEditor } from './component'
 
 const queryClient = useQueryClient()
@@ -42,17 +43,17 @@ async function onReject(bill: { id: number, rejectReason?: string }) {
     <ATable
       :disable-edit="(row) => !PlanStatusEnum.REJECTED.equalsKey(row.status)"
       :use-hook="hook"
-      add-permission="Plan_add"
-      detail-permission="Plan_getDetail"
-      edit-permission="Plan_update"
+      :add-permission="Permissions.Mes.Plan.add"
+      :detail-permission="Permissions.Mes.Plan.getDetail"
+      :edit-permission="Permissions.Mes.Plan.update"
       ctrl-width="160"
       hide-delete
       show-detail
     >
       <template #customRow="{ data }">
         <BillAuditOrReject
-          audit-permission="Plan_audit"
-          reject-permission="Plan_reject"
+          :audit-permission="Permissions.Mes.Plan.audit"
+          :reject-permission="Permissions.Mes.Plan.reject"
           :bill="data"
           @on-audit="onAudit"
           @on-reject="onReject"

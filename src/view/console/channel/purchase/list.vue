@@ -5,6 +5,7 @@ import { useBillTable } from '@/hook/billTable/useBillTable'
 import { usePurchaseAudit, usePurchaseReject } from '@/hook/channel/usePurchase'
 import { PurchaseService } from '@/model/channel/purchase/PurchaseService'
 import { PurchaseStatusEnum } from '@/model/channel/purchase/PurchaseStatusEnum'
+import { Permissions } from '@/config/permissions'
 import { PurchaseDetail, PurchaseEditor } from './component'
 
 const hook = useBillTable(PurchaseService, {
@@ -33,9 +34,9 @@ async function onReject(bill: { id: number, rejectReason?: string }) {
     <ATable
       :disable-edit="(row) => row.status !== PurchaseStatusEnum.REJECTED.key"
       :use-hook="hook"
-      add-permission="Purchase_add"
-      detail-permission="Purchase_getDetail"
-      edit-permission="Purchase_update"
+      :add-permission="Permissions.Channel.Purchase.add"
+      :detail-permission="Permissions.Channel.Purchase.getDetail"
+      :edit-permission="Permissions.Channel.Purchase.update"
       ctrl-width="160"
       hide-delete
       show-detail
@@ -43,8 +44,8 @@ async function onReject(bill: { id: number, rejectReason?: string }) {
       <template #customRow="{ data }">
         <BillAuditOrReject
           :bill="data"
-          audit-permission="Purchase_audit"
-          reject-permission="Purchase_reject"
+          :audit-permission="Permissions.Channel.Purchase.audit"
+          :reject-permission="Permissions.Channel.Purchase.reject"
           @on-audit="onAudit"
           @on-reject="onReject"
         />

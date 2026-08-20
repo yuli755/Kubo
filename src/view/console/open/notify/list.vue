@@ -4,6 +4,7 @@ import { APanel, ATable } from '@airpower/web'
 import { ref } from 'vue'
 import { useMyTable } from '@/hook/useMyTable'
 import { NotifyService } from '@/model/open/notify/NotifyService'
+import { Permissions } from '@/config/permissions'
 import { NotifyEditor } from '@/view/console/open/notify/component'
 
 const hook = useMyTable(NotifyService, {
@@ -20,11 +21,11 @@ NotifyService.create().getSceneList().then((list) => {
   <APanel>
     <ATable
       :use-hook="hook"
-      add-permission="Notify_add"
-      delete-permission="Notify_delete"
-      disable-permission="Notify_disable"
-      edit-permission="Notify_update"
-      enable-permission="Notify_enable"
+      :add-permission="Permissions.Open.Notify.add"
+      :delete-permission="Permissions.Open.Notify.delete"
+      :disable-permission="Permissions.Open.Notify.disable"
+      :edit-permission="Permissions.Open.Notify.update"
+      :enable-permission="Permissions.Open.Notify.enable"
       ctrl-width="130"
       show-enable-and-disable
     >

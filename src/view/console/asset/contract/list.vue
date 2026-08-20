@@ -4,6 +4,7 @@ import { AButton, APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web
 import { useMyTable } from '@/hook/useMyTable'
 import { ContractService } from '@/model/asset/contract/ContractService'
 import { ContractStatusEnum } from '@/model/asset/contract/ContractStatusEnum'
+import { Permissions } from '@/config/permissions'
 import { ContractDetail, ContractEditor } from './component'
 
 const hook = useMyTable(ContractService, {
@@ -48,9 +49,9 @@ async function onDetail(contract: ContractEntity) {
       :disable-delete="row => !ContractStatusEnum.INVALID.equalsKey(row.status)"
       :disable-edit="row => !ContractStatusEnum.INVALID.equalsKey(row.status)"
       :use-hook="hook"
-      add-permission="Contract_add"
-      delete-permission="Contract_delete"
-      edit-permission="Contract_update"
+      :add-permission="Permissions.Asset.Contract.add"
+      :delete-permission="Permissions.Asset.Contract.delete"
+      :edit-permission="Permissions.Asset.Contract.update"
       ctrl-width="200"
     >
       <template #customRow="{ data }">

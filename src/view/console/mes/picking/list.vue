@@ -7,6 +7,7 @@ import { useBillTable } from '@/hook/billTable/useBillTable'
 import { usePickingAudit, usePickingReject } from '@/hook/mes/usePicking'
 import { PickingService } from '@/model/mes/picking/PickingService'
 import { PickingStatusEnum } from '@/model/mes/picking/PickingStatusEnum'
+import { Permissions } from '@/config/permissions'
 import { PickingDetail, PickingEditor } from './component'
 
 const queryClient = useQueryClient()
@@ -42,9 +43,9 @@ async function onReject(bill: { id: number, rejectReason?: string }) {
     <ATable
       :disable-edit="(row) => row.status !== PickingStatusEnum.REJECTED.key"
       :use-hook="hook"
-      add-permission="Picking_add"
-      detail-permission="Picking_getDetail"
-      edit-permission="Picking_update"
+      :add-permission="Permissions.Mes.Picking.add"
+      :detail-permission="Permissions.Mes.Picking.getDetail"
+      :edit-permission="Permissions.Mes.Picking.update"
       ctrl-width="160"
       hide-delete
       show-detail
@@ -52,8 +53,8 @@ async function onReject(bill: { id: number, rejectReason?: string }) {
       <template #customRow="{ data }">
         <BillAuditOrReject
           :bill="data"
-          audit-permission="Picking_audit"
-          reject-permission="Picking_reject"
+          :audit-permission="Permissions.Mes.Picking.audit"
+          :reject-permission="Permissions.Mes.Picking.reject"
           @on-audit="onAudit"
           @on-reject="onReject"
         />

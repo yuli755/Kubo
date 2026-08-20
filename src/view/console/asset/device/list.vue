@@ -5,6 +5,7 @@ import { useMyTable } from '@/hook/useMyTable'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
 import { DeviceService } from '@/model/asset/device/DeviceService'
 import { DeviceEditor, DeviceMonitor } from './component'
+import { Permissions } from '@/config/permissions'
 
 const filter = ref(new DeviceEntity())
 const hook = useMyTable(DeviceService, {
@@ -21,9 +22,9 @@ function showMonitor(device: DeviceEntity) {
     <ATable
       :default-filter="filter"
       :use-hook="hook"
-      add-permission="Device_add"
-      delete-permission="Device_delete"
-      edit-permission="Device_update"
+      :add-permission="Permissions.Asset.Device.add"
+      :delete-permission="Permissions.Asset.Device.delete"
+      :edit-permission="Permissions.Asset.Device.update"
       ctrl-width="130"
     >
       <template #customRow="{ data }">

@@ -85,9 +85,9 @@ async function onStartOrPause(order: OrderEntity) {
     <ATable
       :disable-edit="(row) => !OrderStatusEnum.REJECTED.equalsKey(row.status)"
       :use-hook="hook"
-      add-permission="Order_add"
-      detail-permission="Order_getDetail"
-      edit-permission="Order_update"
+      :add-permission="Permissions.Mes.Order.add"
+      :detail-permission="Permissions.Mes.Order.getDetail"
+      :edit-permission="Permissions.Mes.Order.update"
       ctrl-width="260"
       hide-delete
       show-detail
@@ -107,8 +107,8 @@ async function onStartOrPause(order: OrderEntity) {
         <template v-if="OrderStatusEnum.AUDITING.equalsKey(data.status)">
           <BillAuditOrReject
             :bill="data"
-            audit-permission="Order_audit"
-            reject-permission="Order_reject"
+            :audit-permission="Permissions.Mes.Order.audit"
+            :reject-permission="Permissions.Mes.Order.reject"
             @on-audit="onAudit"
             @on-reject="onReject"
           />

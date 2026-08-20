@@ -2,6 +2,7 @@
 import { APanel, ATable } from '@airpower/web'
 import { useMyTable } from '@/hook/useMyTable'
 import { SalePriceService } from '@/model/channel/salePrice/SalePriceService'
+import { Permissions } from '@/config/permissions'
 import { SalePriceEditor } from './component'
 
 const hook = useMyTable(SalePriceService, {
@@ -13,9 +14,9 @@ const hook = useMyTable(SalePriceService, {
   <APanel>
     <ATable
       :use-hook="hook"
-      add-permission="SalePrice_add"
-      delete-permission="SalePrice_delete"
-      edit-permission="SalePrice_update"
+      :add-permission="Permissions.Channel.SalePrice.add"
+      :delete-permission="Permissions.Channel.SalePrice.delete"
+      :edit-permission="Permissions.Channel.SalePrice.update"
     />
   </APanel>
 </template>

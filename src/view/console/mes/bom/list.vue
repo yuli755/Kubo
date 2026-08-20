@@ -5,6 +5,7 @@ import PublishButton from '@/component/PublishButton.vue'
 import { useBomPublish } from '@/hook/mes/useBom'
 import { useMyTable } from '@/hook/useMyTable'
 import { BomService } from '@/model/mes/bom/BomService'
+import { Permissions } from '@/config/permissions'
 import { BomDetail, BomEditor } from './component'
 
 const queryClient = useQueryClient()
@@ -29,9 +30,9 @@ async function onPublish(entity: { id: number }) {
       :disable-delete="(row) => row.isPublished"
       :disable-edit="(row) => row.isPublished"
       :use-hook="hook"
-      add-permission="Bom_add"
-      delete-permission="Bom_delete"
-      edit-permission="Bom_update"
+      :add-permission="Permissions.Mes.Bom.add"
+      :delete-permission="Permissions.Mes.Bom.delete"
+      :edit-permission="Permissions.Mes.Bom.update"
       ctrl-width="160"
     >
       <template #customRow="{ data }">

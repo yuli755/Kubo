@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { APanel, ATable, useTableTree } from '@airpower/web'
 import { StorageService } from '@/model/factory/storage/StorageService'
+import { Permissions } from '@/config/permissions'
 import { StorageEditor } from './component'
 
 const hook = useTableTree(StorageService, {
@@ -17,10 +18,10 @@ const hook = useTableTree(StorageService, {
     <ATable
       :disable-delete="(row) => row.children.length > 0"
       :use-hook="hook"
-      add-permission="Storage_add"
-      add-row-permission="Storage_add"
-      delete-permission="Storage_delete"
-      edit-permission="Storage_update"
+      :add-permission="Permissions.Factory.Storage.add"
+      :add-row-permission="Permissions.Factory.Storage.addRow"
+      :delete-permission="Permissions.Factory.Storage.delete"
+      :edit-permission="Permissions.Factory.Storage.update"
       ctrl-width="130"
       is-tree
       show-add-row

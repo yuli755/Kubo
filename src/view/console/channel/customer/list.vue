@@ -2,6 +2,7 @@
 import { APanel, ATable } from '@airpower/web'
 import { useMyTable } from '@/hook/useMyTable'
 import { CustomerService } from '@/model/channel/customer/CustomerService'
+import { Permissions } from '@/config/permissions'
 import { CustomerEditor } from './component'
 
 const hook = useMyTable(CustomerService, {
@@ -13,9 +14,9 @@ const hook = useMyTable(CustomerService, {
   <APanel>
     <ATable
       :use-hook="hook"
-      add-permission="Customer_add"
-      delete-permission="Customer_delete"
-      edit-permission="Customer_update"
+      :add-permission="Permissions.Channel.Customer.add"
+      :delete-permission="Permissions.Channel.Customer.delete"
+      :edit-permission="Permissions.Channel.Customer.update"
     />
   </APanel>
 </template>

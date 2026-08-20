@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { APanel, ATable, useTableTree } from '@airpower/web'
 import { MenuService } from '@/model/system/menu/MenuService'
+import { Permissions } from '@/config/permissions'
 import { MenuEditor } from './component'
 
 const hook = useTableTree(MenuService, {
@@ -17,10 +18,10 @@ const hook = useTableTree(MenuService, {
     <ATable
       :disable-delete="(row) => row.children.length > 0"
       :use-hook="hook"
-      add-permission="Menu_add"
-      add-row-permission="Menu_add"
-      delete-permission="Menu_delete"
-      edit-permission="Menu_update"
+      :add-permission="Permissions.System.Menu.add"
+      :add-row-permission="Permissions.System.Menu.addRow"
+      :delete-permission="Permissions.System.Menu.delete"
+      :edit-permission="Permissions.System.Menu.update"
       ctrl-width="130"
       is-tree
       show-add-row

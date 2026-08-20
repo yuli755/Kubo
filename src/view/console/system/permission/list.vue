@@ -3,6 +3,7 @@ import type { PermissionEntity } from '@/model/system/permission/PermissionEntit
 
 import { APanel, ATable, useTableTree } from '@airpower/web'
 import { PermissionService } from '@/model/system/permission/PermissionService'
+import { Permissions } from '@/config/permissions'
 import { PermissionEditor } from './component'
 
 const hook = useTableTree(PermissionService, {
@@ -22,10 +23,10 @@ const hook = useTableTree(PermissionService, {
       :disable-delete="(row) => row.isSystem"
       :disable-edit="(row) => row.isSystem"
       :use-hook="hook"
-      add-permission="Permission_add"
-      add-row-permission="Permission_add"
-      delete-permission="Permission_delete"
-      edit-permission="Permission_update"
+      :add-permission="Permissions.System.Permission.add"
+      :add-row-permission="Permissions.System.Permission.addRow"
+      :delete-permission="Permissions.System.Permission.delete"
+      :edit-permission="Permissions.System.Permission.update"
       ctrl-width="130"
       is-tree
       show-add-row

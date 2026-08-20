@@ -6,6 +6,7 @@ import { useBillTable } from '@/hook/billTable/useBillTable'
 import { useInputAudit, useInputReject } from '@/hook/wms/useInput'
 import { InputService } from '@/model/wms/input/InputService'
 import { InputStatusEnum } from '@/model/wms/input/InputStatusEnum'
+import { Permissions } from '@/config/permissions'
 import { InputDetail, InputEditor } from './component'
 
 const queryClient = useQueryClient()
@@ -41,17 +42,17 @@ async function onReject(bill: { id: number, rejectReason?: string }) {
     <ATable
       :disable-edit="(row) => !InputStatusEnum.REJECTED.equalsKey(row.status)"
       :use-hook="hook"
-      add-permission="Input_add"
-      detail-permission="Input_getDetail"
-      edit-permission="Input_update"
+      :add-permission="Permissions.Wms.Input.add"
+      :detail-permission="Permissions.Wms.Input.getDetail"
+      :edit-permission="Permissions.Wms.Input.update"
       ctrl-width="200"
       hide-delete
       show-detail
     >
       <template #customRow="{ data }">
         <BillAuditOrReject
-          audit-permission="Input_audit"
-          reject-permission="Input_reject"
+          :audit-permission="Permissions.Wms.Input.audit"
+          :reject-permission="Permissions.Wms.Input.reject"
           :bill="data"
           @on-audit="onAudit"
           @on-reject="onReject"

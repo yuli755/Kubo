@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { APanel, ATable, useTableTree } from '@airpower/web'
 import { StructureService } from '@/model/factory/structure/StructureService'
+import { Permissions } from '@/config/permissions'
 import { StructureEditor } from './component'
 
 const hook = useTableTree(StructureService, {
@@ -17,10 +18,10 @@ const hook = useTableTree(StructureService, {
     <ATable
       :disable-delete="(row) => row.children.length > 0"
       :use-hook="hook"
-      add-permission="Structure_add"
-      add-row-permission="Structure_add"
-      delete-permission="Structure_delete"
-      edit-permission="Structure_update"
+      :add-permission="Permissions.Factory.Structure.add"
+      :add-row-permission="Permissions.Factory.Structure.addRow"
+      :delete-permission="Permissions.Factory.Structure.delete"
+      :edit-permission="Permissions.Factory.Structure.update"
       ctrl-width="130"
       is-tree
       show-add-row

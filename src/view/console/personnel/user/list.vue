@@ -7,6 +7,7 @@ import { useMyTable } from '@/hook/useMyTable'
 import { DepartmentEntity } from '@/model/personnel/department/DepartmentEntity'
 import { DepartmentService } from '@/model/personnel/department/DepartmentService'
 import { UserService } from '@/model/personnel/user/UserService'
+import { Permissions } from '@/config/permissions'
 import { UserEditor } from './component'
 
 const hook = useMyTable(UserService, {
@@ -38,11 +39,11 @@ getDepartmentList()
     <APanel>
       <ATable
         :use-hook="hook"
-        add-permission="User_add"
-        delete-permission="User_delete"
-        disable-permission="User_disable"
-        edit-permission="User_update"
-        enable-permission="User_enable"
+        :add-permission="Permissions.Personnel.User.add"
+        :delete-permission="Permissions.Personnel.User.delete"
+        :disable-permission="Permissions.Personnel.User.disable"
+        :edit-permission="Permissions.Personnel.User.update"
+        :enable-permission="Permissions.Personnel.User.enable"
         ctrl-width="150"
         show-enable-and-disable
       />

@@ -6,6 +6,7 @@ import { useBillTable } from '@/hook/billTable/useBillTable'
 import { useMoveAudit, useMoveReject } from '@/hook/wms/useMove'
 import { MoveService } from '@/model/wms/move/MoveService'
 import { MoveStatusEnum } from '@/model/wms/move/MoveStatusEnum'
+import { Permissions } from '@/config/permissions'
 import { MoveDetail, MoveEditor } from './component'
 
 const queryClient = useQueryClient()
@@ -41,17 +42,17 @@ async function onReject(bill: { id: number, rejectReason?: string }) {
     <ATable
       :disable-edit="(row) => !MoveStatusEnum.REJECTED.equalsKey(row.status)"
       :use-hook="hook"
-      add-permission="Move_add"
-      detail-permission="Move_getDetail"
-      edit-permission="Move_update"
+      :add-permission="Permissions.Wms.Move.add"
+      :detail-permission="Permissions.Wms.Move.getDetail"
+      :edit-permission="Permissions.Wms.Move.update"
       ctrl-width="160"
       hide-delete
       show-detail
     >
       <template #customRow="{ data }">
         <BillAuditOrReject
-          audit-permission="Move_audit"
-          reject-permission="Move_reject"
+          :audit-permission="Permissions.Wms.Move.audit"
+          :reject-permission="Permissions.Wms.Move.reject"
           :bill="data"
           @on-audit="onAudit"
           @on-reject="onReject"
