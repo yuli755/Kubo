@@ -249,6 +249,121 @@ public class DevDataInitRunner implements CommandLineRunner {
                             .setEnabled(true)
             );
         }
+
+        // 注册 mes.plan 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("mes.plan")).isEmpty()) {
+            DataResourceEntity planResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("mes.plan")
+                            .setTableName("plan")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("mes_plan_tenant_isolation")
+                            .setResourceId(planResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 mes.picking 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("mes.picking")).isEmpty()) {
+            DataResourceEntity pickingResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("mes.picking")
+                            .setTableName("picking")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("mes_picking_tenant_isolation")
+                            .setResourceId(pickingResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 mes.bom 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("mes.bom")).isEmpty()) {
+            DataResourceEntity bomResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("mes.bom")
+                            .setTableName("bom")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("mes_bom_tenant_isolation")
+                            .setResourceId(bomResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 mes.routing 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("mes.routing")).isEmpty()) {
+            DataResourceEntity routingResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("mes.routing")
+                            .setTableName("routing")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("mes_routing_tenant_isolation")
+                            .setResourceId(routingResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 mes.operation 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("mes.operation")).isEmpty()) {
+            DataResourceEntity operationResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("mes.operation")
+                            .setTableName("operation")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("mes_operation_tenant_isolation")
+                            .setResourceId(operationResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
     }
 
     private void initRootAuthorization() {
