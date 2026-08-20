@@ -3,9 +3,17 @@ package cn.hamm.spms.module.channel.purchaseprice;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.channel.supplier.SupplierEntity;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static cn.hamm.airpower.exception.Errors.DATA_NOT_FOUND;
@@ -18,6 +26,23 @@ import static cn.hamm.airpower.exception.Errors.FORBIDDEN_EXIST;
  */
 @Service
 public class PurchasePriceService extends BaseService<PurchasePriceEntity, PurchasePriceRepository> {
+    @Autowired
+    private DataPermissionSpecification dataPermissionSpecification;
+
+    @Override
+    protected @NotNull List<Predicate> addSearchPredicate(
+            @NotNull Root<PurchasePriceEntity> root,
+            @NotNull CriteriaBuilder builder,
+            @NotNull PurchasePriceEntity search
+    ) {
+        List<Predicate> predicateList = new ArrayList<>();
+        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
+                root, builder, "channel.purchasePrice", DataPermissionAction.QUERY
+        );
+        predicateList.addAll(dataPermissionPredicates);
+        return predicateList;
+    }
+
     @Override
     protected @NotNull PurchasePriceEntity beforeAdd(@NotNull PurchasePriceEntity purchasePrice) {
         PurchasePriceEntity exist = repository.getBySupplierAndMaterial(

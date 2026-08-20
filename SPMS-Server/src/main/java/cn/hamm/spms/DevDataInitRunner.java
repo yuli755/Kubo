@@ -364,6 +364,144 @@ public class DevDataInitRunner implements CommandLineRunner {
                             .setEnabled(true)
             );
         }
+
+        // 注册 channel.sale 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("channel.sale")).isEmpty()) {
+            DataResourceEntity saleResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("channel.sale")
+                            .setTableName("sale")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("channel_sale_tenant_isolation")
+                            .setResourceId(saleResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 channel.purchase 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("channel.purchase")).isEmpty()) {
+            DataResourceEntity purchaseResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("channel.purchase")
+                            .setTableName("purchase")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("channel_purchase_tenant_isolation")
+                            .setResourceId(purchaseResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 channel.supplier 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("channel.supplier")).isEmpty()) {
+            DataResourceEntity supplierResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("channel.supplier")
+                            .setTableName("supplier")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("channel_supplier_tenant_isolation")
+                            .setResourceId(supplierResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 channel.customer 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("channel.customer")).isEmpty()) {
+            DataResourceEntity customerResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("channel.customer")
+                            .setTableName("customer")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("channel_customer_tenant_isolation")
+                            .setResourceId(customerResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 channel.salePrice 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("channel.salePrice")).isEmpty()) {
+            DataResourceEntity salePriceResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("channel.salePrice")
+                            .setTableName("sale_price")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("channel_sale_price_tenant_isolation")
+                            .setResourceId(salePriceResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
+
+        // 注册 channel.purchasePrice 数据资源
+        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("channel.purchasePrice")).isEmpty()) {
+            DataResourceEntity purchasePriceResource = dataResourceService.addAndGet(
+                    new DataResourceEntity()
+                            .setResourceKey("channel.purchasePrice")
+                            .setTableName("purchase_price")
+                            .setTableAlias("t")
+                            .setTenantColumn("tenant_id")
+                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
+                            .setStatus("ENABLED")
+            );
+            dataPolicyService.addAndGet(
+                    new DataPolicyEntity()
+                            .setPolicyCode("channel_purchase_price_tenant_isolation")
+                            .setResourceId(purchasePriceResource.getId())
+                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                            .setActionName("QUERY")
+                            .setConditionJson("{}")
+                            .setPriority(100)
+                            .setEnabled(true)
+            );
+        }
     }
 
     private void initRootAuthorization() {

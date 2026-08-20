@@ -8,13 +8,21 @@ import cn.hamm.spms.module.channel.sale.detail.SaleDetailRepository;
 import cn.hamm.spms.module.channel.sale.detail.SaleDetailService;
 import cn.hamm.spms.module.channel.sale.enums.SaleStatus;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.wms.WmsServices;
 import cn.hamm.spms.module.wms.output.OutputEntity;
 import cn.hamm.spms.module.wms.output.detail.OutputDetailEntity;
 import cn.hamm.spms.module.wms.output.enums.OutputStatus;
 import cn.hamm.spms.module.wms.output.enums.OutputType;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,6 +35,23 @@ import static cn.hamm.spms.module.system.config.enums.ConfigFlag.SALE_BILL_AUTO_
  */
 @Service
 public class SaleService extends AbstractBaseBillService<SaleEntity, SaleRepository, SaleDetailEntity, SaleDetailService, SaleDetailRepository> {
+    @Autowired
+    private DataPermissionSpecification dataPermissionSpecification;
+
+    @Override
+    protected @NotNull List<Predicate> addSearchPredicate(
+            @NotNull Root<SaleEntity> root,
+            @NotNull CriteriaBuilder builder,
+            @NotNull SaleEntity search
+    ) {
+        List<Predicate> predicateList = new ArrayList<>();
+        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
+                root, builder, "channel.sale", DataPermissionAction.QUERY
+        );
+        predicateList.addAll(dataPermissionPredicates);
+        return predicateList;
+    }
+
     @Override
     public IDictionary getRejectedStatus() {
         return SaleStatus.REJECTED;
