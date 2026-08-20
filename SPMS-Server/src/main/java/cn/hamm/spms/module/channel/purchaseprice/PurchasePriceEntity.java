@@ -4,6 +4,7 @@ import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.channel.supplier.SupplierEntity;
+import cn.hamm.spms.module.system.datapermission.annotation.SensitiveField;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.ManyToOne;
@@ -42,6 +43,7 @@ public class PurchasePriceEntity extends BaseEntity<PurchasePriceEntity> impleme
     private SupplierEntity supplier;
 
     @Description("采购单价")
+    @SensitiveField(resourceKey = "channel.purchasePrice")
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '采购单价'")
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "采购单价不能为空")
     private Double price;

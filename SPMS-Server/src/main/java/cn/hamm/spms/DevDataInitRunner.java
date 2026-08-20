@@ -61,9 +61,11 @@ import cn.hamm.spms.module.system.permission.PermissionEntity;
 import cn.hamm.spms.module.system.permission.PermissionService;
 import cn.hamm.spms.module.system.unit.UnitEntity;
 import cn.hamm.spms.module.system.unit.UnitService;
+import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionSubjectType;
+import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;
 import cn.hamm.spms.module.system.datapermission.service.DataPolicyService;
 import cn.hamm.spms.module.system.datapermission.service.DataResourceService;
 import lombok.extern.slf4j.Slf4j;
@@ -118,6 +120,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         permissionService.loadPermission();
         permissionService.ensureDataPermissionSystemPermissions();
         initDataPermissionResources();
+        initDataFieldPolicies();
         initRootAuthorization();
         menuService.initMenu();
         initDevData();
@@ -685,6 +688,84 @@ public class DevDataInitRunner implements CommandLineRunner {
                             .setPriority(100)
                             .setEnabled(true)
             );
+        }
+    }
+
+    private void initDataFieldPolicies() {
+        DataFieldPolicyService dataFieldPolicyService = SystemServices.getDataFieldPolicyService();
+        DataResourceService dataResourceService = SystemServices.getDataResourceService();
+
+        // 为 channel.salePrice 的 price 字段创建脱敏策略（试点：非 ROOT 角色默认部分遮蔽）
+        List<DataResourceEntity> salePriceResources = dataResourceService.filter(
+                new DataResourceEntity().setResourceKey("channel.salePrice"));
+        if (!salePriceResources.isEmpty()) {
+            DataResourceEntity salePriceResource = salePriceResources.get(0);
+            if (dataFieldPolicyService.filter(
+                    new DataFieldPolicyEntity().setResourceId(salePriceResource.getId()).setFieldName("price")).isEmpty()) {
+                dataFieldPolicyService.addAndGet(new DataFieldPolicyEntity()
+                        .setResourceId(salePriceResource.getId())
+                        .setFieldName("price")
+                        .setRoleCode("default")
+                        .setActionName("QUERY")
+                        .setMaskType("PARTIAL")
+                        .setAllowPlaintext(false)
+                        .setPriority(100)
+                        .setEnabled(true)
+                );
+            }
+        }
+
+        // 为 channel.purchasePrice 的 price 字段创建脱敏策略
+        List<DataResourceEntity> purchasePriceResources = dataResourceService.filter(
+                new DataResourceEntity().setResourceKey("channel.purchasePrice"));
+        if (!purchasePriceResources.isEmpty()) {
+            DataResourceEntity purchasePriceResource = purchasePriceResources.get(0);
+            if (dataFieldPolicyService.filter(
+                    new DataFieldPolicyEntity().setResourceId(purchasePriceResource.getId()).setFieldName("price")).isEmpty()) {
+                dataFieldPolicyService.addAndGet(new DataFieldPolicyEntity()
+                        .setResourceId(purchasePriceResource.getId())
+                        .setFieldName("price")
+                        .setRoleCode("default")
+                        .setActionName("QUERY")
+                        .setMaskType("PARTIAL")
+                        .setAllowPlaintext(false)
+                        .setPriority(100)
+                        .setEnabled(true)
+                );
+            }
+        }
+
+        // 为 asset.material 的 purchasePrice / salePrice 字段创建脱敏策略
+        List<DataResourceEntity> materialResources = dataResourceService.filter(
+                new DataResourceEntity().setResourceKey("asset.material"));
+        if (!materialResources.isEmpty()) {
+            DataResourceEntity materialResource = materialResources.get(0);
+            if (dataFieldPolicyService.filter(
+                    new DataFieldPolicyEntity().setResourceId(materialResource.getId()).setFieldName("purchasePrice")).isEmpty()) {
+                dataFieldPolicyService.addAndGet(new DataFieldPolicyEntity()
+                        .setResourceId(materialResource.getId())
+                        .setFieldName("purchasePrice")
+                        .setRoleCode("default")
+                        .setActionName("QUERY")
+                        .setMaskType("PARTIAL")
+                        .setAllowPlaintext(false)
+                        .setPriority(100)
+                        .setEnabled(true)
+                );
+            }
+            if (dataFieldPolicyService.filter(
+                    new DataFieldPolicyEntity().setResourceId(materialResource.getId()).setFieldName("salePrice")).isEmpty()) {
+                dataFieldPolicyService.addAndGet(new DataFieldPolicyEntity()
+                        .setResourceId(materialResource.getId())
+                        .setFieldName("salePrice")
+                        .setRoleCode("default")
+                        .setActionName("QUERY")
+                        .setMaskType("PARTIAL")
+                        .setAllowPlaintext(false)
+                        .setPriority(100)
+                        .setEnabled(true)
+                );
+            }
         }
     }
 

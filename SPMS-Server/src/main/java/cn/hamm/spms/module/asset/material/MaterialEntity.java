@@ -9,6 +9,7 @@ import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.asset.material.enums.MaterialType;
 import cn.hamm.spms.module.asset.material.enums.MaterialUseType;
 import cn.hamm.spms.module.system.coderule.enums.CodeRuleField;
+import cn.hamm.spms.module.system.datapermission.annotation.SensitiveField;
 import cn.hamm.spms.module.system.unit.UnitEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -71,10 +72,12 @@ public class MaterialEntity extends BaseEntity<MaterialEntity> {
     private UnitEntity unit;
 
     @Description("采购标准价")
+    @SensitiveField(resourceKey = "asset.material")
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '采购标准价'")
     private Double purchasePrice;
 
     @Description("销售标准价")
+    @SensitiveField(resourceKey = "asset.material")
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '销售标准价'")
     private Double salePrice;
 }
