@@ -3,6 +3,7 @@ import type { LogEntity } from '@/model/system/log/LogEntity'
 import { APanel, ATable, WebColor } from '@airpower/web'
 import { useMyTable } from '@/hook/useMyTable'
 import { LogService } from '@/model/system/log/LogService'
+import { Permissions } from '@/config/permissions'
 import Detail from './detail.vue'
 
 const hook = useMyTable(LogService, {
@@ -28,6 +29,7 @@ function getColor(log: LogEntity) {
   <APanel>
     <ATable
       :use-hook="hook"
+      :detail-permission="Permissions.System.Log.getDetail"
       ctrl-width="60"
       hide-add
       hide-delete

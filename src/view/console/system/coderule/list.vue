@@ -6,6 +6,7 @@ import { APanel, ATable, DateTimeUtil } from '@airpower/web'
 import { ref } from 'vue'
 import { useMyTable } from '@/hook/useMyTable'
 import { CodeRuleService } from '@/model/system/coderule/CodeRuleService'
+import { Permissions } from '@/config/permissions'
 
 import { CodeRuleEditor } from '@/view/console/system/coderule/component'
 
@@ -51,6 +52,7 @@ function nextCode(codeRule: CodeRuleEntity) {
   <APanel>
     <ATable
       :use-hook="hook"
+      :edit-permission="Permissions.System.CodeRule.update"
       ctrl-width="105"
       hide-add
       hide-delete

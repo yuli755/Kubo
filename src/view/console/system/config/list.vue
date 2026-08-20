@@ -2,6 +2,7 @@
 import { AButton, APanel, ATable, FeedbackUtil } from '@airpower/web'
 import { Constant } from '@/config/Constant'
 import { useMyTable } from '@/hook/useMyTable'
+import { Permissions } from '@/config/permissions'
 
 import { ConfigService } from '@/model/system/config/ConfigService'
 import { ConfigType } from '@/model/system/config/ConfigType'
@@ -17,6 +18,7 @@ const hook = useMyTable(ConfigService, {
     <ATable
       :disable-delete="(row) => row.isSystem"
       :use-hook="hook"
+      :edit-permission="Permissions.System.Config.update"
       ctrl-width="90"
       hide-add
     >
