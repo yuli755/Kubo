@@ -71,7 +71,9 @@ const {
       </AGroup>
       <BillFormMoreDetail :bill="formData" />
       <AGroup title="生产工艺">
-        123
+        <AFormField field="routing">
+          {{ formData.routing?.name || '未关联工艺路线' }}
+        </AFormField>
       </AGroup>
     </el-form>
   </ADialog>
