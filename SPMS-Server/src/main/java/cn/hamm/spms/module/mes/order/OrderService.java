@@ -14,11 +14,17 @@ import cn.hamm.spms.module.system.SystemServices;
 import cn.hamm.spms.module.system.config.ConfigEntity;
 import cn.hamm.spms.module.system.config.ConfigService;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.wms.WmsServices;
 import cn.hamm.spms.module.wms.input.InputEntity;
 import cn.hamm.spms.module.wms.input.detail.InputDetailEntity;
 import cn.hamm.spms.module.wms.input.enums.InputType;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -34,6 +40,26 @@ import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
  */
 @Service
 public class OrderService extends AbstractBaseBillService<OrderEntity, OrderRepository, OrderDetailEntity, OrderDetailService, OrderDetailRepository> {
+    @Autowired
+    private DataPermissionSpecification dataPermissionSpecification;
+
+    @Override
+    protected @NotNull List<Predicate> addSearchPredicate(
+            @NotNull Root<OrderEntity> root,
+            @NotNull CriteriaBuilder builder,
+            @NotNull OrderEntity search
+    ) {
+        List<Predicate> predicateList = new ArrayList<>();
+
+        // 叠加数据权限过滤条件
+        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
+                root, builder, "mes.order", DataPermissionAction.QUERY
+        );
+        predicateList.addAll(dataPermissionPredicates);
+
+        return predicateList;
+    }
+
     @Override
     public IDictionary getAuditedStatus() {
         return OrderStatus.PREPARE;

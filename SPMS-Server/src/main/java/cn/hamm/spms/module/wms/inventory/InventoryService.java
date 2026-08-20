@@ -12,6 +12,8 @@ import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.factory.storage.StorageService;
 import cn.hamm.spms.module.factory.structure.StructureEntity;
 import cn.hamm.spms.module.factory.structure.StructureService;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.wms.inventory.enums.InventoryType;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Join;
@@ -38,6 +40,9 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
 
     @Autowired
     private StructureService structureService;
+
+    @Autowired
+    private DataPermissionSpecification dataPermissionSpecification;
 
     /**
      * 查询指定物料 ID 和仓库 ID 下的库存
@@ -92,6 +97,13 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
             @NotNull InventoryEntity search
     ) {
         List<Predicate> predicateList = new ArrayList<>();
+
+        // 叠加数据权限过滤条件
+        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
+                root, builder, "wms.inventory", DataPermissionAction.QUERY
+        );
+        predicateList.addAll(dataPermissionPredicates);
+
         if (Objects.isNull(search.getType())) {
             return predicateList;
         }
