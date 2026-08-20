@@ -1,25 +1,22 @@
 <script lang="ts" setup>
 import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
-import { useQueryClient } from '@tanstack/vue-query'
 
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
-import { useBillTable } from '@/hook/billTable/useBillTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { usePickingAudit, usePickingReject } from '@/hook/mes/usePicking'
 import { PickingService } from '@/model/mes/picking/PickingService'
 import { PickingStatusEnum } from '@/model/mes/picking/PickingStatusEnum'
 import { Permissions } from '@/config/permissions'
 import { PickingDetail, PickingEditor } from './component'
 
-const queryClient = useQueryClient()
-
-const hook = useBillTable(PickingService, {
+const hook = useTanStackTable(PickingService, {
+  queryKey: ['mes:picking'],
   editView: PickingEditor,
   detailView: PickingDetail,
 })
 
 async function refreshList() {
   hook.onReloadData()
-  queryClient.invalidateQueries({ queryKey: ['mes:picking'] })
 }
 
 const { mutateAsync: auditMutate } = usePickingAudit()

@@ -1,24 +1,21 @@
 <script lang="ts" setup>
 import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
-import { useQueryClient } from '@tanstack/vue-query'
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
-import { useBillTable } from '@/hook/billTable/useBillTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { useMoveAudit, useMoveReject } from '@/hook/wms/useMove'
 import { MoveService } from '@/model/wms/move/MoveService'
 import { MoveStatusEnum } from '@/model/wms/move/MoveStatusEnum'
 import { Permissions } from '@/config/permissions'
 import { MoveDetail, MoveEditor } from './component'
 
-const queryClient = useQueryClient()
-
-const hook = useBillTable(MoveService, {
+const hook = useTanStackTable(MoveService, {
+  queryKey: ['wms:move'],
   editView: MoveEditor,
   detailView: MoveDetail,
 })
 
 async function refreshList() {
   hook.onReloadData()
-  queryClient.invalidateQueries({ queryKey: ['wms:move'] })
 }
 
 const { mutateAsync: auditMutate } = useMoveAudit()

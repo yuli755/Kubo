@@ -2,28 +2,25 @@
 import type { OrderDetailEntity } from '@/model/mes/order/OrderDetailEntity'
 import type { OrderEntity } from '@/model/mes/order/OrderEntity'
 import { AButton, APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
-import { useQueryClient } from '@tanstack/vue-query'
 
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
-import { useBillTable } from '@/hook/billTable/useBillTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { useOrderAudit, useOrderFinish, useOrderPause, useOrderReject, useOrderReport, useOrderStart } from '@/hook/mes/useOrder'
 import { OrderService } from '@/model/mes/order/OrderService'
 import { OrderStatusEnum } from '@/model/mes/order/OrderStatusEnum'
 import { CustomerDetail } from '../../channel/customer/component'
 import { OrderDetail, OrderEditor, OrderFinishEditor } from './component'
 
-const queryClient = useQueryClient()
-
-const hook = useBillTable(OrderService, {
+const hook = useTanStackTable(OrderService, {
+  queryKey: ['mes:order'],
   editView: OrderEditor,
   detailView: OrderDetail,
 })
 
 async function refreshList() {
   hook.onReloadData()
-  queryClient.invalidateQueries({ queryKey: ['mes:order'] })
 }
 
 const { mutateAsync: auditMutate } = useOrderAudit()

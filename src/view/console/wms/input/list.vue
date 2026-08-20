@@ -1,24 +1,21 @@
 <script lang="ts" setup>
 import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
-import { useQueryClient } from '@tanstack/vue-query'
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
-import { useBillTable } from '@/hook/billTable/useBillTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { useInputAudit, useInputReject } from '@/hook/wms/useInput'
 import { InputService } from '@/model/wms/input/InputService'
 import { InputStatusEnum } from '@/model/wms/input/InputStatusEnum'
 import { Permissions } from '@/config/permissions'
 import { InputDetail, InputEditor } from './component'
 
-const queryClient = useQueryClient()
-
-const hook = useBillTable(InputService, {
+const hook = useTanStackTable(InputService, {
+  queryKey: ['wms:input'],
   editView: InputEditor,
   detailView: InputDetail,
 })
 
 async function refreshList() {
   hook.onReloadData()
-  queryClient.invalidateQueries({ queryKey: ['wms:input'] })
 }
 
 const { mutateAsync: auditMutate } = useInputAudit()

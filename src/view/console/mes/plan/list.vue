@@ -1,25 +1,22 @@
 <script lang="ts" setup>
 import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
-import { useQueryClient } from '@tanstack/vue-query'
 
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
-import { useBillTable } from '@/hook/billTable/useBillTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { usePlanAudit, usePlanReject } from '@/hook/mes/usePlan'
 import { PlanService } from '@/model/mes/plan/PlanService'
 import { PlanStatusEnum } from '@/model/mes/plan/PlanStatusEnum'
 import { Permissions } from '@/config/permissions'
 import { PlanDetail, PlanEditor } from './component'
 
-const queryClient = useQueryClient()
-
-const hook = useBillTable(PlanService, {
+const hook = useTanStackTable(PlanService, {
+  queryKey: ['mes:plan'],
   editView: PlanEditor,
   detailView: PlanDetail,
 })
 
 async function refreshList() {
   hook.onReloadData()
-  queryClient.invalidateQueries({ queryKey: ['mes:plan'] })
 }
 
 const { mutateAsync: auditMutate } = usePlanAudit()

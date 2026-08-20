@@ -1,14 +1,15 @@
 <script lang="ts" setup>
 import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
-import { useBillTable } from '@/hook/billTable/useBillTable'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { useSaleAudit, useSaleReject } from '@/hook/channel/useSale'
 import { SaleService } from '@/model/channel/sale/SaleService'
 import { SaleStatusEnum } from '@/model/channel/sale/SaleStatusEnum'
 import { Permissions } from '@/config/permissions'
 import { SaleDetail, SaleEditor } from './component'
 
-const hook = useBillTable(SaleService, {
+const hook = useTanStackTable(SaleService, {
+  queryKey: ['channel:sale'],
   editView: SaleEditor,
   detailView: SaleDetail,
 })
