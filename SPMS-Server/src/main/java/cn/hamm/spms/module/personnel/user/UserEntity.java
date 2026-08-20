@@ -7,6 +7,7 @@ import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;
 import cn.hamm.spms.module.personnel.role.RoleEntity;
 import cn.hamm.spms.module.personnel.user.enums.UserGender;
+import cn.hamm.spms.module.system.datapermission.SystemPermissionIdentities;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
@@ -20,7 +21,7 @@ import org.hibernate.annotations.DynamicInsert;
 import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.validator.constraints.Length;
 
-import java.util.Objects;
+
 import java.util.Set;
 
 import static com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY;
@@ -121,6 +122,12 @@ public class UserEntity extends BaseEntity<UserEntity> implements IUserAction {
     @Transient
     @JsonIgnore
     public final boolean isRootUser() {
-        return Objects.nonNull(getId()) && getId() == 1L;
+        return getRoleList() != null
+                && getRoleList().stream()
+                .filter(java.util.Objects::nonNull)
+                .flatMap(role -> role.getPermissionList() == null ? java.util.stream.Stream.empty() : role.getPermissionList().stream())
+                .anyMatch(permission -> permission != null && SystemPermissionIdentities.ROOT.equals(permission.getIdentity()));
     }
 }
+
+

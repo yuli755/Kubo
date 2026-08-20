@@ -18,106 +18,106 @@ public enum ErrorCode {
     // ============ 通用模块 (0xxxx) ============
 
     /** 成功 */
-    SUCCESS(000000, "成功"),
+    SUCCESS(0, "成功"),
 
     /** 未知错误 */
-    UNKNOWN_ERROR(007001, "系统内部错误，请联系管理员"),
+    UNKNOWN_ERROR(7001, "系统内部错误，请联系管理员"),
 
     /** 参数校验失败 */
-    PARAM_VALIDATION_FAILED(001001, "参数校验失败: {0}"),
+    PARAM_VALIDATION_FAILED(1001, "参数校验失败: {0}"),
 
     /** 必填参数缺失 */
-    PARAM_MISSING(001002, "必填参数 {0} 不能为空"),
+    PARAM_MISSING(1002, "必填参数 {0} 不能为空"),
 
     /** 参数类型错误 */
-    PARAM_TYPE_MISMATCH(001003, "参数 {0} 类型错误，期望 {1}"),
+    PARAM_TYPE_MISMATCH(1003, "参数 {0} 类型错误，期望 {1}"),
 
     /** 参数值非法 */
-    PARAM_VALUE_ILLEGAL(001004, "参数 {0} 值非法: {1}"),
+    PARAM_VALUE_ILLEGAL(1004, "参数 {0} 值非法: {1}"),
 
     /** 请求体解析失败 */
-    REQUEST_BODY_PARSE_FAILED(001005, "请求体解析失败: {0}"),
+    REQUEST_BODY_PARSE_FAILED(1005, "请求体解析失败: {0}"),
 
     /** 资源不存在 */
-    RESOURCE_NOT_FOUND(004001, "资源不存在: {0}"),
+    RESOURCE_NOT_FOUND(4001, "资源不存在: {0}"),
 
     /** 资源已存在 */
-    RESOURCE_ALREADY_EXISTS(002001, "资源已存在: {0}"),
+    RESOURCE_ALREADY_EXISTS(2001, "资源已存在: {0}"),
 
     /** 资源已被删除 */
-    RESOURCE_DELETED(004002, "资源已被删除: {0}"),
+    RESOURCE_DELETED(4002, "资源已被删除: {0}"),
 
     /** 版本冲突 (乐观锁) */
-    VERSION_CONFLICT(005001, "数据已被修改，请刷新后重试"),
+    VERSION_CONFLICT(5001, "数据已被修改，请刷新后重试"),
 
     /** 并发冲突 */
-    CONCURRENT_CONFLICT(005002, "并发操作冲突，请稍后重试"),
+    CONCURRENT_CONFLICT(5002, "并发操作冲突，请稍后重试"),
 
     /** 幂等键冲突 */
-    IDEMPOTENT_CONFLICT(005003, "重复请求，请勿重复提交"),
+    IDEMPOTENT_CONFLICT(5003, "重复请求，请勿重复提交"),
 
     /** 权限不足 */
-    PERMISSION_DENIED(003001, "权限不足，无法执行此操作"),
+    PERMISSION_DENIED(3001, "权限不足，无法执行此操作"),
 
     /** 未认证 */
-    UNAUTHORIZED(003002, "未登录或登录已过期，请重新登录"),
+    UNAUTHORIZED(3002, "未登录或登录已过期，请重新登录"),
 
     /** Token 过期 */
-    TOKEN_EXPIRED(003003, "登录凭证已过期，请重新登录"),
+    TOKEN_EXPIRED(3003, "登录凭证已过期，请重新登录"),
 
     /** Token 无效 */
-    TOKEN_INVALID(003004, "登录凭证无效，请重新登录"),
+    TOKEN_INVALID(3004, "登录凭证无效，请重新登录"),
 
     /** 刷新 Token 过期 */
-    REFRESH_TOKEN_EXPIRED(003005, "刷新凭证已过期，请重新登录"),
+    REFRESH_TOKEN_EXPIRED(3005, "刷新凭证已过期，请重新登录"),
 
     /** 刷新 Token 无效 */
-    REFRESH_TOKEN_INVALID(003006, "刷新凭证无效，请重新登录"),
+    REFRESH_TOKEN_INVALID(3006, "刷新凭证无效，请重新登录"),
 
     /** 租户不存在 */
-    TENANT_NOT_FOUND(004003, "租户不存在或已禁用"),
+    TENANT_NOT_FOUND(4003, "租户不存在或已禁用"),
 
     /** 租户已禁用 */
-    TENANT_DISABLED(003004, "租户已被禁用，请联系管理员"),
+    TENANT_DISABLED(3004, "租户已被禁用，请联系管理员"),
 
     /** 限流 */
-    RATE_LIMIT_EXCEEDED(008001, "请求过于频繁，请稍后再试"),
+    RATE_LIMIT_EXCEEDED(8001, "请求过于频繁，请稍后再试"),
 
     /** 熔断降级 */
-    CIRCUIT_BREAKER_OPEN(008002, "服务暂时不可用，请稍后重试"),
+    CIRCUIT_BREAKER_OPEN(8002, "服务暂时不可用，请稍后重试"),
 
     /** 服务不可用 */
-    SERVICE_UNAVAILABLE(007002, "服务暂时不可用，请稍后重试"),
+    SERVICE_UNAVAILABLE(7002, "服务暂时不可用，请稍后重试"),
 
     /** 外部服务调用失败 */
-    EXTERNAL_SERVICE_FAILED(006001, "外部服务调用失败: {0}"),
+    EXTERNAL_SERVICE_FAILED(6001, "外部服务调用失败: {0}"),
 
     /** 外部服务超时 */
-    EXTERNAL_SERVICE_TIMEOUT(006002, "外部服务调用超时: {0}"),
+    EXTERNAL_SERVICE_TIMEOUT(6002, "外部服务调用超时: {0}"),
 
     /** 数据一致性校验失败 */
-    DATA_CONSISTENCY_CHECK_FAILED(009001, "数据一致性校验失败: {0}"),
+    DATA_CONSISTENCY_CHECK_FAILED(9001, "数据一致性校验失败: {0}"),
 
     /** 数据完整性约束违反 */
-    DATA_INTEGRITY_VIOLATION(009002, "数据完整性约束违反: {0}"),
+    DATA_INTEGRITY_VIOLATION(9002, "数据完整性约束违反: {0}"),
 
     /** 文件上传失败 */
-    FILE_UPLOAD_FAILED(007003, "文件上传失败: {0}"),
+    FILE_UPLOAD_FAILED(7003, "文件上传失败: {0}"),
 
     /** 文件过大 */
-    FILE_TOO_LARGE(001006, "文件大小超过限制: 最大允许 {0}"),
+    FILE_TOO_LARGE(1006, "文件大小超过限制: 最大允许 {0}"),
 
     /** 文件类型不支持 */
-    FILE_TYPE_NOT_SUPPORTED(001007, "文件类型不支持: {0}"),
+    FILE_TYPE_NOT_SUPPORTED(1007, "文件类型不支持: {0}"),
 
     /** 文件不存在 */
-    FILE_NOT_FOUND(004004, "文件不存在"),
+    FILE_NOT_FOUND(4004, "文件不存在"),
 
     /** 导入失败 */
-    IMPORT_FAILED(007004, "数据导入失败: {0}"),
+    IMPORT_FAILED(7004, "数据导入失败: {0}"),
 
     /** 导出失败 */
-    EXPORT_FAILED(007005, "数据导出失败: {0}"),
+    EXPORT_FAILED(7005, "数据导出失败: {0}"),
 
     // ============ 认证授权模块 (2xxxx) ============
 
@@ -521,19 +521,19 @@ public enum ErrorCode {
     // ============ 物联网模块 (0xxxx 扩展) ============
 
     /** 设备不在线 */
-    DEVICE_OFFLINE(004005, "设备不在线"),
+    DEVICE_OFFLINE(4005, "设备不在线"),
 
     /** 设备协议解析失败 */
-    DEVICE_PROTOCOL_PARSE_FAILED(007004, "设备协议解析失败: {0}"),
+    DEVICE_PROTOCOL_PARSE_FAILED(7004, "设备协议解析失败: {0}"),
 
     /** 设备指令下发失败 */
-    DEVICE_COMMAND_FAILED(007005, "设备指令下发失败: {0}"),
+    DEVICE_COMMAND_FAILED(7005, "设备指令下发失败: {0}"),
 
     /** 设备数据上报异常 */
-    DEVICE_DATA_ABNORMAL(002008, "设备数据异常: {0}"),
+    DEVICE_DATA_ABNORMAL(2008, "设备数据异常: {0}"),
 
     /** 规则引擎执行失败 */
-    RULE_ENGINE_EXECUTION_FAILED(007006, "规则引擎执行失败: {0}"),
+    RULE_ENGINE_EXECUTION_FAILED(7006, "规则引擎执行失败: {0}"),
     ;
 
     private final int code;

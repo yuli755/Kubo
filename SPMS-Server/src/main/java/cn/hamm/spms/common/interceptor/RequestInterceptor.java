@@ -8,6 +8,7 @@ import cn.hamm.spms.module.personnel.user.UserService;
 import cn.hamm.spms.module.personnel.user.enums.UserTokenType;
 import cn.hamm.spms.module.personnel.user.token.PersonalTokenEntity;
 import cn.hamm.spms.module.personnel.user.token.PersonalTokenService;
+import cn.hamm.spms.module.system.datapermission.service.SystemPermissionService;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
 import cn.hamm.spms.module.system.permission.PermissionService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,6 +35,9 @@ public class RequestInterceptor extends CurdRequestInterceptor {
     @Autowired
     private PersonalTokenService personalTokenService;
 
+    @Autowired
+    private SystemPermissionService systemPermissionService;
+
     /**
      * 验证指定的用户是否有指定权限标识的权限
      *
@@ -54,10 +58,8 @@ public class RequestInterceptor extends CurdRequestInterceptor {
             return;
         }
         PermissionEntity needPermission = permissionService.getPermissionByIdentity(permissionIdentity);
-        if (existUser.getRoleList().stream()
-                .flatMap(role -> role.getPermissionList().stream())
-                .anyMatch(permission -> needPermission.getId().equals(permission.getId()))
-        ) {
+        FORBIDDEN.whenNull(needPermission, "权限不存在");
+        if (systemPermissionService.has(existUser, permissionIdentity)) {
             return;
         }
         FORBIDDEN.show(String.format(
@@ -86,3 +88,5 @@ public class RequestInterceptor extends CurdRequestInterceptor {
         return verifiedToken;
     }
 }
+
+

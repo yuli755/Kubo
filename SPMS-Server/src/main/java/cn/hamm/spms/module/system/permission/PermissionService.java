@@ -7,6 +7,7 @@ import cn.hamm.airpower.curd.permission.PermissionUtil;
 import cn.hamm.spms.Application;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.module.system.permission.enums.PermissionType;
+import cn.hamm.spms.module.system.datapermission.SystemPermissionIdentities;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
@@ -47,16 +48,28 @@ public class PermissionService extends BaseService<PermissionEntity, PermissionR
     }
 
     public void initMcpToolPermission(@NotNull List<McpTool> list) {
-        PermissionEntity parent = new PermissionEntity()
-                .setName("MCP工具")
-                .setIdentity("mcp:tools")
-                .setType(PermissionType.MCP.getKey())
-                .setIsSystem(true);
-        long parentId = add(parent);
+        // 幂等：若父级 mcp:tools 权限已存在（如历史初始化残留），复用其 id，避免唯一约束冲突
+        final String parentIdentity = "mcp:tools";
+        PermissionEntity existParent = getPermissionByIdentity(parentIdentity);
+        long parentId;
+        if (Objects.isNull(existParent)) {
+            parentId = add(new PermissionEntity()
+                    .setName("MCP工具")
+                    .setIdentity(parentIdentity)
+                    .setType(PermissionType.MCP.getKey())
+                    .setIsSystem(true));
+        } else {
+            parentId = existParent.getId();
+        }
         for (McpTool mcpTool : list) {
+            String identity = McpService.getPermissionIdentity(mcpTool);
+            // 幂等：子工具已存在则跳过
+            if (Objects.nonNull(getPermissionByIdentity(identity))) {
+                continue;
+            }
             add(new PermissionEntity()
                     .setName(mcpTool.getName())
-                    .setIdentity(McpService.getPermissionIdentity(mcpTool))
+                    .setIdentity(identity)
                     .setType(PermissionType.MCP.getKey())
                     .setIsSystem(true)
                     .setParentId(parentId));
@@ -101,4 +114,36 @@ public class PermissionService extends BaseService<PermissionEntity, PermissionR
             }
         }
     }
+    /**
+     * 确保系统级权限存在，供权限迁移和开发初始化幂等调用。
+     *
+     * @param identity 权限标识
+     * @param name 权限名称
+     * @return 已存在或新建的权限
+     */
+    public PermissionEntity ensureSystemPermission(String identity, String name) {
+        PermissionEntity permission = getPermissionByIdentity(identity);
+        if (permission == null) {
+            permission = new PermissionEntity()
+                    .setIdentity(identity)
+                    .setName(name)
+                    .setIsSystem(true)
+                    .setType(PermissionType.API.getKey());
+            add(permission);
+        } else if (!Boolean.TRUE.equals(permission.getIsSystem())) {
+            permission.setIsSystem(true);
+            updateToDatabase(permission);
+        }
+        return permission;
+    }
+
+    /**
+     * 确保权限治理所需的系统权限存在。
+     */
+    public void ensureDataPermissionSystemPermissions() {
+        ensureSystemPermission(SystemPermissionIdentities.ROOT, "系统超级权限");
+        ensureSystemPermission(SystemPermissionIdentities.DATA_PERMISSION_BYPASS, "绕过数据权限");
+    }
 }
+
+

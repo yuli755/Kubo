@@ -11,9 +11,10 @@ spring:
   data:
     redis:
       host: localhost
-      port: 6379
+      # 对齐本地 Docker 容器 devops-redis 的端口映射 (16379 -> 6379)
+      port: 16379
       database: 0
-      password: '' # Redis 无密码时留空
+      password: devops_redis_pwd # 对齐 devops-redis 容器 --requirepass
 
 app:
   is-dev-mode: true

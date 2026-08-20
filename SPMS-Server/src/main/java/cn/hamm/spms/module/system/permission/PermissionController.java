@@ -34,10 +34,4 @@ public class PermissionController extends BaseController<PermissionEntity, Permi
     protected List<PermissionEntity> afterGetList(List<PermissionEntity> list) {
         return TreeUtil.buildTreeList(list);
     }
-
-    @Operation(summary = "发布权限", description = "将权限标记为已发布状态，发布后不可修改删除")
-    @Override
-    public Json publish(@RequestBody @Validated(WhenIdRequired.class) E entity) {
-        return super.publish(entity);
-    }
 }

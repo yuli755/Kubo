@@ -14,7 +14,7 @@ public interface IUserAction {
     }
 
     /**
-     * 邮箱验证码登录
+     * ����验证码登录
      */
     interface WhenLoginViaEmail {
     }
@@ -38,7 +38,7 @@ public interface IUserAction {
     }
 
     /**
-     * 发送邮件
+     * 发送��件
      */
     interface WhenSendEmail {
     }
@@ -50,7 +50,13 @@ public interface IUserAction {
     }
 
     /**
-     * 获取我的信息
+     * 手机验证码登录
+     */
+    interface WhenLoginViaPhone {
+    }
+
+    /**
+     * ���取我的信息
      */
     interface WhenGetMyInfo {
     }

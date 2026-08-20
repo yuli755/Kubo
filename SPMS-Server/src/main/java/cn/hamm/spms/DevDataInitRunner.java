@@ -45,6 +45,8 @@ import cn.hamm.spms.module.mes.routing.operation.RoutingOperationEntity;
 import cn.hamm.spms.module.personnel.PersonnelServices;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;
 import cn.hamm.spms.module.personnel.department.DepartmentService;
+import cn.hamm.spms.module.personnel.role.RoleEntity;
+import cn.hamm.spms.module.personnel.role.RoleService;
 import cn.hamm.spms.module.personnel.user.UserEntity;
 import cn.hamm.spms.module.personnel.user.UserService;
 import cn.hamm.spms.module.system.SystemServices;
@@ -55,6 +57,7 @@ import cn.hamm.spms.module.system.config.ConfigEntity;
 import cn.hamm.spms.module.system.config.ConfigService;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
 import cn.hamm.spms.module.system.menu.MenuService;
+import cn.hamm.spms.module.system.permission.PermissionEntity;
 import cn.hamm.spms.module.system.permission.PermissionService;
 import cn.hamm.spms.module.system.unit.UnitEntity;
 import cn.hamm.spms.module.system.unit.UnitService;
@@ -67,6 +70,7 @@ import org.springframework.stereotype.Component;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static cn.hamm.spms.module.iot.report.ReportConstant.*;
 
@@ -107,6 +111,8 @@ public class DevDataInitRunner implements CommandLineRunner {
         initConfigs();
         initParameters();
         permissionService.loadPermission();
+        permissionService.ensureDataPermissionSystemPermissions();
+        initRootAuthorization();
         menuService.initMenu();
         initDevData();
         try {
@@ -117,6 +123,30 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
     }
 
+
+    private void initRootAuthorization() {
+        UserService userService = PersonnelServices.getUserService();
+        RoleService roleService = PersonnelServices.getRoleService();
+        PermissionService permissionService = SystemServices.getPermissionService();
+        UserEntity rootUser = userService.getMaybeNull(1L);
+        if (rootUser == null) {
+            return;
+        }
+        RoleEntity rootRole = roleService.filter(new RoleEntity().setCode("SYSTEM_ROOT"))
+                .stream()
+                .findFirst()
+                .orElseGet(() -> roleService.addAndGet(new RoleEntity()
+                        .setName("系统超级管理员")
+                        .setCode("SYSTEM_ROOT")));
+        rootRole.setPermissionList(new HashSet<>(permissionService.filter(new PermissionEntity())));
+        roleService.updateToDatabase(rootRole);
+        Set<RoleEntity> roles = rootUser.getRoleList() == null
+                ? new HashSet<>()
+                : new HashSet<>(rootUser.getRoleList());
+        roles.add(rootRole);
+        rootUser.setRoleList(roles);
+        userService.updateToDatabase(rootUser);
+    }
     private void initParameters() {
         ParameterService parameterService = IotServices.getParameterService();
         ParameterEntity parameter;
@@ -207,7 +237,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         );
 
         roomService.addAndGet(new RoomEntity()
-                .setName("测试")
+                .setName("��试")
                 .setCode(888)
                 .setIsHot(true).setOwner(user)
         );
@@ -252,113 +282,162 @@ public class DevDataInitRunner implements CommandLineRunner {
         BomService bomService = MesServices.getBomService();
         RoutingService routingService = MesServices.getRoutingService();
 
-        int deviceCount = 2;
-        for (int i = 0; i < deviceCount; i++) {
-            deviceService.addAndGet(new DeviceEntity().setCode("Simulator00" + (i + 1)).setName("设备" + (i + 1)));
+        // ��等：��查设备是否已存在
+        if (deviceService.filter(new DeviceEntity()).isEmpty()) {
+            int deviceCount = 2;
+            for (int i = 0; i < deviceCount; i++) {
+                deviceService.addAndGet(new DeviceEntity().setCode("Simulator00" + (i + 1)).setName("设备" + (i + 1)));
+            }
         }
 
-        UnitEntity unit = new UnitEntity();
-        unit.setName("台");
-        unit = unitService.addAndGet(unit);
+        // ��等：��查单位是否已存在
+        UnitEntity unit = unitService.filter(new UnitEntity().setName("台")).stream().findFirst().orElse(null);
+        if (Objects.isNull(unit)) {
+            unit = new UnitEntity();
+            unit.setName("台");
+            unit = unitService.addAndGet(unit);
+        }
 
-        MaterialEntity material = new MaterialEntity()
-                .setMaterialType(MaterialType.PURCHASE.getKey())
-                .setName("MacBook Pro M4 Max")
-                .setSpc("32G-1TB")
-                .setUnit(unit)
-                .setPurchasePrice(28000D)
-                .setSalePrice(29999D);
-        material = materialService.addAndGet(material);
+        // ��等：��查物料是否已存在
+        MaterialEntity material = materialService.filter(new MaterialEntity().setName("MacBook Pro M4 Max")).stream().findFirst().orElse(null);
+        if (Objects.isNull(material)) {
+            material = new MaterialEntity()
+                    .setMaterialType(MaterialType.PURCHASE.getKey())
+                    .setName("MacBook Pro M4 Max")
+                    .setSpc("32G-1TB")
+                    .setUnit(unit)
+                    .setPurchasePrice(28000D)
+                    .setSalePrice(29999D);
+            material = materialService.addAndGet(material);
+        }
 
-        CustomerEntity customer = new CustomerEntity();
-        customer.setName("腾讯科技").setPhone("17666666666");
-        customer = customerService.addAndGet(customer);
+        // ��等：��查客户是否已存在
+        CustomerEntity customer = customerService.filter(new CustomerEntity().setName("凌云科技")).stream().findFirst().orElse(null);
+        if (Objects.isNull(customer)) {
+            customer = new CustomerEntity();
+            customer.setName("凌云科技").setPhone("17666666666");
+            customer = customerService.addAndGet(customer);
+        }
 
-        SupplierEntity supplier = new SupplierEntity();
-        supplier.setName("Apple 中国").setPhone("17666666666");
-        supplier = supplierService.addAndGet(supplier);
+        // ��等：��查供应商是否已存在
+        SupplierEntity supplier = supplierService.filter(new SupplierEntity().setName("Apple 中国")).stream().findFirst().orElse(null);
+        if (Objects.isNull(supplier)) {
+            supplier = new SupplierEntity();
+            supplier.setName("Apple 中国").setPhone("17666666666");
+            supplier = supplierService.addAndGet(supplier);
+        }
 
-        SalePriceEntity salePrice = new SalePriceEntity();
-        salePrice.setCustomer(customer).setPrice(29999D).setMaterial(material);
-        salePriceService.addAndGet(salePrice);
+        // ��等：价格实体
+        if (salePriceService.filter(new SalePriceEntity()).isEmpty()) {
+            SalePriceEntity salePrice = new SalePriceEntity();
+            salePrice.setCustomer(customer).setPrice(29999D).setMaterial(material);
+            salePriceService.addAndGet(salePrice);
+        }
+        if (purchasePriceService.filter(new PurchasePriceEntity()).isEmpty()) {
+            PurchasePriceEntity purchasePrice = new PurchasePriceEntity();
+            purchasePrice.setSupplier(supplier).setPrice(28000D).setMaterial(material);
+            purchasePriceService.addAndGet(purchasePrice);
+        }
 
-        PurchasePriceEntity purchasePrice = new PurchasePriceEntity();
-        purchasePrice.setSupplier(supplier).setPrice(28000D).setMaterial(material);
-        purchasePriceService.addAndGet(purchasePrice);
+        // ��等：��库
+        if (storageService.filter(new StorageEntity()).isEmpty()) {
+            StorageEntity storage = new StorageEntity().setName("东部大��");
+            storageService.addAndGet(storage);
 
-        StorageEntity storage = new StorageEntity().setName("东部大仓");
-        storageService.addAndGet(storage);
+            for (int i = 0; i < TWO; i++) {
+                storageService.addAndGet(new StorageEntity()
+                        .setParentId(storage.getId())
+                        .setName(String.format("东部%s��", (i + 1)))
+                );
+            }
 
-        for (int i = 0; i < TWO; i++) {
-            storageService.addAndGet(new StorageEntity()
-                    .setParentId(storage.getId())
-                    .setName(String.format("东部%s仓", (i + 1)))
+            storage = new StorageEntity().setName("西部大��");
+            storage = storageService.addAndGet(storage);
+
+            for (int i = 0; i < TWO; i++) {
+                storageService.addAndGet(new StorageEntity()
+                        .setParentId(storage.getId())
+                        .setName(String.format("西部%s��", (i + 1)))
+                );
+            }
+        }
+
+        // ��等：工序
+        if (operationService.filter(new OperationEntity()).isEmpty()) {
+            operationService.addAndGet(new OperationEntity().setName("����安装"));
+            operationService.addAndGet(new OperationEntity().setName("��幕组装"));
+            operationService.addAndGet(new OperationEntity().setName("系统安装"));
+        }
+        OperationEntity operationKeyboard = operationService.filter(new OperationEntity().setName("����安装")).stream().findFirst().orElse(null);
+        OperationEntity operationScreen = operationService.filter(new OperationEntity().setName("��幕组装")).stream().findFirst().orElse(null);
+        OperationEntity operationSystem = operationService.filter(new OperationEntity().setName("系统安装")).stream().findFirst().orElse(null);
+
+        // ��等：物料(����/��幕)
+        if (materialService.filter(new MaterialEntity()).size() == 1) { // 只有 MacBook Pro M4 Max
+            materialService.addAndGet(new MaterialEntity().setName("����").setMaterialType(MaterialType.PURCHASE.getKey()).setUnit(unit));
+            materialService.addAndGet(new MaterialEntity().setName("��幕").setMaterialType(MaterialType.PURCHASE.getKey()).setUnit(unit));
+        }
+        MaterialEntity materialKeyboard = materialService.filter(new MaterialEntity().setName("����")).stream().findFirst().orElse(null);
+        MaterialEntity materialScreen = materialService.filter(new MaterialEntity().setName("��幕")).stream().findFirst().orElse(null);
+
+        // ��等：BOM
+        if (bomService.filter(new BomEntity()).isEmpty()) {
+            bomService.addAndGet(new BomEntity().setName("��记本电��清单").setType(BomType.NORMAL.getKey()).setDetails(
+                    new HashSet<>(Arrays.asList(
+                            new BomDetailEntity().setMaterial(materialKeyboard).setQuantity(1D),
+                            new BomDetailEntity().setMaterial(materialScreen).setQuantity(1D)
+                    ))
+            ));
+
+            bomService.addAndGet(new BomEntity().setName("����安装清单").setType(BomType.OPERATION.getKey()).setDetails(
+                    new HashSet<>(Collections.singletonList(
+                            new BomDetailEntity().setMaterial(materialKeyboard).setQuantity(1D)
+                    ))
+            ));
+            bomService.addAndGet(new BomEntity().setName("��幕组装清单").setType(BomType.OPERATION.getKey()).setDetails(
+                    new HashSet<>(Collections.singletonList(
+                            new BomDetailEntity().setMaterial(materialScreen).setQuantity(1D)
+                    ))
+            ));
+        }
+        BomEntity bomComputer = bomService.filter(new BomEntity().setName("��记本电��清单")).stream().findFirst().orElse(null);
+        BomEntity bomKeyboard = bomService.filter(new BomEntity().setName("����安装清单")).stream().findFirst().orElse(null);
+        BomEntity bomIdScreen = bomService.filter(new BomEntity().setName("��幕组装清单")).stream().findFirst().orElse(null);
+
+        // ��等：工艺路线
+        if (routingService.filter(new RoutingEntity()).isEmpty()) {
+            routingService.addAndGet(new RoutingEntity().setBom(bomComputer)
+                    .setName("��记本安装")
+                    .setMaterial(material)
+                    .setDetails(Arrays.asList(
+                            new RoutingOperationEntity().setBom(bomKeyboard)
+                                    .setIsAutoNext(true)
+                                    .setOperation(operationKeyboard),
+                            new RoutingOperationEntity().setBom(bomIdScreen)
+                                    .setIsAutoNext(true)
+                                    .setOperation(operationScreen),
+                            new RoutingOperationEntity().setOperation(operationSystem)
+                    ))
             );
         }
 
-        storage = new StorageEntity().setName("西部大仓");
-        storage = storageService.addAndGet(storage);
+        // ��等：产线结构
+        if (structureService.filter(new StructureEntity()).isEmpty()) {
+            StructureEntity structure = new StructureEntity().setName("��记本电��产线");
+            structureService.addAndGet(structure);
 
-        for (int i = 0; i < TWO; i++) {
-            storageService.addAndGet(new StorageEntity()
-                    .setParentId(storage.getId())
-                    .setName(String.format("西部%s仓", (i + 1)))
-            );
+            for (int i = 0; i < TWO; i++) {
+                structureService.addAndGet(new StructureEntity()
+                        .setParentId(structure.getId())
+                        .setName(String.format("工位%s", (i + 1)))
+                        .setOperationList(new HashSet<>(Arrays.asList(
+                                operationKeyboard,
+                                operationScreen,
+                                operationSystem
+                        )))
+                );
+            }
         }
-
-        OperationEntity operationKeyboard = operationService.addAndGet(new OperationEntity().setName("键盘安装"));
-        OperationEntity operationScreen = operationService.addAndGet(new OperationEntity().setName("屏幕贴膜"));
-        OperationEntity operationSystem = operationService.addAndGet(new OperationEntity().setName("系统安装"));
-
-        MaterialEntity materialKeyboard = materialService.addAndGet(new MaterialEntity().setName("键盘").setMaterialType(MaterialType.PURCHASE.getKey()).setUnit(unit));
-        MaterialEntity materialScreen = materialService.addAndGet(new MaterialEntity().setName("屏幕").setMaterialType(MaterialType.PURCHASE.getKey()).setUnit(unit));
-
-        BomEntity bomComputer = bomService.addAndGet(new BomEntity().setName("笔记本电脑清单").setType(BomType.NORMAL.getKey()).setDetails(
-                new HashSet<>(Arrays.asList(
-                        new BomDetailEntity().setMaterial(materialKeyboard).setQuantity(1D),
-                        new BomDetailEntity().setMaterial(materialScreen).setQuantity(1D)
-                ))
-        ));
-
-        BomEntity bomKeyboard = bomService.addAndGet(new BomEntity().setName("键盘安装清单").setType(BomType.OPERATION.getKey()).setDetails(
-                new HashSet<>(Collections.singletonList(
-                        new BomDetailEntity().setMaterial(materialKeyboard).setQuantity(1D)
-                ))
-        ));
-        BomEntity bomIdScreen = bomService.addAndGet(new BomEntity().setName("屏幕贴膜清单").setType(BomType.OPERATION.getKey()).setDetails(
-                new HashSet<>(Collections.singletonList(
-                        new BomDetailEntity().setMaterial(materialScreen).setQuantity(1D)
-                ))
-        ));
-
-        routingService.addAndGet(new RoutingEntity().setBom(bomComputer)
-                .setName("笔记本安装")
-                .setMaterial(material)
-                .setDetails(Arrays.asList(
-                        new RoutingOperationEntity().setBom(bomKeyboard)
-                                .setIsAutoNext(true)
-                                .setOperation(operationKeyboard),
-                        new RoutingOperationEntity().setBom(bomIdScreen)
-                                .setIsAutoNext(true)
-                                .setOperation(operationScreen),
-                        new RoutingOperationEntity().setOperation(operationSystem)
-                ))
-        );
-
-        StructureEntity structure = new StructureEntity().setName("笔记本电脑产线");
-        structureService.addAndGet(structure);
-
-        for (int i = 0; i < TWO; i++) {
-            structureService.addAndGet(new StructureEntity()
-                    .setParentId(structure.getId())
-                    .setName(String.format("工位%s", (i + 1)))
-                    .setOperationList(new HashSet<>(Arrays.asList(
-                            operationKeyboard,
-                            operationScreen,
-                            operationSystem
-                    )))
-            );
-        }
-
     }
 }
+
