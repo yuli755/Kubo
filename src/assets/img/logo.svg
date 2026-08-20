@@ -8,5 +8,5 @@
     <path d="M24 4 L44 15 L24 26 L4 15 Z" />
   </g>
   <text x="66" y="37" font-family="'Segoe UI',Arial,sans-serif" font-size="30" font-weight="600" fill="#263238" letter-spacing="0.5">Kubo</text>
-  <text x="67" y="53" font-family="'Segoe UI',Arial,sans-serif" font-size="10" font-weight="500" fill="#78909c" letter-spacing="4">智 能 生 产</text>
+  <text x="67" y="53" font-family="'Segoe UI',Arial,sans-serif" font-size="10" font-weight="500" fill="#78909c" letter-spacing="1.5">智能生产管理系统</text>
 </svg>
