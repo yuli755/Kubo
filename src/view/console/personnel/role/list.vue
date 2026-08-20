@@ -4,6 +4,7 @@ import { AButton, APanel, ATable, DialogUtil } from '@airpower/web'
 import { useMyTable } from '@/hook/useMyTable'
 import { RoleService } from '@/model/personnel/role/RoleService'
 import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { RoleEditor, RoleMenuEditor, RolePermissionEditor } from './component'
 
 async function onMenuEditor(role: RoleEntity) {
@@ -33,12 +34,14 @@ const hook = useMyTable(RoleService, {
     >
       <template #customRow="{ data }">
         <AButton
+          v-permission="Permissions.Personnel.Role.authorizeMenu"
           link
           @click="onMenuEditor(data)"
         >
           菜单
         </AButton>
         <AButton
+          v-permission="Permissions.Personnel.Role.authorizePermission"
           link
           @click="onPermissionEditor(data)"
         >

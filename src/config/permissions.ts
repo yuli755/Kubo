@@ -45,6 +45,10 @@ const Mes = {
     getDetail: `Order_${Crud.getDetail}`,
     audit: `Order_${Crud.audit}`,
     reject: `Order_${Crud.reject}`,
+    start: 'Order_start',
+    pause: 'Order_pause',
+    addOrderDetail: 'Order_addOrderDetail',
+    finish: 'Order_setBillDetailsAllFinished',
   },
   Plan: {
     add: `Plan_${Crud.add}`,
@@ -164,6 +168,8 @@ const Asset = {
     add: `Contract_${Crud.add}`,
     update: `Contract_${Crud.update}`,
     delete: `Contract_${Crud.delete}`,
+    enforce: 'Contract_enforce',
+    stop: 'Contract_stop',
   },
 } as const
 
@@ -182,6 +188,8 @@ const Personnel = {
     delete: `Role_${Crud.delete}`,
     disable: `Role_${Crud.disable}`,
     enable: `Role_${Crud.enable}`,
+    authorizeMenu: 'Role_authorizeMenu',
+    authorizePermission: 'Role_authorizePermission',
   },
   Department: {
     add: `Department_${Crud.add}`,
@@ -244,6 +252,8 @@ const Open = {
     update: `OpenApp_${Crud.update}`,
     disable: `OpenApp_${Crud.disable}`,
     enable: `OpenApp_${Crud.enable}`,
+    resetSecret: 'OpenApp_resetSecret',
+    resetKeyPair: 'OpenApp_resetKeyPair',
   },
   Notify: {
     add: `Notify_${Crud.add}`,

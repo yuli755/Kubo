@@ -5,6 +5,7 @@ import { useMyTable } from '@/hook/useMyTable'
 import { ContractService } from '@/model/asset/contract/ContractService'
 import { ContractStatusEnum } from '@/model/asset/contract/ContractStatusEnum'
 import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { ContractDetail, ContractEditor } from './component'
 
 const hook = useMyTable(ContractService, {
@@ -56,6 +57,7 @@ async function onDetail(contract: ContractEntity) {
     >
       <template #customRow="{ data }">
         <AButton
+          v-permission="Permissions.Asset.Contract.enforce"
           :disabled="!ContractStatusEnum.INVALID.equalsKey(data.status)"
           link
           @click="onEnforce(data)"
@@ -63,6 +65,7 @@ async function onDetail(contract: ContractEntity) {
           生效
         </AButton>
         <AButton
+          v-permission="Permissions.Asset.Contract.stop"
           :disabled="!ContractStatusEnum.EFFECTIVE.equalsKey(data.status)"
           link
           @click="onStop(data)"

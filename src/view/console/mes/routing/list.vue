@@ -42,8 +42,9 @@ async function onProgress(data: RoutingEntity) {
       <template #customRow="{ data }">
         <PublishButton
           v-if="!data.isPublished"
-          :source="data"
-          @publish="onPublish(data)"
+          :data="data"
+          :publish-permission="Permissions.Mes.Routing.publish"
+          @click="onPublish(data)"
         />
         <AButton
           v-if="data.isPublished"

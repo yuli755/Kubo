@@ -38,8 +38,9 @@ async function onPublish(entity: { id: number }) {
       <template #customRow="{ data }">
         <PublishButton
           v-if="!data.isPublished"
-          :source="data"
-          @publish="onPublish(data)"
+          :data="data"
+          :publish-permission="Permissions.Mes.Bom.publish"
+          @click="onPublish(data)"
         />
       </template>
     </ATable>

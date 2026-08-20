@@ -5,6 +5,7 @@ import { ElMessageBox } from 'element-plus'
 import { useMyTable } from '@/hook/useMyTable'
 import { OpenAppService } from '@/model/open/app/OpenAppService'
 import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { OpenAppEditor, OpenAppLog, OpenAppTest } from './component'
 
 const hook = useMyTable(OpenAppService, {
@@ -106,6 +107,7 @@ function openOAuth2(app: OpenAppEntity) {
       </template>
       <template #customRow="{ data }">
         <AButton
+          v-permission="Permissions.Open.App.resetSecret"
           :disabled="data.isDisabled"
           link
           @click="onResetSecret(data)"
@@ -113,6 +115,7 @@ function openOAuth2(app: OpenAppEntity) {
           重置Secret
         </AButton>
         <AButton
+          v-permission="Permissions.Open.App.resetKeyPair"
           :disabled="data.isDisabled"
           link
           @click="onResetKeyPair(data)"

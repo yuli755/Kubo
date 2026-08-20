@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/vue-query'
 
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
 import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { useBillTable } from '@/hook/billTable/useBillTable'
 import { useOrderAudit, useOrderFinish, useOrderPause, useOrderReject, useOrderReport, useOrderStart } from '@/hook/mes/useOrder'
 import { OrderService } from '@/model/mes/order/OrderService'
@@ -121,6 +122,7 @@ async function onStartOrPause(order: OrderEntity) {
           "
         >
           <AButton
+            v-permission="Permissions.Mes.Order.addOrderDetail"
             :disabled="!OrderStatusEnum.PRODUCING.equalsKey(data.status)"
             link
             @click="onAddDetail(data)"
@@ -128,6 +130,7 @@ async function onStartOrPause(order: OrderEntity) {
             报工
           </AButton>
           <AButton
+            v-permission="[Permissions.Mes.Order.start, Permissions.Mes.Order.pause]"
             link
             @click="onStartOrPause(data)"
           >
@@ -135,6 +138,7 @@ async function onStartOrPause(order: OrderEntity) {
           </AButton>
           <AButton
             v-if="!OrderStatusEnum.PRODUCING.equalsKey(data.status)"
+            v-permission="Permissions.Mes.Order.finish"
             link
             @click="onFinish(data)"
           >
