@@ -80,10 +80,18 @@ export const useUserStore = defineStore(
 
     /**
      * ### 登出
-     * 清除所有用户状态，同时清理 WebConfig 持久化
-     * 同步清除权限 store，避免残留权限标识
+     * 调用后端登出接口清除 Cookie，然后清除所有本地状态
      */
-    function logout() {
+    async function logout() {
+      // 调用后端登出接口（清除服务端 Cookie）
+      try {
+        const { authApi } = await import('@/api/system')
+        await authApi.logout()
+      }
+      catch {
+        // 静默忽略 — 即使后端调用失败也要清除本地状态
+      }
+      // 清除本地状态
       token.value = ''
       tenantId.value = undefined
       userInfo.value = null

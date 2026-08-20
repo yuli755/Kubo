@@ -1,4 +1,5 @@
 import type { IMenu } from '@airpower/web'
+import type { RouteMeta } from 'vue-router'
 import { Field, Form, Model, Search, Table, Type } from '@airpower/web'
 import { BaseEntity } from '@/base/BaseEntity'
 
@@ -78,4 +79,10 @@ export class MenuEntity extends BaseEntity implements IMenu {
 
   @Type(MenuEntity)
   parent!: this
+
+  /** 菜单绑定的权限标识（后端返回，用于注入路由 meta.permission） */
+  permission?: string
+
+  /** 路由元数据（运行时由 applyMenuPermissions 写入） */
+  meta?: RouteMeta
 }

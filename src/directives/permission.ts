@@ -25,7 +25,7 @@ export const vPermission: Directive<HTMLElement, string | string[] | undefined> 
     }
 
     const required = Array.isArray(binding.value) ? binding.value : [binding.value]
-    const hasPermission = required.some(p => permissionStore.has(p))
+    const hasPermission = required.some(p => permissionStore.checkPermission(p))
 
     if (!hasPermission) {
       // 记录原始显示信息，供更新时恢复判断
@@ -41,7 +41,7 @@ export const vPermission: Directive<HTMLElement, string | string[] | undefined> 
     }
 
     const required = Array.isArray(binding.value) ? binding.value : [binding.value]
-    const hasPermission = required.some(p => permissionStore.has(p))
+    const hasPermission = required.some(p => permissionStore.checkPermission(p))
 
     if (hasPermission) {
       el.style.display = el.dataset.vPermissionFallback || ''

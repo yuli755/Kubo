@@ -16,17 +16,17 @@ export const storageApi = {
 
   /** 获取仓库详情 */
   getDetail(id: number): Promise<StorageEntity> {
-    return request.get(`/storage/${id}`)
+    return request.post(`/storage/getDetail`, { id })
   },
 
   /** 新增仓库 */
   add(data: Partial<StorageEntity>): Promise<StorageEntity> {
-    return request.post('/storage', data)
+    return request.post('/storage/add', data)
   },
 
   /** 修改仓库 */
   update(data: Partial<StorageEntity>): Promise<StorageEntity> {
-    return request.put('/storage', data)
+    return request.post('/storage/update', data)
   },
 
   /** 删除仓库 */

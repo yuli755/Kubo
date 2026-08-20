@@ -10,21 +10,21 @@ import { request } from '@/api/axios'
 export const operationApi = {
   /** 分页查询工序 */
   getPage(params: OperationQuery): Promise<{ list: OperationEntity[], total: number }> {
-    return request.get('/operation/page', { params })
+    return request.post('/operation/getPage', params)
   },
 
   /** 获取工序详情 */
   getDetail(id: number): Promise<OperationEntity> {
-    return request.get(`/operation/${id}`)
+    return request.post(`/operation/getDetail`, { id })
   },
 
   /** 新增工序 */
   add(data: Partial<OperationEntity>): Promise<OperationEntity> {
-    return request.post('/operation', data)
+    return request.post('/operation/add', data)
   },
 
   /** 修改工序 */
   update(data: Partial<OperationEntity>): Promise<OperationEntity> {
-    return request.put('/operation', data)
+    return request.post('/operation/update', data)
   },
 }

@@ -10,22 +10,22 @@ import { request } from '@/api/axios'
 export const pickingApi = {
   /** 分页查询领料单 */
   getPage(params: PickingQuery): Promise<{ list: PickingEntity[], total: number }> {
-    return request.get('/picking/page', { params })
+    return request.post('/picking/getPage', params)
   },
 
   /** 获取领料单详情 */
   getDetail(id: number): Promise<PickingEntity> {
-    return request.get(`/picking/${id}`)
+    return request.post(`/picking/getDetail`, { id })
   },
 
   /** 新增领料单 */
   add(data: Partial<PickingEntity>): Promise<PickingEntity> {
-    return request.post('/picking', data)
+    return request.post('/picking/add', data)
   },
 
   /** 修改领料单 */
   update(data: Partial<PickingEntity>): Promise<PickingEntity> {
-    return request.put('/picking', data)
+    return request.post('/picking/update', data)
   },
 
   /** 审核领料单 */

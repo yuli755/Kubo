@@ -11,22 +11,22 @@ import { request } from '@/api/axios'
 export const moveApi = {
   /** 分页查询移库单 */
   getPage(params: MoveQuery): Promise<{ list: MoveEntity[], total: number }> {
-    return request.get('/move/page', { params })
+    return request.post('/move/getPage', params)
   },
 
   /** 获取移库单详情 */
   getDetail(id: number): Promise<MoveEntity> {
-    return request.get(`/move/${id}`)
+    return request.post(`/move/getDetail`, { id })
   },
 
   /** 新增移库单 */
   add(data: Partial<MoveEntity>): Promise<MoveEntity> {
-    return request.post('/move', data)
+    return request.post('/move/add', data)
   },
 
   /** 修改移库单 */
   update(data: Partial<MoveEntity>): Promise<MoveEntity> {
-    return request.put('/move', data)
+    return request.post('/move/update', data)
   },
 
   /** 审核移库单 */

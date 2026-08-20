@@ -16,17 +16,17 @@ export const structureApi = {
 
   /** 获取生产单元详情 */
   getDetail(id: number): Promise<StructureEntity> {
-    return request.get(`/structure/${id}`)
+    return request.post(`/structure/getDetail`, { id })
   },
 
   /** 新增生产单元 */
   add(data: Partial<StructureEntity>): Promise<StructureEntity> {
-    return request.post('/structure', data)
+    return request.post('/structure/add', data)
   },
 
   /** 修改生产单元 */
   update(data: Partial<StructureEntity>): Promise<StructureEntity> {
-    return request.put('/structure', data)
+    return request.post('/structure/update', data)
   },
 
   /** 删除生产单元 */

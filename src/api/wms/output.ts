@@ -11,22 +11,22 @@ import { request } from '@/api/axios'
 export const outputApi = {
   /** 分页查询出库单 */
   getPage(params: OutputQuery): Promise<{ list: OutputEntity[], total: number }> {
-    return request.get('/output/page', { params })
+    return request.post('/output/getPage', params)
   },
 
   /** 获取出库单详情 */
   getDetail(id: number): Promise<OutputEntity> {
-    return request.get(`/output/${id}`)
+    return request.post(`/output/getDetail`, { id })
   },
 
   /** 新增出库单 */
   add(data: Partial<OutputEntity>): Promise<OutputEntity> {
-    return request.post('/output', data)
+    return request.post('/output/add', data)
   },
 
   /** 修改出库单 */
   update(data: Partial<OutputEntity>): Promise<OutputEntity> {
-    return request.put('/output', data)
+    return request.post('/output/update', data)
   },
 
   /** 审核出库单 */

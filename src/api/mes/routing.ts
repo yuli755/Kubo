@@ -10,22 +10,22 @@ import { request } from '@/api/axios'
 export const routingApi = {
   /** 分页查询生产工艺 */
   getPage(params: RoutingQuery): Promise<{ list: RoutingEntity[], total: number }> {
-    return request.get('/routing/page', { params })
+    return request.post('/routing/getPage', params)
   },
 
   /** 获取生产工艺详情 */
   getDetail(id: number): Promise<RoutingEntity> {
-    return request.get(`/routing/${id}`)
+    return request.post(`/routing/getDetail`, { id })
   },
 
   /** 新增生产工艺 */
   add(data: Partial<RoutingEntity>): Promise<RoutingEntity> {
-    return request.post('/routing', data)
+    return request.post('/routing/add', data)
   },
 
   /** 修改生产工艺 */
   update(data: Partial<RoutingEntity>): Promise<RoutingEntity> {
-    return request.put('/routing', data)
+    return request.post('/routing/update', data)
   },
 
   /** 发布生产工艺 */

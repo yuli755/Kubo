@@ -11,22 +11,22 @@ import { request } from '@/api/axios'
 export const planApi = {
   /** 分页查询生产计划 */
   getPage(params: PlanQuery): Promise<{ list: PlanEntity[], total: number }> {
-    return request.get('/plan/page', { params })
+    return request.post('/plan/getPage', params)
   },
 
   /** 获取生产计划详情 */
   getDetail(id: number): Promise<PlanEntity> {
-    return request.get(`/plan/${id}`)
+    return request.post(`/plan/getDetail`, { id })
   },
 
   /** 新增生产计划 */
   add(data: Partial<PlanEntity>): Promise<PlanEntity> {
-    return request.post('/plan', data)
+    return request.post('/plan/add', data)
   },
 
   /** 修改生产计划 */
   update(data: Partial<PlanEntity>): Promise<PlanEntity> {
-    return request.put('/plan', data)
+    return request.post('/plan/update', data)
   },
 
   /** 审核生产计划 */

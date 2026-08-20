@@ -46,6 +46,7 @@ import { provideGlobalConfig as _provideGlobalConfig } from 'element-plus/es/com
 import { ElLoading as _ElLoading } from 'element-plus/es/components/loading/index.mjs'
 
 export { ElButton } from 'element-plus/es/components/button/index.mjs'
+export { ElAlert } from 'element-plus/es/components/alert/index.mjs'
 export { ElCheckTag } from 'element-plus/es/components/check-tag/index.mjs'
 // ── 项目源码使用的组件（components.d.ts 声明 + main.ts 命令式 API）────────
 export { ElCheckbox } from 'element-plus/es/components/checkbox/index.mjs'
@@ -76,6 +77,7 @@ export { ElMessage } from 'element-plus/es/components/message/index.mjs'
 export { ElPagination } from 'element-plus/es/components/pagination/index.mjs'
 export { ElPopover } from 'element-plus/es/components/popover/index.mjs'
 export { ElProgress } from 'element-plus/es/components/progress/index.mjs'
+export { ElResult } from 'element-plus/es/components/result/index.mjs'
 
 // radio 子路径同时导出 ElRadioGroup / ElRadioButton
 export { ElRadioButton, ElRadioGroup } from 'element-plus/es/components/radio/index.mjs'

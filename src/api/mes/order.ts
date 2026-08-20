@@ -12,22 +12,22 @@ import { request } from '@/api/axios'
 export const orderApi = {
   /** 分页查询生产订单 */
   getPage(params: OrderQuery): Promise<{ list: OrderEntity[], total: number }> {
-    return request.get('/order/page', { params })
+    return request.post('/order/getPage', params)
   },
 
   /** 获取生产订单详情 */
   getDetail(id: number): Promise<OrderEntity> {
-    return request.get(`/order/${id}`)
+    return request.post(`/order/getDetail`, { id })
   },
 
   /** 新增生产订单 */
   add(data: Partial<OrderEntity>): Promise<OrderEntity> {
-    return request.post('/order', data)
+    return request.post('/order/add', data)
   },
 
   /** 修改生产订单 */
   update(data: Partial<OrderEntity>): Promise<OrderEntity> {
-    return request.put('/order', data)
+    return request.post('/order/update', data)
   },
 
   /** 审核生产订单 */

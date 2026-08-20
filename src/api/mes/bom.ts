@@ -10,22 +10,22 @@ import { request } from '@/api/axios'
 export const bomApi = {
   /** 分页查询生产配方 */
   getPage(params: BomQuery): Promise<{ list: BomEntity[], total: number }> {
-    return request.get('/bom/page', { params })
+    return request.post('/bom/getPage', params)
   },
 
   /** 获取生产配方详情 */
   getDetail(id: number): Promise<BomEntity> {
-    return request.get(`/bom/${id}`)
+    return request.post(`/bom/getDetail`, { id })
   },
 
   /** 新增生产配方 */
   add(data: Partial<BomEntity>): Promise<BomEntity> {
-    return request.post('/bom', data)
+    return request.post('/bom/add', data)
   },
 
   /** 修改生产配方 */
   update(data: Partial<BomEntity>): Promise<BomEntity> {
-    return request.put('/bom', data)
+    return request.post('/bom/update', data)
   },
 
   /** 发布生产配方 */
