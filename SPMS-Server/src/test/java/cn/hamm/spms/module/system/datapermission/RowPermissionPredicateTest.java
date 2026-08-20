@@ -1,4 +1,4 @@
-﻿package cn.hamm.spms.module.system.datapermission;
+package cn.hamm.spms.module.system.datapermission;
 
 import cn.hamm.spms.module.system.datapermission.service.RowPermissionPredicate;
 import org.junit.jupiter.api.Test;

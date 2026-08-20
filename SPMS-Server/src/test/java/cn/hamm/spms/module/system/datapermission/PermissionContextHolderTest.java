@@ -1,4 +1,4 @@
-﻿package cn.hamm.spms.module.system.datapermission;
+package cn.hamm.spms.module.system.datapermission;
 
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
