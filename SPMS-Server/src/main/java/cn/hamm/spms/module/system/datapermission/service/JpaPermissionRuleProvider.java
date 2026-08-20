@@ -43,11 +43,13 @@ public class JpaPermissionRuleProvider implements PermissionRuleProvider {
 
     private boolean matchesSubject(DataPolicyEntity policy, PermissionContext context) {
         return switch (policy.getSubjectType()) {
-            case "SYSTEM" -> context.bypassDataPermission();
+            case "SYSTEM" -> true;
             case "USER" -> context.userId().equals(policy.getSubjectId());
             case "TENANT" -> context.tenantId().equals(policy.getSubjectId());
             case "ROLE" -> policy.getRoleCode() != null && context.roleCodes().contains(policy.getRoleCode());
-            case "DEPARTMENT", "FACTORY", "WAREHOUSE" -> false;
+            case "DEPARTMENT" -> policy.getSubjectId() != null && context.departmentIds().contains(policy.getSubjectId());
+            case "FACTORY" -> policy.getSubjectId() != null && context.factoryIds().contains(policy.getSubjectId());
+            case "WAREHOUSE" -> policy.getSubjectId() != null && context.warehouseIds().contains(policy.getSubjectId());
             default -> false;
         };
     }

@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -26,6 +27,54 @@ public record RowPermissionPredicate(String sql, Map<String, Object> parameters)
         return new RowPermissionPredicate(
                 tableAlias + "." + tenantColumn + " = :dataPermissionTenantId",
                 Map.of("dataPermissionTenantId", tenantId)
+        );
+    }
+
+    public static RowPermissionPredicate owner(String tableAlias, String ownerColumn, Long userId) {
+        requireIdentifier(tableAlias, "tableAlias");
+        requireIdentifier(ownerColumn, "ownerColumn");
+        if (userId == null) {
+            return deny();
+        }
+        return new RowPermissionPredicate(
+                tableAlias + "." + ownerColumn + " = :dataPermissionOwnerId",
+                Map.of("dataPermissionOwnerId", userId)
+        );
+    }
+
+    public static RowPermissionPredicate department(String tableAlias, String departmentColumn, Set<Long> departmentIds) {
+        requireIdentifier(tableAlias, "tableAlias");
+        requireIdentifier(departmentColumn, "departmentColumn");
+        if (departmentIds == null || departmentIds.isEmpty()) {
+            return deny();
+        }
+        return new RowPermissionPredicate(
+                tableAlias + "." + departmentColumn + " IN (:dataPermissionDepartmentIds)",
+                Map.of("dataPermissionDepartmentIds", departmentIds)
+        );
+    }
+
+    public static RowPermissionPredicate factory(String tableAlias, String factoryColumn, Set<Long> factoryIds) {
+        requireIdentifier(tableAlias, "tableAlias");
+        requireIdentifier(factoryColumn, "factoryColumn");
+        if (factoryIds == null || factoryIds.isEmpty()) {
+            return deny();
+        }
+        return new RowPermissionPredicate(
+                tableAlias + "." + factoryColumn + " IN (:dataPermissionFactoryIds)",
+                Map.of("dataPermissionFactoryIds", factoryIds)
+        );
+    }
+
+    public static RowPermissionPredicate warehouse(String tableAlias, String warehouseColumn, Set<Long> warehouseIds) {
+        requireIdentifier(tableAlias, "tableAlias");
+        requireIdentifier(warehouseColumn, "warehouseColumn");
+        if (warehouseIds == null || warehouseIds.isEmpty()) {
+            return deny();
+        }
+        return new RowPermissionPredicate(
+                tableAlias + "." + warehouseColumn + " IN (:dataPermissionWarehouseIds)",
+                Map.of("dataPermissionWarehouseIds", warehouseIds)
         );
     }
 

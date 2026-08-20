@@ -9,6 +9,8 @@ public enum DataPermissionSubjectType {
     USER,
     ROLE,
     DEPARTMENT,
+    FACTORY,
+    WAREHOUSE,
     TENANT,
     SYSTEM
 }
