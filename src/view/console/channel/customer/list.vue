@@ -13,6 +13,9 @@ const hook = useMyTable(CustomerService, {
   <APanel>
     <ATable
       :use-hook="hook"
+      add-permission="Customer_add"
+      delete-permission="Customer_delete"
+      edit-permission="Customer_update"
     />
   </APanel>
 </template>

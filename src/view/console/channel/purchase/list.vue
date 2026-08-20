@@ -1,7 +1,8 @@
 <script lang="ts" setup>
-import { APanel, ATable } from '@airpower/web'
-import { BillAuditOrReject } from '@/component'
+import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
+import { BillAuditOrReject, BillRejectDialog } from '@/component'
 import { useBillTable } from '@/hook/billTable/useBillTable'
+import { usePurchaseAudit, usePurchaseReject } from '@/hook/channel/usePurchase'
 import { PurchaseService } from '@/model/channel/purchase/PurchaseService'
 import { PurchaseStatusEnum } from '@/model/channel/purchase/PurchaseStatusEnum'
 import { PurchaseDetail, PurchaseEditor } from './component'
@@ -10,6 +11,21 @@ const hook = useBillTable(PurchaseService, {
   editView: PurchaseEditor,
   detailView: PurchaseDetail,
 })
+
+const { mutateAsync: auditMutate } = usePurchaseAudit()
+async function onAudit(bill: { id: number }) {
+  await FeedbackUtil.confirmWarning('是否确认审核选择的采购单？')
+  await auditMutate({ id: bill.id })
+  hook.onReloadData()
+}
+
+const { mutateAsync: rejectMutate } = usePurchaseReject()
+async function onReject(bill: { id: number, rejectReason?: string }) {
+  const rejectReason: string = await DialogUtil.show(BillRejectDialog, '驳回采购单的原因')
+  await FeedbackUtil.confirmWarning('是否确认驳回选择的采购单？')
+  await rejectMutate({ id: bill.id, rejectReason })
+  hook.onReloadData()
+}
 </script>
 
 <template>
@@ -17,6 +33,9 @@ const hook = useBillTable(PurchaseService, {
     <ATable
       :disable-edit="(row) => row.status !== PurchaseStatusEnum.REJECTED.key"
       :use-hook="hook"
+      add-permission="Purchase_add"
+      detail-permission="Purchase_getDetail"
+      edit-permission="Purchase_update"
       ctrl-width="160"
       hide-delete
       show-detail
@@ -26,8 +45,8 @@ const hook = useBillTable(PurchaseService, {
           :bill="data"
           audit-permission="Purchase_audit"
           reject-permission="Purchase_reject"
-          @on-audit="hook.onAudit"
-          @on-reject="hook.onReject"
+          @on-audit="onAudit"
+          @on-reject="onReject"
         />
       </template>
     </ATable>

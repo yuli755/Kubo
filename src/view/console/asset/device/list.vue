@@ -7,10 +7,8 @@ import { DeviceService } from '@/model/asset/device/DeviceService'
 import { DeviceEditor, DeviceMonitor } from './component'
 
 const filter = ref(new DeviceEntity())
-filter.value.code = 'Simulator002'
 const hook = useMyTable(DeviceService, {
   editView: DeviceEditor,
-  // defaultFilter: filter.value,
 })
 
 function showMonitor(device: DeviceEntity) {
@@ -23,6 +21,9 @@ function showMonitor(device: DeviceEntity) {
     <ATable
       :default-filter="filter"
       :use-hook="hook"
+      add-permission="Device_add"
+      delete-permission="Device_delete"
+      edit-permission="Device_update"
       ctrl-width="130"
     >
       <template #customRow="{ data }">

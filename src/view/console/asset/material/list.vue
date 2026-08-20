@@ -23,6 +23,10 @@ const hook = useMyTable(MaterialService, {
   <APanel>
     <ATable
       :use-hook="hook"
+      add-permission="Material_add"
+      delete-permission="Material_delete"
+      edit-permission="Material_update"
+      export-permission="Material_export"
       show-export
     />
   </APanel>

@@ -52,19 +52,31 @@ const source = computed(
 const signature = computed(() => CryptoUtil.sha1(source.value))
 
 async function onTest() {
-  // const res = await new Http(`${window.location.origin}/api/${url.value}`).send({
-  //   appKey: app.value.appKey,
-  //   content: content.value,
-  //   signature: signature.value,
-  //   version,
-  //   timestamp: timestamp.value,
-  //   nonce: nonce.value,
-  // })
-  const res = ''
-
-  RandomUtil.getRandCharString()
-  const data = CryptoUtil.aesDecrypt(res, app.value.appSecret)
-  FeedbackUtil.alertSuccess(data, '响应数据')
+  isLoading.value = true
+  try {
+    const response = await fetch(`${window.location.origin}/api/${url.value}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        appKey: app.value.appKey,
+        content: content.value,
+        signature: signature.value,
+        version: version.value,
+        timestamp: timestamp.value,
+        nonce: nonce.value,
+      }),
+    })
+    const res = await response.text()
+    const data = CryptoUtil.aesDecrypt(res, app.value.appSecret)
+    FeedbackUtil.alertSuccess(data, '响应数据')
+  }
+  catch (error) {
+    console.error('接口测试失败:', error)
+    FeedbackUtil.toastError('接口测试失败，请检查配置')
+  }
+  finally {
+    isLoading.value = false
+  }
 }
 </script>
 
@@ -79,7 +91,7 @@ async function onTest() {
     :loading="isLoading"
     hide-fullscreen
     title="测试应用"
-    with="1000px"
+    width="1000px"
     @cancel="onCancel"
     @confirm="onTest"
   >

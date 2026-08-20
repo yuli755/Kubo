@@ -17,6 +17,10 @@ const hook = useTableTree(MenuService, {
     <ATable
       :disable-delete="(row) => row.children.length > 0"
       :use-hook="hook"
+      add-permission="Menu_add"
+      add-row-permission="Menu_add"
+      delete-permission="Menu_delete"
+      edit-permission="Menu_update"
       ctrl-width="130"
       is-tree
       show-add-row

@@ -33,11 +33,21 @@ function getTreeData(obj: IJson): IJson[] {
 
 const json = computed(() => {
   try {
-    return JSON.parse(props.param.request)
+    return JSON.parse(props.param.request) || {}
   }
   catch (e) {
     console.error(e)
-    return {}
+    return { error: '数据格式异常，无法解析' }
+  }
+})
+
+const responseJson = computed(() => {
+  try {
+    return JSON.parse(props.param.response) || {}
+  }
+  catch (e) {
+    console.error(e)
+    return { error: '数据格式异常，无法解析' }
   }
 })
 </script>
@@ -66,7 +76,7 @@ const json = computed(() => {
       </el-tab-pane>
       <el-tab-pane label="响应">
         <el-tree
-          :data="getTreeData(JSON.parse(param.response))"
+          :data="getTreeData(responseJson)"
           :props="WebConfig.treeProps"
         >
           <template #default="{ node, data }">

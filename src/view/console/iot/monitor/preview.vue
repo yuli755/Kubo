@@ -1,10 +1,12 @@
 <script lang="ts" setup>
 import { AEmpty, AGroup, APanel, DialogUtil, QueryRequest, WebColor } from '@airpower/web'
-import { onUnmounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import { ref } from 'vue'
 import { AlarmStatusEnum } from '@/model/asset/device/AlarmStatusEnum'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
 import { DeviceService } from '@/model/asset/device/DeviceService'
 import { DeviceStatusEnum } from '@/model/asset/device/DeviceStatusEnum'
+import { usePolling } from '@/hook'
 import { DeviceMonitor } from '../../asset/device/component'
 
 const deviceList = ref<DeviceEntity[]>([])
@@ -14,16 +16,27 @@ request.value.filter = new DeviceEntity()
 request.value.filter.isReporting = true
 
 async function getDeviceList() {
-  deviceList.value = await DeviceService.create().getList(request.value)
+  try {
+    deviceList.value = await DeviceService.create().getList(request.value)
+    polling.markSuccess()
+  }
+  catch (error) {
+    console.error('获取设备列表失败:', error)
+    polling.markFail()
+  }
 }
 
-const timer = setInterval(() => {
-  getDeviceList()
-}, 1000)
-getDeviceList()
-onUnmounted(() => {
-  clearInterval(timer)
+const polling = usePolling(getDeviceList, 1000, {
+  maxRetries: 5,
+  onOffline: () => {
+    ElMessage.warning('设备状态连接中断，请检查网络或后端服务')
+  },
+  onOnline: () => {
+    ElMessage.success('设备状态已恢复实时更新')
+  },
 })
+
+polling.start()
 
 function showMonitor(device: DeviceEntity) {
   DialogUtil.show(DeviceMonitor, device)
@@ -37,11 +50,19 @@ function showMonitor(device: DeviceEntity) {
       disable-collapse
       title="设备实时状态"
     >
+      <el-alert
+        v-if="polling.isOffline.value"
+        title="设备数据连接中断"
+        description="已连续多次获取设备数据失败，请检查网络连接或后端服务状态"
+        type="warning"
+        :closable="false"
+        show-icon
+      />
       <div class="device-view">
         <div
           v-for="item in DeviceStatusEnum.toArray()"
           :key="item.key"
-          :style="{ width: `${(deviceList.filter((i) => i.status === item.key).length / deviceList.length) * 100}%` }"
+          :style="{ width: `${deviceList.length > 0 ? (deviceList.filter((i) => i.status === item.key).length / deviceList.length) * 100 : 0}%` }"
           class="device-item"
         >
           <div

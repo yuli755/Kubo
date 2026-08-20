@@ -48,6 +48,9 @@ async function onDetail(contract: ContractEntity) {
       :disable-delete="row => !ContractStatusEnum.INVALID.equalsKey(row.status)"
       :disable-edit="row => !ContractStatusEnum.INVALID.equalsKey(row.status)"
       :use-hook="hook"
+      add-permission="Contract_add"
+      delete-permission="Contract_delete"
+      edit-permission="Contract_update"
       ctrl-width="200"
     >
       <template #customRow="{ data }">

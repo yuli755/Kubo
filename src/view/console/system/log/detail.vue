@@ -30,6 +30,15 @@ function getTreeData(obj: IJson): IJson[] {
   }
   return treeData
 }
+
+function safeParse(jsonString: string): IJson {
+  try {
+    return JSON.parse(jsonString) || {}
+  }
+  catch {
+    return { error: '数据格式异常，无法解析' }
+  }
+}
 </script>
 
 <template>
@@ -41,7 +50,7 @@ function getTreeData(obj: IJson): IJson[] {
     <el-tabs type="border-card">
       <el-tab-pane label="请求">
         <el-tree
-          :data="getTreeData(JSON.parse(param.request))"
+          :data="getTreeData(safeParse(param.request))"
           :props="WebConfig.treeProps"
         >
           <template #default="{ node, data }">
@@ -54,7 +63,7 @@ function getTreeData(obj: IJson): IJson[] {
       </el-tab-pane>
       <el-tab-pane label="响应">
         <el-tree
-          :data="getTreeData(JSON.parse(param.response))"
+          :data="getTreeData(safeParse(param.response))"
           :props="WebConfig.treeProps"
         >
           <template #default="{ node, data }">

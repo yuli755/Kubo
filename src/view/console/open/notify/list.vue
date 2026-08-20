@@ -20,6 +20,11 @@ NotifyService.create().getSceneList().then((list) => {
   <APanel>
     <ATable
       :use-hook="hook"
+      add-permission="Notify_add"
+      delete-permission="Notify_delete"
+      disable-permission="Notify_disable"
+      edit-permission="Notify_update"
+      enable-permission="Notify_enable"
       ctrl-width="130"
       show-enable-and-disable
     >

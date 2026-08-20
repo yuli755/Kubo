@@ -22,6 +22,11 @@ const hook = useMyTable(RoleService, {
   <APanel>
     <ATable
       :use-hook="hook"
+      add-permission="Role_add"
+      delete-permission="Role_delete"
+      disable-permission="Role_disable"
+      edit-permission="Role_update"
+      enable-permission="Role_enable"
       ctrl-width="200"
       show-enable-and-disable
     >

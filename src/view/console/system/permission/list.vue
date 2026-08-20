@@ -22,6 +22,10 @@ const hook = useTableTree(PermissionService, {
       :disable-delete="(row) => row.isSystem"
       :disable-edit="(row) => row.isSystem"
       :use-hook="hook"
+      add-permission="Permission_add"
+      add-row-permission="Permission_add"
+      delete-permission="Permission_delete"
+      edit-permission="Permission_update"
       ctrl-width="130"
       is-tree
       show-add-row

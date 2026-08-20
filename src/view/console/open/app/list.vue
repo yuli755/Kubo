@@ -82,6 +82,10 @@ function openOAuth2(app: OpenAppEntity) {
       :disable-edit="(row) => row.isDisabled"
       :on-add="onAdd"
       :use-hook="hook"
+      add-permission="OpenApp_add"
+      disable-permission="OpenApp_disable"
+      edit-permission="OpenApp_update"
+      enable-permission="OpenApp_enable"
       ctrl-width="280"
       hide-delete
       show-enable-and-disable

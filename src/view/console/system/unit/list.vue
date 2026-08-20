@@ -11,7 +11,12 @@ const hook = useMyTable(UnitService, {
 
 <template>
   <APanel>
-    <ATable :use-hook="hook" />
+    <ATable
+      :use-hook="hook"
+      add-permission="Unit_add"
+      delete-permission="Unit_delete"
+      edit-permission="Unit_update"
+    />
   </APanel>
 </template>
 

@@ -12,7 +12,12 @@ const hook = useMyTable(PurchasePriceService, {
 
 <template>
   <APanel>
-    <ATable :use-hook="hook">
+    <ATable
+      :use-hook="hook"
+      add-permission="PurchasePrice_add"
+      delete-permission="PurchasePrice_delete"
+      edit-permission="PurchasePrice_update"
+    >
       <template #supplier="{ data }">
         <APayload
           :payload="data.supplier"

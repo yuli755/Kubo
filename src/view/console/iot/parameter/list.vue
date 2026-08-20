@@ -15,6 +15,9 @@ const hook = useMyTable(ParameterService, {
       :disable-delete="(row) => row.isSystem"
       :disable-edit="(row) => row.isSystem"
       :use-hook="hook"
+      add-permission="Parameter_add"
+      delete-permission="Parameter_delete"
+      edit-permission="Parameter_update"
     />
   </APanel>
 </template>

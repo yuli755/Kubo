@@ -13,6 +13,9 @@ const hook = useMyTable(SalePriceService, {
   <APanel>
     <ATable
       :use-hook="hook"
+      add-permission="SalePrice_add"
+      delete-permission="SalePrice_delete"
+      edit-permission="SalePrice_update"
     />
   </APanel>
 </template>

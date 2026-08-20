@@ -38,6 +38,11 @@ getDepartmentList()
     <APanel>
       <ATable
         :use-hook="hook"
+        add-permission="User_add"
+        delete-permission="User_delete"
+        disable-permission="User_disable"
+        edit-permission="User_update"
+        enable-permission="User_enable"
         ctrl-width="150"
         show-enable-and-disable
       />

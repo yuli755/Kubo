@@ -1,12 +1,13 @@
 <script lang="ts" setup>
 import type { CollectionEntity } from '@/model/iot/collection/CollectionEntity'
 import { ADialog, AEmpty, DialogProps, DialogUtil, WebColor } from '@airpower/web'
-import { onUnmounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import { ref } from 'vue'
 import { AlarmStatusEnum } from '@/model/asset/device/AlarmStatusEnum'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
 import { DeviceService } from '@/model/asset/device/DeviceService'
 import { DeviceStatusEnum } from '@/model/asset/device/DeviceStatusEnum'
-
+import { usePolling } from '@/hook'
 import { CollectionDefault } from '@/model/iot/collection/CollectionDefault'
 import { ParameterEditor } from '@/view/console/iot/parameter/component'
 import DeviceCollectHistory from './history.vue'
@@ -18,20 +19,36 @@ const formData = ref(props.param.copy())
 const monitorList = ref<CollectionEntity[]>([])
 
 async function getDetail() {
-  formData.value = await DeviceService.create().getDetail(props.param.id)
+  try {
+    formData.value = await DeviceService.create().getDetail(props.param.id)
+  }
+  catch (error) {
+    console.error('获取设备详情失败:', error)
+  }
 }
 
 async function getCurrentReport() {
-  monitorList.value = await DeviceService.create().getCurrentReport(props.param.id)
+  try {
+    monitorList.value = await DeviceService.create().getCurrentReport(props.param.id)
+    polling.markSuccess()
+  }
+  catch (error) {
+    console.error('获取设备实时数据失败:', error)
+    polling.markFail()
+  }
 }
 
-let timer = setInterval(() => {
-  getCurrentReport()
-}, 1000)
-
-onUnmounted(() => {
-  clearInterval(timer)
+const polling = usePolling(getCurrentReport, 1000, {
+  maxRetries: 5,
+  onOffline: () => {
+    ElMessage.warning('设备实时数据连接中断，请检查网络或设备状态')
+  },
+  onOnline: () => {
+    ElMessage.success('设备实时数据已恢复')
+  },
 })
+
+polling.start()
 
 getDetail()
 
@@ -63,14 +80,12 @@ function addParameter() {
 
 async function showHistory(item: CollectionEntity) {
   item.uuid = props.param.uuid
-  clearInterval(timer)
+  polling.pause()
   try {
     await DialogUtil.show(DeviceCollectHistory, item)
   }
   finally {
-    timer = setInterval(() => {
-      getCurrentReport()
-    }, 1000)
+    polling.resume()
   }
 }
 </script>
@@ -83,6 +98,14 @@ async function showHistory(item: CollectionEntity) {
     width="70%"
     @cancel="onCancel"
   >
+    <el-alert
+      v-if="polling.isOffline.value"
+      title="实时数据连接中断"
+      description="已连续多次获取数据失败，请检查网络连接或设备状态"
+      type="warning"
+      :closable="false"
+      show-icon
+    />
     <div
       v-if="monitorList.length > 0"
       class="monitor-list"

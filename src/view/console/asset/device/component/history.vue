@@ -34,7 +34,7 @@ const currentGranularity = ref(CollectionGranularityEnum.ONE_MINUTE)
 const dateTimeRange = ref([new Date(DateTimeUtil.getMilliTimeStamps() - DeviceReportDuration.SIX_HOUR.key), new Date()])
 
 const shortcuts = computed(() =>
-  DeviceReportDuration.toArray().forEach(item => ({
+  DeviceReportDuration.toArray().map(item => ({
     text: item.label,
     value: () => {
       const start = new Date()

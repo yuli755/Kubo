@@ -17,6 +17,10 @@ const hook = useTableTree(DepartmentService, {
     <ATable
       :disable-delete="(row) => row.children.length > 0"
       :use-hook="hook"
+      add-permission="Department_add"
+      add-row-permission="Department_add"
+      delete-permission="Department_delete"
+      edit-permission="Department_update"
       ctrl-width="130"
       is-tree
       show-add-row

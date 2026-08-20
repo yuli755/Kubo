@@ -14,9 +14,6 @@ const {
   onSubmit,
 } = useEditor(props, OpenAppService)
 
-// todo 这里需要删掉
-formData.value.url = formData.value.url || 'https://demo.hamm.cn/app'
-
 async function onAdd() {
   const result = await OpenAppService.create(isLoading).addAndGetSecret(formData.value)
   props.onConfirm(result)
