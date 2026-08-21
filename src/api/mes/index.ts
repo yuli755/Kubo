@@ -1,9 +1,11 @@
-export { bomApi } from './bom'
-export { operationApi } from './operation'
-export { orderApi } from './order'
-export { pickingApi } from './picking'
-export { planApi } from './plan'
-export { routingApi } from './routing'
+import { bomApi } from './bom'
+import { operationApi } from './operation'
+import { orderApi } from './order'
+import { pickingApi } from './picking'
+import { planApi } from './plan'
+import { routingApi } from './routing'
+
+export { bomApi, operationApi, orderApi, pickingApi, planApi, routingApi }
 
 /**
  * # MES 模块 API 统一入口

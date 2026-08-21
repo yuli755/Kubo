@@ -56,7 +56,7 @@ export { ElDatePicker } from 'element-plus/es/components/date-picker/index.mjs'
 export { ElDropdown, ElDropdownItem, ElDropdownMenu } from 'element-plus/es/components/dropdown/index.mjs'
 export { ElEmpty } from 'element-plus/es/components/empty/index.mjs'
 // ── 类型导出（FormInstance / TreeInstance）─────────────────────────────
-export type { FormInstance } from 'element-plus/es/components/form/index.d.ts'
+export type { FormInstance } from 'element-plus/es/components/form/index.mjs'
 // form 子路径同时导出 ElForm 与 ElFormItem
 export { ElFormItem } from 'element-plus/es/components/form/index.mjs'
 export { ElForm } from 'element-plus/es/components/form/index.mjs'
@@ -91,12 +91,14 @@ export { ElTabPane, ElTabs } from 'element-plus/es/components/tabs/index.mjs'
 export { ElTag } from 'element-plus/es/components/tag/index.mjs'
 // timeline 子路径同时导出 ElTimeline / ElTimelineItem
 export { ElTimeline, ElTimelineItem } from 'element-plus/es/components/timeline/index.mjs'
-export type { TreeInstance } from 'element-plus/es/components/tree/index.d.ts'
+export type { TreeInstance } from 'element-plus/es/components/tree/index.mjs'
 export { ElTree } from 'element-plus/es/components/tree/index.mjs'
 export { ElUpload } from 'element-plus/es/components/upload/index.mjs'
 
+import type { App } from 'vue'
+
 const ElementPlus = {
-  install(app, options) {
+  install(app: App, options?: Record<string, unknown>) {
     app.use(_ElLoading)
     if (options) {
       _provideGlobalConfig(options, app, true)

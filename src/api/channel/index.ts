@@ -1,9 +1,11 @@
-export { customerApi } from './customer'
-export { purchaseApi } from './purchase'
-export { purchasePriceApi } from './purchasePrice'
-export { saleApi } from './sale'
-export { salePriceApi } from './salePrice'
-export { supplierApi } from './supplier'
+import { customerApi } from './customer'
+import { purchaseApi } from './purchase'
+import { purchasePriceApi } from './purchasePrice'
+import { saleApi } from './sale'
+import { salePriceApi } from './salePrice'
+import { supplierApi } from './supplier'
+
+export { customerApi, purchaseApi, purchasePriceApi, saleApi, salePriceApi, supplierApi }
 
 export const channelApi = {
   customer: customerApi,

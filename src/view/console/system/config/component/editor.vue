@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { ADialog, AFormField, DialogProps, getFieldLabel, useEditor } from '@airpower/web'
+import { computed } from 'vue'
 
 import { Constant } from '@/config/Constant'
 import { ConfigEntity } from '@/model/system/config/ConfigEntity'
@@ -42,6 +43,18 @@ const {
     return data
   },
 })
+
+/** el-input-number 需要 number 类型，但 ConfigEntity.config 是 string */
+const numberConfig = computed({
+  get: () => (formData.value ? Number(formData.value.config) : 0),
+  set: (val: number) => { if (formData.value) formData.value.config = String(val) as unknown as string },
+})
+
+/** el-switch 需要 boolean 类型，但 ConfigEntity.config 是 string */
+const booleanConfig = computed({
+  get: () => formData.value?.config === Constant.BOOLEAN_YES,
+  set: (val: boolean) => { if (formData.value) formData.value.config = (val ? Constant.BOOLEAN_YES : Constant.BOOLEAN_NO) as unknown as string },
+})
 </script>
 
 <template>
@@ -70,12 +83,12 @@ const {
       />
       <template v-if="ConfigType.NUMBER.equalsKey(formData.type)">
         <el-form-item :label="getFieldLabel(ConfigEntity, 'config')">
-          <el-input-number v-model="formData.config" />
+          <el-input-number v-model="numberConfig" />
         </el-form-item>
       </template>
       <template v-else-if="ConfigType.BOOLEAN.equalsKey(formData.type)">
         <el-form-item :label="getFieldLabel(ConfigEntity, 'config')">
-          <el-switch v-model="formData.config" />
+          <el-switch v-model="booleanConfig" />
         </el-form-item>
       </template>
 

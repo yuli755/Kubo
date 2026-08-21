@@ -56,5 +56,5 @@ export class OpenLogEntity extends BaseEntity {
   @Field({
     label: '响应时间',
   })
-  declare updateTime!: number
+  declare updateTime: number
 }

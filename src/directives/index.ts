@@ -1,3 +1,4 @@
+import type { Directive } from 'vue'
 import { vMask } from './mask'
 import { vPermission } from './permission'
 
@@ -14,7 +15,7 @@ import { vPermission } from './permission'
  * }
  * ```
  */
-export const directives = {
+export const directives: Record<string, Directive> = {
   mask: vMask,
   permission: vPermission,
 }

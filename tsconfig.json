@@ -21,6 +21,7 @@
     "types": [
       "vite/client"
     ],
+    "skipLibCheck": true,
     "strict": true,
     "sourceMap": true,
     "esModuleInterop": true

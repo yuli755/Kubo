@@ -50,7 +50,7 @@ async function onAddDetail(order: OrderEntity) {
   const quantity = order.quantity - order.finishQuantity
   const detail = await DialogUtil.show<OrderDetailEntity>(OrderFinishEditor, quantity)
   detail.billId = order.id
-  await reportMutate(detail)
+  await reportMutate(detail as unknown as import('@/api/mes/types').OrderReportRequest)
   await refreshList()
 }
 

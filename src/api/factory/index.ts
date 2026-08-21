@@ -1,5 +1,7 @@
-export { storageApi } from './storage'
-export { structureApi } from './structure'
+import { storageApi } from './storage'
+import { structureApi } from './structure'
+
+export { storageApi, structureApi }
 
 /**
  * # Factory 模块 API 统一入口

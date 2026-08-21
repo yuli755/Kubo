@@ -26,6 +26,17 @@ import { parse, stringify } from 'flatted'
  * })
  * ```
  */
+/**
+ * Pinia 模块增强：为 `DefineStoreOptionsBase` 添加 `persist` 选项，
+ * 使 `defineStore` 的 setup store 和 options store 都能接受 `persist` 配置。
+ */
+declare module 'pinia' {
+  export interface DefineStoreOptionsBase<S extends StateTree, Store> {
+    /** 持久化配置（由 persist 插件消费） */
+    persist?: PersistOptions
+  }
+}
+
 export interface PersistOptions {
   /** 存储 key，默认自动从 $id 生成 */
   key?: string
