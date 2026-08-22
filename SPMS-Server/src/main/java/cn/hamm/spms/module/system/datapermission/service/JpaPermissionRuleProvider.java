@@ -6,6 +6,9 @@ import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.repository.DataPolicyRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,6 +18,7 @@ import java.util.List;
  *
  * @author Hamm.cn
  */
+@Slf4j
 @Service
 public class JpaPermissionRuleProvider implements PermissionRuleProvider {
     private final DataResourceRepository resourceRepository;
@@ -26,11 +30,13 @@ public class JpaPermissionRuleProvider implements PermissionRuleProvider {
     }
 
     @Override
+    @Cacheable(value = "datapermission:resource", key = "#resourceKey")
     public DataResourceEntity getResource(String resourceKey) {
         return resourceRepository.getByResourceKey(resourceKey);
     }
 
     @Override
+    @Cacheable(value = "datapermission:policies", key = "#resource.id + ':' + #action.name()")
     public List<DataPolicyEntity> getPolicies(DataResourceEntity resource, DataPermissionAction action, PermissionContext context) {
         if (resource == null || resource.getId() == null) {
             return List.of();
@@ -39,6 +45,30 @@ public class JpaPermissionRuleProvider implements PermissionRuleProvider {
                 .stream()
                 .filter(policy -> matchesSubject(policy, context))
                 .toList();
+    }
+
+    /**
+     * 清理指定资源的缓存
+     */
+    @CacheEvict(value = "datapermission:resource", key = "#resourceKey")
+    public void clearResourceCache(String resourceKey) {
+        log.debug("清理资源缓存: {}", resourceKey);
+    }
+
+    /**
+     * 清理指定资源的策略缓存
+     */
+    @CacheEvict(value = "datapermission:policies", allEntries = true)
+    public void clearPolicyCache(String resourceKey) {
+        log.debug("清理策略缓存: {}", resourceKey);
+    }
+
+    /**
+     * 清理所有缓存
+     */
+    @CacheEvict(value = {"datapermission:resource", "datapermission:policies"}, allEntries = true)
+    public void clearAllCache() {
+        log.debug("清理所有数据权限缓存");
     }
 
     private boolean matchesSubject(DataPolicyEntity policy, PermissionContext context) {
