@@ -3,6 +3,7 @@ package cn.hamm.spms.common.interceptor;
 import cn.hamm.airpower.core.AccessTokenUtil;
 import cn.hamm.airpower.core.DictionaryUtil;
 import cn.hamm.airpower.curd.interceptor.CurdRequestInterceptor;
+import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;
 import cn.hamm.spms.module.personnel.role.RoleEntity;
 import cn.hamm.spms.module.personnel.user.UserEntity;
@@ -127,6 +128,14 @@ public class RequestInterceptor extends CurdRequestInterceptor {
                     .collect(Collectors.toSet());
         }
 
+        Set<Long> warehouseIds = Set.of();
+        if (user.getStorageList() != null) {
+            warehouseIds = user.getStorageList().stream()
+                    .filter(Objects::nonNull)
+                    .map(StorageEntity::getId)
+                    .collect(Collectors.toSet());
+        }
+
         boolean bypass = user.isRootUser() || systemPermissionService.has(
                 user, cn.hamm.spms.module.system.datapermission.SystemPermissionIdentities.DATA_PERMISSION_BYPASS
         );
@@ -138,7 +147,7 @@ public class RequestInterceptor extends CurdRequestInterceptor {
                 tenantId,
                 departmentIds,
                 Set.of(),
-                Set.of(),
+                warehouseIds,
                 roleCodes,
                 bypass
         );

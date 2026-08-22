@@ -4,6 +4,7 @@ import cn.hamm.airpower.core.annotation.*;
 import cn.hamm.airpower.core.enums.DesensitizeType;
 import cn.hamm.airpower.curd.annotation.Search;
 import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;
 import cn.hamm.spms.module.personnel.role.RoleEntity;
 import cn.hamm.spms.module.personnel.user.enums.UserGender;
@@ -111,8 +112,13 @@ public class UserEntity extends BaseEntity<UserEntity> implements IUserAction {
     @ManyToMany(fetch = FetchType.LAZY)
     private Set<RoleEntity> roleList;
 
+    @Description("部门列表")
     @ManyToMany(fetch = FetchType.LAZY)
     private Set<DepartmentEntity> departmentList;
+
+    @Description("仓库授权列表")
+    @ManyToMany(fetch = FetchType.LAZY)
+    private Set<StorageEntity> storageList;
 
     /**
      * 获取是否超级管理员
