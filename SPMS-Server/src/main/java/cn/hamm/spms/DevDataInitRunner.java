@@ -64,6 +64,7 @@ import cn.hamm.spms.module.system.unit.UnitService;
 import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionSubjectType;
 import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;
 import cn.hamm.spms.module.system.datapermission.service.DataPolicyService;
@@ -688,6 +689,63 @@ public class DevDataInitRunner implements CommandLineRunner {
                             .setPriority(100)
                             .setEnabled(true)
             );
+        }
+
+        // 为支持写入操作的资源补充 CREATE/UPDATE/DELETE 策略
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "wms.input");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "wms.output");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "wms.move");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "mes.order");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "mes.plan");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "mes.picking");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "mes.bom");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "mes.routing");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "mes.operation");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "channel.sale");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "channel.purchase");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "channel.supplier");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "channel.customer");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "channel.salePrice");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "channel.purchasePrice");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "asset.contract");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "asset.device");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "asset.material");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "factory.storage");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "factory.structure");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "personnel.department");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "personnel.role");
+        addWritePoliciesForResource(dataPolicyService, dataResourceService, "personnel.user");
+    }
+
+    /**
+     * 为指定资源补充 CREATE/UPDATE/DELETE 策略（若不存在且资源支持该动作）
+     */
+    private void addWritePoliciesForResource(DataPolicyService dataPolicyService, DataResourceService dataResourceService, String resourceKey) {
+        List<DataResourceEntity> resources = dataResourceService.filter(
+                new DataResourceEntity().setResourceKey(resourceKey));
+        if (resources.isEmpty()) {
+            return;
+        }
+        DataResourceEntity resource = resources.get(0);
+        if (resource.getSupportedActions() == null || !resource.getSupportedActions().contains("CREATE")) {
+            return;
+        }
+        long resourceId = resource.getId();
+        for (DataPermissionAction action : List.of(DataPermissionAction.CREATE, DataPermissionAction.UPDATE, DataPermissionAction.DELETE)) {
+            String policyCode = resourceKey.replace('.', '_') + '_' + action.name().toLowerCase();
+            if (dataPolicyService.filter(new DataPolicyEntity()
+                    .setResourceId(resourceId)
+                    .setActionName(action.name())
+                    .setSubjectType(DataPermissionSubjectType.SYSTEM.name())).isEmpty()) {
+                dataPolicyService.addAndGet(new DataPolicyEntity()
+                        .setPolicyCode(policyCode)
+                        .setResourceId(resourceId)
+                        .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
+                        .setActionName(action.name())
+                        .setConditionJson("{}")
+                        .setPriority(100)
+                        .setEnabled(true));
+            }
         }
     }
 

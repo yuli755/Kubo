@@ -3,6 +3,9 @@ package cn.hamm.spms.base;
 import cn.hamm.airpower.curd.base.CurdService;
 import cn.hamm.spms.module.system.SystemServices;
 import cn.hamm.spms.module.system.coderule.CodeRuleService;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionGuard;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionResourceResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 
@@ -34,6 +37,43 @@ public class BaseService<
         CodeRuleService codeRuleService = SystemServices.getCodeRuleService();
         codeRuleService.fillFieldAutoCode(entity);
         return beforeAppSaveToDatabase(entity);
+    }
+
+    @Override
+    protected E beforeAdd(@NotNull E entity) {
+        E result = super.beforeAdd(entity);
+        enforceDataPermission(DataPermissionAction.CREATE);
+        return result;
+    }
+
+    @Override
+    protected E beforeUpdate(@NotNull E entity) {
+        E result = super.beforeUpdate(entity);
+        enforceDataPermission(DataPermissionAction.UPDATE);
+        return result;
+    }
+
+    @Override
+    protected void beforeDelete(@NotNull E entity) {
+        super.beforeDelete(entity);
+        enforceDataPermission(DataPermissionAction.DELETE);
+    }
+
+    /**
+     * 数据权限写入守卫：校验当前主体是否拥有该资源对应写入动作的权限
+     *
+     * @param action 写入动作
+     */
+    protected void enforceDataPermission(@NotNull DataPermissionAction action) {
+        DataPermissionGuard dataPermissionGuard = SystemServices.getDataPermissionGuard();
+        if (dataPermissionGuard == null) {
+            return;
+        }
+        String resourceKey = DataPermissionResourceResolver.resolve(getClass());
+        if (resourceKey == null) {
+            return;
+        }
+        dataPermissionGuard.enforce(resourceKey, action);
     }
 
     /**

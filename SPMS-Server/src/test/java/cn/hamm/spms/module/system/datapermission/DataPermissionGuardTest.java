@@ -1,0 +1,106 @@
+package cn.hamm.spms.module.system.datapermission.service;
+
+import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
+import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
+import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
+
+/**
+ * <h1>数据权限写入守卫测试</h1>
+ *
+ * <p>验证 {@link DataPermissionGuard} 在 CREATE/UPDATE/DELETE 写入动作下的放行与拦截逻辑。</p>
+ *
+ * @author Hamm.cn
+ */
+@ExtendWith(MockitoExtension.class)
+class DataPermissionGuardTest {
+
+    @Mock
+    private DataPermissionService dataPermissionService;
+
+    private DataPermissionGuard guard;
+
+    @BeforeEach
+    void setUp() {
+        guard = new DataPermissionGuard(dataPermissionService);
+        lenient().when(dataPermissionService.getPolicies(any(), any(), any())).thenReturn(List.of());
+        PermissionContextHolder.clear();
+    }
+
+    @AfterEach
+    void tearDown() {
+        PermissionContextHolder.clear();
+    }
+
+    @Nested
+    class Enforcement {
+        @Test
+        void allowsWhenPolicyExists() {
+            PermissionContextHolder.open(context(false));
+            given(dataPermissionService.getPolicies(eq("wms.input"), eq(DataPermissionAction.CREATE), any()))
+                    .willReturn(List.of(policy()));
+
+            assertDoesNotThrow(() -> guard.enforce("wms.input", DataPermissionAction.CREATE));
+        }
+
+        @Test
+        void blocksWhenNoPolicy() {
+            PermissionContextHolder.open(context(false));
+            given(dataPermissionService.getPolicies(eq("wms.input"), eq(DataPermissionAction.UPDATE), any()))
+                    .willReturn(List.of());
+
+            assertThrows(IllegalStateException.class,
+                    () -> guard.enforce("wms.input", DataPermissionAction.UPDATE));
+        }
+
+        @Test
+        void allowsBypassUser() {
+            PermissionContextHolder.open(context(true));
+
+            assertDoesNotThrow(() -> guard.enforce("wms.input", DataPermissionAction.DELETE));
+        }
+
+        @Test
+        void allowsNoContext() {
+            assertDoesNotThrow(() -> guard.enforce("wms.input", DataPermissionAction.DELETE));
+        }
+    }
+
+    @Nested
+    class CreateUpdateDelete {
+        @Test
+        void appliesToOneActionAtLeast() {
+            PermissionContextHolder.open(context(false));
+            given(dataPermissionService.getPolicies(eq("mes.order"), any(), any()))
+                    .willReturn(List.of(policy()));
+
+            assertDoesNotThrow(() -> guard.enforce("mes.order", DataPermissionAction.DELETE));
+        }
+    }
+
+    private DataPolicyEntity policy() {
+        return new DataPolicyEntity().setPolicyCode("wms_input_create").setEnabled(true);
+    }
+
+    private PermissionContext context(boolean bypass) {
+        return new PermissionContext(
+                1L, 0L, Set.of(), Set.of(), Set.of(), Set.of("planner"), bypass
+        );
+    }
+}

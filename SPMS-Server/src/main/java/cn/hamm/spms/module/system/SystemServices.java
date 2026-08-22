@@ -3,6 +3,7 @@ package cn.hamm.spms.module.system;
 import cn.hamm.spms.module.system.coderule.CodeRuleService;
 import cn.hamm.spms.module.system.config.ConfigService;
 import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionGuard;
 import cn.hamm.spms.module.system.datapermission.service.DataPolicyService;
 import cn.hamm.spms.module.system.datapermission.service.DataResourceService;
 import cn.hamm.spms.module.system.file.FileService;
@@ -47,6 +48,9 @@ public class SystemServices {
     @Getter
     private static DataFieldPolicyService dataFieldPolicyService;
 
+    @Getter
+    private static DataPermissionGuard dataPermissionGuard;
+
     @Autowired
     private void initService(
             CodeRuleService codeRuleService,
@@ -57,7 +61,8 @@ public class SystemServices {
             UnitService unitService,
             DataResourceService dataResourceService,
             DataPolicyService dataPolicyService,
-            DataFieldPolicyService dataFieldPolicyService
+            DataFieldPolicyService dataFieldPolicyService,
+            DataPermissionGuard dataPermissionGuard
     ) {
         SystemServices.codeRuleService = codeRuleService;
         SystemServices.configService = configService;
@@ -68,5 +73,6 @@ public class SystemServices {
         SystemServices.dataResourceService = dataResourceService;
         SystemServices.dataPolicyService = dataPolicyService;
         SystemServices.dataFieldPolicyService = dataFieldPolicyService;
+        SystemServices.dataPermissionGuard = dataPermissionGuard;
     }
 }
