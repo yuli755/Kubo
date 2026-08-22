@@ -35,7 +35,9 @@ public class WebConfig implements WebMvcConfigurer, WebSocketConfigurer {
 
     @Override
     public void addInterceptors(@NotNull InterceptorRegistry registry) {
-        registry.addInterceptor(requestInterceptor).addPathPatterns("/**");
+        registry.addInterceptor(requestInterceptor)
+                .addPathPatterns("/**")
+                .excludePathPatterns("/v3/api-docs/**", "/doc.html", "/doc.html/**");
     }
 
     /**
@@ -58,6 +60,7 @@ public class WebConfig implements WebMvcConfigurer, WebSocketConfigurer {
         FilterRegistrationBean<RequestFilter> registration = new FilterRegistrationBean<>();
         registration.setFilter(new RequestFilter());
         registration.addUrlPatterns("/*");
+        // 通过拦截器排除路径
         return registration;
     }
 

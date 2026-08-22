@@ -7,8 +7,12 @@
 import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const API_DOC_URL = process.env.API_DOC_URL || 'http://localhost:8080/v3/api-docs'
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+const API_DOC_URL = process.env.API_DOC_URL || 'http://localhost:8081/v3/api-docs'
 const OUTPUT_DIR = path.resolve(__dirname, '../src/api/generated')
 const TEMP_SPEC_FILE = path.resolve(__dirname, 'temp-openapi-spec.json')
 

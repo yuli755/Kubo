@@ -4,6 +4,7 @@ import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Data;
@@ -27,8 +28,13 @@ import org.hibernate.annotations.DynamicUpdate;
 @Description("数据字段权限策略")
 public class DataFieldPolicyEntity extends BaseEntity<DataFieldPolicyEntity> {
     @Description("资源 ID")
-    @Column(name = "resource_id", nullable = false)
+    @Column(name = "resource_id", nullable = false, insertable = false, updatable = false)
     private Long resourceId;
+
+    @Description("关联资源")
+    @ManyToOne
+    @jakarta.persistence.JoinColumn(name = "resource_id", nullable = false)
+    private DataResourceEntity resource;
 
     @Description("字段名")
     @Column(name = "field_name", nullable = false, length = 128)
