@@ -4,6 +4,9 @@ import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Data;
@@ -26,6 +29,12 @@ import org.hibernate.annotations.DynamicUpdate;
 @Table(name = "data_resource", uniqueConstraints = @UniqueConstraint(name = "uk_data_resource_key", columnNames = "resource_key"))
 @Description("数据权限资源")
 public class DataResourceEntity extends BaseEntity<DataResourceEntity> {
+    @Description("ID")
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
+    private Long id;
+
     @Description("资源标识")
     @Column(name = "resource_key", nullable = false, length = 128)
     private String resourceKey;

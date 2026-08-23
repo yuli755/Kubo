@@ -22,8 +22,8 @@ import org.hibernate.annotations.DynamicUpdate;
 public class BaseEntity<E extends BaseEntity<E>> extends CurdEntity<E> {
     @Description("是否已发布")
     @ReadOnly
-    @Column(columnDefinition = "bit(1) default 0 comment '是否已发布'")
-    private Boolean isPublished;
+    @Column(name = "is_published", nullable = false)
+    private Boolean isPublished = false;
 
     /**
      * 设置是否已发布

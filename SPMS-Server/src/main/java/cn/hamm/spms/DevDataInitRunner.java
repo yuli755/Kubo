@@ -66,12 +66,14 @@ import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionSubjectType;
+import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyProvider;
 import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;
 import cn.hamm.spms.module.system.datapermission.service.DataPolicyService;
 import cn.hamm.spms.module.system.datapermission.service.DataResourceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
@@ -88,6 +90,7 @@ import static cn.hamm.spms.module.iot.report.ReportConstant.*;
  * @author Hamm.cn
  */
 @Component
+@Profile("!test")
 @Slf4j
 public class DevDataInitRunner implements CommandLineRunner {
     public static final int TWO = 2;
@@ -750,7 +753,7 @@ public class DevDataInitRunner implements CommandLineRunner {
     }
 
     private void initDataFieldPolicies() {
-        DataFieldPolicyService dataFieldPolicyService = SystemServices.getDataFieldPolicyService();
+        DataFieldPolicyService dataFieldPolicyService = (DataFieldPolicyService) SystemServices.getDataFieldPolicyService();
         DataResourceService dataResourceService = SystemServices.getDataResourceService();
 
         // 为 channel.salePrice 的 price 字段创建脱敏策略（试点：非 ROOT 角色默认部分遮蔽）

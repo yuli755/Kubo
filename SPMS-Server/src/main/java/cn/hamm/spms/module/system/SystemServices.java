@@ -2,7 +2,7 @@ package cn.hamm.spms.module.system;
 
 import cn.hamm.spms.module.system.coderule.CodeRuleService;
 import cn.hamm.spms.module.system.config.ConfigService;
-import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;
+import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyProvider;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionGuard;
 import cn.hamm.spms.module.system.datapermission.service.DataPolicyService;
 import cn.hamm.spms.module.system.datapermission.service.DataResourceService;
@@ -12,6 +12,7 @@ import cn.hamm.spms.module.system.permission.PermissionService;
 import cn.hamm.spms.module.system.unit.UnitService;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,37 +20,38 @@ import org.springframework.stereotype.Component;
  *
  * @author Hamm.cn
  */
+@Profile("!test")
 @Component
 public class SystemServices {
     @Getter
-    private static CodeRuleService codeRuleService;
+    static CodeRuleService codeRuleService;
 
     @Getter
-    private static ConfigService configService;
+    static ConfigService configService;
 
     @Getter
-    private static FileService fileService;
+    static FileService fileService;
 
     @Getter
-    private static MenuService menuService;
+    static MenuService menuService;
 
     @Getter
-    private static PermissionService permissionService;
+    static PermissionService permissionService;
 
     @Getter
-    private static UnitService unitService;
+    static UnitService unitService;
 
     @Getter
-    private static DataResourceService dataResourceService;
+    static DataResourceService dataResourceService;
 
     @Getter
-    private static DataPolicyService dataPolicyService;
+    static DataPolicyService dataPolicyService;
 
     @Getter
-    private static DataFieldPolicyService dataFieldPolicyService;
+    static DataFieldPolicyProvider dataFieldPolicyService;
 
     @Getter
-    private static DataPermissionGuard dataPermissionGuard;
+    static DataPermissionGuard dataPermissionGuard;
 
     @Autowired
     private void initService(
@@ -61,7 +63,7 @@ public class SystemServices {
             UnitService unitService,
             DataResourceService dataResourceService,
             DataPolicyService dataPolicyService,
-            DataFieldPolicyService dataFieldPolicyService,
+            DataFieldPolicyProvider dataFieldPolicyService,
             DataPermissionGuard dataPermissionGuard
     ) {
         SystemServices.codeRuleService = codeRuleService;

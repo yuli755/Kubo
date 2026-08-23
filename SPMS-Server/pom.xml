@@ -12,6 +12,18 @@
     <version>4.0.0</version>
     <name>Kubo</name>
     <description>Kubo Smart Production Management System</description>
+    <repositories>
+        <repository>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
     <dependencies>
         <dependency>
             <groupId>cn.hamm</groupId>
@@ -99,6 +111,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-logging</artifactId>
         </dependency>
+        <!-- H2 数据库用于集成测试 -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <!-- API 文档: SpringDoc OpenAPI 3 + Knife4j UI -->
         <dependency>
@@ -128,6 +146,14 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <argLine>--add-opens java.base/java.lang=ALL-UNNAMED -Dmockito.mock-maker=org.mockito.internal.creation.bytebuddy.SubclassByteBuddyMockMaker</argLine>
+                </configuration>
             </plugin>
         </plugins>
     </build>

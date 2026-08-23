@@ -9,6 +9,7 @@ import cn.hamm.spms.module.system.datapermission.repository.DataResourceReposito
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,7 +21,8 @@ import java.util.List;
  */
 @Slf4j
 @Service
-public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, DataFieldPolicyRepository> {
+@Profile("!test")
+public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, DataFieldPolicyRepository> implements DataFieldPolicyProvider {
     private final DataPermissionEventPublisher eventPublisher;
     private final DataResourceRepository resourceRepository;
 
@@ -37,6 +39,7 @@ public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, D
      * @param roleCode    角色编码
      * @return 策略列表（按优先级降序）
      */
+    @Override
     @Cacheable(value = "datapermission:field-policies", key = "#resourceKey + ':' + #fieldName + ':' + #roleCode")
     public List<DataFieldPolicyEntity> getPoliciesByResourceFieldRole(
             String resourceKey, String fieldName, String roleCode) {
@@ -82,6 +85,7 @@ public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, D
     /**
      * 清理指定资源的字段策略缓存
      */
+    @Override
     @CacheEvict(value = "datapermission:field-policies", allEntries = true)
     public void clearCache(String resourceKey) {
         log.debug("清理字段脱敏策略缓存: {}", resourceKey);
@@ -90,6 +94,7 @@ public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, D
     /**
      * 清理所有字段策略缓存
      */
+    @Override
     @CacheEvict(value = "datapermission:field-policies", allEntries = true)
     public void clearAllCache() {
         log.debug("清理所有字段脱敏策略缓存");

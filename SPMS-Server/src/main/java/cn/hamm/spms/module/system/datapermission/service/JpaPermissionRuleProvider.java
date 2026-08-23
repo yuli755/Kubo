@@ -9,6 +9,7 @@ import cn.hamm.spms.module.system.datapermission.repository.DataResourceReposito
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.List;
  */
 @Slf4j
 @Service
+@Profile("!test")
 public class JpaPermissionRuleProvider implements PermissionRuleProvider {
     private final DataResourceRepository resourceRepository;
     private final DataPolicyRepository policyRepository;
