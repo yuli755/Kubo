@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type { PermissionEntity } from '@/api/types'
+import type { PermissionEntity } from '@kubo/shared'
 import { useQuery } from '@tanstack/vue-query'
 import { unref } from 'vue'
 import { request } from '@/api/axios'

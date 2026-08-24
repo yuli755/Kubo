@@ -14,21 +14,15 @@ importers:
       '@element-plus/icons-vue':
         specifier: ^2.3.2
         version: 2.3.2(vue@3.5.41(typescript@5.9.3))
+      '@kubo/shared':
+        specifier: workspace:^
+        version: link:packages/shared
       '@tanstack/vue-query':
         specifier: ^5.101.4
         version: 5.101.4(vue@3.5.41(typescript@5.9.3))
-      '@types/crypto-js':
-        specifier: ^4.2.2
-        version: 4.2.2
       axios:
         specifier: 1.13.2
         version: 1.13.2
-      core-js:
-        specifier: ^3.47.0
-        version: 3.50.0
-      crypto-js:
-        specifier: ^4.2.0
-        version: 4.2.0
       echarts:
         specifier: ^6.0.0
         version: 6.1.0
@@ -38,18 +32,9 @@ importers:
       flatted:
         specifier: ^3.4.4
         version: 3.4.4
-      js-base64:
-        specifier: ^3.7.8
-        version: 3.9.2
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(typescript@5.9.3)(vue@3.5.41(typescript@5.9.3))
-      qrcode.vue:
-        specifier: 3.6.0
-        version: 3.6.0(vue@3.5.41(typescript@5.9.3))
-      register-service-worker:
-        specifier: ^1.7.2
-        version: 1.7.2
       vue:
         specifier: ^3.5.25
         version: 3.5.41(typescript@5.9.3)
@@ -1779,9 +1764,6 @@ packages:
     resolution: {integrity: sha512-XGpFGbMLHwSt74YLTKho7Ib242qi6O8MSX+sRokV4oz7iKXvQWGYZthjIhjRGMxjzVkAubBO512dKGYcefmX3Q==}
     engines: {node: '>=6.4.0'}
 
-  core-js@3.50.0:
-    resolution: {integrity: sha512-BRWgOLKkFeCgRudR6zrs8p9XJZcE14grzKMMssoYrk6krtuEZ7MTKPIY5RzOnqsEKIR9kst7wNzphttraT+Yqw==}
-
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
@@ -2569,9 +2551,6 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  js-base64@3.9.2:
-    resolution: {integrity: sha512-6zayE8QlUdiweYI6cETD/XBSqFcoCUlufn/29PJR99r82x1yDnIprRca0YvAYpAW+ez0GuQkVBC6xG5QkD7OjA==}
-
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
@@ -3084,9 +3063,6 @@ packages:
   regexpu-core@6.4.0:
     resolution: {integrity: sha512-0ghuzq67LI9bLXpOX/ISfve/Mq33a4aFRzoQYhnnok1JOFpmE/A2TBGkNVenOGEeSBCjIiWcc6MVOG5HEQv0sA==}
     engines: {node: '>=4'}
-
-  register-service-worker@1.7.2:
-    resolution: {integrity: sha512-CiD3ZSanZqcMPRhtfct5K9f7i3OLCcBBWsJjLh1gW9RO/nS94sVzY59iS+fgYBOBqaBpf4EzfqUF3j9IG+xo8A==}
 
   regjsgen@0.8.0:
     resolution: {integrity: sha512-RvwtGe3d7LvWiDQXeQw8p5asZUmfU1G/l6WbUXeHta7Y2PEIvBTwH6E2EfmYUK8pxcxEdEmaomqyp0vZZ7C+3Q==}
@@ -5537,8 +5513,6 @@ snapshots:
     dependencies:
       browserslist: 4.28.8
 
-  core-js@3.50.0: {}
-
   cross-spawn@7.0.6:
     dependencies:
       path-key: 3.1.1
@@ -6463,8 +6437,6 @@ snapshots:
       filelist: 1.0.6
       picocolors: 1.1.1
 
-  js-base64@3.9.2: {}
-
   js-tokens@4.0.0: {}
 
   js-yaml@4.3.1:
@@ -7134,8 +7106,6 @@ snapshots:
       regjsparser: 0.13.2
       unicode-match-property-ecmascript: 2.0.0
       unicode-match-property-value-ecmascript: 2.2.1
-
-  register-service-worker@1.7.2: {}
 
   regjsgen@0.8.0: {}
 
