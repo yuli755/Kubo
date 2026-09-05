@@ -1,5 +1,5 @@
 import type { ChangePasswordRequest, RefreshTokenRequest, RefreshTokenResponse, UserEntity } from './types'
-import type { CodeRuleEntity, CodeRuleField, CodeRuleParam, CodeRuleQuery, ConfigEntity, ConfigQuery, MenuEntity, MenuQuery, PermissionEntity, PermissionQuery, UnitEntity, UnitQuery } from './system/types'
+import type { CodeRuleEntity, CodeRuleField, CodeRuleParam, CodeRuleQuery, ConfigEntity, ConfigQuery, DataFieldPolicyQuery, MaskPolicy, MenuEntity, MenuQuery, PermissionEntity, PermissionQuery, UnitEntity, UnitQuery } from './system/types'
 import { request } from './axios'
 
 export const authApi = {
