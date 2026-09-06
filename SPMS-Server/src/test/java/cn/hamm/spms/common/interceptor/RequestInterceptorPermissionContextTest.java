@@ -60,6 +60,15 @@ class RequestInterceptorPermissionContextTest {
     @Mock
     private TenantContextResolver tenantContextResolver;
 
+    /**
+     * 导出旁路收口的守卫（F6 挂在 checkUserPermission 之后）。
+     * 本类用反射手搭 RequestInterceptor，所以新增协作对象必须在这里一起注入，
+     * 否则跑到那一行就是 NPE —— 而不是"编译期就发现少给了依赖"，这是字段注入的代价。
+     * 不 stub：guard() 是 void，mock 默认什么都不做；多打一个桩反而会被 strict stubs 判成 UnnecessaryStubbing。
+     */
+    @Mock
+    private cn.hamm.spms.module.system.datapermission.service.ExportBypassGuard exportBypassGuard;
+
     @Mock
     private HttpServletRequest request;
 
@@ -80,6 +89,7 @@ class RequestInterceptorPermissionContextTest {
         injectField(interceptor, "personalTokenService", personalTokenService);
         injectField(interceptor, "systemPermissionService", systemPermissionService);
         injectField(interceptor, "tenantContextResolver", tenantContextResolver);
+        injectField(interceptor, "exportBypassGuard", exportBypassGuard);
         // 默认：服务端解析出的租户为 1（具体语义见 TenantContextResolverTest）
         lenient().when(tenantContextResolver.resolve(any(UserEntity.class), any(HttpServletRequest.class))).thenReturn(1L);
         PermissionContextHolder.clear();

@@ -310,7 +310,9 @@ class PermissionRuleKernelTest {
         void allowAllUnderOrMeansNoCondition() {
             PermissionRule rule = parser.parse(RESOURCE,
                     "{\"op\":\"ANY_OF\",\"children\":[{\"allow\":true},{\"field\":\"tenantId\",\"value\":1}]}");
-            given(root.get("tenantId")).willReturn((Path) path);
+            // 这里刻意不给 root.get("tenantId") 打桩：ANY_OF 里出现无条件子节点时整组恒真，
+            // 编译器应当在碰到 tenantId 之前就短路返回 null。
+            // 一旦哪天它真的去取了这个属性（短路失效），strict stubs 会让这个用例变红 —— 这正是本用例要的断言。
             assertNull(compiler.compile(rule, root, builder, context));
             assertNull(renderer.render(rule, null, context));
         }

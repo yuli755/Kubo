@@ -83,9 +83,12 @@ class DataPermissionCacheAndEventTest {
         policyRepository.deleteAll();
         fieldPolicyRepository.deleteAll();
 
-        // 创建系统资源 data_resource，用于数据权限自检
+        // 创建系统资源 data_resource，用于数据权限自检。
+        // 键必须写成 `system.dataResource`：DataPermissionResourceResolver 是按
+        // "模块 + 实体类名首字母小写" 生成资源键的（F7 起不再整串小写，因为真实注册键里
+        // 有 `channel.purchasePrice` 这种驼峰，整串小写会让驼峰资源的策略永不命中）。
         DataResourceEntity systemResource = dataResourceService.addAndGet(new DataResourceEntity()
-                .setResourceKey("system.dataresource")
+                .setResourceKey("system.dataResource")
                 .setTableName("data_resource")
                 .setTableAlias("t")
                 .setTenantColumn("tenant_id")
