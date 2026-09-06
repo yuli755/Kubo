@@ -2,8 +2,10 @@ name: CI
 
 # 说明：
 # - web 这个 job 是**门禁**（前端 F0 起生效）：lint / 类型 / 单测 / 构建 / 体积预算任一不过即失败。
-# - server 的 compile 是硬门禁；test 暂时 continue-on-error（后端集成用例依赖 DB/Redis，
-#   待 P1 用 Testcontainers 收口后翻成必过）。不要因为"本地跑不过"就直接注掉整个 job。
+# - server 的 compile 与 test **都是硬门禁**（§19.10：删掉 continue-on-error 并加"没有 surefire
+#   报告即失败"的空转防护）。历史上这里曾经是 continue-on-error —— 那等于把红涂成绿，别改回去。
+# - migrations 这个 job 用真实 MySQL 8 跑迁移脚本：H2 与 schema-test.sql 都是手抄件，
+#   MySQL 方言（存储过程/DELIMITER/information_schema/生成列）只有真库能判。
 
 on:
   push:
@@ -53,6 +55,9 @@ jobs:
       # Java 源码里的单反斜杠转义（影响编译，但沙箱没有 JDK —— 见 docs §18.2 与 §19.9）
       - name: Source text integrity (no U+FFFD / no bad Java escapes)
         run: pnpm text:check
+
+      - name: Migration DDL vs JPA entity drift
+        run: pnpm ddl:check
 
       - name: Build
         run: pnpm build
@@ -166,3 +171,86 @@ jobs:
           if echo "$tree" | grep -Ei "kafka-clients|rocketmq-client|spring-boot-starter-artemis"; then
             echo "禁止引入上述 MQ 客户端"; exit 1
           fi
+  # ============================================================================
+  # 迁移脚本的真实方言门禁（§19.11 第 2 项里"今天就能自动化"的那一半）
+  # 为什么不用 Testcontainers：那要往 pom 里加 testcontainers + mysql-connector 依赖，
+  # 本 job 只要一个 service 容器 + mysql CLI，判定的却是同一件事（脚本能否在 MySQL 8 上执行、
+  # 是否真幂等、建出来的列是否与脚本一致），而 H2 + schema-test.sql 那份手抄件永远判不出方言问题。
+  # 红线：这里跑的是 docs/database/migration 下的**生产脚本**，绝不拿 schema-test.sql 顶替它。
+  # ============================================================================
+  migrations:
+    name: Migrations (MySQL 8 dialect / idempotency)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: kubo_ci
+          MYSQL_DATABASE: kubo_ddl_check
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ukubo_ci -pkubo_ci --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=24
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure mysql client
+        run: |
+          set -e
+          if command -v mysql >/dev/null 2>&1; then
+            mysql --version
+          else
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq mysql-client
+          fi
+
+      - name: Apply every migration twice
+        run: |
+          set -e
+          dump() {
+            mysql -N -B -h 127.0.0.1 -P 3306 -uroot -pkubo_ci kubo_ddl_check \
+              -e "SELECT CONCAT(TABLE_NAME,'.',COLUMN_NAME) FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE() ORDER BY 1"
+          }
+          for pass in 1 2; do
+            for f in SPMS-Server/docs/database/migration/*.sql; do
+              echo "::group::pass $pass — $f"
+              # --force 只在"下一个已知前提缺失"时用：这批脚本假定业务库已存在（框架表 permission/role、
+              # 业务表 bom/contract…由 Hibernate ddl-auto 生成，本仓没有它们的建表脚本），
+              # 于是空库上会撞 1146。下一步把这些错误逐条分类：允许的只有 1146，别的照样判失败。
+              mysql --force --default-character-set=utf8mb4 -h 127.0.0.1 -P 3306 \
+                -uroot -pkubo_ci kubo_ddl_check < "$f" 2> "/tmp/err-$pass.txt" || true
+              echo "stderr 行数：$(wc -l < "/tmp/err-$pass.txt")"
+              echo "::endgroup::"
+            done
+            dump > "/tmp/after-$pass.txt"
+          done
+
+          cat /tmp/err-1.txt /tmp/err-2.txt > /tmp/err-all.txt || true
+          missing=$(grep -cE "ERROR 1146 .*Table 'kubo_ddl_check\.[^']*' doesn't exist" /tmp/err-all.txt || true)
+          echo "预期内（前置业务表不存在，幂等过程自动跳过）：$missing 条 1146"
+          # 把预期内错误剔掉后必须一行不剩：否则就是真问题（方言不认、语法错、约束冲突）
+          if grep -vE "ERROR 1146 .*Table 'kubo_ddl_check\.[^']*' doesn't exist" /tmp/err-all.txt | grep -vE "^$" | grep .; then
+            echo "✗ 迁移脚本在 MySQL 8 上产生了预期外的错误（上面这些行）"
+            exit 1
+          fi
+
+          echo "结构比对：第 1 遍后 $(wc -l < /tmp/after-1.txt) 列 / 第 2 遍后 $(wc -l < /tmp/after-2.txt) 列"
+          test "$(wc -l < /tmp/after-1.txt)" -gt 0 || { echo "✗ 一列都没建出来（脚本被静默跳过？）"; exit 1; }
+          # 幂等的判据不是"没报错"，而是"重复执行后结构一字不差"（偷偷多建一列/索引也算不幂等）
+          if ! diff -u /tmp/after-1.txt /tmp/after-2.txt; then
+            echo "✗ 重复执行后结构发生变化 = 迁移脚本不幂等（生产上意味着回滚/重放不可靠）"
+            exit 1
+          fi
+          cp /tmp/after-2.txt /tmp/live.txt
+
+      - name: Live schema must match migration scripts and entities
+        # 用真实库的 information_schema 反向核对脚本与实体：库里缺列 = 脚本其实没执行成功；
+        # 库里有而脚本没有 = 有人只改了库没补迁移脚本。空 --live-columns 文件会让脚本自己判失败。
+        run: |
+          set -e
+          node infra/scripts/check-ddl-entity-drift.mjs --live-columns /tmp/live.txt --json /tmp/ddl-drift.json
