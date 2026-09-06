@@ -25,9 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 不要再传 version：package.json 已有 "packageManager": "pnpm@9.0.0"，
+      # pnpm/action-setup@v4 对"两处都指定版本"直接报错退出（本仓的 web job 因此从未跑起来过）。
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
@@ -87,11 +87,33 @@ jobs:
           cache: maven
 
       - name: Compile
-        run: ./mvnw -B -s settings.xml -DskipTests compile
+        # 失败原因要用 ::error:: 显式写成 annotation：Actions 的日志正文放在 blob 存储上，
+        # 某些网络环境取不到（本仓刚踩过一次：CI 红了但谁都读不到为什么红）。
+        # annotation 走普通 REST，人和脚本都拿得到，编译错误才不会沦为"失败但无声"。
+        run: |
+          set +e
+          ./mvnw -B -s settings.xml -DskipTests compile 2>&1 | tee /tmp/mvn-compile.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            grep -E '^\[ERROR\]' /tmp/mvn-compile.log | head -40 | while IFS= read -r line; do
+              echo "::error::$(printf '%s' "$line" | sed 's/^\[ERROR\] *//')"
+            done
+            echo "::error::Maven compile 失败，共 $(grep -cE '^\[ERROR\]' /tmp/mvn-compile.log) 行 [ERROR]"
+          fi
+          exit "$status"
 
       - name: Unit & slice tests
         continue-on-error: true # TODO(P1)：Testcontainers 收口后删除本行
-        run: ./mvnw -B -s settings.xml test
+        run: |
+          set +e
+          ./mvnw -B -s settings.xml test 2>&1 | tee /tmp/mvn-test.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            grep -E '^\[ERROR\].*(Tests run|FAIL|ERROR)' /tmp/mvn-test.log | head -25 | while IFS= read -r line; do
+              echo "::error::$(printf '%s' "$line" | sed 's/^\[ERROR\] *//')"
+            done
+          fi
+          exit "$status"
 
       - name: Reject forbidden dependencies
         run: |
