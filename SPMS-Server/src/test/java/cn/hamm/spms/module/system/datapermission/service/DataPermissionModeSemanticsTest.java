@@ -196,6 +196,51 @@ class DataPermissionModeSemanticsTest {
         }
 
         @Test
+        @DisplayName("FACTORY 策略命中但实体没有工厂列 → enforce 仍恒假（不静默放开）")
+        void factoryPolicyWithoutColumnFailsClosed() {
+            /**
+             * 这条用例存在的理由是 D13 的开关语义：把 {@code factory-dimension-enabled} 打开后，
+             * {@code DimensionGuard} 不再拒 FACTORY 策略，于是"策略能存下来"与"策略能生效"第一次
+             * 变成两件事。工厂归属列在业务实体上目前并不存在（{@code buildFactoryPredicate} 反射
+             * {@code factoryId} 会抛 IllegalArgumentException），若规格把"绑不上"当成"不约束"，
+             * 结果就是<b>所有人都能看到全部行</b> —— 那比没开开关更糟。
+             * 所以这里钉住：绑不上列 ⇒ 恒假 + binding 记账（与 tenant 那条同一条安全网）。
+             */
+            properties.setMode(DataPermissionProperties.Mode.ENFORCE);
+            // factoryIds 必须非空：subjectId 不在集合里时策略在 getPolicies 阶段就被过滤，
+            // 走不到绑定环节，那样这条用例测的就不是"绑不上列"了。
+            PermissionContextHolder.open(new PermissionContext(
+                    1L, 100L, Set.of(), Set.of(7L), Set.of(), Set.of("planner"), false));
+            given(dataPermissionService.requireResource(RESOURCE)).willReturn(resource());
+            given(dataPermissionService.getPolicies(eq(RESOURCE), any(DataPermissionAction.class), any(PermissionContext.class)))
+                    .willReturn(List.of(new DataPolicyEntity()
+                            .setSubjectType("FACTORY").setSubjectId(7L).setActionName("QUERY").setEnabled(true)));
+            given(root.get("factoryId")).willThrow(new IllegalArgumentException("Unable to locate Attribute factoryId"));
+
+            List<Predicate> result = build();
+
+            assertEquals(1, result.size(), "工厂列绑不上时必须退化为恒假，而不是返回空列表（=不追加条件）");
+            assertSame(disjunction, result.get(0));
+            then(audit).should().binding(eq(RESOURCE), eq(DataPermissionAudit.REASON_BINDING_INVALID), contains("条策略无法绑定"));
+        }
+
+        @Test
+        @DisplayName("同一情形在 SHADOW 下只记账、结果不变")
+        void factoryBindingGapIsOnlyRecordedInShadow() {
+            properties.setMode(DataPermissionProperties.Mode.SHADOW);
+            PermissionContextHolder.open(new PermissionContext(
+                    1L, 100L, Set.of(), Set.of(7L), Set.of(), Set.of("planner"), false));
+            given(dataPermissionService.requireResource(RESOURCE)).willReturn(resource());
+            given(dataPermissionService.getPolicies(eq(RESOURCE), any(DataPermissionAction.class), any(PermissionContext.class)))
+                    .willReturn(List.of(new DataPolicyEntity()
+                            .setSubjectType("FACTORY").setSubjectId(7L).setActionName("QUERY").setEnabled(true)));
+            given(root.get("factoryId")).willThrow(new IllegalArgumentException("Unable to locate Attribute factoryId"));
+
+            assertTrue(build().isEmpty(), "shadow 不改变结果：只把「该拦」记下来");
+            then(audit).should().binding(eq(RESOURCE), eq(DataPermissionAudit.REASON_BINDING_INVALID), any());
+        }
+
+        @Test
         @DisplayName("资源未注册且配置要求拒绝 → 恒假谓词")
         void deniesUnregisteredResourceWhenConfigured() {
             properties.setMode(DataPermissionProperties.Mode.ENFORCE);
