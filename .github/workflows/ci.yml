@@ -92,6 +92,10 @@ jobs:
         # annotation 走普通 REST，人和脚本都拿得到，编译错误才不会沦为"失败但无声"。
         run: |
           set +e
+          # 126 = 找到命令但不可执行。mvnw 曾以 100644 提交进仓库，于是 server job 从第一天起
+          # 就没真正编译过后端（"CI 是绿的/红的"与"后端有没有被验证过"完全是两件事）。
+          # 这里显式补一次执行位，避免任何人再次提交时丢掉它。
+          chmod +x ./mvnw || true
           ./mvnw -B -s settings.xml -DskipTests compile 2>&1 | tee /tmp/mvn-compile.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
