@@ -45,9 +45,23 @@ function collect(dir: string, ext: string, out: string[] = []): string[] {
 
 const read = (path: string): string => readFileSync(path, 'utf-8')
 
+/**
+ * Java 源码里只看代码、不看注释
+ *
+ * 门禁靠正则读后端源码，而注释里的示例（`@SensitiveField(resourceKey = "wms.inventory")`）
+ * 与真代码长得一模一样：不过滤的话，"文档里举了个例子"就会被当成"后端注册过这个资源"，
+ * 于是资源键写错也能通过门禁 —— 这是自我安慰式的检查，比没有检查更糟。
+ */
+function readJavaCode(path: string): string {
+  return read(path)
+    .split('\n')
+    .filter(line => !/^\s*(?:\*|\/\/)/.test(line))
+    .join('\n')
+}
+
 describe('mask contract · 前后端脱敏口径', () => {
   it('前端 MaskType 覆盖后端 applyMask 的全部分支', () => {
-    const java = read(join(SERVER, 'module', 'system', 'datapermission', 'service', 'ColumnMaskingService.java'))
+    const java = readJavaCode(join(SERVER, 'module', 'system', 'datapermission', 'service', 'ColumnMaskingService.java'))
     const body = java.slice(java.indexOf('private Object applyMask('))
     const backend = [...body.slice(0, 1500).matchAll(/case "([A-Z0-9_]+)"/g)].map(m => m[1]).sort()
     expect(backend.length).toBeGreaterThanOrEqual(5)
@@ -66,7 +80,7 @@ describe('mask contract · 前后端脱敏口径', () => {
   it('前端引用的 resourceKey 都必须在后端注册（写错会静默 fail-open）', () => {
     const registered = new Set<string>()
     for (const file of collect(SERVER, '.java')) {
-      const source = read(file)
+      const source = readJavaCode(file)
       for (const m of source.matchAll(/setResourceKey\("([^"]+)"\)/g)) {
         registered.add(m[1])
       }
@@ -75,6 +89,13 @@ describe('mask contract · 前后端脱敏口径', () => {
       }
     }
     expect(registered.size).toBeGreaterThan(10)
+
+    // 自检：注释过滤真的在起作用。`SensitiveField` 的 javadoc 里放着一个可直接抄的示例键
+    // `wms.inventory`，它只应存在于注释中 —— 若哪天示例被删，请连同这两行一起删掉，
+    // 不要为了让自检通过而把示例加回代码。
+    const annotationFile = join(SERVER, 'module', 'system', 'datapermission', 'annotation', 'SensitiveField.java')
+    expect(/@SensitiveField\(resourceKey = "wms\.inventory"\)/.test(read(annotationFile))).toBe(true)
+    expect(/@SensitiveField\(resourceKey = "wms\.inventory"\)/.test(readJavaCode(annotationFile))).toBe(false)
 
     const offenders: string[] = []
     for (const file of [...collect(join(ROOT, 'src'), '.vue'), ...collect(join(ROOT, 'src'), '.ts')]) {
@@ -93,11 +114,12 @@ describe('mask contract · 前后端脱敏口径', () => {
     // 后端事实：resourceKey → 被 @SensitiveField 标记的字段名（装饰器紧贴字段，故按"字段上方的块"归属）
     const fieldsByResource = new Map<string, Set<string>>()
     for (const file of collect(SERVER, '.java')) {
-      if (!read(file).includes('@SensitiveField')) {
+      const code = readJavaCode(file)
+      if (!code.includes('@SensitiveField')) {
         continue
       }
       let pending: string[] = []
-      for (const line of read(file).split('\n')) {
+      for (const line of code.split('\n')) {
         // 类型段刻意不容空白（\s 与类型字符集重叠会造出多项回溯），泛型内部允许任意非 > 字符；
         // 因此 `private Map<String, Object> x;` 这类写法会被跳过 —— 本门禁只关心 @SensitiveField
         // 标在简单类型上的字段，扫不到时的后果是"少校验一个字段"，不是误报，可接受。
@@ -148,7 +170,7 @@ describe('mask contract · 前后端脱敏口径', () => {
   it('showExport 只允许出现在后端提供 export 端点的实体视图上', () => {
     const exportCapable = new Set<string>()
     for (const file of collect(SERVER, '.java')) {
-      const source = read(file)
+      const source = readJavaCode(file)
       const extendsLine = source.match(/@Extends\(\{([^}]*)\}\)/)?.[1] ?? ''
       if (!extendsLine.includes('Export') || extendsLine.includes('exclude')) {
         continue
