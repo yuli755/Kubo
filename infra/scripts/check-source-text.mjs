@@ -19,7 +19,7 @@
  * 而"看起来像 `æ¸` 的编码错乱"很容易误伤正则表达式、多语言文案与测试夹具。
  * 门禁咬人一次，之后就没人信它了 —— 所以宁可窄一点。
  *
- * ## 第二项：Java 字符串里的单反斜杠转义
+ * ## 第二项：Java 字面量完整性（非法转义 / 跨行未闭合 / 文本块配平）
  *
  * `text.matches("\*+")` 是对的；写成 `text.matches("\*+")` 少一个反斜杠就是
  * `illegal escape character`，javac 直接拒绝。本仓真实踩过：F5 起写的
@@ -51,6 +51,11 @@ const TEXT_EXT = new Set([
 ])
 const SKIP_DIR = new Set(['node_modules', 'dist', 'target', '.git', 'coverage', '.venv'])
 
+/**
+ * 中日韩文字（含假名）：用于识别"引号紧贴汉字"这一坏味道
+ */
+const CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/
+
 const BAD = {
   '\uFFFD': 'U+FFFD 替换符（原始字节已丢失，无法自动还原）',
   '\uFFFE': 'U+FFFE 非字符',
@@ -77,28 +82,64 @@ function walk(dir, out = []) {
 }
 
 /**
- * Java 源码里字符串/字符字面量中的非法转义（单反斜杠 + 非合法转义字母）
+ * Java 源码里字符串/字符字面量的完整性：非法转义 + 跨行未闭合 + 文本块配平
  *
  * 只在"引号内"判定，并跳过注释 —— 否则会误伤 `\*` 出现在注释或正则文档里的情况。
  * Java 的合法转义：\b \t \n \f \r \" \' \\ \0-\7（八进制）\uXXXX。
+ *
+ * 为什么不止查转义：`@DisplayName("说清"缺一个就整份拒"")` 这种"中文文案里用 ASCII 双引号"
+ * 会把字面量提前关掉，javac 报的是 `<identifier> expected` 且行号经常落在下一行 ——
+ * 本仓真实红过一次（FieldPolicyGapAnalyzerTest:44/56），而沙箱没有 JDK，人眼读三遍都很容易放过。
+ * 同一台状态机顺带就能查它：走到换行时还"在引号里"即为此病。
  */
-function javaEscapeFindings(file, text) {
+function javaLiteralFindings(file, text) {
   const out = []
   const hits = []
   let inString = false
   let inChar = false
+  // Java 15+ 文本块（三个双引号）内部允许裸双引号与换行，不先识别它就会大面积误伤
+  let inText = false
   let inLine = false
   let inBlock = false
   let line = 1
   let col = 0
+  const push = (kind, why, at = line) => {
+    out.push({
+      kind,
+      file,
+      line: at,
+      why,
+      preview: (text.split('\n')[at - 1] ?? '').trim().slice(0, 90),
+    })
+  }
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]
     const next = text[i + 1]
+    const after = text[i + 2]
     col++
     if (ch === '\n') {
+      // javac 不允许字符串/字符字面量跨行：此刻还"在引号里"，说明前面某个双引号是文案里的裸引号
+      if (inString || inChar) {
+        push(inString ? 'java-string' : 'java-char', 'Java 字符串/字符常量跨行未闭合：多半是中文文案里用了 ASCII 双引号，应改用「」')
+      }
       line++
       col = 0
       inLine = false
+      inString = false
+      inChar = false
+      continue
+    }
+    if (inText) {
+      if (ch === '\\') {
+        i++
+        continue
+      }
+      if (ch === '"' && next === '"' && after === '"') {
+        inText = false
+        i += 2
+        col += 2
+        continue
+      }
       continue
     }
     if (inLine) {
@@ -122,9 +163,25 @@ function javaEscapeFindings(file, text) {
         i++
         continue
       }
+      if (ch === '"' && next === '"' && after === '"') {
+        inText = true
+        i += 2
+        col += 2
+        continue
+      }
     }
     if (ch === '"' && !inChar) {
-      inString = !inString
+      if (inString) {
+        // 闭引号：正常写法后面跟 ) , ; + . 或换行。紧跟汉字说明这个引号是中文文案里的裸引号，
+        // 字面量在这里被提前关掉了 —— javac 的报错会是 "<identifier> expected"，行号还常落到下一行。
+        if (CJK.test(text[i - 1] ?? '') && CJK.test(next ?? '')) {
+          push('java-quote-adjacency', '中文字符串里出现了未转义的 ASCII 双引号（会把字面量提前关掉）：文案里的引用请改用「」')
+        }
+        inString = false
+      }
+      else {
+        inString = true
+      }
       continue
     }
     if (ch === "'" && !inString) {
@@ -140,13 +197,22 @@ function javaEscapeFindings(file, text) {
     // 反斜杠：下一个字符必须是合法转义起始
     const ok = /[btnfr"'\\0-7ux]/.test(next ?? '')
     if (!ok) {
-      hits.push({line, col, snippet: text.slice(i - 6, i + 6).replace(/\n/g, ' ')})
+      hits.push({ line, snippet: text.slice(i - 6, i + 6).replace(/\n/g, ' ') })
     }
     i++ // 跳过被转义的字符
     col++
   }
+  if (inText) {
+    push('java-textblock', 'Java 文本块未闭合（起始的三个双引号没有配平）', line)
+  }
   for (const hit of hits) {
-out.push({kind: 'java-escape', file, line: hit.line, why: 'Java 非法转义：反斜杠后必须是 b t n f r 引号 反斜杠 八进制数字 或 u', preview: hit.snippet})
+    out.push({
+      kind: 'java-escape',
+      file,
+      line: hit.line,
+      why: 'Java 非法转义：反斜杠后必须是 b t n f r 引号 反斜杠 八进制数字 或 u',
+      preview: hit.snippet,
+    })
   }
   return out
 }
@@ -162,7 +228,7 @@ for (const root of SCAN_ROOTS) {
     const text = readFileSync(file, 'utf-8')
     if (file.endsWith('.java')) {
       javaScanned++
-      findings.push(...javaEscapeFindings(relative(ROOT, file), text))
+      findings.push(...javaLiteralFindings(relative(ROOT, file), text))
     }
     if (!/[\uFFFD\uFFFE\uFFFF]/.test(text)) {
       continue
@@ -184,8 +250,68 @@ for (const root of SCAN_ROOTS) {
   }
 }
 
+/**
+ * 门禁自检：证明这几项检查各自真的能咬人，且不误伤合法写法
+ *
+ * 为什么把自检内嵌进脚本而不是另写测试文件：这个脚本由 CI 每轮调用，自检便随之执行。
+ * 若它哪天退化成"永远返回空"的摆设（锚点写歪、状态机漏分支），CI 会立刻红 ——
+ * 而不是等到有人再次踩坑、才发现门禁早已失灵好几个月。
+ */
+function selfCheck() {
+  const problems = []
+  const cases = [
+    {
+      name: '中文文案里的裸 ASCII 双引号（本次 CI 真实红过的形状）',
+      java: 'class A {\n  void a() { b("只配了遮蔽 → 说清"缺一个就整份被拒""); }\n}\n',
+      expect: 'java-quote-adjacency',
+    },
+    {
+      name: '中文串里奇数个 ASCII 引号（字面量跨行未闭合）',
+      java: 'class A {\n  void a() { b("说清"缺一个就整份被拒"); }\n}\n',
+      expect: 'java-string',
+    },
+    {
+      name: '正则少写一个反斜杠',
+      java: 'class A {\n  void a() { b(text.matches("\\*+")); }\n}\n',
+      expect: 'java-escape',
+    },
+    {
+      name: '文本块里的裸双引号与跨行（合法，必须不报）',
+      java: 'class A {\n  String s = """\n    允许 " 引号 " 跨行\n    """;\n}\n',
+      expect: null,
+    },
+    {
+      name: '转义引号 + 中文书名号（合法，必须不报）',
+      java: 'class A {\n  void a() { b("他说\\"好\\"，即「好」"); }\n}\n',
+      expect: null,
+    },
+  ]
+  for (const item of cases) {
+    const kinds = new Set(javaLiteralFindings('<self-test>', item.java).map((found) => found.kind))
+    if (item.expect === null) {
+      if (kinds.size > 0) {
+        problems.push(`自检：「${item.name}」被误判为 ${[...kinds].join('/')}`)
+      }
+      continue
+    }
+    if (!kinds.has(item.expect)) {
+      problems.push(`自检：「${item.name}」没有被检出（期望 ${item.expect}）`)
+    }
+  }
+  return problems
+}
+
+const selfProblems = selfCheck()
+if (selfProblems.length > 0) {
+  console.error('\n✗ check-source-text 自检失败：门禁本身不可信，先修门禁再谈业务代码')
+  for (const problem of selfProblems) {
+    console.error(`  ${problem}`)
+  }
+  process.exit(1)
+}
+
 if (findings.length === 0) {
-  console.log(`✓ 文本完整性：${scanned} 个文件无 U+FFFD / 非字符；${javaScanned} 个 Java 文件无非法转义`)
+  console.log(`✓ 文本完整性：${scanned} 个文件无 U+FFFD / 非字符；${javaScanned} 个 Java 文件的字面量与转义已扫描；门禁自检 5 例通过`)
   process.exit(0)
 }
 
@@ -214,10 +340,12 @@ if (kinds.has('encoding')) {
   console.error('  编码类处理：按上下文重写这些中文（原字节已丢，机器无法还原），')
   console.error('  并检查产生损坏的环节（脚本读写未指定 UTF-8、记事本另存、制品回传等）。')
 }
+if (kinds.has('java-string') || kinds.has('java-char') || kinds.has('java-textblock') || kinds.has('java-quote-adjacency')) {
+  console.error('  字面量类处理：Java 字符串不能跨行。中文文案里引用词语时用「」，')
+  console.error('  别用 ASCII 双引号 —— 它会提前关掉字面量，而 javac 报的行号往往落在下一两行，人眼最难定位。')
+}
 if (kinds.has('java-escape')) {
   console.error('  转义类处理：Java 源码里的正则要双写反斜杠（matches 的参数是正则，不是字面量）。')
   console.error('  并确认后端 CI 的 Compile 步骤真的执行过：沙箱内无法运行 mvn，看起来对 != 编译得过。')
 }
 process.exit(1)
-
-
