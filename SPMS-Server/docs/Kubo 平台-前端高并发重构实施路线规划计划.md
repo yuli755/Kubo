@@ -384,7 +384,7 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 | 协同点 | 前端需求 | 后端交付 | 验收方式 |
 |--------|----------|----------|----------|
 | **OpenAPI 契约** | 自动生成 TS 类型 + `useRequest` 类型安全 | `springdoc-openapi` + `openapi-typescript-codegen` | 类型检查 0 报错 |
-| **行级/列级权限元数据** | `x-visibility` / `x-mask` 渲染脱敏 | Controller 返回 `@Schema(extensions = @Extension(name="x-mask", ...))` | 前端自动脱敏渲染 |
+| **行级/列级权限元数据** | `x-visibility` / `x-mask` 渲染脱敏 | Controller 返回 `@Schema(extensions = @Extension(name="x-mask", ...))` | 前端自动脱敏渲染 ⚠️ **本行已作废（勿按此实现）**：`x-visibility` 响应头从未落地；列级脱敏由后端序列化层直接写掩码 + `my-mask-map` 元数据接口承担，写侧另有 `@SensitiveField` 掩码回写防护。详见《数据权限目标态落地施工图》§14/§19.11 |
 | **WebSocket 协议** | 二进制/JSON 帧格式、心跳、ACK、重连 Token | `STOMP over WebSocket` / 自定义协议文档 | 连接/重连/消息收发 0 错误 |
 | **SSE/流式响应** | 大文件导出、报表生成进度 | `SseEmitter` / `Flux` | 进度实时更新、可取消 |
 | **错误码规范** | 统一错误码枚举、国际化 Key | `ErrorCode` 枚举 + `i18n` key | 前端统一弹窗/Toast/重试逻辑 |

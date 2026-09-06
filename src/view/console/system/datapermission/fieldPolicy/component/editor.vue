@@ -33,8 +33,10 @@ const {
     >
       <div class="tip">
         只有被 @SensitiveField 标记的字段会被这条策略影响；字段名必须与实体的 JSON 属性名一致，写错等于没配。
-        读链路目前只解析 actionName=QUERY 的策略，配 EXPORT 暂不生效（导出侧尚未接线）。
-        roleCode 留空或填 default 表示对所有角色兜底，精确角色优先。允许明文＝该角色可看原值（前端也不再遮）。
+        actionName=QUERY 决定界面与详情是否遮蔽；actionName=EXPORT 决定导出能否带该列明文 ——
+        受限角色导出时，被 QUERY 遮蔽的每一个字段都要有一条 EXPORT 且「允许明文＝是」，缺一条整个导出被拒
+        （导出是一整份文件，不部分放行）。roleCode 留空或填 default 表示对所有角色兜底，精确角色优先。
+        后端 kubo.data-permission.mode=shadow 时只记 export-bypass 账、不拦；enforce 才拦。
       </div>
       <AFormField field="resourceId" />
       <AFormField field="fieldName" />
