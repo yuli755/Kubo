@@ -96,7 +96,14 @@ class DataPermissionSubjectColumnResolutionTest {
         return new PermissionContext(1L, 100L, Set.of(7L), Set.of(3L), Set.of(5L), Set.of("buyer"), false);
     }
 
+    /**
+     * 打开上下文再打桩：{@code apply()} 第一步就取 {@code PermissionContextHolder.current()}，
+     * 没有上下文时它按「定时任务/内部调用」处理——不注入条件、只记账。
+     * （本轮第一版就是漏了这一行，三条用例一律返回空列表；空列表在这里与「防护失效」同形，
+     * 所以这类"看起来像断言失败"的红其实是最有价值的红：它说明断言真的在盯住注入与否。）
+     */
     private void givenResourceAndPolicy(DataResourceEntity resource, DataPolicyEntity policy, PermissionContext context) {
+        PermissionContextHolder.open(context);
         given(dataPermissionService.requireResource(KEY)).willReturn(resource);
         given(dataPermissionService.getPolicies(KEY, DataPermissionAction.QUERY, context)).willReturn(List.of(policy));
     }
