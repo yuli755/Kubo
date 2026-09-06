@@ -44,7 +44,12 @@ BEGIN
   DECLARE old_idx VARCHAR(64) DEFAULT NULL;
   IF NOT EXISTS (SELECT 1 FROM information_schema.TABLES
                   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = t) THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'kubo_mt_replace_unique: table not found';
+    -- 表不存在 = 该资源还没建表 / 不属于本库：与 kubo_mt_add_column、kubo_mt_add_index 同构地静默跳过。
+    -- 这里原本 SIGNAL SQLSTATE 45000。CI 的 MySQL 8 job（跑真脚本、跑两遍）实测出它是有害的：
+    -- 空库上会打出 64 条 ERROR 1644，而任何非 --force 的客户端在第一条就中止 ——
+    -- 于是排在后面的 20260907（filterable_columns、data_permission_diff_log）永远建不出来，
+    -- "权限内核表"会静默缺席。真正需要响的"表在但唯一键形状不对"仍由下面的 old_idx/新键分支处理。
+    SET @s = NULL;
   END IF;
 
   SELECT INDEX_NAME INTO old_idx

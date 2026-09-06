@@ -2,8 +2,8 @@
 
 > 生成：`python3 tools/scripts/gen_multitenant_migration.py`；表格内容由扫描结果决定，请勿手工编辑。
 
-- 扫描 `@Entity`：**55**；已注册数据资源：**24**
-- 分级：T1 已注册 **23** / T2 明细表 **9** / T3 共享域 **14** / T4 未注册 **9**
+- 扫描 `@Entity`：**56**；已注册数据资源：**24**
+- 分级：T1 已注册 **23** / T2 明细表 **9** / T3 共享域 **15** / T4 未注册 **9**
 - 需从「单列唯一」降为「(tenant_id, col) 复合唯一」的列：**32 个**（这是真多租户最大的兼容性风险点）
 - ⚠️ 已注册但**没有任何可注入归属列**的资源（行级只能做 tenant 维度）：`asset.contract`, `asset.device`, `channel.customer`, `channel.purchase`, `channel.supplier`, `mes.bom`, `mes.operation`
 
@@ -59,6 +59,7 @@
 | system | `system.codeRule` | — | `coderule` | **无** | 1 | T3 | 共享域（平台/字典/权限元数据）→ 不加租户列 |
 | system | `system.config` | — | `config` | **无** | 1 | T3 | 共享域（平台/字典/权限元数据）→ 不加租户列 |
 | system | `system.dataFieldPolicy` | — | `data_field_policy` | `resource_id` | — | T3 | 共享域（平台/字典/权限元数据）→ 不加租户列 |
+| system | `system.dataPermissionDiff` | — | `data_permission_diff_log` | `tenant_id`, `user_id` | — | T3 | 共享域（平台/字典/权限元数据）→ 不加租户列 |
 | system | `system.dataPolicy` | — | `data_policy` | `resource_id`, `subject_id` | — | T3 | 共享域（平台/字典/权限元数据）→ 不加租户列 |
 | system | `system.dataResource` | — | `data_resource` | **无** | — | T3 | 共享域（平台/字典/权限元数据）→ 不加租户列 |
 | system | `system.file` | — | `file` | **无** | — | T3 | 共享域（平台/字典/权限元数据）→ 不加租户列 |
