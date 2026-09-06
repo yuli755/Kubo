@@ -1,6 +1,8 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
 import cn.hamm.spms.module.system.datapermission.annotation.SensitiveField;
+import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
+import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import lombok.extern.slf4j.Slf4j;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -10,6 +12,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
@@ -142,6 +146,96 @@ public final class SensitiveWriteProtection {
                 return;
             }
         }
+    }
+
+    /**
+     * 该实体的任一资源对当前用户存在"真的会遮蔽"的列级策略 —— 只有这种情况下，
+     * 才值得为了识别非星号掩码（例如 {@code maskExpression = "已隐藏"}）多回一次表
+     *
+     * <p>{@link ColumnMaskingService#getEffectiveMaskPolicyMap} 走的是 provider 缓存，
+     * 不查库；但 {@code allowPlaintext=true} 的策略也要排除掉：那些用户看到的是明文，
+     * 提交回来的就是原值，比对纯属浪费。</p>
+     *
+     * @param type           实体类
+     * @param maskingService 脱敏服务，容器未就绪时为 null
+     * @param context        权限上下文，无上下文（异步/内部调用）时为 null
+     */
+    public static boolean mayContainMaskedOutput(Class<?> type, ColumnMaskingService maskingService,
+                                                 PermissionContext context) {
+        if (maskingService == null || context == null) {
+            return false;
+        }
+        List<Binding> bindings = bindingsFor(type);
+        if (bindings.isEmpty()) {
+            return false;
+        }
+        Set<String> resourceKeys = bindings.stream()
+                .filter(Binding::restoreOnMasked)
+                .map(Binding::resourceKey)
+                .collect(Collectors.toSet());
+        for (String resourceKey : resourceKeys) {
+            for (DataFieldPolicyEntity policy : maskingService.getEffectiveMaskPolicyMap(resourceKey, context).values()) {
+                if (!Boolean.TRUE.equals(policy.getAllowPlaintext())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 用"读侧此刻会输出什么"来识别掩码，补齐只认星号的短板
+     *
+     * <p>{@code MaskedWriteGuard} 的星号口径覆盖不了 {@code maskExpression} 配成
+     * "已隐藏"这类非星号遮蔽；而且它天生只能判断"长得像掩码"，不能判断
+     * "就是这个策略对这个人生成的那一串"。这里改成<b>正向复算</b>：拿库里的原值套用
+     * 同一份生效策略算出期望输出，与提交值逐字比对 —— 相等就说明"这个值不是用户输入的，
+     * 是我们自己发出去的"，于是保留库中原值。</p>
+     *
+     * <p>安全性：无策略或允许明文时 {@code maskFieldValue} 返回的就是传入的原值（同一对象），
+     * 直接跳过，因此本方法不会产生额外写入。剩下的唯一误判场景是"用户恰好输入了与掩码
+     * 完全相同的文本"（例如备注真的写"已隐藏"），此时保留原值、只丢一次输入 —— 与
+     * "把掩码存进真实列"相比是可以接受的方向，且有 info 日志可查。</p>
+     *
+     * @return 是否发生过恢复
+     */
+    public static boolean restoreMatchingMaskedOutput(Object incoming, Object stored,
+                                                     ColumnMaskingService maskingService,
+                                                     PermissionContext context) {
+        if (incoming == null || stored == null || maskingService == null || context == null) {
+            return false;
+        }
+        boolean restored = false;
+        for (Binding binding : bindingsFor(incoming.getClass())) {
+            if (!binding.restoreOnMasked()) {
+                continue;
+            }
+            try {
+                Object incomingValue = binding.field().get(incoming);
+                Object storedValue = binding.field().get(stored);
+                if (incomingValue == null || storedValue == null) {
+                    // null 的含义（用户清空）由登记链路判断，这里不参与
+                    continue;
+                }
+                Object expected = maskingService.maskFieldValue(
+                        binding.resourceKey(), binding.jsonName(), storedValue, context);
+                if (expected == storedValue) {
+                    // 无策略 / 允许明文：读侧根本没遮蔽
+                    continue;
+                }
+                if (String.valueOf(expected).equals(String.valueOf(incomingValue))) {
+                    binding.field().set(incoming, storedValue);
+                    restored = true;
+                    log.info("敏感字段[{}.{}]提交值与本次读侧输出一致（mask={}），按策略保留库中原值（resourceKey={}）",
+                            incoming.getClass().getSimpleName(), binding.jsonName(), expected, binding.resourceKey());
+                }
+            }
+            catch (IllegalAccessException ex) {
+                PARAM_INVALID.show("敏感字段写入保护不可用，请联系管理员（" + ex.getClass().getSimpleName() + "）");
+                return restored;
+            }
+        }
+        return restored;
     }
 
     /**

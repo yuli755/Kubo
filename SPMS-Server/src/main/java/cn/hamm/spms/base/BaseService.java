@@ -3,8 +3,12 @@ package cn.hamm.spms.base;
 import cn.hamm.airpower.curd.base.CurdService;
 import cn.hamm.spms.module.system.SystemServices;
 import cn.hamm.spms.module.system.coderule.CodeRuleService;
+import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
+import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.ColumnMaskingService;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionGuard;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionRuntime;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionResourceResolver;
 import cn.hamm.spms.module.system.datapermission.service.MaskedInputRegistry;
 import cn.hamm.spms.module.system.datapermission.service.SensitiveWriteProtection;
@@ -74,22 +78,36 @@ public class BaseService<
      * @param entity 待更新实体
      */
     private void protectSensitiveFields(@NotNull E entity) {
-        if (!SensitiveWriteProtection.guards(entity.getClass())
-                || !SensitiveWriteProtection.hasMaskedInput(entity.getClass())) {
-            return;
-        }
+        // 两条互补的识别路径：
+        //   1) 登记命中 —— 反序列化阶段认出"像掩码"的占位值（星号口径，零成本，无需回表）；
+        //   2) 输出复算 —— 拿库里原值套用同一份生效策略算出"这个用户本该看到的串"再比对，
+        //      覆盖 maskExpression 配成非星号文本（如"已隐藏"）的情况，代价是多一次按主键取数。
+        // 顺序不能反：登记命中时连策略都不用查就能直接恢复。
         Long id = entity.getId();
         if (id == null) {
             return;
         }
+        boolean fromRegistry = SensitiveWriteProtection.guards(entity.getClass())
+                && MaskedInputRegistry.hasAny()
+                && SensitiveWriteProtection.hasMaskedInput(entity.getClass());
+        ColumnMaskingService maskingService = DataPermissionRuntime.maskingService();
+        PermissionContext context = PermissionContextHolder.current().orElse(null);
+        boolean fromOutputMatch = SensitiveWriteProtection.mayContainMaskedOutput(
+                entity.getClass(), maskingService, context);
+        if (!fromRegistry && !fromOutputMatch) {
+            return;
+        }
         E stored = repository.findById(id).orElse(null);
         if (stored == null) {
-            // 取不到原值就没法恢复。此时放行等于把 null 写进该列（比报错糟得多），
-            // 所以宁可失败：这条记录的敏感字段本来就只对有权角色可见
-            PARAM_INVALID.show("记录不存在或无权访问，敏感字段的脱敏值无法安全处理，请刷新后重试");
+            if (fromRegistry) {
+                // 取不到原值就没法恢复。此时放行等于把 null 写进该列（比报错糟得多），
+                // 所以宁可失败：这条记录的敏感字段本来就只对有权角色可见
+                PARAM_INVALID.show("记录不存在或无权访问，敏感字段的脱敏值无法安全处理，请刷新后重试");
+            }
             return;
         }
         SensitiveWriteProtection.restoreOnUpdate(entity, stored);
+        SensitiveWriteProtection.restoreMatchingMaskedOutput(entity, stored, maskingService, context);
         // 消费完即清，避免非 HTTP 入口（异步任务、测试）残留到下一次调用
         MaskedInputRegistry.clear();
     }

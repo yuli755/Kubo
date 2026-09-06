@@ -18,7 +18,9 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
@@ -275,6 +277,108 @@ class SensitiveWriteProtectionTest {
         // 而不是等到线上某次保存才发现"看起来有保护其实没有"
         assertThrows(IllegalStateException.class,
                 () -> SensitiveWriteProtection.bindingsFor(PrimitiveEntity.class));
+    }
+
+    /**
+     * 非星号遮蔽（{@code maskExpression = "已隐藏"}）：星号口径必然漏，正向复算才拦得住。
+     *
+     * <p>这一组用例就是 §15.3 那个缺口的收口点：判定不再猜"像不像掩码"，而是问
+     * "这个用户此刻从读侧看到的会不会正好就是这一串"。</p>
+     */
+    @Test
+    void nonStarMaskExpressionIsCaughtByRecomputingReadSideOutput() {
+        givenPolicy("phone", "FULL", "已隐藏", false);
+        Object expected = maskingService.maskFieldValue(RESOURCE_KEY, "phone", "13800138000", context);
+        assertEquals("已隐藏", expected, "前提：这类遮蔽不含星号，星号口径认不出来");
+        assertFalse(MaskedWriteGuard.looksLikeMaskedPlaceholder(expected));
+
+        SampleEntity incoming = new SampleEntity().setPhone(String.valueOf(expected)).setName("只改了昵称");
+        SampleEntity stored = new SampleEntity().setPhone("13800138000").setName("旧昵称");
+        assertFalse(MaskedInputRegistry.hasAny(), "前提：反序列化阶段没登记（认不出来），只能靠复算兜住");
+
+        assertTrue(SensitiveWriteProtection.mayContainMaskedOutput(SampleEntity.class, maskingService, context),
+                "该用户对此资源确有遮蔽策略 -> 值得回表一次");
+        assertTrue(SensitiveWriteProtection.restoreMatchingMaskedOutput(incoming, stored, maskingService, context));
+        assertEquals("13800138000", incoming.getPhone(), "命中读侧输出 -> 保留库中原值");
+        assertEquals("只改了昵称", incoming.getName());
+    }
+
+    /**
+     * 用户恰好输入了与掩码文本一样的内容时，代价是"这一次输入被丢弃"，
+     * 而不是"掩码被写进真实列"。方向必须固定成前者，这里把它钉住。
+     */
+    @Test
+    void coincidentalSameTextKeepsStoredValueOnPurpose() {
+        givenPolicy("phone", "FULL", "已隐藏", false);
+        SampleEntity incoming = new SampleEntity().setPhone("已隐藏");
+        SampleEntity stored = new SampleEntity().setPhone("13800138000");
+
+        assertTrue(SensitiveWriteProtection.restoreMatchingMaskedOutput(incoming, stored, maskingService, context));
+        assertEquals("13800138000", incoming.getPhone(), "宁可丢一次输入，也不让遮蔽值落库");
+    }
+
+    /**
+     * 明文放开的角色不能因为这套机制多付任何代价（既不回表，也不改值）
+     */
+    @Test
+    void plaintextAllowedUsersSkipTheWholeRecomputation() {
+        givenPolicy("phone", "FULL", "已隐藏", true);
+        assertFalse(SensitiveWriteProtection.mayContainMaskedOutput(SampleEntity.class, maskingService, context),
+                "allowPlaintext 的用户看到的就是原值，比对纯属浪费");
+
+        SampleEntity incoming = new SampleEntity().setPhone("13900139000");
+        SampleEntity stored = new SampleEntity().setPhone("13800138000");
+        assertFalse(SensitiveWriteProtection.restoreMatchingMaskedOutput(incoming, stored, maskingService, context));
+        assertEquals("13900139000", incoming.getPhone(), "明文书写必须照常生效");
+    }
+
+    /**
+     * 复算路径把"没遮蔽"寄托在 {@code maskFieldValue} 返回**同一个对象引用**上（不是 equals）。
+     * 这个前提一旦被人改掉（例如"统一返回 value.toString()"），保护不会报错、只会静默失效，
+     * 所以单独钉一条，而不是让它躲在其它用例里。
+     */
+    @Test
+    void unmaskedValuesComeBackAsTheSameObjectReference() {
+        givenPolicyNone();
+        String stored = "13800138000";
+        assertSame(stored, maskingService.maskFieldValue(RESOURCE_KEY, "phone", stored, context),
+                "无策略：原对象返回");
+
+        givenPolicy("phone", "FULL", "已隐藏", true);
+        assertSame(stored, maskingService.maskFieldValue(RESOURCE_KEY, "phone", stored, context),
+                "allowPlaintext：同样原对象返回，复算必须跳过");
+
+        givenPolicy("phone", "FULL", "已隐藏", false);
+        assertNotSame(stored, maskingService.maskFieldValue(RESOURCE_KEY, "phone", stored, context),
+                "真遮蔽：必须不是原对象，否则保护等于没做");
+    }
+
+    @Test
+    void noPolicyAtAllMeansNoExtraQuery() {
+        givenPolicyNone();
+        assertFalse(SensitiveWriteProtection.mayContainMaskedOutput(SampleEntity.class, maskingService, context),
+                "没配策略 = 读侧不遮蔽 = 不需要复算，正常保存保持零额外查询");
+        assertFalse(SensitiveWriteProtection.mayContainMaskedOutput(SampleEntity.class, null, context),
+                "容器未就绪时同样跳过（不能因为防护自身不可用而阻断业务）");
+        assertFalse(SensitiveWriteProtection.mayContainMaskedOutput(SampleEntity.class, maskingService, null),
+                "无权限上下文（内部调用）时跳过");
+    }
+
+    private void givenPolicy(String fieldName, String maskType, String expression, boolean allowPlaintext) {
+        given(fieldPolicyProvider.getEnabledPoliciesByResourceAndAction(RESOURCE_KEY, "QUERY"))
+                .willReturn(List.of(new DataFieldPolicyEntity()
+                        .setFieldName(fieldName)
+                        .setRoleCode("planner")
+                        .setMaskType(maskType)
+                        .setMaskExpression(expression)
+                        .setAllowPlaintext(allowPlaintext)
+                        .setPriority(100)
+                        .setEnabled(true)));
+    }
+
+    private void givenPolicyNone() {
+        given(fieldPolicyProvider.getEnabledPoliciesByResourceAndAction(RESOURCE_KEY, "QUERY"))
+                .willReturn(List.of());
     }
 
     @Test
