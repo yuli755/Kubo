@@ -79,8 +79,18 @@ public final class PermissionRuleSupport {
         if (field == null || field.isBlank()) {
             return List.of();
         }
-        // [临时反证，勿留] 只认登记的原名，等于回到本轮修复之前的状态
-        return List.of(field.trim());
+        String trimmed = field.trim();
+        List<String> candidates = new ArrayList<>(3);
+        candidates.add(trimmed);
+        String camel = toCamel(trimmed);
+        if (!camel.equals(trimmed)) {
+            candidates.add(camel);
+        }
+        String snake = toSnake(trimmed);
+        if (!snake.equals(trimmed) && !candidates.contains(snake)) {
+            candidates.add(snake);
+        }
+        return List.copyOf(candidates);
     }
 
     /**
