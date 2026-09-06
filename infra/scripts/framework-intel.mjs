@@ -88,8 +88,12 @@ const probeClass = (cls) => {
   const lines = run('javap', ['-p', '-c', '-classpath', cp, cls]).split('\n')
   const calls = lines.filter((l) => /^\s*\d+:\s+invoke/.test(l))
   const interesting = calls.filter((l) => /ObjectMapper|writeValue|Jackson|toJson|toMap|Csv|Excel|Bean|Field|getter|Getter|serialize| reflective/i.test(l))
+  const sigLines = sig.split('\n')
+  const exportish = sigLines.filter((l) => /export|csv|queryList|findPage|beforeGetList/i.test(l))
   push(`类 ${cls.split('.').pop()}`, [
-    ...sig.split('\n').slice(0, 60),
+    `— 与导出/查询相关的签名 ${exportish.length} 条（全类 ${sigLines.length} 行）：`,
+    ...exportish.slice(0, 24),
+    ...(exportish.length === 0 ? sigLines.slice(0, 40) : []),
     `— 方法体共 ${calls.length} 处 invoke，其中与"序列化/取值/写出"相关的 ${interesting.length} 处：`,
     ...interesting.slice(0, 26).map((l) => l.trim()),
     interesting.length === 0 && calls.length > 0
@@ -99,12 +103,12 @@ const probeClass = (cls) => {
 }
 
 if (targeted.length > 0) {
-  for (const cls of targeted.slice(0, 6)) {
+  for (const cls of targeted.slice(0, 4)) {
     probeClass(cls)
   }
 }
 
-// 1) 有哪些 jar 可查
+// 1) 有哪些 jar 可查（定向模式下也留着，用来判断"类名猜对了没有"）
 push('jar', [
   `classpath 共 ${cpEntries.length} 个 jar`,
   // 注意别写成 .map(basename)：Array 会把 (value, index, array) 都传进去，
@@ -138,22 +142,26 @@ for (const jar of [...airpower, ...thirdParty]) {
   }
 }
 
-// 2) 候选类清单（这是最能省人时间的部分：先看形状，再决定反汇编谁）
+// 2) 候选类清单 —— 定向模式下跳过：名额比信息更稀缺
 const rank = (c) => (/Export/i.test(c.simple) ? 0 : /Curd/i.test(c.simple) ? 1 : /Excel|Csv|Poi|Write/i.test(c.simple) ? 2 : 3)
 candidates.sort((a, b) => rank(a) - rank(b) || a.cls.localeCompare(b.cls))
 const uniq = [...new Map(candidates.map((c) => [c.cls, c])).values()]
-push('候选类', uniq.slice(0, 90).map((c) => c.cls).join('\n'))
+if (targeted.length === 0) {
+  push('候选类', uniq.slice(0, 90).map((c) => c.cls).join('\n'))
+}
 
-// 3) 关键类的成员签名
-for (const c of uniq.slice(0, 3)) {
-  push(`签名 ${c.simple}`, javapFor(c.cls).split('\n').slice(0, 70).join('\n'))
+// 3) 关键类的成员签名（同样只在泛扫模式跑）
+if (targeted.length === 0) {
+  for (const c of uniq.slice(0, 3)) {
+    push(`签名 ${c.simple}`, javapFor(c.cls).split('\n').slice(0, 70).join('\n'))
+  }
 }
 
 // 4) 反汇编：找**声明了 export 方法**的类，看它方法体里到底调了谁
 //    —— 这决定"能不能在这一层把列遮住"：如果它是「查列表 → 逐实体反射取字段 → 写 sheet」，
 //    那么遮蔽点在实体取值那一步；如果它直接把 ResultSet/JDBC 流写出去，就没有可挂钩的地方。
 const javapDis = (cls) => run('javap', ['-p', '-c', '-classpath', cp, cls])
-for (const c of uniq.slice(0, 8)) {
+for (const c of targeted.length === 0 ? uniq.slice(0, 8) : []) {
   const sig = javapFor(c.cls)
   if (sig.startsWith('__') || !/\bexport/i.test(sig)) {
     continue
