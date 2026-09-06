@@ -36,8 +36,9 @@ import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
  * 宁可让受限角色改不了这条记录，也不用 sentinel（写 0 / 空串）兜底 ——
  * 一旦恢复链路某处没接上，兜底值就静默入住了。</p>
  *
- * <p>判定口径与前端 {@code looksMasked()} 一致：连续两个 {@code *}、整串星号、
- * 或 {@code h:} + 十六进制摘要。单个星号不算（{@code a*b} 这类真实文本不能误伤）。</p>
+ * <p>判定口径与前端 {@code looksMasked()} 逐条对应：含连续两个 {@code *}、整串都是星号、
+ * 或 {@code h:} + 十六进制摘要。{@code a*b} 这类真实文本不算（必须整串都是星号），
+ * 但单独的 {@code "*"} 算 —— 前端同样是这个口径，别只收紧一边。</p>
  *
  * @author Hamm.cn
  */
@@ -60,8 +61,12 @@ public final class MaskedWriteGuard {
         if (text.isEmpty()) {
             return false;
         }
+        // 三条与 @kubo/shared 的 looksMasked() 一一对应，改任何一边都必须同时改另一边：
+        // 读侧遮成什么形状，写侧就得认得出什么形状；两边各判一次迟早漂移成"遮了但认不出"，
+        // 那时掩码会直接落库（本仓已经被真库事故证明过一次，见施工图 §15）。
+        // 注意：Java 源码里的正则反斜杠必须双写，"\*+" 是非法转义、javac 会直接拒绝（本仓踩过，见 §19.10）。
         return text.contains("**")
-                || text.matches("\*+")
+                || text.matches("\\*+")
                 || text.matches("(?i)^h:[0-9a-f]{6,}$");
     }
 

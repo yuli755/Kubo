@@ -49,9 +49,10 @@ jobs:
       - name: Permission codes match backend controllers
         run: pnpm perms:check
 
-      # 中文串被 U+FFFD 污染不会让编译/测试变红，只能靠这道门禁拦住（详见 docs §18.2）
-      - name: Source encoding integrity (no U+FFFD)
-        run: pnpm encoding:check
+      # 两类"文本级但没人管"的问题：中文被 U+FFFD 污染（不影响编译，只在页面上显形）、
+      # Java 源码里的单反斜杠转义（影响编译，但沙箱没有 JDK —— 见 docs §18.2 与 §19.9）
+      - name: Source text integrity (no U+FFFD / no bad Java escapes)
+        run: pnpm text:check
 
       - name: Build
         run: pnpm build
