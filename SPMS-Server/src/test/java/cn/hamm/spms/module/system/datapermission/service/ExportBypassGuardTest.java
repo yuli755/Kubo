@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 
 /**
  * <h1>导出旁路收口的判定规则</h1>
@@ -76,8 +77,11 @@ class ExportBypassGuardTest {
 
     @Test
     void everyRestrictedFieldNeedsItsOwnExportGrant() {
-        given(columnMaskingService.getEffectiveMaskPolicy(RK, "purchasePrice", ExportBypassGuard.ACTION_EXPORT, context()))
-                .willReturn(policy(true));
+        // 两个桩都用 lenient：入参是 Set（无序），实现遇到第一个未授权字段就短路返回 false，
+        // 于是"哪一个桩没被用到"取决于遍历顺序 —— 这是实现细节，不是本用例要锁的行为。
+        // （曾经因此随机红：同一份代码，换个 Set.of 的哈希顺序就 UnnecessaryStubbing。）
+        lenient().when(columnMaskingService.getEffectiveMaskPolicy(RK, "purchasePrice", ExportBypassGuard.ACTION_EXPORT, context()))
+                .thenReturn(policy(true));
         given(columnMaskingService.getEffectiveMaskPolicy(RK, "salePrice", ExportBypassGuard.ACTION_EXPORT, context()))
                 .willReturn(null);
 

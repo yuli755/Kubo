@@ -458,9 +458,12 @@ class PermissionRuleKernelTest {
         @Test
         @DisplayName("注入形状与跨表写法都不是合法标识符")
         void rejectsDirtyIdentifiers() {
-            for (String bad : List.of("a.b", "a b", "1abc", "a;b", "a--b", "", "a`b", null)) {
+            for (String bad : List.of("a.b", "a b", "1abc", "a;b", "a--b", "", "a`b")) {
                 assertFalse(PermissionRuleSupport.isIdentifier(bad), "应当拒绝：" + bad);
             }
+            // null 单独断言：List.of(...) 本身就拒绝 null 元素，混在循环里会在进断言之前抛 NPE，
+            // 报出来的堆栈跟"标识符校验"毫无关系，很容易让人跑去改错的地方。
+            assertFalse(PermissionRuleSupport.isIdentifier(null), "应当拒绝：null");
             assertTrue(PermissionRuleSupport.isIdentifier("tenant_id"));
         }
     }

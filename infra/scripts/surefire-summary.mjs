@@ -25,7 +25,7 @@ import{existsSync, readFileSync, readdirSync} from 'node:fs'
 import {join} from 'node:path'
 
 const argv = process.argv.slice(2)
-let dir = null
+let dir = null  // 参数：surefire 报告目录
 let max = 8
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === '--max') {
@@ -35,6 +35,13 @@ for (let i = 0; i < argv.length; i++) {
   }
 }
 dir = dir || 'target/surefire-reports'
+
+// 本脚本可能被两种 cwd 调用：CI 里 job 的工作目录就是 SPMS-Server（有 pom.xml），
+// 本地则是仓库根。annotation 的 file= 必须相对**仓库根**，而 existsSync 要相对 cwd，
+// 所以先探一次基准目录，别把路径拼成 SPMS-Server/SPMS-Server/。
+const baseDir = existsSync('pom.xml') ? '.' : 'SPMS-Server'
+const relToRoot = (rel) => (baseDir === '.' ? rel : `${baseDir}/${rel}`)
+const exists = (rel) => existsSync(join(baseDir, rel))
 
 const attr = (tag, name) => {
   const m = new RegExp(`\\b${name}="([^"]*)"`).exec(tag)
@@ -63,8 +70,12 @@ const pickFrame = (stack) => {
     }
     const [, pkgCls, , simpleFile, ln] = m
     const pkg = pkgCls.split('.').slice(0, -1).join('/')
-    // annotation 的 file= 必须相对仓库根；CI 里本步的 cwd 是 SPMS-Server，所以要补上这一层
-    return {file: `SPMS-Server/src/main/java/${pkg}/${simpleFile}.java`, line: Number(ln), target: `${pkgCls}.${m[2]}()`}
+    // 测试自己的帧也常是有用信息（少一个 stub、断言写错），所以 main/test 两处都找一遍，
+    // 只认**实际存在**的那个文件；否则 annotation 会钉到一个不存在的路径上，GitHub 静默退化成
+    // ".github:79"（本仓踩过：看起来像"报错了但点不进代码"）。
+    const candidates = [`src/test/java/${pkg}/${simpleFile}.java`, `src/main/java/${pkg}/${simpleFile}.java`]
+    const hit = candidates.find(exists) ?? candidates[1]
+    return {file: relToRoot(hit), line: Number(ln), target: `${pkgCls}.${m[2]}()`}
   }
   return null
 }
@@ -137,7 +148,11 @@ const main = async () => {
     allBad.push(...bad)
   }
   const verdict = totals.failures + totals.errors === 0 ? '通过' : '有失败'
-  console.log(`用例 ${totals.tests} 个 · 断言失败 ${totals.failures} · 错误 ${totals.errors} · 跳过 ${totals.skipped} · ${totals.time.toFixed(1)}s → ${verdict}`)
+  const summary = `用例 ${totals.tests} 个 · 断言失败 ${totals.failures} · 错误 ${totals.errors} · 跳过 ${totals.skipped} · ${totals.time.toFixed(1)}s → ${verdict}`
+  console.log(summary)
+  // 汇总同时发一条 notice：读 annotation 就能判断"这一步到底跑没跑、跑了多少"，
+  // 不用为了看一眼用例数再去捞那份取不到的日志正文。
+  console.log(`::notice title=surefire::${summary}`)
   if (allBad.length === 0) {
     return
   }

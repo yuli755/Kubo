@@ -7,6 +7,7 @@ import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -81,6 +82,10 @@ class DataPermissionModeSemanticsTest {
                 new cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler());
         lenient().when(builder.disjunction()).thenReturn(disjunction);
         lenient().when(root.get(anyString())).thenReturn(path);
+        // 编译器对 EQ 条件调的是 builder.equal(...)；不打桩就返回 null，
+        // 于是规格把这条策略读成"绑不上列"（binding-invalid），根本走不到 shadow 打点 ——
+        // 看起来像实现漏了打点，其实是 mock 少了一个桩。用 disjunction 这个现成 mock 当返回值即可。
+        lenient().when(builder.equal(any(Expression.class), any())).thenReturn(disjunction);
         PermissionContextHolder.open(new PermissionContext(1L, 100L, Set.of(1L), Set.of(), Set.of(), Set.of("planner"), false));
     }
 

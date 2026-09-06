@@ -73,6 +73,10 @@ class TenantContextResolverTest {
         @DisplayName("有归属 → 使用用户默认租户")
         void usesDefaultTenantWhenHeaderMissing() {
             UserEntity user = normalUser(7L);
+            // "有归属"必须自己造出来：没 stub 的 tenantIds 会返回 mock 默认值（空集合），
+            // 那会被读成"无归属"并走回落分支（返回平台默认租户 1），断言就变成 42 != 1 ——
+            // 看着像解析逻辑错了，其实是前置条件没搭。
+            given(userTenantService.tenantIds(7L)).willReturn(Set.of(42L));
             given(userTenantService.defaultTenantId(7L)).willReturn(42L);
             given(request.getHeader(TenantContextResolver.TENANT_HEADER)).willReturn(null);
 

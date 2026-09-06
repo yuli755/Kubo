@@ -169,8 +169,9 @@ class RequestInterceptorPermissionContextTest {
             given(permissionService.getPermissionByIdentity(anyString()))
                     .willReturn(new PermissionEntity().setIdentity("test:permission").setName("测试权限"));
             given(systemPermissionService.has(any(UserEntity.class), eq("test:permission"))).willReturn(true);
-            // 客户端伪造的租户头不应影响结果：解析器返回什么就用什么
-            given(request.getHeader("X-Tenant-Id")).willReturn("999999");
+            // 客户端伪造的租户头不应影响结果：解析器返回什么就用什么。
+            // 这里刻意不给 request.getHeader 打桩 —— 拦截器根本不该去读那个头，
+            // 真读了就是旁路；strict stubs 会替我们把"没读"这件事盯着（打了桩反而会被判多余）。
             given(tenantContextResolver.resolve(any(UserEntity.class), any(HttpServletRequest.class))).willReturn(7L);
 
             interceptor.checkUserPermission(verifiedToken, "test:permission", request);
