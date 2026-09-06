@@ -140,7 +140,14 @@ jobs:
         # 只在手动触发时跑：这是"沙箱看不到框架 jar"的侦察通道（docs §19.9 说明了为什么日志正文读不到、
         # 只能用 annotation），不是回归门禁 —— 挂在每次 push 上等于白花两分钟换一堆没人看的字。
         # 触发：gh workflow run ci.yml --ref <分支>
-        if: always() && github.event_name == 'workflow_dispatch' # always()：前面步骤红了也要拿到情报（依赖装不上时更需要）
+        # 触发方式二选一：手动 dispatch，或 commit message 里带 [probe]。
+        # 后者不是凑合：本仓的 CI 凭证没有 workflows:write，`gh workflow run` 会 403，
+        # 于是"只能手动触发的诊断"实际上等于不能触发 —— 用提交信息当开关，
+        # 让诊断通道不依赖额外权限，也不会挂在每次 push 上白花两分钟。
+        # always()：前面步骤红了也要拿到情报（依赖装不上时恰恰最需要）。
+        if: >-
+          always() && (github.event_name == 'workflow_dispatch' ||
+          contains(github.event.head_commit.message, '[probe]'))
         run: |
           set +e
           chmod +x ./mvnw || true
