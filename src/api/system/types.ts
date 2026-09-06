@@ -207,3 +207,24 @@ export interface ExportGapItem {
   /** 人话说明（后端给，便于与 guard 的拒因保持同一措辞） */
   reason: string
 }
+
+/**
+ * 一条"没人读"的列级策略：动作不在列级遮蔽的消费集里，保存成功也不会改变任何输出。
+ *
+ * 判定在后端（`FieldPolicyGapAnalyzer.inertPolicies` + 后端常量给出的消费集），
+ * 前端只负责列出来 —— 在视图里再写一遍"哪些动作算被读"，就是第二套真相。
+ */
+export interface InertPolicyItem {
+  /** 策略行主键（盘点只报告，不代替人删） */
+  policyId: number
+  /** 数据资源 ID */
+  resourceId: number
+  /** 数据资源标识 */
+  resourceKey: string
+  /** 字段名 */
+  fieldName: string
+  /** 角色编码 */
+  roleCode: string
+  /** 动作名，原样回显（可能正是拼错的那个值；未填时后端给「(未填)」） */
+  actionName: string
+}

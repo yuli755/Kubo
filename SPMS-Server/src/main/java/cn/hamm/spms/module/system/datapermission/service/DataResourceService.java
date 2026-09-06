@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * <h1>数据资源管理服务</h1>
@@ -47,6 +48,54 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      * @param roleCode    生效角色；{@code default} 表示对所有角色兜底
      * @param reason      人话说明（由后端给，前端不重算语义）
      */
+    /**
+     * 一条"没人读"的列级策略（带资源定位）
+     *
+     * @param policyId   策略行主键
+     * @param resourceId 数据资源 ID
+     * @param resourceKey 数据资源标识
+     * @param fieldName  字段名
+     * @param roleCode   角色编码
+     * @param actionName 动作名（原样回显，可能正是拼错的那个值）
+     */
+    public record InertPolicyItem(Long policyId,
+                                  Long resourceId,
+                                  String resourceKey,
+                                  String fieldName,
+                                  String roleCode,
+                                  String actionName) {
+    }
+
+    /**
+     * 列级策略表里"动作不会被任何代码消费"的存量行
+     *
+     * <p>只读、只报，不提供"顺手停用"：存量行是历史决定的产物，批量改动需要有人先确认
+     * 这些行的来源（导入脚本？早期灰度？），那是数据治理决策而不是这个面板的职责。</p>
+     *
+     * @return 条目列表；无存量问题时为空列表
+     */
+    public List<InertPolicyItem> inertPolicies() {
+        // 消费集取自后端常量本身，而不是又抄一份名单 —— 前端那份由 maskContract 对账
+        Set<String> consumed = Set.of(ColumnMaskingService.DEFAULT_ACTION, ExportBypassGuard.ACTION_EXPORT);
+        List<DataResourceEntity> resources = repository.findAll();
+        if (resources == null || resources.isEmpty()) {
+            return List.of();
+        }
+        List<InertPolicyItem> items = new ArrayList<>();
+        for (DataResourceEntity resource : resources) {
+            String resourceKey = resource.getResourceKey();
+            if (resourceKey == null || resourceKey.isBlank()) {
+                continue;
+            }
+            for (FieldPolicyGapAnalyzer.Inert inert : FieldPolicyGapAnalyzer.inertPolicies(
+                    fieldPolicyProvider.getEnabledPoliciesByResource(resourceKey), consumed)) {
+                items.add(new InertPolicyItem(inert.id(), resource.getId(), resourceKey,
+                        inert.fieldName(), inert.roleCode(), inert.actionName()));
+            }
+        }
+        return items;
+    }
+
     public record ExportGapItem(Long resourceId,
                                 String resourceKey,
                                 String fieldName,

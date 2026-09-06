@@ -30,6 +30,21 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      *
      * @return 缺口条目列表（资源 ID、资源键、字段名、角色、原因）
      */
+    /**
+     * 列出"动作不会被任何代码消费"的列级策略行
+     *
+     * <p>这类行的特征是没有失败信号：保存成功、列表可见、界面无变化。enforce 打开前后都一样，
+     * 只有把它们数出来摆在管理端，人才会去处理。与导出缺口自查同权限面（{@code dataResource}），
+     * 因为返回的同样是跨角色的策略元数据。</p>
+     *
+     * @return 条目列表（策略 ID、资源、字段、角色、动作）
+     */
+    @GetMapping("inert-policies")
+    @Description("无人消费的列级策略盘点")
+    public Json getInertPolicies() {
+        return Json.data(service.inertPolicies());
+    }
+
     @GetMapping("export-gaps")
     @Description("导出明文授权缺口自查")
     public Json getExportGaps() {

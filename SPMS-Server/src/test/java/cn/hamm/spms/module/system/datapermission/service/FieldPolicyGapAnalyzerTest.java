@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -111,5 +112,62 @@ class FieldPolicyGapAnalyzerTest {
         assertTrue(FieldPolicyGapAnalyzer.gaps(
                 List.of(masking("price", "buyer")),
                 List.of(grant("price", ColumnMaskingService.DEFAULT_ROLE_CODE))).isEmpty());
+    }
+
+    @Test
+    @DisplayName("盘点：动作不在消费集里的启用策略被列出来（配了却没人读）")
+    void inertPoliciesDetected() {
+        DataFieldPolicyEntity detail = new DataFieldPolicyEntity()
+                .setFieldName("price").setRoleCode("buyer").setActionName("DETAIL").setAllowPlaintext(false);
+
+        List<FieldPolicyGapAnalyzer.Inert> inert = FieldPolicyGapAnalyzer.inertPolicies(
+                List.of(detail), Set.of("QUERY", "EXPORT"));
+
+        assertEquals(1, inert.size());
+        assertEquals("price", inert.get(0).fieldName());
+        assertEquals("DETAIL", inert.get(0).actionName());
+    }
+
+    @Test
+    @DisplayName("盘点：QUERY 与 EXPORT 都不算孤儿（这两个动作真的有人读）")
+    void consumedActionsAreNotInert() {
+        List<DataFieldPolicyEntity> rows = List.of(
+                masking("price", "buyer"),
+                grant("price", "buyer"));
+
+        assertTrue(FieldPolicyGapAnalyzer.inertPolicies(rows, Set.of("QUERY", "EXPORT")).isEmpty());
+    }
+
+    @Test
+    @DisplayName("盘点：拼错的动作比 DETAIL 更危险，必须同样被抓出来")
+    void typoActionIsInert() {
+        DataFieldPolicyEntity typo = new DataFieldPolicyEntity()
+                .setFieldName("price").setRoleCode("buyer").setActionName("REPROT").setAllowPlaintext(true);
+
+        assertEquals(1, FieldPolicyGapAnalyzer.inertPolicies(
+                List.of(typo), Set.of("QUERY", "EXPORT")).size());
+    }
+
+    @Test
+    @DisplayName("盘点：动作留空 → 报成「(未填)」而不是静默跳过")
+    void blankActionIsReportedWithPlaceholder() {
+        DataFieldPolicyEntity blank = new DataFieldPolicyEntity()
+                .setFieldName("phone").setRoleCode("default").setAllowPlaintext(false);
+        blank.setActionName("   ");
+
+        List<FieldPolicyGapAnalyzer.Inert> inert = FieldPolicyGapAnalyzer.inertPolicies(
+                List.of(blank), Set.of("QUERY", "EXPORT"));
+
+        assertEquals(1, inert.size());
+        assertEquals("(未填)", inert.get(0).actionName());
+    }
+
+    @Test
+    @DisplayName("盘点：消费集为空时不报（配置缺失时宁可不说话，也不制造一排假孤儿）")
+    void emptyConsumedSetReportsNothing() {
+        DataFieldPolicyEntity detail = new DataFieldPolicyEntity()
+                .setFieldName("price").setRoleCode("buyer").setActionName("DETAIL");
+
+        assertTrue(FieldPolicyGapAnalyzer.inertPolicies(List.of(detail), Set.of()).isEmpty());
     }
 }

@@ -308,6 +308,43 @@ describe('mask contract · 脱敏实现只允许存在一处', () => {
     expect(VERDICT.test('<AFormField field=\"allowPlaintext\" />')).toBe(false)
   })
 
+  it('存量盘点的前后端路径必须对得上，且视图不许自己判"哪些动作被消费"', () => {
+    /**
+     * 两条一起写，因为它们守的是同一次改动（inert 盘点）的两半：
+     * 路径写错 ⇒ 请求 404 被 composable 的 catch 沉默掉，界面只是永远显示"没有孤儿策略"；
+     * 判定搬到前端 ⇒ 视图里出现 `actionName === 'QUERY'` 这类式子，后端加一个消费动作就漂移。
+     */
+    const api = read(join(ROOT, 'src', 'api', 'system.ts'))
+    expect(api).toContain('request.get(\'/dataResource/inert-policies\')')
+
+    const controllerPath = join(SERVER, 'module/system/datapermission/controller/DataResourceController.java')
+    expect(readJavaCode(controllerPath)).toContain('@GetMapping("inert-policies")')
+
+    // 反向：这份跨角色的盘点结果不许挂到业务用户也会调的控制器上
+    const fieldPolicyController = readJavaCode(join(SERVER, 'module/system/datapermission/controller/DataFieldPolicyController.java'))
+    expect(fieldPolicyController).not.toContain('inert-policies')
+
+    // 视图里出现"动作名比较"就是在重写消费集：消费集只该有后端常量与字典里那两份
+    const VERDICT = /actionName\s*(?:===|!==|==|!=)\s*['"]/
+    const offenders: string[] = []
+    for (const file of [...collect(join(ROOT, 'src', 'view'), '.vue'), ...collect(join(ROOT, 'src', 'view'), '.ts')]) {
+      stripComments(read(file)).split('\n').forEach((line, index) => {
+        if (VERDICT.test(line)) {
+          offenders.push(`${relative(ROOT, file)}:${index + 1}`)
+        }
+      })
+    }
+    expect(offenders, '视图在自行判定动作是否被消费（判据只该在后端）').toEqual([])
+    // 自检：这条扫描要认得违规写法，也不能把"取数后展示"当违规
+    expect(VERDICT.test('if (row.actionName === \'DETAIL\') {')).toBe(true)
+    expect(VERDICT.test('<span>{{ row.actionName }}</span>')).toBe(false)
+
+    // 回显不许被悄悄删掉：删提示不会让任何后端测试变红，所以在这里钉住模板
+    const list = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'fieldPolicy', 'list.vue'))
+    expect(list, '列级策略列表没渲染存量盘点结果').toMatch(/<ElAlert[^>]*v-if="inertCount"/)
+    expect(list).toContain('useInertPolicyReport')
+  })
+
   it('导出缺口自查的前后端路径必须对得上（它失败是静默的）', () => {
     /**
      * `useExportGapReport` 的 catch 分支刻意只标记 `failed`、不弹错：一个自查面板不该把列表页打断。

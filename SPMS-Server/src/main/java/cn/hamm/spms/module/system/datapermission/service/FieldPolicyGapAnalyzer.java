@@ -37,7 +37,47 @@ public final class FieldPolicyGapAnalyzer {
     public record Gap(String fieldName, String roleCode, String reason) {
     }
 
+    /**
+     * 一条动作不会被列级遮蔽读到的启用策略
+     *
+     * @param id         策略行主键（供管理端定位；盘点只报告，不代替人删）
+     * @param fieldName  字段名
+     * @param roleCode   角色编码
+     * @param actionName 动作名（原样回显，含拼错的值；未填时给出占位）
+     */
+    public record Inert(Long id, String fieldName, String roleCode, String actionName) {
+    }
+
     private FieldPolicyGapAnalyzer() {
+    }
+
+    /**
+     * 找出"动作不在消费集里"的启用策略
+     *
+     * <p>为什么值得单独盘一次：{@code action_name} 是字符串存的，后端不会因为选了 {@code DETAIL}
+     * 或写成 {@code REPROT} 而报错 —— 于是这行策略保存成功、列表里看得见、编辑时一切正常，
+     * 唯一的效果是"界面上什么都没发生"。<b>"配了却没人读"比报错更难发现，因为它不产生失败信号</b>，
+     * 而管理员对策略表的信任就建立在这种一次次的"看起来配好了"上。</p>
+     *
+     * @param enabledPolicies 该资源全部启用中的策略（跨动作）
+     * @param consumedActions 列级遮蔽真正消费的动作名（由调用方从后端常量给出，别在这里抄一份）
+     * @return 不在消费集里的策略行；消费集为空时返回空 —— 配置缺失时宁可不报，也不误伤
+     */
+    public static List<Inert> inertPolicies(List<DataFieldPolicyEntity> enabledPolicies, Set<String> consumedActions) {
+        if (enabledPolicies == null || enabledPolicies.isEmpty()
+                || consumedActions == null || consumedActions.isEmpty()) {
+            return List.of();
+        }
+        List<Inert> inert = new ArrayList<>();
+        for (DataFieldPolicyEntity policy : enabledPolicies) {
+            String action = policy.getActionName() == null ? "" : policy.getActionName().trim();
+            if (!action.isEmpty() && consumedActions.contains(action)) {
+                continue;
+            }
+            inert.add(new Inert(policy.getId(), policy.getFieldName(), policy.getRoleCode(),
+                    action.isEmpty() ? "(未填)" : action));
+        }
+        return inert;
     }
 
     /**

@@ -8,6 +8,7 @@ import type {
   DataFieldPolicyEntity,
   DataFieldPolicyQuery,
   ExportGapItem,
+  InertPolicyItem,
   MaskPolicy,
   MenuEntity,
   MenuQuery,
@@ -213,6 +214,18 @@ export const dataResourceApi = {
    */
   getExportGaps(): Promise<ExportGapItem[]> {
     return request.get('/dataResource/export-gaps')
+  },
+
+  /**
+   * 「没人读」的列级策略盘点（存量）
+   *
+   * 与 `getExportGaps` 同一个管理端点组：返回的都是跨角色的策略元数据，
+   * 因此都挂在 `dataResource` 下继承其权限校验，不放 `dataFieldPolicy`（业务用户也会调）。
+   *
+   * @returns 条目列表；没有存量问题时为空数组
+   */
+  getInertPolicies(): Promise<InertPolicyItem[]> {
+    return request.get('/dataResource/inert-policies')
   },
 }
 

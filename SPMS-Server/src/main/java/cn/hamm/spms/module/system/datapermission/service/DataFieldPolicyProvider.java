@@ -41,6 +41,18 @@ public interface DataFieldPolicyProvider {
     List<DataFieldPolicyEntity> getEnabledPoliciesByResourceAndAction(String resourceKey, String actionName);
 
     /**
+     * 按资源取全部启用策略（跨动作），管理端盘点用
+     *
+     * <p>与 {@code getEnabledPoliciesByResourceAndAction} 同一份"什么算启用策略"的解释，
+     * 只是不按动作过滤 —— 盘点"没人读的策略"必须看到所有动作，包括拼错的那些。
+     * 缓存键同样只含资源标识，绝不含用户身份。</p>
+     *
+     * @param resourceKey 数据资源标识；未注册时返回空列表
+     * @return 该资源全部启用中的策略，按 priority 降序
+     */
+    List<DataFieldPolicyEntity> getEnabledPoliciesByResource(String resourceKey);
+
+    /**
      * 清理指定资源的字段策略缓存
      */
     void clearCache(String resourceKey);

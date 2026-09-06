@@ -67,6 +67,24 @@ public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, D
         return policies != null ? policies : java.util.Collections.emptyList();
     }
 
+    /**
+     * 按资源取全部启用策略（跨动作）
+     *
+     * <p>缓存键用独立前缀 {@code all:}，与 {@code list:<resourceKey>:<action>} 不冲突；
+     * 失效路径与它们相同（新增/修改/删除 → {@code clearAllCache()}），
+     * 所以盘点结果不会比读侧遮蔽更"陈旧"——两边看到的是同一份缓存语义。</p>
+     */
+    @Override
+    @Cacheable(value = "datapermission:field-policies", key = "'all:' + #resourceKey")
+    public List<DataFieldPolicyEntity> getEnabledPoliciesByResource(String resourceKey) {
+        DataResourceEntity resource = resourceRepository.getByResourceKey(resourceKey);
+        if (resource == null || resource.getId() == null) {
+            return java.util.Collections.emptyList();
+        }
+        List<DataFieldPolicyEntity> policies = repository.findByResourceIdAndEnabledTrueOrderByPriorityDesc(resource.getId());
+        return policies != null ? policies : java.util.Collections.emptyList();
+    }
+
     @Override
     protected void afterAppAdd(long id, DataFieldPolicyEntity entity) {
         super.afterAppAdd(id, entity);

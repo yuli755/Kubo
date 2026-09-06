@@ -2,10 +2,14 @@
 import { APanel, ATable } from '@airpower/web'
 import { ElAlert } from 'element-plus'
 import { useExportGapReport } from '@/composables/useExportGapReport'
+import { useInertPolicyReport } from '@/composables/useInertPolicyReport'
 import { Permissions } from '@/config/permissions'
 import { useTanStackTable } from '@/hook/useTanStackTable'
 import { DataResourceService } from '@/model/system/datapermission/DataResourceService'
 import { DataResourceEditor } from './component'
+
+// 两个独立自查：缺什么（要补）与有什么多余的（要清）。分开取数，一个失败不牵连另一个。
+const { count: inertCount } = useInertPolicyReport()
 
 // 导出授权缺口自查：后端只回结论，这里连"哪算缺口"都不判（判据在 FieldPolicyGapAnalyzer）
 const { summary: gapSummary, failed: gapFailed } = useExportGapReport()
@@ -35,6 +39,15 @@ const hook = useTanStackTable(DataResourceService, {
       show-icon
       title="未能取得导出授权自查结果"
       description="刷新本页或检查 /dataResource/export-gaps 是否可用；取不到结果时不会显示为「没有缺口」。"
+    />
+    <ElAlert
+      v-if="inertCount"
+      class="gap-warning"
+      type="info"
+      :closable="false"
+      show-icon
+      title="另有动作不会被列级遮蔽读到的存量策略"
+      :description="`${inertCount} 条：到「列级脱敏策略」页可逐条查看，停用或改到行级即可，不用留在表里充数。`"
     />
     <ATable
       :use-hook="hook"
