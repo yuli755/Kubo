@@ -99,28 +99,12 @@ jobs:
           chmod +x ./mvnw || true
           ./mvnw -B -s settings.xml -DskipTests compile 2>&1 | tee /tmp/mvn-compile.log
           status=${PIPESTATUS[0]}
-          log=/tmp/mvn-compile.log
           if [ "$status" -ne 0 ]; then
-            # javac 一个错误一行 `路径:[行,列] 说明`，Maven 又会把同一批重复打印一次，
-            # 还夹着 "first type: int" 这类续行 —— GitHub 每个 check run 只留 10 条 annotation，
-            # 不去重不排序的话，真正要看的那几行会被挤掉。
-            # file= 必须是**相对仓库根**的路径（保留 SPMS-Server/ 前缀），否则点不进 diff 里的代码行。
-            grep -E '^\[ERROR\].*\.java:\[[0-9]+,[0-9]+\]' "$log" \
-              | sed -E -e 's|^\[ERROR\][[:space:]]*||' -e "s|^$GITHUB_WORKSPACE/||" \
-                       -e 's|^([^ ]+\.java):\[([0-9]+),([0-9]+)\][[:space:]]+(.*)$|\1\t\2\t\3\t\4|' \
-              | sort -u > /tmp/mvn-compile-errors.tsv
-            echo "编译错误 $(wc -l < /tmp/mvn-compile-errors.tsv) 处；完整清单在本步日志（annotation 有 10 条上限，只送前 9 条）："
-            cat /tmp/mvn-compile-errors.tsv
-            head -9 /tmp/mvn-compile-errors.tsv | while IFS=$'\t' read -r file line col msg; do
-              echo "::error file=$file,line=$line,col=$col::$msg"
-            done
-            if [ ! -s /tmp/mvn-compile-errors.tsv ]; then
-              # 非 javac 的失败（依赖解析不了、settings.xml 问题、exit 126…）：
-              # 没有 .java:[l,c] 行可提取时，把日志尾部原样贴成 annotation，别留"失败但无声"。
-              grep -E '^\[(ERROR|WARNING)\]' "$log" | tail -8 | while IFS= read -r l; do
-                echo "::error::${l}"
-              done
-            fi
+            # 错误提取放在 infra/scripts/maven-error-annotations.mjs：它只取 `*.java:[行,列]` 那种可定位
+            # 的行、去重（Maven 同一批会打两遍）、按文件排序，再写成 `::error file=...,line=...`。
+            # 之所以不用内联 sed：GitHub 每个 check run 只留 10 条 annotation，
+            # 逻辑必须能在本地用样例日志验（本仓踩过"CI 红了但读不到为什么红"）。
+            node ../infra/scripts/maven-error-annotations.mjs /tmp/mvn-compile.log || true
           fi
           exit "$status"
 
@@ -131,10 +115,12 @@ jobs:
           ./mvnw -B -s settings.xml test 2>&1 | tee /tmp/mvn-test.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            grep -E '^\[ERROR\].*(Tests run|FAIL|ERROR)' /tmp/mvn-test.log | head -25 | while IFS= read -r line; do
+            # 测试源码的编译错误与断言失败都从这一份日志里提：形状和主源码编译完全一样，
+            # 而 test-compile 会把**所有**测试类一起编译，所以这里报出来的可能是任何一轮遗留的问题。
+            node ../infra/scripts/maven-error-annotations.mjs /tmp/mvn-test.log --max 8 || true
+            grep -E '^\[ERROR\].*(Tests run:|FAIL!)' /tmp/mvn-test.log | head -6 | while IFS= read -r line; do
               echo "::error::$(printf '%s' "$line" | sed 's/^\[ERROR\] *//')"
             done
-            echo "::error::mvn test 共 $(grep -cE '^\[ERROR\]' /tmp/mvn-test.log) 行 [ERROR]，完整清单在本步日志"
           fi
           exit "$status"
 
