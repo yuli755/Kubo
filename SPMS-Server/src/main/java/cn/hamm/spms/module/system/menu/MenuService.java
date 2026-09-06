@@ -110,6 +110,15 @@ public class MenuService extends BaseService<MenuEntity, MenuRepository> {
         // 系统管理
         firstMenu = new MenuEntity().setName("系统管理").setOrderNo(3).setParentId(ROOT_ID);
         firstMenu = addAndGet(firstMenu);
+        // 数据权限（资源登记 / 行级策略 / 列级脱敏策略）
+        // 没有这三个页面时策略只能靠 SQL 或 DevDataInitRunner 硬编码来改，"灰度"就无从下手：
+        // 观察 shadow 差异、按角色放开明文、给某个资源临时收口，都必须能在界面上完成。
+        secondMenu = new MenuEntity().setName("数据资源").setPath("/console/system/datapermission/resource/list").setParentId(firstMenu.getId());
+        add(secondMenu);
+        secondMenu = new MenuEntity().setName("行级数据权限").setPath("/console/system/datapermission/policy/list").setParentId(firstMenu.getId());
+        add(secondMenu);
+        secondMenu = new MenuEntity().setName("列级脱敏策略").setPath("/console/system/datapermission/fieldPolicy/list").setParentId(firstMenu.getId());
+        add(secondMenu);
 
         secondMenu = new MenuEntity().setName("仓库管理").setPath("/console/factory/storage/list").setParentId(firstMenu.getId());
         add(secondMenu);

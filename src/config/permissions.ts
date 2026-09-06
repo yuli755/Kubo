@@ -246,6 +246,33 @@ const System = {
     update: `Unit_${Crud.update}`,
     delete: `Unit_${Crud.delete}`,
   },
+  /**
+   * 数据权限（资源 / 行级策略 / 列级脱敏策略）
+   *
+   * 只有 add/update/delete/getDetail 是真实存在的动作：`BaseController` 全局
+   * `@Extends(exclude = {Curd.Export, Curd.QueryExport, Curd.Disable, Curd.Enable})`
+   * 把导出与启停排掉了，所以这里**不能**写 `DataPolicy_disable` 之类的码
+   * —— 用不存在的码门控等于把按钮对所有人永久隐藏（`perms:check` 也会直接失败）。
+   * 启停请走 `enabled` 字段。
+   */
+  DataResource: {
+    add: `DataResource_${Crud.add}`,
+    update: `DataResource_${Crud.update}`,
+    delete: `DataResource_${Crud.delete}`,
+    getDetail: `DataResource_${Crud.getDetail}`,
+  },
+  DataPolicy: {
+    add: `DataPolicy_${Crud.add}`,
+    update: `DataPolicy_${Crud.update}`,
+    delete: `DataPolicy_${Crud.delete}`,
+    getDetail: `DataPolicy_${Crud.getDetail}`,
+  },
+  DataFieldPolicy: {
+    add: `DataFieldPolicy_${Crud.add}`,
+    update: `DataFieldPolicy_${Crud.update}`,
+    delete: `DataFieldPolicy_${Crud.delete}`,
+    getDetail: `DataFieldPolicy_${Crud.getDetail}`,
+  },
 } as const
 
 /** 开放平台 (Open) 模块 */
