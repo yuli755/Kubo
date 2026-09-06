@@ -33,11 +33,29 @@ import org.springframework.beans.BeanUtils;
  * 因此每个需要改动的实体都先复制一份（{@link BeanUtils#copyProperties}），只改副本。
  * 复制不了（没有无参构造等）就抛错让导出失败 —— 宁可失败，不能为了"能导出"而放行明文。</p>
  *
- * <p><b>已知边界（不要读成已解决）</b>：上下文取自 {@link PermissionContextHolder}（线程级）。
- * 若框架把"查询 + 写文件"放进异步任务，这里就取不到上下文，本类会**记账并原样返回**：
- * 无上下文时"该给谁明文"没有答案，一律硬遮会误伤本就拿到 EXPORT 明文授权的人（大面积、静默），
- * 而准入判断已经由 guard 在请求线程上做过，enforce 下不会因此泄漏未授权明文。
- * 补齐上下文随任务传递（{@code TaskUtil} 装饰器或在 {@code beforeExportQuery} 里带快照）是下一步。</p>
+ * <p><b>这一层在真实链路上多数时候不会生效 —— 已取证，别把它读成防护层</b>：
+ * 上下文取自 {@link PermissionContextHolder}（线程级），而 {@code javap} 证实导出是异步的：
+ * {@code ExportHelper.createExportTask(Supplier)} 里 {@code invokedynamic ...run(...)} →
+ * {@code TaskUtil.runAsync(Runnable...)} → {@code ThreadPoolExecutor.submit(Runnable)}。
+ * 于是 {@code afterExportQuery} 跑在线程池线程上，那里没有请求线程的上下文。
+ * 更糟的是 {@code TaskUtil} 的拒绝策略是 {@code CallerRunsPolicy}：队列满时任务落回调用线程执行，
+ * 同一功能因此<b>时而遮蔽、时而原样</b> —— 任何"靠它兜底"的判断都不成立。</p>
+ *
+ * <p>那还留着它做什么？两件事，都能被核对：
+ * <ul>
+ *   <li>enforce 下的真实保护来自 {@link ExportBypassGuard}（请求线程、有上下文）：没拿到 EXPORT
+ *       明文授权的人当场被拒，拿到授权的人<b>本来就该拿原值</b>，遮不遮都"对" ——
+ *       所以本层在 enforce 下是<b>冗余保险</b>，异步退化不降低安全性；</li>
+ *   <li>shadow 下"文件与界面一致"只在链路同步执行时才成立，因此每次"因缺上下文而跳过"都按行数量
+ *       记账（{@link #REASON_EXPORT_WITHOUT_CONTEXT}），让运维能从指标看出它到底有没有在工作，
+ *       而不是读注释相信它在工作。</li>
+ * </ul>
+ *
+ * <p>要让异步导出也遮得住只有两条路（都不在本类范围内）：把导出改成我们自己组装
+ * （{@code CollectionUtil.toCsvInputStream(List, Class)} 与 {@code ExportHelper.saveExportFileStream(InputStream)}
+ * 都是 public，{@code CurdController.export} 非 final 可覆写 —— 可在请求线程取数并遮蔽后交给框架落盘），
+ * 或让 {@code TaskUtil} 的线程池支持上下文传递（executor 不可注入，需要框架配合）。
+ * 用 {@code InheritableThreadLocal} 抄近路是<b>错</b>的：池化线程会带着上一个用户的上下文，那是跨用户泄漏。</p>
  *
  * @author Hamm.cn
  */
@@ -85,8 +103,10 @@ public final class ExportColumnMasker {
         if (context == null) {
             DataPermissionAudit audit = DataPermissionRuntime.audit();
             if (audit != null) {
+                // 行数与字段数进 detail 是刻意的：只有能被数出来，才有人会发现"这层今天一次都没起作用"
                 audit.shadow(bindings.get(0).resourceKey(), REASON_EXPORT_WITHOUT_CONTEXT,
-                        "导出组装线程取不到数据权限上下文，本批 " + entities.size() + " 行按原值写出");
+                        "导出组装跑在 TaskUtil 线程池里、取不到数据权限上下文，本批 " + entities.size()
+                                + " 行 x " + bindings.size() + " 个受限字段按原值写出（不视为已遮蔽）");
             }
             return entities;
         }

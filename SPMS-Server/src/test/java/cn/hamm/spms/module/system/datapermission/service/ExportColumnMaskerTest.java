@@ -18,7 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 /**
@@ -163,7 +165,12 @@ class ExportColumnMaskerTest {
         List<Row> out = ExportColumnMasker.maskForExport(List.of(original));
 
         assertSame(original, out.get(0), "没有上下文就无从判断该给谁明文，硬遮会误伤已授权角色");
-        Mockito.verify(audit).shadow(eq(RK), eq(ExportColumnMasker.REASON_EXPORT_WITHOUT_CONTEXT), any());
+        // 断言里要求 detail 带上行数与字段数：这条记账的存在意义就是"让人发现这层没在工作"，
+        // 只记一个原因串的话，它和"静默跳过"在指标上长得一样。
+        ArgumentCaptor<String> detail = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(audit).shadow(eq(RK), eq(ExportColumnMasker.REASON_EXPORT_WITHOUT_CONTEXT), detail.capture());
+        assertTrue(detail.getValue().contains("1 行"), detail.getValue());
+        assertTrue(detail.getValue().contains("1 个受限字段"), detail.getValue());
         Mockito.verifyNoInteractions(maskingService);
     }
 
