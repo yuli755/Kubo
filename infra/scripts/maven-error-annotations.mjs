@@ -64,13 +64,30 @@ const workspace = process.env.GITHUB_WORKSPACE ? process.env.GITHUB_WORKSPACE.re
  */
 const ERROR_AT = /^\[ERROR\]\s*(.*?\.java):\[(\d+),(\d+)\]\s*(.*)$/
 
+const DETAIL = /^(symbol|location|required|reason|found|actual|incompatible types)\b/i
+
 const parse = (text) => {
   const found = []
-  for (const raw of text.split('\n')) {
-    const line = raw.trimEnd()
+  const lines = text.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trimEnd()
     const m = ERROR_AT.exec(line.startsWith('[ERROR]') ? line : '')
     if (!m) {
       continue
+    }
+    // javac 把"缺哪个符号、在哪个类里"放在紧跟着的续行上（`symbol: method runWithLock()`）。
+    // 只报 `cannot find symbol` 等于报了一半：知道行号还得自己回去猜。这里把续行折进同一条消息。
+    const details = []
+    for (let j = i + 1; j < lines.length && details.length < 3; j++) {
+      const next = lines[j].trim()
+      if (!next.startsWith('[ERROR]')) {
+        break
+      }
+      const stripped = next.replace(/^\[ERROR\]\s*/, '')
+      if (ERROR_AT.test(stripped) || !DETAIL.test(stripped)) {
+        break
+      }
+      details.push(stripped)
     }
     let file = m[1]
     if (workspace && file.startsWith(workspace)) {
@@ -78,7 +95,13 @@ const parse = (text) => {
     } else {
       file = file.replace(/^.*\/(?=[^/]+\.java$)/, '')
     }
-    found.push({file, line: Number(m[2]), col: Number(m[3]), message: m[4].trim()})
+    const base = m[4].trim()
+    found.push({
+      file,
+      line: Number(m[2]),
+      col: Number(m[3]),
+      message: details.length > 0 ? `${base} (${details.join(' / ')})` : base,
+    })
   }
   // 去重：Maven 同一批错误会打两遍；顺带按 文件->行 排序，让相邻错误聚在一起
   const seen = new Set()

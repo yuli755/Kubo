@@ -24,7 +24,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.then;
+import static org.mockito.BDDMockito.then;
 
 /**
  * <h1>租户上下文解析测试（决策 D1 的核心安全断言）</h1>
