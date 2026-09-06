@@ -85,7 +85,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
         }
         List<MenuEntity> menuListByUserId = service.getMenuListByUserId(getCurrentUserId());
         redisHelper.set(userMenuCacheKey, Json.toString(menuListByUserId));
-        return Json.data(menuListByUserId, "查询成功");
+        return Json.data(menuListByUserId, "获取成功");
     }
 
     @Description("获取我的权限")
@@ -102,7 +102,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
                 .map(PermissionEntity::getIdentity)
                 .collect(Collectors.toList());
         redisHelper.set(userPermissionCacheKey, Json.toString(permissions));
-        return Json.data(permissions, "查询成功");
+        return Json.data(permissions, "获取成功");
     }
 
     /**
@@ -238,7 +238,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
      *
      * @param userLoginType 登录方式
      * @param user          登录数据
-     * @param response      响应的请求
+     * @param response      响应
      * @return JsonData
      */
     private Json handleLoginRequest(@NotNull UserLoginType userLoginType, UserEntity user, HttpServletResponse response) {

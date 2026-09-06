@@ -230,3 +230,47 @@ describe('mask contract · 模型元数据', () => {
     expect(missing).toEqual([])
   })
 })
+/**
+ * 去掉注释只留代码（与 readJavaCode 同一立场：注释里的示例不该参与门禁判定，
+ * 反之也不该因为"某行注释提到了 ****"就报违规）
+ */
+function stripComments(source: string): string {
+  return source
+    .split('\n')
+    .filter(line => !/^\s*(?:\/\/|\*)/.test(line))
+    .join('\n')
+}
+
+describe('mask contract · 脱敏实现只允许存在一处', () => {
+  /** 允许直接使用底层脱敏原语的白名单：策略层与指令层本身 */
+  const ALLOWED = new Set(['src/directives/mask.ts', 'src/composables/useMaskPolicy.ts'])
+  const FORBIDDEN = [
+    /\blooksMasked\s*\(/,
+    /\bapplyMaskPolicy\s*\(/,
+    /\bnormalizeMaskPolicy\s*\(/,
+    /['"`]\*{2,}['"`]/,
+  ]
+
+  it('视图层不得自行判断/生成掩码（否则又出现第二套实现）', () => {
+    const offenders: string[] = []
+    for (const file of collect(join(ROOT, 'src', 'view'), '.vue')) {
+      if (ALLOWED.has(relative(ROOT, file))) {
+        continue
+      }
+      const code = stripComments(read(file))
+      FORBIDDEN.forEach((pattern, index) => {
+        if (pattern.test(code)) {
+          offenders.push(`${relative(ROOT, file)} 命中规则 ${index}（视图只该消费 useMaskPolicy / v-mask / 模型 desensitize）`)
+        }
+      })
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it('白名单确实存在（防止规则因为文件被改名而空转）', () => {
+    const directive = read(join(ROOT, 'src', 'directives', 'mask.ts'))
+    const composable = read(join(ROOT, 'src', 'composables', 'useMaskPolicy.ts'))
+    expect(directive).toContain('applyMaskPolicy')
+    expect(composable).toContain('ensureResourceMaskPolicies')
+  })
+})
