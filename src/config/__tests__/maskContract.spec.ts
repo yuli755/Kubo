@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 /**
  * # 脱敏契约门禁（前端 F2 的卡点）
  *
- * 四条规则都来自本轮实际踩到的坑，不是"看起来该有"：
+ * 五条规则都来自本轮实际踩到的坑，不是"看起来该有"：
  *
  * 1. **前端 `MaskType` 必须覆盖后端 `ColumnMaskingService#applyMask` 的全部分支**。
  *    后端早已支持 `LAST4` / `HASH`，前端 union 里只有 3 个值 —— 后果不是编译失败，
@@ -18,6 +18,10 @@ import { describe, expect, it } from 'vitest'
  *    加回来；导出走文件流不经过 Jackson，是脱敏的已知旁路，前端别随手开。
  * 4. **模型里的敏感字段必须显式表态**：`@Table({ desensitize })` 或 `mask-exempt: 理由`。
  *    框架在列表渲染层认这个元数据，一处声明全视图生效；漏了就是"某个页面的手机号裸奔"。
+ * 5. **`useMaskPolicy(resourceKey, fields)` 里的字段名必须真的是后端那个实体上被
+ *    `@SensitiveField` 标记的字段**。这是比资源键更容易犯的错（复制粘贴改一个词），
+ *    后果同第 2 条：策略查不到 = 前端认为"无需脱敏"，静默 fail-open，
+ *    而界面上一切看起来都正常 —— 所以必须在提交前被机器拦住。
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
@@ -82,6 +86,62 @@ describe('mask contract · 前后端脱敏口径', () => {
         }
       }
     }
+    expect(offenders).toEqual([])
+  })
+
+  it('useMaskPolicy 声明的字段必须是后端该资源真实标记过的敏感字段', () => {
+    // 后端事实：resourceKey → 被 @SensitiveField 标记的字段名（装饰器紧贴字段，故按"字段上方的块"归属）
+    const fieldsByResource = new Map<string, Set<string>>()
+    for (const file of collect(SERVER, '.java')) {
+      if (!read(file).includes('@SensitiveField')) {
+        continue
+      }
+      let pending: string[] = []
+      for (const line of read(file).split('\n')) {
+        // 类型段刻意不容空白（\s 与类型字符集重叠会造出多项回溯），泛型内部允许任意非 > 字符；
+        // 因此 `private Map<String, Object> x;` 这类写法会被跳过 —— 本门禁只关心 @SensitiveField
+        // 标在简单类型上的字段，扫不到时的后果是"少校验一个字段"，不是误报，可接受。
+        const field = line.match(/^\s*private\s+[\w.]+(?:<[^>]*>)?\s+(\w+)\s*[=;]/)
+        if (!field) {
+          pending.push(line)
+          continue
+        }
+        const key = pending.join('\n').match(/@SensitiveField\(resourceKey = "([^"]+)"\)/)?.[1]
+        if (key) {
+          if (!fieldsByResource.has(key)) {
+            fieldsByResource.set(key, new Set<string>())
+          }
+          fieldsByResource.get(key)!.add(field[1])
+        }
+        pending = []
+      }
+    }
+    // 前提自检：后端样本必须非空，否则这条门禁会因为"什么都没解析到"而恒真通过
+    expect(fieldsByResource.size).toBeGreaterThanOrEqual(4)
+    expect([...fieldsByResource.get('personnel.user') ?? []]).toEqual(
+      expect.arrayContaining(['phone', 'email', 'idCard']),
+    )
+
+    const offenders: string[] = []
+    let checked = 0
+    for (const file of [...collect(join(ROOT, 'src', 'view'), '.vue'), ...collect(join(ROOT, 'src', 'view'), '.ts')]) {
+      for (const m of read(file).matchAll(/useMaskPolicy\(\s*'([^']+)'\s*,\s*\[([^\]]*)\]/g)) {
+        const key = m[1]
+        const declared = [...m[2].matchAll(/'([^']+)'/g)].map(x => x[1])
+        checked += declared.length
+        const known = fieldsByResource.get(key)
+        if (!known) {
+          offenders.push(`${relative(ROOT, file)} → ${key}（后端没有任何 @SensitiveField 字段，声明字段无意义）`)
+          continue
+        }
+        for (const name of declared) {
+          if (!known.has(name)) {
+            offenders.push(`${relative(ROOT, file)} → ${key}.${name}（后端该资源只标记了 ${[...known].join('/')}）`)
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(0)
     expect(offenders).toEqual([])
   })
 

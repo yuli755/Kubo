@@ -7,9 +7,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * <h1>未落地维度拦截 + 掩码回写防护</h1>
  *
- * <p>两条都是"看起来配了、其实没生效"的守门人，所以断言的是<b>拦截条件本身</b>：
- * 该拒的必须拒（FACTORY / factoryIds / 掩码值），不该误伤的必须放行
- * （{@code a*b} 这类真实文本、单个星号、正常手机号）。</p>
+ * <p>本类只测"判定"：<b>什么算未落地维度、什么算脱敏占位值</b>。
+ * 处置（恢复原值 / 拒绝新增）在 {@link SensitiveWriteProtectionTest} 里测，
+ * 因为处置需要实体与 Jackson，混在一起会让这两份断言都变得难以读。</p>
  *
  * @author Hamm.cn
  */
@@ -36,6 +36,9 @@ class DimensionAndMaskedWriteGuardTest {
         assertNull(DimensionGuard.rejectUnavailableCondition("{\"field\":\"tenantId\"}"));
     }
 
+    /**
+     * 判定口径是读侧与写侧共用的唯一真相源（{@code looksMasked} 在前端有一份对偶实现）。
+     */
     @Test
     void maskedPlaceholdersAreRecognised() {
         assertTrue(MaskedWriteGuard.looksLikeMaskedPlaceholder("138****000"));
@@ -51,28 +54,5 @@ class DimensionAndMaskedWriteGuardTest {
         assertFalse(MaskedWriteGuard.looksLikeMaskedPlaceholder(""));
         assertFalse(MaskedWriteGuard.looksLikeMaskedPlaceholder(null));
         assertFalse(MaskedWriteGuard.looksLikeMaskedPlaceholder(1999.5), "数值没有星号可言");
-    }
-
-    @Test
-    void keepStoredOnlyWhenIncomingIsMasked() {
-        assertEquals("13900139000",
-                MaskedWriteGuard.keepStoredWhenMasked("手机号", "13900139000", "13800138000"),
-                "用户真的改了手机号时必须采用新值");
-        assertEquals("13800138000",
-                MaskedWriteGuard.keepStoredWhenMasked("手机号", "138****000", "13800138000"),
-                "提交值是掩码则保留库中原值");
-        assertNull(MaskedWriteGuard.keepStoredWhenMasked("手机号", "138****000", null),
-                "库里本来就没有值时保持为空，不要写入掩码");
-    }
-
-    /**
-     * 已知缺口的存在性测试：非星号类自定义表达式（如 maskExpression="已隐藏"）认不出来。
-     *
-     * <p>不粉饰成"已覆盖"：真要精确判定必须拿"该字段生效策略的表达式"来比，
-     * 那是带权限上下文的查询，写侧目前是纯文本判断。施工图 §15 已列为待办。</p>
-     */
-    @Test
-    void customExpressionWithoutStarsIsNotRecognised_yet() {
-        assertFalse(MaskedWriteGuard.looksLikeMaskedPlaceholder("已隐藏"));
     }
 }

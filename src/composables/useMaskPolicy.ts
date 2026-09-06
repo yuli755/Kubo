@@ -214,9 +214,10 @@ export function useMaskPolicy(resourceKey: string, fields: string[] = []) {
   /**
    * 返回"提交值看起来是掩码"的受限字段名
    *
-   * 用途是**提示**而不是删字段：删字段在"整实体更新"语义下等于把该列写成 null，
-   * 真正的兜底在服务端（`MaskedWriteGuard.keepStoredWhenMasked` 会用库中原值覆盖）。
-   * 前端只需要告诉用户"这几个字段你现在看到的是掩码，改了也不会生效"。
+   * 用途是**提示**而不是删字段：删字段在"整实体更新"语义下等于把该列写成 null。
+   * 字符串字段（phone / email / idCard）服务端会用库中原值覆盖掩码（见后端
+   * `SensitiveWriteProtection`），前端只需要把"这几个字段你看到的是掩码"说清楚；
+   * 数值字段（price）服务端只能拒绝，所以那里需要 `blockedSubmit` 在提交前先拦一道。
    */
   function maskedFieldsIn(entity: object | null | undefined): string[] {
     if (!entity) {
@@ -261,6 +262,27 @@ export function useMaskPolicy(resourceKey: string, fields: string[] = []) {
     return entry.failed || normalizeMaskPolicy(entry.policy).masked
   }
 
+  /**
+   * 保存前该不该拦：返回给用户的提示文案，`null` 表示放行
+   *
+   * <p>只对**数值型**敏感字段有实际意义。字符串字段被提交成掩码时，服务端会用库里
+   * 原值覆盖（保存照旧成功）；而 `price` 这类字段挂着 `@NotNull(groups = WhenUpdate)`，
+   * 置空会变成"采购单价不能为空"这种与权限无关的假错误，服务端只能明确拒绝 ——
+   * 与其让用户收到一个看不懂的 400，不如在点保存时就说明原因。</p>
+   *
+   * <p>框架侧的配套语义（实测 `@airpower/web` dist 里的 `useEditor.onSubmit`）：
+   * `beforeSubmit` 返回 `null` 即中止提交，因此调用方写
+   * `return policy.blockedSubmit(data) ? (提示, null) : data` 就够了。</p>
+   */
+  function blockedSubmit(entity: object | null | undefined): string | null {
+    const blocked = maskedFieldsIn(entity)
+    if (!blocked.length) {
+      return null
+    }
+    return `字段 ${blocked.join('、')} 按数据权限策略对你不可见。编辑框是整实体提交的，`
+      + `这串掩码会原样回到服务端并被拒绝；请让具备明文权限的角色修改该字段，或先申请明文权限`
+  }
+
   /** 当前视图是否存在被脱敏的字段（用于提示条 / 图标） */
   const hasRestrictedField = computed(() =>
     fields.some(field => normalizeMaskPolicy(maskPolicyEntry(resourceKey, field)?.policy).masked),
@@ -271,6 +293,7 @@ export function useMaskPolicy(resourceKey: string, fields: string[] = []) {
     masked,
     restricted,
     maskedFieldsIn,
+    blockedSubmit,
     hasRestrictedField,
   }
 }

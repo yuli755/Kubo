@@ -13,6 +13,7 @@ import cn.hamm.spms.module.personnel.user.token.PersonalTokenEntity;
 import cn.hamm.spms.module.personnel.user.token.PersonalTokenService;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
+import cn.hamm.spms.module.system.datapermission.service.MaskedInputRegistry;
 import cn.hamm.spms.module.system.datapermission.service.SystemPermissionService;
 import cn.hamm.spms.module.system.datapermission.service.TenantContextResolver;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
@@ -163,6 +164,9 @@ public class RequestInterceptor extends CurdRequestInterceptor {
     @Override
     public void afterCompletion(@NotNull HttpServletRequest request, @NotNull HttpServletResponse response, @NotNull Object handler, Exception ex) {
         PermissionContextHolder.clear();
+        // 掩码登记是 ThreadLocal：线程池会复用线程，忘了清等于把上一个人的"这字段是掩码"
+        // 送给下一个人 —— 表现是别人的保存莫名其妙把价格改回了旧值
+        MaskedInputRegistry.clear();
     }
 }
 

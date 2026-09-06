@@ -183,6 +183,19 @@ describe('批量策略（my-mask-map）与掩码识别', () => {
     expect(policy.masked('price', '28000.0')).toBe('2*****0')
   })
 
+  it('blockedSubmit：掩码留在提交体里就给出中止文案，真值与主动清空一律放行', () => {
+    const policy = useMaskPolicy('channel.purchasePrice', ['price'])
+
+    // 拦截与否只看"提交值是不是掩码"，与后端 MaskedWriteGuard 同一口径
+    expect(policy.blockedSubmit({ price: '****', qty: 3 })).toContain('price')
+    expect(policy.blockedSubmit({ price: '1******0' })).toContain('不可见')
+    expect(policy.blockedSubmit({ price: 1999.5, qty: 3 })).toBeNull()
+    // 用户主动清空 ≠ 提交掩码：这条区分是整套写侧保护的分界点，写反了就会把清空当成"恢复原值"
+    expect(policy.blockedSubmit({ price: null })).toBeNull()
+    expect(policy.blockedSubmit({ price: 'a*b' })).toBeNull()
+    expect(policy.blockedSubmit(undefined)).toBeNull()
+  })
+
   it('掩码字段只用于提示，不改提交体（删字段等于把该列写空）', () => {
     getMyMaskMap.mockResolvedValue({ phone: { maskType: 'FULL' } })
     const policy = useMaskPolicy('personnel.user', ['phone', 'idCard'])

@@ -6,8 +6,12 @@ import cn.hamm.spms.module.system.coderule.CodeRuleService;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionGuard;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionResourceResolver;
+import cn.hamm.spms.module.system.datapermission.service.MaskedInputRegistry;
+import cn.hamm.spms.module.system.datapermission.service.SensitiveWriteProtection;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+
+import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
 
 /**
  * <h1>基础服务类</h1>
@@ -41,6 +45,8 @@ public class BaseService<
 
     @Override
     protected E beforeAdd(@NotNull E entity) {
+        // 敏感字段被提交成掩码时，新增没有原值可恢复 -> 明确拒绝（否则就是把 **** 建进库）
+        SensitiveWriteProtection.rejectMaskedOnAdd(entity);
         E result = super.beforeAdd(entity);
         enforceDataPermission(DataPermissionAction.CREATE);
         return result;
@@ -49,8 +55,43 @@ public class BaseService<
     @Override
     protected E beforeUpdate(@NotNull E entity) {
         E result = super.beforeUpdate(entity);
+        protectSensitiveFields(result);
         enforceDataPermission(DataPermissionAction.UPDATE);
         return result;
+    }
+
+    /**
+     * 受限字段的写侧兜底：提交值是脱敏占位时，用库里的原值覆盖回去
+     *
+     * <p>为什么放在 {@code BaseService} 而不是各业务 service：漏接一个实体的后果是
+     * 把 {@code 138****000} 永久写进真实列。判定与恢复都在
+     * {@link SensitiveWriteProtection}，这里只负责"回表取原值"这一次额外查询，
+     * 且仅在<b>本次请求确实收到过掩码</b>时才查（正常保存零开销）。</p>
+     *
+     * <p>{@code beforeUpdate} 在框架语义下可能收到"已合并"的实体，也可能收到"仅提交值"，
+     * 本实现两种都成立：只替换被登记为掩码的字段，其余字段原样保留。</p>
+     *
+     * @param entity 待更新实体
+     */
+    private void protectSensitiveFields(@NotNull E entity) {
+        if (!SensitiveWriteProtection.guards(entity.getClass())
+                || !SensitiveWriteProtection.hasMaskedInput(entity.getClass())) {
+            return;
+        }
+        Long id = entity.getId();
+        if (id == null) {
+            return;
+        }
+        E stored = repository.findById(id).orElse(null);
+        if (stored == null) {
+            // 取不到原值就没法恢复。此时放行等于把 null 写进该列（比报错糟得多），
+            // 所以宁可失败：这条记录的敏感字段本来就只对有权角色可见
+            PARAM_INVALID.show("记录不存在或无权访问，敏感字段的脱敏值无法安全处理，请刷新后重试");
+            return;
+        }
+        SensitiveWriteProtection.restoreOnUpdate(entity, stored);
+        // 消费完即清，避免非 HTTP 入口（异步任务、测试）残留到下一次调用
+        MaskedInputRegistry.clear();
     }
 
     @Override

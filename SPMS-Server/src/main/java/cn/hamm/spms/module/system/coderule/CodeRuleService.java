@@ -116,6 +116,9 @@ public class CodeRuleService extends BaseService<CodeRuleEntity, CodeRuleReposit
             int serialNumber = forUpdate.getCurrentSn();
             serialNumber++;
             forUpdate.setCurrentSn(serialNumber);
+            // 直写 repository 会绕过 CurdService 的钩子（含 BaseService 的敏感字段写侧兜底）。
+            // CodeRuleEntity 没有任何 @SensitiveField 字段，因此这里是安全的；给本实体加敏感
+            // 字段时必须改走 service 更新，否则掩码会直接入库（见 docs §17.3）。
             repository.saveAndFlush(forUpdate);
             code.set(forUpdate.getPrefix() + template + String.format("%0" + forUpdate.getSnLength() + "d", serialNumber));
         });

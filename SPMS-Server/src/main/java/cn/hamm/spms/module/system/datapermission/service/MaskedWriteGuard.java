@@ -17,7 +17,9 @@ import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
  *   → 有本类：直接拒绝，提示"该字段受限，请申请明文后再修改"
  * }</pre>
  *
- * <p>本类提供两种处置，<b>新增用拒绝、修改用还原</b>：</p>
+ * <p>本类<b>只负责判定</b>，处置在 {@link SensitiveWriteProtection}。分开是为了让读侧
+ * （{@code SensitiveFieldSerializer} 写出的掩码格式）与写侧共用同一个口径：
+ * 两边各写一份"什么算掩码"，迟早漂移成"读侧遮了、写侧认不出"。</p>
  * <ul>
  *   <li>新增：没有"原值"可恢复，收到掩码就是客户端异常，直接拒绝；</li>
  *   <li>修改：用户其实只想改昵称，把整条保存请求打回去是最差体验；
@@ -27,10 +29,12 @@ import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
  *       在"整实体更新"的框架语义里就是一次清空。</li>
  * </ul>
  *
- * <p>数值型敏感字段（如 {@code Double price}）更早就失败：{@code "****"} 反序列化成
- * {@code Double} 会抛 {@code InvalidFormatException}，接口直接 400，且报错信息里看不出
- * 跟权限有关。<b>这一类本类拦不住</b>（失败发生在进入 service 之前），
- * 所以前端必须在提交前剔除受限字段，见 {@code useMaskPolicy().omitRestricted}。</p>
+ * <p><b>数值型敏感字段（如 {@code Double price}）不能靠"置 null + 恢复"处理</b>：
+ * {@code PurchasePriceEntity#price} 上挂着 {@code @NotNull(groups = WhenUpdate)}，
+ * 置 null 会被参数校验打回成"采购单价不能为空"这个与权限无关的假错误。
+ * 因此 {@code SensitiveFieldDeserializer} 对非字符串目标类型直接报"该字段受限"，
+ * 宁可让受限角色改不了这条记录，也不用 sentinel（写 0 / 空串）兜底 ——
+ * 一旦恢复链路某处没接上，兜底值就静默入住了。</p>
  *
  * <p>判定口径与前端 {@code looksMasked()} 一致：连续两个 {@code *}、整串星号、
  * 或 {@code h:} + 十六进制摘要。单个星号不算（{@code a*b} 这类真实文本不能误伤）。</p>
@@ -61,34 +65,4 @@ public final class MaskedWriteGuard {
                 || text.matches("(?i)^h:[0-9a-f]{6,}$");
     }
 
-    /**
-     * 掩码值一律拒绝落库
-     *
-     * @param label 字段中文名（出现在给用户的报错里）
-     * @param value 提交值
-     */
-    public static void rejectMaskedPlaceholder(String label, Object value) {
-        if (looksLikeMaskedPlaceholder(value)) {
-            PARAM_INVALID.show(label + "提交的是脱敏占位值，无法作为新值创建记录。"
-                    + "该字段对当前角色受限，请向数据权限管理员申请明文后再操作");
-        }
-    }
-
-    /**
-     * 修改场景：提交值是掩码时保留库里的原值
-     *
-     * @param label     字段中文名（写日志用）
-     * @param incoming  本次提交的值
-     * @param stored    库里现值（可为 null，表示查不到）
-     * @return 应当落库的值：提交值不是掩码时原样返回，是掩码时返回 {@code stored}
-     */
-    public static Object keepStoredWhenMasked(String label, Object incoming, Object stored) {
-        if (!looksLikeMaskedPlaceholder(incoming)) {
-            return incoming;
-        }
-        // 只在"确实是掩码"时兜底，并留一条可查的轨迹：否则运维会以为脱敏把数据改坏了
-        org.slf4j.LoggerFactory.getLogger(MaskedWriteGuard.class)
-                .info("字段[{}]提交值为脱敏占位，已保留库中原值（当前角色无明文权限）", label);
-        return stored;
-    }
 }
