@@ -3,14 +3,20 @@ package cn.hamm.spms.module.system.datapermission.service;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import org.springframework.stereotype.Component;
 
-import java.util.Locale;
 
 /**
  * <h1>数据权限资源标识解析</h1>
  *
- * <p>将业务实体/服务映射为数据权限资源标识（resourceKey）。
- * 资源标识约定为 {@code module.entity} 形式，与 {@code DevDataInitRunner}
- * 中注册的 {@code wms.input}、{@code mes.order} 等资源键保持一致。</p>
+ * <p>将业务实体/服务映射为数据权限资源标识（resourceKey）。约定是
+ * {@code module.entityName}，其中尾段取实体类名并<b>只降首字母</b>：
+ * {@code MaterialService} → {@code asset.material}、
+ * {@code PurchasePriceService} → {@code channel.purchasePrice}。</p>
+ *
+ * <p><b>为什么强调大小写</b>：{@code data_resource.resource_key} 里存在 camelCase 尾段
+ * （{@code channel.purchasePrice} / {@code channel.salePrice}），曾经这里整串
+ * {@code toLowerCase()}，于是这两个模块的策略永远查不到资源 —— 保存照样成功、
+ * 行权限照样"已配置"，只是防护为零。资源键是<b>跨表外键式的字符串</b>，
+ * 比较必须与注册表一字不差，不能靠"顺便规范化一下"。</p>
  *
  * @author Hamm.cn
  */
@@ -39,7 +45,24 @@ public class DataPermissionResourceResolver {
         if (module == null) {
             return null;
         }
-        return module + "." + entityName.toLowerCase(Locale.ROOT);
+        // 只降首字母，不整串小写：注册键的尾段是 camelCase（data_resource 里就有
+        // channel.purchasePrice / channel.salePrice / dataPolicy 这类），整串小写会得到
+        // channel.purchaseprice -> 这些模块的行级策略永远查不到资源：保存成功、防护为零、测试还全绿。
+        return module + "." + decapitalize(entityName);
+    }
+
+    /**
+     * 首字母小写（JavaBean 属性名口径），其余字符原样保留
+     */
+    static String decapitalize(String name) {
+        if (name.isEmpty()) {
+            return name;
+        }
+        // 前两位都是大写时视为缩写（URL / ID / BOM），保持原样，避免把 BOMService 变成 bOMService
+        if (name.length() > 1 && Character.isUpperCase(name.charAt(1)) && Character.isUpperCase(name.charAt(0))) {
+            return name;
+        }
+        return Character.toLowerCase(name.charAt(0)) + name.substring(1);
     }
 
     /**
