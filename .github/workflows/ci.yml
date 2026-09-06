@@ -112,15 +112,15 @@ jobs:
         continue-on-error: true # TODO(P1)：Testcontainers 收口后删除本行
         run: |
           set +e
+          chmod +x ./mvnw || true
           ./mvnw -B -s settings.xml test 2>&1 | tee /tmp/mvn-test.log
           status=${PIPESTATUS[0]}
+          # 先读 surefire 的结构化报告（用例总数 + 每个失败用例钉到源码行），再兜底提编译错误。
+          # 之所以两步都要：test-compile 挂掉时**没有**报告目录，这时候唯一能看到的信息在日志里；
+          # 而报告存在时它比日志准确得多（含断言消息，不会被 Maven 的汇总噪音挤掉）。
+          node ../infra/scripts/surefire-summary.mjs target/surefire-reports --max 6 || true
           if [ "$status" -ne 0 ]; then
-            # 测试源码的编译错误与断言失败都从这一份日志里提：形状和主源码编译完全一样，
-            # 而 test-compile 会把**所有**测试类一起编译，所以这里报出来的可能是任何一轮遗留的问题。
-            node ../infra/scripts/maven-error-annotations.mjs /tmp/mvn-test.log --max 8 || true
-            grep -E '^\[ERROR\].*(Tests run:|FAIL!)' /tmp/mvn-test.log | head -6 | while IFS= read -r line; do
-              echo "::error::$(printf '%s' "$line" | sed 's/^\[ERROR\] *//')"
-            done
+            node ../infra/scripts/maven-error-annotations.mjs /tmp/mvn-test.log --max 6 || true
           fi
           exit "$status"
 
