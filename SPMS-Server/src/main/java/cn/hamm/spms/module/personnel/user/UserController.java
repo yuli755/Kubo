@@ -85,7 +85,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
         }
         List<MenuEntity> menuListByUserId = service.getMenuListByUserId(getCurrentUserId());
         redisHelper.set(userMenuCacheKey, Json.toString(menuListByUserId));
-        return Json.data(menuListByUserId, "查��成功");
+        return Json.data(menuListByUserId, "查询成功");
     }
 
     @Description("获取我的权限")
@@ -102,11 +102,11 @@ public class UserController extends BaseController<UserEntity, UserService, User
                 .map(PermissionEntity::getIdentity)
                 .collect(Collectors.toList());
         redisHelper.set(userPermissionCacheKey, Json.toString(permissions));
-        return Json.data(permissions, "查��成功");
+        return Json.data(permissions, "查询成功");
     }
 
     /**
-     * ���取用户权限��存 Key
+     * 获取用户权限缓存 Key
      *
      * @return key
      */
@@ -116,7 +116,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
     }
 
     /**
-     * ���取用户菜单��存 Key
+     * 获取用户菜单缓存 Key
      *
      * @return key
      */
@@ -125,7 +125,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
         return "user_menu_" + userId;
     }
 
-    @Description("获取我��定的社交��号")
+    @Description("获取我绑定的社交账号")
     @Permission(authorize = false)
     @PostMapping("getMyThirdList")
     public Json getMyThirdList() {
@@ -145,7 +145,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
         return Json.success("密码修改成功");
     }
 
-    @Description("��回密码")
+    @Description("返回密码")
     @Permission(login = false)
     @PostMapping("resetMyPassword")
     public Json resetMyPassword(@RequestBody @Validated(WhenResetMyPassword.class) UserEntity user) {
@@ -158,12 +158,12 @@ public class UserController extends BaseController<UserEntity, UserService, User
         } else if (StringUtil.hasText(email)) {
             service.resetPasswordViaEmail(email, code, newPassword);
         } else {
-            PARAM_INVALID.show("请传入����或手机号码");
+            PARAM_INVALID.show("请传入邮箱或手机号码");
         }
         return Json.success("密码重置成功");
     }
 
-    @Description("��号密码登录")
+    @Description("账号密码登录")
     @Permission(login = false)
     @PostMapping("login")
     public Json login(@RequestBody @Validated(WhenLogin.class) UserEntity user, HttpServletResponse httpServletResponse) {
@@ -177,13 +177,13 @@ public class UserController extends BaseController<UserEntity, UserService, User
         Cookie cookie = cookieHelper.getAuthorizeCookie("");
         cookie.setHttpOnly(false);
         cookie.setPath(CookieHelper.DEFAULT_PATH);
-        // ��除 cookie
+        // 移除 cookie
         cookie.setMaxAge(0);
         httpServletResponse.addCookie(cookie);
         return Json.success("退出登录成功");
     }
 
-    @Description("����验证码登录")
+    @Description("邮箱验证码登录")
     @Permission(login = false)
     @PostMapping("loginViaEmail")
     public Json loginViaEmail(@RequestBody @Validated(WhenLoginViaEmail.class) UserEntity user, HttpServletResponse httpServletResponse) {
@@ -197,7 +197,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
         return handleLoginRequest(UserLoginType.VIA_PHONE_CODE, user, httpServletResponse);
     }
 
-    @Description("发送��件")
+    @Description("发送邮件")
     @Permission(login = false)
     @PostMapping("sendEmail")
     public Json sendEmail(@RequestBody @Validated(WhenSendEmail.class) UserEntity user) throws MessagingException {
@@ -217,7 +217,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
     @Permission(login = false)
     @PostMapping("getWebAuthnAssertionOptions")
     public Json getWebAuthnAssertionOptions() {
-        // 这里需要根据实际情况获取用户的��证信息
+        // 这里需要根据实际情况获取用户的认证信息
         // 目前先返回一个示例配置
         try {
             return Json.data(com.yubico.webauthn.data.PublicKeyCredentialRequestOptions.builder()
@@ -238,7 +238,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
      *
      * @param userLoginType 登录方式
      * @param user          登录数据
-     * @param response      ��应的请求
+     * @param response      响应的请求
      * @return JsonData
      */
     private Json handleLoginRequest(@NotNull UserLoginType userLoginType, UserEntity user, HttpServletResponse response) {
@@ -247,7 +247,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
             case VIA_EMAIL_CODE -> service.loginViaEmailAndCode(user.getEmail(), user.getCode());
             case VIA_PHONE_CODE -> service.loginViaPhoneAndCode(user.getPhone(), user.getCode());
         };
-        FORBIDDEN_DISABLED.when(exist.getIsDisabled(), "登录失败，你的��号已被禁用");
+        FORBIDDEN_DISABLED.when(exist.getIsDisabled(), "登录失败，你的账号已被禁用");
         redisHelper.delete(getUserPermissionCacheKey(exist.getId()));
         redisHelper.delete(getUserMenuCacheKey(exist.getId()));
         return Json.data(userService.loginWithCookieAndResponse(response, exist), "登录成功");

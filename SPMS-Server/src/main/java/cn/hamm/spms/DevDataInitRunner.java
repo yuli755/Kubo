@@ -943,7 +943,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         );
 
         roomService.addAndGet(new RoomEntity()
-                .setName("��试")
+                .setName("测试")
                 .setCode(888)
                 .setIsHot(true).setOwner(user)
         );
@@ -988,7 +988,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         BomService bomService = MesServices.getBomService();
         RoutingService routingService = MesServices.getRoutingService();
 
-        // ��等：��查设备是否已存在
+        // 幂等：检查设备是否已存在
         if (deviceService.filter(new DeviceEntity()).isEmpty()) {
             int deviceCount = 2;
             for (int i = 0; i < deviceCount; i++) {
@@ -996,7 +996,7 @@ public class DevDataInitRunner implements CommandLineRunner {
             }
         }
 
-        // ��等：��查单位是否已存在
+        // 幂等：检查单位是否已存在
         UnitEntity unit = unitService.filter(new UnitEntity().setName("台")).stream().findFirst().orElse(null);
         if (Objects.isNull(unit)) {
             unit = new UnitEntity();
@@ -1004,7 +1004,7 @@ public class DevDataInitRunner implements CommandLineRunner {
             unit = unitService.addAndGet(unit);
         }
 
-        // ��等：��查物料是否已存在
+        // 幂等：检查物料是否已存在
         MaterialEntity material = materialService.filter(new MaterialEntity().setName("MacBook Pro M4 Max")).stream().findFirst().orElse(null);
         if (Objects.isNull(material)) {
             material = new MaterialEntity()
@@ -1017,7 +1017,7 @@ public class DevDataInitRunner implements CommandLineRunner {
             material = materialService.addAndGet(material);
         }
 
-        // ��等：��查客户是否已存在
+        // 幂等：检查客户是否已存在
         CustomerEntity customer = customerService.filter(new CustomerEntity().setName("凌云科技")).stream().findFirst().orElse(null);
         if (Objects.isNull(customer)) {
             customer = new CustomerEntity();
@@ -1025,7 +1025,7 @@ public class DevDataInitRunner implements CommandLineRunner {
             customer = customerService.addAndGet(customer);
         }
 
-        // ��等：��查供应商是否已存在
+        // 幂等：检查供应商是否已存在
         SupplierEntity supplier = supplierService.filter(new SupplierEntity().setName("Apple 中国")).stream().findFirst().orElse(null);
         if (Objects.isNull(supplier)) {
             supplier = new SupplierEntity();
@@ -1033,7 +1033,7 @@ public class DevDataInitRunner implements CommandLineRunner {
             supplier = supplierService.addAndGet(supplier);
         }
 
-        // ��等：价格实体
+        // 幂等：价格实体
         if (salePriceService.filter(new SalePriceEntity()).isEmpty()) {
             SalePriceEntity salePrice = new SalePriceEntity();
             salePrice.setCustomer(customer).setPrice(29999D).setMaterial(material);
@@ -1045,75 +1045,75 @@ public class DevDataInitRunner implements CommandLineRunner {
             purchasePriceService.addAndGet(purchasePrice);
         }
 
-        // ��等：��库
+        // 幂等：仓库
         if (storageService.filter(new StorageEntity()).isEmpty()) {
-            StorageEntity storage = new StorageEntity().setName("东部大��");
+            StorageEntity storage = new StorageEntity().setName("东部大仓");
             storageService.addAndGet(storage);
 
             for (int i = 0; i < TWO; i++) {
                 storageService.addAndGet(new StorageEntity()
                         .setParentId(storage.getId())
-                        .setName(String.format("东部%s��", (i + 1)))
+                        .setName(String.format("东部%s仓", (i + 1)))
                 );
             }
 
-            storage = new StorageEntity().setName("西部大��");
+            storage = new StorageEntity().setName("西部大仓");
             storage = storageService.addAndGet(storage);
 
             for (int i = 0; i < TWO; i++) {
                 storageService.addAndGet(new StorageEntity()
                         .setParentId(storage.getId())
-                        .setName(String.format("西部%s��", (i + 1)))
+                        .setName(String.format("西部%s仓", (i + 1)))
                 );
             }
         }
 
-        // ��等：工序
+        // 幂等：工序
         if (operationService.filter(new OperationEntity()).isEmpty()) {
-            operationService.addAndGet(new OperationEntity().setName("����安装"));
-            operationService.addAndGet(new OperationEntity().setName("��幕组装"));
+            operationService.addAndGet(new OperationEntity().setName("键盘安装"));
+            operationService.addAndGet(new OperationEntity().setName("屏幕组装"));
             operationService.addAndGet(new OperationEntity().setName("系统安装"));
         }
-        OperationEntity operationKeyboard = operationService.filter(new OperationEntity().setName("����安装")).stream().findFirst().orElse(null);
-        OperationEntity operationScreen = operationService.filter(new OperationEntity().setName("��幕组装")).stream().findFirst().orElse(null);
+        OperationEntity operationKeyboard = operationService.filter(new OperationEntity().setName("键盘安装")).stream().findFirst().orElse(null);
+        OperationEntity operationScreen = operationService.filter(new OperationEntity().setName("屏幕组装")).stream().findFirst().orElse(null);
         OperationEntity operationSystem = operationService.filter(new OperationEntity().setName("系统安装")).stream().findFirst().orElse(null);
 
-        // ��等：物料(����/��幕)
+        // 幂等：物料(键盘/屏幕)
         if (materialService.filter(new MaterialEntity()).size() == 1) { // 只有 MacBook Pro M4 Max
-            materialService.addAndGet(new MaterialEntity().setName("����").setMaterialType(MaterialType.PURCHASE.getKey()).setUnit(unit));
-            materialService.addAndGet(new MaterialEntity().setName("��幕").setMaterialType(MaterialType.PURCHASE.getKey()).setUnit(unit));
+            materialService.addAndGet(new MaterialEntity().setName("键盘").setMaterialType(MaterialType.PURCHASE.getKey()).setUnit(unit));
+            materialService.addAndGet(new MaterialEntity().setName("屏幕").setMaterialType(MaterialType.PURCHASE.getKey()).setUnit(unit));
         }
-        MaterialEntity materialKeyboard = materialService.filter(new MaterialEntity().setName("����")).stream().findFirst().orElse(null);
-        MaterialEntity materialScreen = materialService.filter(new MaterialEntity().setName("��幕")).stream().findFirst().orElse(null);
+        MaterialEntity materialKeyboard = materialService.filter(new MaterialEntity().setName("键盘")).stream().findFirst().orElse(null);
+        MaterialEntity materialScreen = materialService.filter(new MaterialEntity().setName("屏幕")).stream().findFirst().orElse(null);
 
-        // ��等：BOM
+        // 幂等：BOM
         if (bomService.filter(new BomEntity()).isEmpty()) {
-            bomService.addAndGet(new BomEntity().setName("��记本电��清单").setType(BomType.NORMAL.getKey()).setDetails(
+            bomService.addAndGet(new BomEntity().setName("笔记本电脑清单").setType(BomType.NORMAL.getKey()).setDetails(
                     new HashSet<>(Arrays.asList(
                             new BomDetailEntity().setMaterial(materialKeyboard).setQuantity(1D),
                             new BomDetailEntity().setMaterial(materialScreen).setQuantity(1D)
                     ))
             ));
 
-            bomService.addAndGet(new BomEntity().setName("����安装清单").setType(BomType.OPERATION.getKey()).setDetails(
+            bomService.addAndGet(new BomEntity().setName("键盘安装清单").setType(BomType.OPERATION.getKey()).setDetails(
                     new HashSet<>(Collections.singletonList(
                             new BomDetailEntity().setMaterial(materialKeyboard).setQuantity(1D)
                     ))
             ));
-            bomService.addAndGet(new BomEntity().setName("��幕组装清单").setType(BomType.OPERATION.getKey()).setDetails(
+            bomService.addAndGet(new BomEntity().setName("屏幕组装清单").setType(BomType.OPERATION.getKey()).setDetails(
                     new HashSet<>(Collections.singletonList(
                             new BomDetailEntity().setMaterial(materialScreen).setQuantity(1D)
                     ))
             ));
         }
-        BomEntity bomComputer = bomService.filter(new BomEntity().setName("��记本电��清单")).stream().findFirst().orElse(null);
-        BomEntity bomKeyboard = bomService.filter(new BomEntity().setName("����安装清单")).stream().findFirst().orElse(null);
-        BomEntity bomIdScreen = bomService.filter(new BomEntity().setName("��幕组装清单")).stream().findFirst().orElse(null);
+        BomEntity bomComputer = bomService.filter(new BomEntity().setName("笔记本电脑清单")).stream().findFirst().orElse(null);
+        BomEntity bomKeyboard = bomService.filter(new BomEntity().setName("键盘安装清单")).stream().findFirst().orElse(null);
+        BomEntity bomIdScreen = bomService.filter(new BomEntity().setName("屏幕组装清单")).stream().findFirst().orElse(null);
 
-        // ��等：工艺路线
+        // 幂等：工艺路线
         if (routingService.filter(new RoutingEntity()).isEmpty()) {
             routingService.addAndGet(new RoutingEntity().setBom(bomComputer)
-                    .setName("��记本安装")
+                    .setName("笔记本安装")
                     .setMaterial(material)
                     .setDetails(Arrays.asList(
                             new RoutingOperationEntity().setBom(bomKeyboard)
@@ -1127,9 +1127,9 @@ public class DevDataInitRunner implements CommandLineRunner {
             );
         }
 
-        // ��等：产线结构
+        // 幂等：产线结构
         if (structureService.filter(new StructureEntity()).isEmpty()) {
-            StructureEntity structure = new StructureEntity().setName("��记本电��产线");
+            StructureEntity structure = new StructureEntity().setName("笔记本电脑产线");
             structureService.addAndGet(structure);
 
             for (int i = 0; i < TWO; i++) {

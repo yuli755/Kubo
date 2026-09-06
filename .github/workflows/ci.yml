@@ -47,6 +47,10 @@ jobs:
       - name: Permission codes match backend controllers
         run: pnpm perms:check
 
+      # 中文串被 U+FFFD 污染不会让编译/测试变红，只能靠这道门禁拦住（详见 docs §18.2）
+      - name: Source encoding integrity (no U+FFFD)
+        run: pnpm encoding:check
+
       - name: Build
         run: pnpm build
 
