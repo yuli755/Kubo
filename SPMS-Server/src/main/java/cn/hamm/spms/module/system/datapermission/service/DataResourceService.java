@@ -1,7 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
 import cn.hamm.spms.base.BaseService;
-import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
@@ -74,8 +73,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      * @return 风险条目列表；无问题时为空列表
      */
     public List<RowPolicyRiskItem> rowPolicyRisks() {
-        DataPermissionProperties properties = DataPermissionRuntime.properties();
-        boolean factoryWired = properties != null && properties.isFactoryDimensionEnabled();
+        boolean factoryWired = DimensionGuard.isFactoryAvailable();
         List<DataResourceEntity> resources = repository.findAll();
         if (resources == null || resources.isEmpty()) {
             return List.of();
