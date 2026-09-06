@@ -77,7 +77,7 @@ public final class JpaPermissionRuleCompiler {
     }
 
     private Predicate compileLeaf(PermissionRule.Leaf leaf, Root<?> root, CriteriaBuilder builder, PermissionRuleContext context) {
-        Path<?> path = resolvePath(root, leaf.field(), context);
+        Path<?> path = resolvePath(root, leaf.field());
 
         if (leaf.op() == PermissionRuleOp.IS_NULL) {
             return builder.isNull(path);
@@ -187,20 +187,14 @@ public final class JpaPermissionRuleCompiler {
     /**
      * 依次尝试原名、snake→camel、camel→snake，取到为止；都取不到抛异常（不静默跳过）
      */
-    private Path<?> resolvePath(Root<?> root, String field, PermissionRuleContext context) {
-        List<String> candidates = List.of(field, PermissionRuleSupport.toCamel(field), PermissionRuleSupport.toSnake(field));
-        RuntimeException last = null;
-        for (String candidate : candidates) {
-            try {
-                return root.get(candidate);
-            }
-            catch (IllegalArgumentException ex) {
-                last = ex;
-            }
+    private Path<?> resolvePath(Root<?> root, String field) {
+        // 候选名列表来自 PermissionRuleSupport：与主体谓词构建同一份规则，两处不会一边修一边没修
+        Path<?> path = PermissionRuleSupport.findPath(root, field);
+        if (path != null) {
+            return path;
         }
-        throw new PermissionRuleException(null, "条件列 " + field + " 在实体上不存在（试过 " + candidates
-                + "）；请把该列登记进 data_resource 的可过滤列白名单，或在实体上补映射"
-                + (last != null ? " —— " + last.getMessage() : ""));
+        throw new PermissionRuleException(null, "条件列 " + field + " 在实体上不存在（试过 "
+                + PermissionRuleSupport.pathCandidates(field) + "）；请把该列登记进 data_resource 的可过滤列白名单，或在实体上补映射");
     }
 
     /**

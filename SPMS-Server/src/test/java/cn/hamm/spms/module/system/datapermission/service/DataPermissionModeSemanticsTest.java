@@ -186,7 +186,8 @@ class DataPermissionModeSemanticsTest {
             given(dataPermissionService.requireResource(RESOURCE)).willReturn(resource());
             given(dataPermissionService.getPolicies(eq(RESOURCE), any(DataPermissionAction.class), any(PermissionContext.class)))
                     .willReturn(List.of(tenantPolicy()));
-            given(root.get("tenant_id")).willThrow(new IllegalArgumentException("Unable to locate Attribute"));
+            // 实体上没有这列 = 任何写法都取不到（不是只有一种拼法取不到），故按 anyString 打桩
+            given(root.get(anyString())).willThrow(new IllegalArgumentException("Unable to locate Attribute"));
 
             List<Predicate> result = build();
 
@@ -215,7 +216,8 @@ class DataPermissionModeSemanticsTest {
             given(dataPermissionService.getPolicies(eq(RESOURCE), any(DataPermissionAction.class), any(PermissionContext.class)))
                     .willReturn(List.of(new DataPolicyEntity()
                             .setSubjectType("FACTORY").setSubjectId(7L).setActionName("QUERY").setEnabled(true)));
-            given(root.get("factoryId")).willThrow(new IllegalArgumentException("Unable to locate Attribute factoryId"));
+            // 同 tenant 那条：实体上没有工厂列时，factoryId / factory_id 都取不到
+            given(root.get(anyString())).willThrow(new IllegalArgumentException("Unable to locate Attribute factoryId"));
 
             List<Predicate> result = build();
 
@@ -234,7 +236,8 @@ class DataPermissionModeSemanticsTest {
             given(dataPermissionService.getPolicies(eq(RESOURCE), any(DataPermissionAction.class), any(PermissionContext.class)))
                     .willReturn(List.of(new DataPolicyEntity()
                             .setSubjectType("FACTORY").setSubjectId(7L).setActionName("QUERY").setEnabled(true)));
-            given(root.get("factoryId")).willThrow(new IllegalArgumentException("Unable to locate Attribute factoryId"));
+            // 同 tenant 那条：实体上没有工厂列时，factoryId / factory_id 都取不到
+            given(root.get(anyString())).willThrow(new IllegalArgumentException("Unable to locate Attribute factoryId"));
 
             assertTrue(build().isEmpty(), "shadow 不改变结果：只把「该拦」记下来");
             then(audit).should().binding(eq(RESOURCE), eq(DataPermissionAudit.REASON_BINDING_INVALID), any());

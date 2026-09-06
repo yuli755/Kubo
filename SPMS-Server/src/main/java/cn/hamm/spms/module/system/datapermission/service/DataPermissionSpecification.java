@@ -9,8 +9,10 @@ import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRule;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleSupport;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleValidator;
 import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import org.springframework.stereotype.Component;
@@ -341,13 +343,13 @@ public class DataPermissionSpecification {
         if (tenantColumn == null || tenantColumn.isBlank()) {
             return null;
         }
-        try {
-            return builder.equal(root.get(tenantColumn), context.tenantId());
-        }
-        catch (IllegalArgumentException ignored) {
+        // 登记的是列名（tenant_id）还是属性名（tenantId）都要能绑上：候选名规则与条件树编译器同源
+        Path<?> path = PermissionRuleSupport.findPath(root, tenantColumn);
+        if (path == null) {
             // 实体没有该字段时跳过；由调用方按策略计数暴露为 binding 异常
             return null;
         }
+        return builder.equal(path, context.tenantId());
     }
 
     /**
@@ -371,12 +373,12 @@ public class DataPermissionSpecification {
             if (trimmed.isEmpty()) {
                 continue;
             }
-            try {
-                ownerPredicates.add(builder.equal(root.get(trimmed), context.userId()));
-            }
-            catch (IllegalArgumentException ignored) {
+            Path<?> path = PermissionRuleSupport.findPath(root, trimmed);
+            if (path == null) {
                 // 实体没有该字段时跳过
+                continue;
             }
+            ownerPredicates.add(builder.equal(path, context.userId()));
         }
         if (ownerPredicates.isEmpty()) {
             return null;
@@ -404,12 +406,11 @@ public class DataPermissionSpecification {
         if (departmentColumn == null) {
             return null;
         }
-        try {
-            return builder.equal(root.get(departmentColumn), policy.getSubjectId());
-        }
-        catch (IllegalArgumentException ignored) {
+        Path<?> path = PermissionRuleSupport.findPath(root, departmentColumn);
+        if (path == null) {
             return null;
         }
+        return builder.equal(path, policy.getSubjectId());
     }
 
     /**
@@ -425,12 +426,13 @@ public class DataPermissionSpecification {
         if (policy.getSubjectId() == null || !context.factoryIds().contains(policy.getSubjectId())) {
             return null;
         }
-        try {
-            return builder.equal(root.get("factoryId"), policy.getSubjectId());
-        }
-        catch (IllegalArgumentException ignored) {
+        // 实体侧目前没有 factoryId 这个属性（工厂归属尚未落地，见施工图 D13）：
+        // 取不到路径时返回 null，调用方按「本该产生条件却没绑上」计入绑定失败，enforce 下拒绝
+        Path<?> path = PermissionRuleSupport.findPath(root, "factoryId");
+        if (path == null) {
             return null;
         }
+        return builder.equal(path, policy.getSubjectId());
     }
 
     /**
@@ -446,12 +448,13 @@ public class DataPermissionSpecification {
         if (policy.getSubjectId() == null || !context.warehouseIds().contains(policy.getSubjectId())) {
             return null;
         }
-        try {
-            return builder.equal(root.get("warehouseId"), policy.getSubjectId());
-        }
-        catch (IllegalArgumentException ignored) {
+        // 同上：仓库归属在实体上是 @ManyToOne storage（关联路径），没有 warehouseId 标量属性，
+        // 因此这一档今天必然绑不上条件。是空转就必须让它被数出来，别用 catch 把它抹平。
+        Path<?> path = PermissionRuleSupport.findPath(root, "warehouseId");
+        if (path == null) {
             return null;
         }
+        return builder.equal(path, policy.getSubjectId());
     }
 
     /**
