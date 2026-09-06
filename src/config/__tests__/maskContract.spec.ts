@@ -100,7 +100,7 @@ describe('mask contract · 前后端脱敏口径', () => {
     const offenders: string[] = []
     for (const file of [...collect(join(ROOT, 'src'), '.vue'), ...collect(join(ROOT, 'src'), '.ts')]) {
       const source = read(file)
-      for (const m of source.matchAll(/useMaskPolicy\(\s*'([^']+)'|resourceKey:\s*'([^']+)'/g)) {
+      for (const m of source.matchAll(/use(?:MaskPolicy|ExportVisibility)\(\s*'([^']+)'|resourceKey:\s*'([^']+)'/g)) {
         const key = m[1] ?? m[2]
         if (!registered.has(key)) {
           offenders.push(`${relative(ROOT, file)} → ${key}`)
@@ -265,6 +265,39 @@ describe('mask contract · 脱敏实现只允许存在一处', () => {
       })
     }
     expect(offenders).toEqual([])
+  })
+
+  it('视图层不得自己算"导出能不能带明文"（判据只有一份，在后端）', () => {
+    /**
+     * 导出的授权语义是 `actionName=EXPORT && allowPlaintext=true`，后端已有两处实现
+     * （`ExportBypassGuard.allGrantedForExport` 与 `ExportColumnMasker.grantsPlaintextExport`）。
+     * 视图里再写一次第三份，漂移之后表现是"提示说能导、请求被拒"或相反 —— 提示一旦骗人就被无视，
+     * 比没有提示更糟。所以 `my-export-visibility` 只回结论（字段 → 布尔），
+     * 这里守住"结论不许在视图里重算"这条边界。
+     */
+    // 判据是"比较运算"，不是"出现字段名"：策略编辑器的表单里 `<AFormField field=\"allowPlaintext\" />`
+    // 是管理员在**写**策略，完全正当。一刀切禁名字会逼人在模板里绕路，把门禁做成误报机器
+    // ——这种规则第一次红错就会被加白名单，之后就没人信它了。
+    const VERDICT = /allowPlaintext\s*(?:===|!==|==|!=|[?<>]|&&|\|\|)|!\s*[\w.]*allowPlaintext|Boolean\([^)]*allowPlaintext/i
+    const offenders: string[] = []
+    for (const file of [...collect(join(ROOT, 'src', 'view'), '.vue'), ...collect(join(ROOT, 'src', 'view'), '.ts')]) {
+      stripComments(read(file)).split('\n').forEach((line, index) => {
+        if (VERDICT.test(line)) {
+          offenders.push(`${relative(ROOT, file)}:${index + 1}`)
+        }
+      })
+    }
+    expect(offenders).toEqual([])
+
+    // 自检：这条规则扫得到东西才算数 —— 模型与 composable 里必须真的出现过这个字段名，
+    // 否则某天它被改名，本用例会安静地永远通过。
+    const model = read(join(ROOT, 'src', 'model', 'system', 'datapermission', 'DataFieldPolicyEntity.ts'))
+    expect(model).toContain('allowPlaintext')
+    const composable = read(join(ROOT, 'src', 'composables', 'useExportVisibility.ts'))
+    expect(composable).toContain('getMyExportVisibility')
+    // 规则本身要能红：在临时字符串上验一次比较运算被识别（不依赖真的有人写错视图）
+    expect(VERDICT.test('if (row.allowPlaintext === true) {')).toBe(true)
+    expect(VERDICT.test('<AFormField field=\"allowPlaintext\" />')).toBe(false)
   })
 
   it('白名单确实存在（防止规则因为文件被改名而空转）', () => {

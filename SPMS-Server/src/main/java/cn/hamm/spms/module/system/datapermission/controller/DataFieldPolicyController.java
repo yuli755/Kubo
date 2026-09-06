@@ -10,6 +10,7 @@ import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.repository.DataFieldPolicyRepository;
 import cn.hamm.spms.module.system.datapermission.service.ColumnMaskingService;
 import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;
+import cn.hamm.spms.module.system.datapermission.service.ExportBypassGuard;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,6 +30,9 @@ public class DataFieldPolicyController extends BaseController<DataFieldPolicyEnt
 
     @Autowired
     private ColumnMaskingService columnMaskingService;
+
+    @Autowired
+    private ExportBypassGuard exportBypassGuard;
 
     /**
      * 根据资源键、字段名、角色编码获取脱敏策略
@@ -93,5 +97,26 @@ public class DataFieldPolicyController extends BaseController<DataFieldPolicyEnt
         PermissionContext context = PermissionContextHolder.current().orElse(null);
         DataFieldPolicyEntity policy = columnMaskingService.getEffectiveMaskPolicy(resourceKey, fieldName, context);
         return Json.data(policy);
+    }
+
+    /**
+     * 当前用户的"导出会被怎么处理"预览
+     *
+     * <p>存在的理由：受限角色点导出时看到的是一句后端串（enforce 下"缺 EXPORT 明文授权"），
+     * 而且要点一次导出、等文件任务失败才知道。把结论放在服务端算（判据与
+     * {@code ExportBypassGuard} 同源），前端只渲染，提示才可信。</p>
+     *
+     * <p>本端点<b>不返回任何数据值</b>，只返回"哪些字段受限、是否已授权明文"；
+     * 角色仍取自服务端上下文，不接受 {@code roleCode} 参数 —— 否则它就变成
+     * "任何人可以查任意角色的权限地图"的口子。</p>
+     *
+     * @param resourceKey 数据资源标识（如 asset.material）
+     * @return 受限字段名 → 是否可明文导出；无受限字段时为空对象
+     */
+    @GetMapping("my-export-visibility")
+    @Description("当前用户的导出可见性预览")
+    public Json getMyExportVisibility(@RequestParam String resourceKey) {
+        PermissionContext context = PermissionContextHolder.current().orElse(null);
+        return Json.data(exportBypassGuard.exportVisibility(resourceKey, context));
     }
 }

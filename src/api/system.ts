@@ -217,6 +217,19 @@ export const dataFieldPolicyApi = {
   },
 
   /**
+   * 当前用户的「导出会被怎么处理」预览（受限字段名 → 是否可明文导出）。
+   *
+   * 结论由后端算（判据与 `ExportBypassGuard` 同源）：前端若自己再实现一遍
+   * "EXPORT + allowPlaintext 才算授权"，就会多出第三份真相，
+   * 表现是"提示说能导、后端把请求拒了"。
+   *
+   * 空对象 = 你在这个资源上没有受限字段（或后端还没有权限上下文），**不代表被拒**。
+   */
+  getMyExportVisibility(resourceKey: string): Promise<Record<string, boolean>> {
+    return request.get('/dataFieldPolicy/my-export-visibility', { params: { resourceKey } })
+  },
+
+  /**
    * 一次取回「当前用户在某资源全部字段」上的脱敏策略。
    *
    * 编辑表单需要知道哪些字段受限（8 个字段的表单逐字段查就是 8 个请求），

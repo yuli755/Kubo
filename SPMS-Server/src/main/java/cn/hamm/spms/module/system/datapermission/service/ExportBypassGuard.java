@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -190,6 +191,34 @@ public class ExportBypassGuard {
             }
         }
         return fields;
+    }
+
+    /**
+     * 当前用户在某资源上的"导出可见性"：受限字段名 → 是否已拿到导出明文授权
+     *
+     * <p>为什么由后端返回<b>结论</b>而不是把策略原文丢给前端自己判：这套布尔语义
+     * （"EXPORT 动作下有一条 {@code allowPlaintext=true} 才算授权"）已经有两处实现 ——
+     * {@link #allGrantedForExport} 与 {@link ExportColumnMasker#grantsPlaintextExport}。
+     * 再让浏览器实现第三份，就一定出现"提示说可以、后端把请求拒了"这类漂移，
+     * 而提示一旦不可信，人们会直接忽略它 —— 比没有提示更糟。</p>
+     *
+     * <p>只列<b>受限字段</b>（QUERY 下会被遮的那些）：没被遮的字段导出必然原值，
+     * 列出来只会让界面噪声变大、把真正的缺口埋掉。</p>
+     *
+     * @param resourceKey 数据资源标识
+     * @param context     当前权限上下文；{@code null} 时返回空表（不猜"能看"也不猜"会被拒"）
+     * @return 字段名 → 是否可明文导出；空表表示该用户在这个资源上没有受限字段
+     */
+    public Map<String, Boolean> exportVisibility(String resourceKey, PermissionContext context) {
+        Map<String, Boolean> visibility = new LinkedHashMap<>();
+        if (context == null) {
+            return visibility;
+        }
+        for (String field : restrictedFields(resourceKey, context)) {
+            visibility.put(field, ExportColumnMasker.grantsPlaintextExport(
+                    columnMaskingService, resourceKey, field, context));
+        }
+        return visibility;
     }
 
     /**

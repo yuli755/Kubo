@@ -16,6 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 
@@ -54,6 +56,46 @@ class ExportBypassGuardTest {
         assertNull(ExportBypassGuard.exportActionOf("/api/exportLog/list"));
         assertNull(ExportBypassGuard.exportActionOf(null));
         assertNull(ExportBypassGuard.exportActionOf("/"));
+    }
+
+    @Test
+    void exportVisibilityListsOnlyRestrictedFieldsAndCarriesTheBackendVerdict() {
+        /**
+         * 预览的价值全在"结论"两个字上：如果这里只是把策略原样吐给前端，
+         * 界面就得自己实现一遍"EXPORT + allowPlaintext 才算授权"，
+         * 于是出现第三份判据 —— 它会与 guard 漂移，最后变成"提示说能导、后端拒了你"。
+         * 所以断言的是结论：受限的 price = false（会被拒），已授权的 name 干脆不出现（它不受限）。
+         */
+        Map<String, DataFieldPolicyEntity> policies = new LinkedHashMap<>();
+        policies.put("price", new DataFieldPolicyEntity().setFieldName("price").setAllowPlaintext(false));
+        policies.put("name", new DataFieldPolicyEntity().setFieldName("name").setAllowPlaintext(true));
+        given(columnMaskingService.getEffectiveMaskPolicyMap(eq(RK), any(PermissionContext.class)))
+                .willReturn(policies);
+        // price 没有 EXPORT 明文授权（返回 null = 连策略都没有）
+        given(columnMaskingService.getEffectiveMaskPolicy(eq(RK), eq("price"), eq(ExportBypassGuard.ACTION_EXPORT),
+                any(PermissionContext.class))).willReturn(null);
+
+        Map<String, Boolean> visibility = guard.exportVisibility(RK, context());
+
+        assertEquals(Set.of("price"), visibility.keySet(), "未受限的字段不该出现在预览里");
+        assertFalse(visibility.get("price"), "没拿到 EXPORT 明文授权 ⇒ 这份文件会被整份拒掉");
+    }
+
+    @Test
+    void exportVisibilityIsSilentWhenThereIsNoContext() {
+        // 无上下文（内部调用/未认证）时返回空表：既不承诺"可以看"，也不谎报"会被拒"
+        assertTrue(guard.exportVisibility(RK, null).isEmpty());
+    }
+
+    @Test
+    void exportVisibilityReportsGrantedFieldsAsTrue() {
+        given(columnMaskingService.getEffectiveMaskPolicyMap(eq(RK), any(PermissionContext.class)))
+                .willReturn(Map.of("phone", new DataFieldPolicyEntity().setFieldName("phone").setAllowPlaintext(false)));
+        given(columnMaskingService.getEffectiveMaskPolicy(eq(RK), eq("phone"), eq(ExportBypassGuard.ACTION_EXPORT),
+                any(PermissionContext.class)))
+                .willReturn(new DataFieldPolicyEntity().setFieldName("phone").setAllowPlaintext(true));
+
+        assertEquals(Map.of("phone", Boolean.TRUE), guard.exportVisibility(RK, context()));
     }
 
     @Test
