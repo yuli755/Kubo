@@ -74,6 +74,9 @@ export class UserEntity extends BaseEntity implements IUser, IPayload {
     hide: true,
     copy: true,
     width: 200,
+    // 列表页对所有人遮蔽（含列选择器打开后）；详情表单不脱敏，
+    // 由后端 @SensitiveField / my-mask 策略决定谁能看明文
+    desensitize: DesensitizeType.ID_CARD,
   })
   @Search()
   @Field({

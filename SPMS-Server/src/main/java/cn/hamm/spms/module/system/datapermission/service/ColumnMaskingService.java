@@ -2,9 +2,6 @@ package cn.hamm.spms.module.system.datapermission.service;
 
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
-import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
-import cn.hamm.spms.module.system.datapermission.repository.DataFieldPolicyRepository;
-import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -14,12 +11,22 @@ import java.util.List;
  *
  * <p>基于 {@code data_field_policy} 表配置的脱敏规则，对字段值进行脱敏处理。</p>
  *
- * <p>支持的脱敏策略：</p>
+ * <p>支持的脱敏策略（与 {@code packages/shared/src/utils/mask.ts} 的
+ * {@code applyMaskPolicy} 一一对应，前端有逐分支对账测试；改这里请同步改那边）：</p>
  * <ul>
- *   <li>{@code FULL} — 完全遮蔽（返回固定星号）</li>
- *   <li>{@code PARTIAL} — 部分遮蔽（保留首尾字符，中间用星号替代）</li>
+ *   <li>{@code FULL} — 完全遮蔽（返回表达式，无表达式时 {@code ****}）</li>
+ *   <li>{@code PARTIAL} — 部分遮蔽（保留首尾各 1 位，中间星号封顶 6 个）</li>
  *   <li>{@code REPLACE} — 替换为指定表达式</li>
+ *   <li>{@code LAST4} — 只保留末四位（长度不足整体遮蔽）</li>
+ *   <li>{@code HASH} — 不可逆摘要 {@code h:} + SHA-256 前 12 位（同值同码，可比对不可还原）</li>
+ *   <li>其它 / 未配置 — 安全失败为 {@code ****}，绝不回退原值</li>
  * </ul>
+ *
+ * <p><b>策略解析走 {@link DataFieldPolicyProvider}</b>：本服务被
+ * {@code SensitiveFieldSerializer} 在每一行、每个敏感字段上调用，
+ * 直连 Repository 会让一千行 × 三个字段的列表接口打出数千条 SQL。
+ * Provider 的缓存键只有 {@code resourceKey + actionName}，角色命中与优先级选择
+ * 留在本方法内存里做 —— 这样缓存内容与用户无关，不存在"串号"空间。</p>
  *
  * <p>角色匹配规则：策略的 {@code roleCode} 与当前主体角色精确匹配，
  * {@code default} 作为通配符，在没有精确匹配时对所有角色生效。</p>
@@ -34,12 +41,16 @@ public class ColumnMaskingService {
      */
     public static final String DEFAULT_ROLE_CODE = "default";
 
-    private final DataResourceRepository resourceRepository;
-    private final DataFieldPolicyRepository fieldPolicyRepository;
+    /**
+     * 列级脱敏只解析 {@code QUERY} 动作的策略（序列化出口都是查询语义）；
+     * 导出等其它出口若要复用策略，需显式传入对应 actionName，见 {@link #resolvePolicies}
+     */
+    public static final String DEFAULT_ACTION = "QUERY";
 
-    public ColumnMaskingService(DataResourceRepository resourceRepository, DataFieldPolicyRepository fieldPolicyRepository) {
-        this.resourceRepository = resourceRepository;
-        this.fieldPolicyRepository = fieldPolicyRepository;
+    private final DataFieldPolicyProvider fieldPolicyProvider;
+
+    public ColumnMaskingService(DataFieldPolicyProvider fieldPolicyProvider) {
+        this.fieldPolicyProvider = fieldPolicyProvider;
     }
 
     /**
@@ -54,14 +65,22 @@ public class ColumnMaskingService {
      * @return 生效策略；无匹配时返回 {@code null}
      */
     public DataFieldPolicyEntity getEffectiveMaskPolicy(String resourceKey, String fieldName, PermissionContext context) {
-        DataResourceEntity resource = resourceRepository.getByResourceKey(resourceKey);
-        if (resource == null || resource.getId() == null) {
-            return null;
-        }
+        return getEffectiveMaskPolicy(resourceKey, fieldName, DEFAULT_ACTION, context);
+    }
 
-        List<DataFieldPolicyEntity> policies = fieldPolicyRepository
-                .findByResourceIdAndActionNameAndEnabledTrueOrderByPriorityDesc(resource.getId(), "QUERY");
-        if (policies == null || policies.isEmpty()) {
+    /**
+     * 指定动作的策略解析（导出等其它出口复用同一套规则时走这里）
+     *
+     * @param resourceKey 数据资源标识
+     * @param fieldName   字段名
+     * @param actionName  动作名（QUERY / EXPORT 等，与 {@code data_resource.supported_actions} 对齐）
+     * @param context     权限上下文
+     * @return 生效策略；无匹配时返回 {@code null}
+     */
+    public DataFieldPolicyEntity getEffectiveMaskPolicy(
+            String resourceKey, String fieldName, String actionName, PermissionContext context) {
+        List<DataFieldPolicyEntity> policies = resolvePolicies(resourceKey, actionName);
+        if (policies.isEmpty()) {
             return null;
         }
 
@@ -82,6 +101,15 @@ public class ColumnMaskingService {
             }
         }
         return exact != null ? exact : fallback;
+    }
+
+    /**
+     * 取资源在该动作下的全部启用策略（带缓存，身份无关）
+     */
+    private List<DataFieldPolicyEntity> resolvePolicies(String resourceKey, String actionName) {
+        List<DataFieldPolicyEntity> policies = fieldPolicyProvider
+                .getEnabledPoliciesByResourceAndAction(resourceKey, actionName);
+        return policies != null ? policies : java.util.Collections.emptyList();
     }
 
     private DataFieldPolicyEntity effective(DataFieldPolicyEntity policy, DataFieldPolicyEntity current) {

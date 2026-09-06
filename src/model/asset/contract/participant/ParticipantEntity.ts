@@ -1,4 +1,4 @@
-import { Field, Form, Model, Search, Table } from '@airpower/web'
+import { DesensitizeType, Field, Form, Model, Search, Table } from '@airpower/web'
 import { BaseEntity } from '@/base/BaseEntity'
 import { CertificateTypeEnum } from '@/model/asset/contract/participant/CertificateTypeEnum'
 import { ParticipantRoleEnum } from '@/model/asset/contract/participant/ParticipantRoleEnum'
@@ -39,7 +39,10 @@ export class ParticipantEntity extends BaseEntity {
   })
   name!: string
 
-  @Table({})
+  @Table({
+    phone: true,
+    desensitize: DesensitizeType.MOBILE,
+  })
   @Form({
     requiredString: true,
   })
@@ -51,6 +54,7 @@ export class ParticipantEntity extends BaseEntity {
 
   @Table({
     hide: true,
+    desensitize: DesensitizeType.EMAIL,
   })
   @Form({
     requiredString: true,

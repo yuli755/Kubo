@@ -45,6 +45,20 @@ public class TestDataFieldPolicyService implements DataFieldPolicyProvider {
     }
 
     /**
+     * 按资源 / 动作取全部启用策略 —— 测试环境无缓存，直接回表
+     */
+    @Override
+    public List<DataFieldPolicyEntity> getEnabledPoliciesByResourceAndAction(String resourceKey, String actionName) {
+        DataResourceEntity resource = resourceRepository.getByResourceKey(resourceKey);
+        if (resource == null || resource.getId() == null) {
+            return List.of();
+        }
+        List<DataFieldPolicyEntity> policies = repository
+                .findByResourceIdAndActionNameAndEnabledTrueOrderByPriorityDesc(resource.getId(), actionName);
+        return policies != null ? policies : List.of();
+    }
+
+    /**
      * 清理指定资源的字段策略缓存 - 测试环境无缓存，空实现
      */
     @Override

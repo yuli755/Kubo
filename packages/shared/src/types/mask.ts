@@ -9,11 +9,19 @@
  * ### 后端脱敏类型
  *
  * 与 {@code DataFieldPolicyEntity.maskType} 的取值一致：
- * - `FULL` — 完全遮蔽（返回固定星号）
+ * - `FULL` — 完全遮蔽（返回固定星号 / 表达式）
  * - `PARTIAL` — 部分遮蔽（保留首尾字符，中间星号）
  * - `REPLACE` — 替换为固定表达式
+ * - `LAST4` — 只保留末四位（长度不足整体遮蔽）
+ * - `HASH` — 不可逆摘要（`h:` + SHA-256 前 12 位十六进制），同值同码可比对
+ *
+ * **必须与后端 `ColumnMaskingService#applyMask` 的 case 分支保持一致**：
+ * `src/config/__tests__/maskContract.spec.ts` 会从 Java 源码里把 case 标签抓出来
+ * 与本 union 比对，后端新增类型而前端未跟随时 CI 直接失败
+ * （前端漏一个分支的后果是它落进"未知类型"，被按最严格的 `****` 处理 —— 过度遮蔽，
+ * 用户看到满屏星号却查不出原因）。
  */
-export type MaskType = 'FULL' | 'PARTIAL' | 'REPLACE'
+export type MaskType = 'FULL' | 'PARTIAL' | 'REPLACE' | 'LAST4' | 'HASH'
 
 /**
  * ### 列级脱敏字段策略

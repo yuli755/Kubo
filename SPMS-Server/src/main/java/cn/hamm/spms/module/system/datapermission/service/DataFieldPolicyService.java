@@ -47,6 +47,26 @@ public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, D
                 resourceKey, fieldName, roleCode);
     }
 
+    /**
+     * 按资源 / 动作取全部启用策略（列级脱敏热路径）
+     *
+     * <p>缓存键刻意只由 {@code resourceKey} + {@code actionName} 组成：资源 id 解析、
+     * 角色命中、优先级选择里，前两项可以缓存，后两项不行。空列表同样缓存
+     * （"这个资源压根没配策略"是最常见的情况），策略新增时由
+     * {@code publishFieldPolicyEvent} → {@code clearAllCache()} 失效，不会读到脏数据。</p>
+     */
+    @Override
+    @Cacheable(value = "datapermission:field-policies", key = "'list:' + #resourceKey + ':' + #actionName")
+    public List<DataFieldPolicyEntity> getEnabledPoliciesByResourceAndAction(String resourceKey, String actionName) {
+        DataResourceEntity resource = resourceRepository.getByResourceKey(resourceKey);
+        if (resource == null || resource.getId() == null) {
+            return java.util.Collections.emptyList();
+        }
+        List<DataFieldPolicyEntity> policies = repository.findByResourceIdAndActionNameAndEnabledTrueOrderByPriorityDesc(
+                resource.getId(), actionName);
+        return policies != null ? policies : java.util.Collections.emptyList();
+    }
+
     @Override
     protected void afterAppAdd(long id, DataFieldPolicyEntity entity) {
         super.afterAppAdd(id, entity);
