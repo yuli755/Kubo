@@ -56,13 +56,10 @@ public final class PermissionRuleEvaluator {
     }
 
     private boolean matchesLeaf(PermissionRule.Leaf leaf, Map<String, Object> row, PermissionRuleContext context) {
-        // 行里可能用列名或属性名，两种写法都接受（与编译器的列名/属性名互换策略保持一致）
-        Object actual = row.containsKey(leaf.field())
-                ? row.get(leaf.field())
-                : row.get(PermissionRuleSupport.toCamel(leaf.field()));
-        if (actual == null) {
-            actual = row.get(PermissionRuleSupport.toSnake(leaf.field()));
-        }
+        // final 是必需的，不只是风格：下面的 IN / NOT_IN 用 lambda 比较，
+        // 一旦 actual 被重新赋值，javac 直接拒绝（"must be final or effectively final"）。
+        // 所以"三种 key 写法依次回退"收进 resolveField()，这里只做一次绑定。
+        final Object actual = resolveField(row, leaf.field());
 
         if (leaf.op() == PermissionRuleOp.IS_NULL) {
             return actual == null;
@@ -141,6 +138,20 @@ public final class PermissionRuleEvaluator {
     /**
      * @return 比较结果；两边类型不可比时返回 null（判定为不成立）
      */
+    /**
+     * 从一行数据里取字段值：列名（{@code create_time}）与属性名（{@code createTime}）都接受，
+     * 与 {@code JpaPermissionRuleCompiler} 的列名/属性名互换策略保持一致。
+     *
+     * <p>都没命中就返回 null —— 交由调用方按"取值缺失"处置，不做类型猜测或字符串化，
+     * 否则 {@code IN}/{@code LIKE} 会拿 {@code "null"} 这样的文本比出个真来。</p>
+     */
+    private Object resolveField(Map<String, Object> row, String field) {
+        Object value = row.containsKey(field)
+                ? row.get(field)
+                : row.get(PermissionRuleSupport.toCamel(field));
+        return (value != null) ? value : row.get(PermissionRuleSupport.toSnake(field));
+    }
+
     private Integer compare(Object actual, Object expected) {
         if (expected == null) {
             return null;
