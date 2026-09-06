@@ -11,13 +11,29 @@ import { dirname, extname, join, resolve } from 'node:path'
  * | 指标            | 含义                                   | 默认预算 |
  * |-----------------|----------------------------------------|----------|
  * | entry（首屏闭包）| index.html 静态引用 + 其递归静态 import | 450 KB   |
- * | total（全产物） | dist 下全部 js/css/html                 | 850 KB   |
+ * | total（全产物） | dist 下全部 js/css/html                 | 900 KB   |
  *
  * 动态 `import()` 视为懒加载，不计入首屏闭包。
  *
+ * ## total 预算从 850 上调到 900 的理由（2026-09，勿再临时改数）
+ *
+ * 数据权限策略管理（F4）与三个价格编辑器（F5）落地后，总体只剩 11.5KB 余量，
+ * 再做一个整模块页面必红。这里的处理原则是**改口径要连理由一起改**，而不是删规则：
+ *
+ * 1. **首屏预算 450KB 一个字都不动**。真正影响用户的是首屏闭包，它现在只用到 404.4KB，
+ *    这条红线继续卡住"别把管理端页面塞进首屏"；
+ * 2. `total` 含全部懒加载分包，本质是**退化预警**（防止有人把公共依赖越滚越大），
+ *    不是加载性能指标。管理端每加一个模块页 +5~15KB 是预期内的正常增长，
+ *    用 850 卡它只会逼人做"为过门禁而拆代码"的动作；
+ * 3. 上调 50KB = 约 4 个模块页的空间；到 880KB 时脚本会先打警告（见下方预警线），
+ *    不等到顶破才发现。
+ *
+ * 若哪天 `total` 与 `entry` 的差值增长明显快于页面数，说明共享层在变大 ——
+ * 那时该做的是 vendor 拆分，而不是继续加预算。
+ *
  * 用法：
  *   pnpm size
- *   node infra/scripts/check-bundle-size.mjs --entry-budget=450 --total-budget=850 --max-chunk-gzip=300
+ *   node infra/scripts/check-bundle-size.mjs --entry-budget=450 --total-budget=900 --max-chunk-gzip=300
  *   pnpm size -- --json          # 供 CI 上传 / 写 PR comment
  *
  * 退出码：0 达标；1 超预算；2 dist 不存在（先 build）。
@@ -38,7 +54,7 @@ const asJson = argv.includes('--json')
 
 const DIST = resolve(process.cwd(), str('dist', 'dist'))
 const ENTRY_BUDGET_KB = num('entry-budget', 450)
-const TOTAL_BUDGET_KB = num('total-budget', 850)
+const TOTAL_BUDGET_KB = num('total-budget', 900)
 const MAX_CHUNK_KB = num('max-chunk-gzip', 300)
 const COUNTED = new Set(['.js', '.css', '.html'])
 
@@ -96,6 +112,10 @@ const entryGzip = closure.reduce((s, f) => s + f.gzip, 0)
 const oversize = files.filter(f => f.gzip / 1024 > MAX_CHUNK_KB)
 const overEntry = entryGzip / 1024 > ENTRY_BUDGET_KB
 const overTotal = totalGzip / 1024 > TOTAL_BUDGET_KB
+// 预警线：任一项用掉 98% 就先说一声。红线只在"已经超了"才响，等于把决策留到最坏的时刻。
+const warnAt = 0.98
+const nearEntry = !overEntry && entryGzip / 1024 > ENTRY_BUDGET_KB * warnAt
+const nearTotal = !overTotal && totalGzip / 1024 > TOTAL_BUDGET_KB * warnAt
 const failed = overEntry || overTotal
 
 if (asJson) {
@@ -130,6 +150,12 @@ else {
   }
   const verdict = failed ? '❌ 超预算' : '✅ 达标'
   console.log(`\n${verdict}  首屏 ${kb(entryGzip)}/${ENTRY_BUDGET_KB} KB · 总体 ${kb(totalGzip)}/${TOTAL_BUDGET_KB} KB\n`)
+if (nearEntry || nearTotal) {
+  const which = nearEntry ? '首屏' : '总体'
+  const used = kb(nearEntry ? entryGzip : totalGzip)
+  const budget = nearEntry ? ENTRY_BUDGET_KB : TOTAL_BUDGET_KB
+  console.log(`⚠️  ${which}预算已用 ${used}/${budget} KB（>98%）：下一个模块页就会顶破，先按脚本头部的口径决策，不要临时改数`)
+}
 }
 
 process.exit(failed ? 1 : 0)

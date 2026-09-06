@@ -7,7 +7,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master, 'feat/**']
+    # arena/** 是 Agent 会话的工作分支：不加进来的话，这里所有硬门禁（含 server compile）
+    # 在推送当刻都不会跑，"已实测"就只能停在沙箱里（详见 docs §18.6）。
+    branches: [main, master, 'feat/**', 'arena/**']
   pull_request:
   workflow_dispatch:
 
@@ -58,7 +60,7 @@ jobs:
       # 历史口径"所有产物 gzip < 800KB"含懒加载分包，导致无法判定达标与否；
       # 预算数字改动必须连同理由写进 docs/数据权限目标态落地施工图.md 的决策记录。
       - name: Bundle size budget
-        run: pnpm size -- --entry-budget 450 --total-budget 850 --json dist/size-report.json
+        run: pnpm size -- --entry-budget 450 --total-budget 900 --json dist/size-report.json
 
       - name: Upload size report
         if: always()
