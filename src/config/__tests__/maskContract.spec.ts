@@ -300,6 +300,23 @@ describe('mask contract · 脱敏实现只允许存在一处', () => {
     expect(VERDICT.test('<AFormField field=\"allowPlaintext\" />')).toBe(false)
   })
 
+  it('导出缺口自查的前后端路径必须对得上（它失败是静默的）', () => {
+    /**
+     * `useExportGapReport` 的 catch 分支刻意只标记 `failed`、不弹错：一个自查面板不该把列表页打断。
+     * 代价是"路径写错"这件事在运行期毫无痕迹 —— 404 被吞掉，界面从此只显示"未能取得结果"，
+     * 久了没人记得它本该显示什么。所以拼写必须由 CI 对账，而不是靠人点进去看。
+     */
+    const api = read(join(ROOT, 'src', 'api', 'system.ts'))
+    expect(api).toContain('request.get(\'/dataResource/export-gaps\')')
+
+    const controllerPath = join(SERVER, 'module/system/datapermission/controller/DataResourceController.java')
+    expect(readJavaCode(controllerPath)).toContain('@GetMapping("export-gaps")')
+    expect(readJavaCode(controllerPath)).toContain('@Api("dataResource")')
+
+    // 反向：前端不许把这条自查挂到业务用户也会调的控制器上（跨角色策略地图）
+    expect(api).not.toMatch(/request\.get\('\/dataFieldPolicy\/export-gaps'\)/)
+  })
+
   it('白名单确实存在（防止规则因为文件被改名而空转）', () => {
     const directive = read(join(ROOT, 'src', 'directives', 'mask.ts'))
     const composable = read(join(ROOT, 'src', 'composables', 'useMaskPolicy.ts'))

@@ -185,3 +185,18 @@ export interface DataFieldPolicyQuery {
   pageSize?: number
   filter?: { fieldName?: string, roleCode?: string, actionName?: string, enabled?: boolean }
 }
+
+/**
+ * 一条"导出明文授权"缺口：某角色在某字段上被遮蔽，却没有配套的 EXPORT 明文授权。
+ *
+ * 结论由后端算（`FieldPolicyGapAnalyzer`），前端只渲染：判据有两处实现就已经是隐患，
+ * 三处必然漂移，而漂移的表现是"面板说没问题、用户点导出被拒"。
+ */
+export interface ExportGapItem {
+  /** 被遮蔽的字段名 */
+  fieldName: string
+  /** 生效角色；`default` 表示对所有角色兜底 */
+  roleCode: string
+  /** 人话说明（后端给，便于与 guard 的拒因保持同一措辞） */
+  reason: string
+}

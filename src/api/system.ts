@@ -7,6 +7,7 @@ import type {
   ConfigQuery,
   DataFieldPolicyEntity,
   DataFieldPolicyQuery,
+  ExportGapItem,
   MaskPolicy,
   MenuEntity,
   MenuQuery,
@@ -200,6 +201,20 @@ export const codeRuleApi = {
 // ──────────────────────────────────────────
 // 数据字段权限策略 (DataFieldPolicy · 列级脱敏)
 // ──────────────────────────────────────────
+
+export const dataResourceApi = {
+  /**
+   * 「导出明文授权」缺口自查：配了 QUERY 遮蔽、没配 EXPORT 明文的字段清单。
+   *
+   * 挂在 `dataResource`（管理端点）而不是 `dataFieldPolicy`（业务用户也会调）之下：
+   * 这份数据是跨角色的策略地图，普通用户读到它就能推断"哪个角色的哪个字段有明文"。
+   *
+   * @returns 资源键 → 缺口清单；只包含有缺口的资源
+   */
+  getExportGaps(): Promise<Record<string, ExportGapItem[]>> {
+    return request.get('/dataResource/export-gaps')
+  },
+}
 
 export const dataFieldPolicyApi = {
   /**
