@@ -191,8 +191,15 @@ export interface DataFieldPolicyQuery {
  *
  * 结论由后端算（`FieldPolicyGapAnalyzer`），前端只渲染：判据有两处实现就已经是隐患，
  * 三处必然漂移，而漂移的表现是"面板说没问题、用户点导出被拒"。
+ *
+ * 两个资源定位字段都是后端带的：策略编辑器手上只有 `resourceId`（表单就提交这个字段），
+ * 若响应只给 resourceKey，前端就得再查一次"id → key"，多一次请求、多一处会写歪的映射。
  */
 export interface ExportGapItem {
+  /** 数据资源 ID，与 `DataFieldPolicyEntity.resourceId` 同域，可直接比对 */
+  resourceId: number
+  /** 数据资源标识（给人看的） */
+  resourceKey: string
   /** 被遮蔽的字段名 */
   fieldName: string
   /** 生效角色；`default` 表示对所有角色兜底 */

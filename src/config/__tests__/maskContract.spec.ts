@@ -323,6 +323,45 @@ describe('mask contract · 脱敏实现只允许存在一处', () => {
     expect(api).not.toMatch(/request\.get\('\/dataFieldPolicy\/export-gaps'\)/)
   })
 
+  it('缺口条目的字段名前后端一致，且编辑器真的在用它', () => {
+    /**
+     * 两侧各写一遍字段名，就是两个会独立烂掉的真相：后端 record 改个组件名（或 Jackson 版本不支持
+     * record ⇒ 序列化成 `{}`），前端 TS 类型不会报错，界面只是"永远没有缺口"。
+     * 所以字段清单在这里对账；序列化能力本身由后端用例守（FieldPolicyGapPayloadContractTest）。
+     */
+    const names = ['resourceId', 'resourceKey', 'fieldName', 'roleCode', 'reason']
+
+    const types = read(join(ROOT, 'src', 'api', 'system', 'types.ts'))
+    const ifaceStart = types.indexOf('export interface ExportGapItem')
+    expect(ifaceStart, '前端 ExportGapItem 类型不见了，本用例已失效').toBeGreaterThan(-1)
+    const iface = types.slice(ifaceStart, ifaceStart + 1200)
+    for (const name of names) {
+      expect(iface, `前端类型缺字段 ${name}`).toContain(`  ${name}:`)
+    }
+
+    const java = readJavaCode(join(SERVER, 'module', 'system', 'datapermission', 'service', 'DataResourceService.java'))
+    const recordStart = java.indexOf('public record ExportGapItem(')
+    expect(recordStart, '后端 ExportGapItem record 不见了，本用例已失效').toBeGreaterThan(-1)
+    const record = java.slice(recordStart, recordStart + 400)
+    for (const name of names) {
+      expect(record, `后端 record 缺组件 ${name}`).toContain(` ${name}`)
+    }
+
+    /**
+     * 回显必须落到编辑器：只做列表页汇总的话，管理员在"该补哪条"的决策窗口里仍然什么都看不见，
+     * 而这个用例正是为了防止那半边被后续重构悄悄删掉（删提示不会有任何测试变红）。
+     */
+    const editor = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'fieldPolicy', 'component', 'editor.vue'))
+    expect(editor).toContain('useExportGapReport')
+    expect(editor).toContain('gapsForField')
+    // 只查标识符是假门禁：把 import 删掉时上面两条仍然绿（函数体里还有这些名字），
+    // 而真正的回归长这样"提示不再渲染"。所以直接断模板，并钉住"文案取后端 reason"。
+    expect(editor, '编辑器没把缺口提示渲染到表单上').toMatch(/<ElAlert[^>]*v-if="fieldGaps\(\)\.length"/)
+    expect(editor).toContain('g.reason')
+    // 反向：编辑器不许自己下结论（判据只有一份）——缺口条目里的 allowPlaintext 一律不许碰
+    expect(/gap\.allowPlaintext|fieldGaps\(\)\s*(?:===|!==)/.test(editor)).toBe(false)
+  })
+
   it('每个 infra 自查脚本都必须真的被 CI 调用（本地跑过 != 每轮都跑）', () => {
     /**
      * 本轮差点凭"ci.yml 里 grep 不到 check-source-text"就断言门禁没接 CI —— 实际接线是

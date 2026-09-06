@@ -1,5 +1,7 @@
 <script lang="ts" setup>
 import { ADialog, AFormField, DialogProps, useEditor } from '@airpower/web'
+import { ElAlert } from 'element-plus'
+import { gapsForField, useExportGapReport } from '@/composables/useExportGapReport'
 
 import { DataFieldPolicyEntity } from '@/model/system/datapermission/DataFieldPolicyEntity'
 import { DataFieldPolicyService } from '@/model/system/datapermission/DataFieldPolicyService'
@@ -14,6 +16,21 @@ const {
   rules,
   title,
 } = useEditor(props, DataFieldPolicyService, {})
+
+/**
+ * 与当前这条策略同字段的导出缺口（按 resourceId + fieldName 筛，判定仍在后端）
+ *
+ * 为什么放在编辑器里而不是只留在资源列表页：补漏的动作发生在这里 —— 管理员正在写这条策略，
+ * 此刻是"该不该顺手补一条 EXPORT 明文"唯一的决策窗口。列表页的汇总只是入口，
+ * 真到编辑时还得切页面去回忆是哪个字段，等于没有。
+ *
+ * 为什么用函数而不是 computed：`formData` 是不是 reactive 由框架决定，computed 的缓存
+ * 在这种"读第三方返回值"的场合会过期（管理员改了字段名而提示不变）。模板里直接调函数
+ * = 每次渲染重算，代价是几十条数组 filter，比一个会说谎的缓存便宜得多。
+ */
+const { items: gapItems, failed: gapsUnavailable } = useExportGapReport()
+
+const fieldGaps = () => gapsForField(gapItems, formData.resourceId, formData.fieldName)
 </script>
 
 <template>
@@ -31,6 +48,24 @@ const {
       label-width="150px"
       @submit.prevent
     >
+      <ElAlert
+        v-if="fieldGaps().length"
+        class="gap-hint"
+        type="warning"
+        :closable="false"
+        show-icon
+        :title="`这个字段还有 ${fieldGaps().length} 处导出缺口`"
+        :description="fieldGaps().map(g => `在 ${g.resourceKey}：${g.reason}`).join('；')"
+      />
+      <ElAlert
+        v-else-if="gapsUnavailable"
+        class="gap-hint"
+        type="info"
+        :closable="false"
+        show-icon
+        title="未能取得导出缺口自查结果"
+        description="不影响保存这条策略；但此刻看不到缺口，别把它读成「没有缺口」。"
+      />
       <div class="tip">
         只有被 @SensitiveField 标记的字段会被这条策略影响；字段名必须与实体的 JSON 属性名一致，写错等于没配。
         actionName=QUERY 决定界面与详情是否遮蔽；actionName=EXPORT 决定导出能否带该列明文 ——
@@ -53,6 +88,10 @@ const {
 </template>
 
 <style lang="scss" scoped>
+.gap-hint {
+  margin-bottom: 8px;
+}
+
 .tip {
   padding: 0 0 8px 150px;
   font-size: 12px;

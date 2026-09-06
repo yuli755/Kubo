@@ -28,7 +28,7 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      * <p>权限说明：返回的是跨角色的策略组合信息，因此<b>只放在 dataResource 这个管理端点下</b>
      * （沿用它的权限校验），不挂到 {@code dataFieldPolicy} 那种业务用户也会调的控制器上。</p>
      *
-     * @return 资源键 → 缺口清单（字段名、角色、原因）
+     * @return 缺口条目列表（资源 ID、资源键、字段名、角色、原因）
      */
     @GetMapping("export-gaps")
     @Description("导出明文授权缺口自查")

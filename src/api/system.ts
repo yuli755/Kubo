@@ -209,9 +209,9 @@ export const dataResourceApi = {
    * 挂在 `dataResource`（管理端点）而不是 `dataFieldPolicy`（业务用户也会调）之下：
    * 这份数据是跨角色的策略地图，普通用户读到它就能推断"哪个角色的哪个字段有明文"。
    *
-   * @returns 资源键 → 缺口清单；只包含有缺口的资源
+   * @returns 缺口条目列表（每条自带资源 ID / 资源键），只含有缺口的资源
    */
-  getExportGaps(): Promise<Record<string, ExportGapItem[]>> {
+  getExportGaps(): Promise<ExportGapItem[]> {
     return request.get('/dataResource/export-gaps')
   },
 }
