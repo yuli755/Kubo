@@ -70,7 +70,7 @@ class PermissionRuleSupportPathTest {
     @Test
     @DisplayName("两种写法都取不到 → 返回 null（由调用方决定报错还是计入绑定失败）")
     void returnsNullWhenNothingResolves() {
-        lenient().given(root.get(anyString())).willThrow(new IllegalArgumentException("Unable to locate Attribute"));
+        lenient().when(root.get(anyString())).thenThrow(new IllegalArgumentException("Unable to locate Attribute"));
 
         assertNull(PermissionRuleSupport.findPath(root, "warehouse_id"));
     }
