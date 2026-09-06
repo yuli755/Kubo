@@ -13,7 +13,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "size": "node infra/scripts/check-bundle-size.mjs",
-    "check": "pnpm lint:ci && pnpm typecheck && pnpm test && pnpm build && pnpm size",
+    "perms:check": "node infra/scripts/check-permission-codes.mjs",
+    "perms:report": "node infra/scripts/check-permission-codes.mjs --verbose",
+    "check": "pnpm lint:ci && pnpm typecheck && pnpm test && pnpm perms:check && pnpm build && pnpm size",
     "build": "vite build --mode production",
     "production": "vite build --mode production",
     "api:generate": "node infra/scripts/generate-api.mjs",
@@ -36,6 +38,7 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "^6.7.1",
+    "@types/node": "22",
     "@vitejs/plugin-vue": "^6.0.3",
     "@vue/test-utils": "^2.5.0",
     "eslint": "^9.39.2",
