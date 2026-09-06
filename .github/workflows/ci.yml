@@ -209,44 +209,69 @@ jobs:
           fi
 
       - name: Apply every migration twice
+        # 这一步刻意不用 set -e：首跑要的是"到底哪儿不对"，而不是一个 exit 1。
+        # 所有事实先写进 annotation（note），最后才按判据失败 —— 沙箱里读不到 Actions 日志正文，
+        # annotation 是唯一能看见证据的通道。三条判据一条都没放松。
         run: |
-          set -e
-          dump() {
-            mysql -N -B -h 127.0.0.1 -P 3306 -uroot -pkubo_ci kubo_ddl_check \
-              -e "SELECT CONCAT(TABLE_NAME,'.',COLUMN_NAME) FROM information_schema.COLUMNS
-                  WHERE TABLE_SCHEMA = DATABASE() ORDER BY 1"
+          note() {
+            printf '::notice title=%s::%s\n' "$1" "$(printf '%s' "$2" | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/g' | tr -d '\n')"
           }
+          MYSQL="mysql --force --default-character-set=utf8mb4 -h 127.0.0.1 -P 3306 -uroot -pkubo_ci kubo_ddl_check"
+          note "00-env" "$(command -v mysql; mysql --version 2>&1 | head -1)"
+          $MYSQL -e "SELECT 'connected' AS ok" > /tmp/ping.txt 2> /tmp/ping.err
+          ping_rc=$?
+          note "01-connect" "rc=$ping_rc out=$(cat /tmp/ping.txt) err=$(head -c 300 /tmp/ping.err)"
+          if [ ! -s /tmp/ping.txt ]; then
+            note "99-fail" "连不上 MySQL 服务容器，后面所有判定都没有意义"
+            exit 1
+          fi
+
           for pass in 1 2; do
+            : > "/tmp/err-$pass.txt"
             for f in SPMS-Server/docs/database/migration/*.sql; do
               echo "::group::pass $pass — $f"
-              # --force 只在"下一个已知前提缺失"时用：这批脚本假定业务库已存在（框架表 permission/role、
-              # 业务表 bom/contract…由 Hibernate ddl-auto 生成，本仓没有它们的建表脚本），
-              # 于是空库上会撞 1146。下一步把这些错误逐条分类：允许的只有 1146，别的照样判失败。
-              mysql --force --default-character-set=utf8mb4 -h 127.0.0.1 -P 3306 \
-                -uroot -pkubo_ci kubo_ddl_check < "$f" 2> "/tmp/err-$pass.txt" || true
-              echo "stderr 行数：$(wc -l < "/tmp/err-$pass.txt")"
+              # --force 只为"前置业务表不存在"这一类已知缺口服务：这批脚本假定业务库已存在
+              # （框架表 permission/role、业务表 bom/contract… 由 Hibernate ddl-auto 生成，本仓没有它们的建表脚本）。
+              # 下面把 stderr 逐条分类：允许的只有 1146，其它错误照样判失败。
+              $MYSQL < "$f" >> "/tmp/err-$pass.txt" 2>&1
+              echo "累计输出行数：$(wc -l < "/tmp/err-$pass.txt")"
               echo "::endgroup::"
             done
-            dump > "/tmp/after-$pass.txt"
+            $MYSQL -N -B -e "SELECT CONCAT(TABLE_NAME,'.',COLUMN_NAME) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() ORDER BY 1" > "/tmp/after-$pass.txt" 2>> "/tmp/err-$pass.txt"
           done
 
-          cat /tmp/err-1.txt /tmp/err-2.txt > /tmp/err-all.txt || true
-          missing=$(grep -cE "ERROR 1146 .*Table 'kubo_ddl_check\.[^']*' doesn't exist" /tmp/err-all.txt || true)
-          echo "预期内（前置业务表不存在，幂等过程自动跳过）：$missing 条 1146"
-          # 把预期内错误剔掉后必须一行不剩：否则就是真问题（方言不认、语法错、约束冲突）
-          if grep -vE "ERROR 1146 .*Table 'kubo_ddl_check\.[^']*' doesn't exist" /tmp/err-all.txt | grep -vE "^$" | grep .; then
-            echo "✗ 迁移脚本在 MySQL 8 上产生了预期外的错误（上面这些行）"
-            exit 1
-          fi
+          cat /tmp/err-1.txt /tmp/err-2.txt > /tmp/err-all.txt
+          total=$(wc -l < /tmp/err-all.txt)
+          # 只把 "ERROR ..." 行算成错误：客户端每次调用都往 stderr 写一条
+          # "Using a password on the command line" 警告，按行数判会把噪音读成失败。
+          errs=$(grep -cE "^ERROR [0-9]+" /tmp/err-all.txt)
+          missing=$(grep -cE "^ERROR 1146 .*doesn't exist" /tmp/err-all.txt)
+          other=$((errs - missing))
+          c1=$(wc -l < /tmp/after-1.txt)
+          c2=$(wc -l < /tmp/after-2.txt)
+          note "02-stderr" "输出 $total 行 / ERROR 行 $errs / 预期内 1146 $missing / 预期外 $other"
+          note "02b-errors" "$(grep -E '^ERROR ' /tmp/err-all.txt | head -25)"
+          note "03-schema" "第 1 遍后 $c1 列 / 第 2 遍后 $c2 列 / 表清单：$($MYSQL -N -B -e 'SHOW TABLES' 2>&1 | tr '\n' ' ')"
+          note "03b-idempotency" "$(diff /tmp/after-1.txt /tmp/after-2.txt | head -25)"
 
-          echo "结构比对：第 1 遍后 $(wc -l < /tmp/after-1.txt) 列 / 第 2 遍后 $(wc -l < /tmp/after-2.txt) 列"
-          test "$(wc -l < /tmp/after-1.txt)" -gt 0 || { echo "✗ 一列都没建出来（脚本被静默跳过？）"; exit 1; }
-          # 幂等的判据不是"没报错"，而是"重复执行后结构一字不差"（偷偷多建一列/索引也算不幂等）
-          if ! diff -u /tmp/after-1.txt /tmp/after-2.txt; then
-            echo "✗ 重复执行后结构发生变化 = 迁移脚本不幂等（生产上意味着回滚/重放不可靠）"
-            exit 1
+          rc=0
+          if [ "$other" -gt 0 ]; then
+            echo "✗ 迁移脚本在 MySQL 8 上产生了预期外的错误："
+            grep -E "^ERROR " /tmp/err-all.txt | grep -vE "^ERROR 1146 .*doesn't exist" | head -25
+            rc=1
+          fi
+          if [ "$c1" -le 0 ]; then
+            echo "✗ information_schema 里一列都没有 —— 脚本根本没执行成功，不许读成通过"
+            rc=1
+          fi
+          if ! diff -q /tmp/after-1.txt /tmp/after-2.txt > /tmp/idem.txt 2>&1; then
+            echo "✗ 重复执行后结构变化 = 不幂等（生产上意味着回滚/重放不可靠）："
+            head -25 /tmp/idem.txt
+            rc=1
           fi
           cp /tmp/after-2.txt /tmp/live.txt
+          note "99-result" "rc=$rc（0 = 三条判据全过）"
+          exit $rc
 
       - name: Live schema must match migration scripts and entities
         # 用真实库的 information_schema 反向核对脚本与实体：库里缺列 = 脚本其实没执行成功；
