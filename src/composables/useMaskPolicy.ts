@@ -1,5 +1,5 @@
 import type { MaskPolicy } from '@kubo/shared'
-import { applyMaskPolicy, normalizeMaskPolicy } from '@kubo/shared'
+import { applyMaskPolicy, looksMasked, normalizeMaskPolicy } from '@kubo/shared'
 import { computed, shallowReactive } from 'vue'
 import { dataFieldPolicyApi } from '@/api/system'
 import { useUserStore } from '@/stores/user'
@@ -40,6 +40,13 @@ interface MaskPolicyEntry {
 const store = shallowReactive<Record<string, MaskPolicyEntry>>({})
 const inflight = new Map<string, Promise<void>>()
 
+/** 已按资源批量拉取过的键（避免同一资源被不同视图重复请求） */
+const batchLoaded = new Set<string>()
+const batchInflight = new Map<string, Promise<void>>()
+/** resourceKey → 后端 my-mask-map 返回的字段策略表 */
+const resourcePolicies = new Map<string, Record<string, MaskPolicy>>()
+const resourceBatchFailed = new Set<string>()
+
 /** 缓存归属的会话指纹（不导出，只用于"换人就清空"） */
 let scopeToken: string | null = null
 
@@ -79,10 +86,62 @@ function resetIfIdentityChanged(): void {
  */
 export function clearMaskPolicyCache(): void {
   scopeToken = null
+  batchLoaded.clear()
+  batchInflight.clear()
+  resourcePolicies.clear()
+  resourceBatchFailed.clear()
   Object.keys(store).forEach((key) => {
     delete store[key]
   })
   inflight.clear()
+}
+
+/**
+ * 按资源批量拉取策略，一次覆盖该视图声明的所有字段
+ *
+ * 走 `my-mask-map`。老后端没有这个端点时（404/异常）**自动退回逐字段 `getMyMask`**，
+ * 因此前端可以先上、后端后上，不需要同步发版 —— 这一点很重要：否则前端一合成就把灰度卡住。
+ */
+export async function ensureResourceMaskPolicies(resourceKey: string, fields: string[] = []): Promise<void> {
+  resetIfIdentityChanged()
+  if (batchLoaded.has(resourceKey)) {
+    fields.forEach(field => fillFromBatch(resourceKey, field))
+    return
+  }
+  if (!batchInflight.has(resourceKey)) {
+    batchInflight.set(resourceKey, (async () => {
+      try {
+        const map = await dataFieldPolicyApi.getMyMaskMap(resourceKey)
+        resourcePolicies.set(resourceKey, map ?? {})
+        batchLoaded.add(resourceKey)
+      }
+      catch {
+        // 端点缺失 / 网络失败：标记失败，让调用方退回逐字段路径
+        resourceBatchFailed.add(resourceKey)
+      }
+      finally {
+        batchInflight.delete(resourceKey)
+      }
+    })())
+  }
+  await batchInflight.get(resourceKey)
+  if (resourceBatchFailed.has(resourceKey)) {
+    await Promise.all(fields.map(field => ensureMaskPolicy(resourceKey, field)))
+    return
+  }
+  fields.forEach(field => fillFromBatch(resourceKey, field))
+}
+
+function fillFromBatch(resourceKey: string, field: string): void {
+  const map = resourcePolicies.get(resourceKey)
+  if (!map) {
+    return
+  }
+  const key = keyOf(resourceKey, field)
+  if (store[key]) {
+    return
+  }
+  store[key] = { policy: map[field] ?? null, loaded: true, failed: false }
 }
 
 /**
@@ -99,6 +158,12 @@ export async function ensureMaskPolicy(resourceKey: string, field: string): Prom
   const hit = store[key]
   if (hit?.loaded || hit?.failed) {
     return hit
+  }
+  const batch = resourcePolicies.get(resourceKey)
+  if (batch) {
+    const entry = { policy: batch[field] ?? null, loaded: true, failed: false }
+    store[key] = entry
+    return entry
   }
   const running = inflight.get(key)
   if (running) {
@@ -143,7 +208,22 @@ export function maskPolicyEntry(resourceKey: string, field: string): MaskPolicyE
  */
 export function useMaskPolicy(resourceKey: string, fields: string[] = []) {
   function load(): void {
-    fields.forEach(field => ensureMaskPolicy(resourceKey, field))
+    void ensureResourceMaskPolicies(resourceKey, fields)
+  }
+
+  /**
+   * 返回"提交值看起来是掩码"的受限字段名
+   *
+   * 用途是**提示**而不是删字段：删字段在"整实体更新"语义下等于把该列写成 null，
+   * 真正的兜底在服务端（`MaskedWriteGuard.keepStoredWhenMasked` 会用库中原值覆盖）。
+   * 前端只需要告诉用户"这几个字段你现在看到的是掩码，改了也不会生效"。
+   */
+  function maskedFieldsIn(entity: object | null | undefined): string[] {
+    if (!entity) {
+      return []
+    }
+    const record = entity as Record<string, unknown>
+    return fields.filter(field => looksMasked(String(record[field] ?? '')))
   }
 
   /**
@@ -190,6 +270,7 @@ export function useMaskPolicy(resourceKey: string, fields: string[] = []) {
     load,
     masked,
     restricted,
+    maskedFieldsIn,
     hasRestrictedField,
   }
 }

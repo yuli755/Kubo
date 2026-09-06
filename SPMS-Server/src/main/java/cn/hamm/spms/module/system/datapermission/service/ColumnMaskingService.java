@@ -5,6 +5,7 @@ import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * <h1>列级脱敏服务</h1>
@@ -110,6 +111,36 @@ public class ColumnMaskingService {
         List<DataFieldPolicyEntity> policies = fieldPolicyProvider
                 .getEnabledPoliciesByResourceAndAction(resourceKey, actionName);
         return policies != null ? policies : java.util.Collections.emptyList();
+    }
+
+    /**
+     * 按资源解析当前主体在 {@code QUERY} 动作下、每个字段的生效策略
+     *
+     * <p>给前端的 {@code my-mask-map} 用：编辑表单需要知道"哪些字段是受限的"，
+     * 才能<b>提交前剔除</b>它们。逐字段查策略会让一个 8 字段的表单发 8 个请求，
+     * 而表单恰恰是最需要这份信息的地方。</p>
+     *
+     * @param resourceKey 数据资源标识
+     * @param context     权限上下文
+     * @return 字段名 → 生效策略；资源未注册或无策略时返回空 Map
+     */
+    public Map<String, DataFieldPolicyEntity> getEffectiveMaskPolicyMap(String resourceKey, PermissionContext context) {
+        List<DataFieldPolicyEntity> policies = resolvePolicies(resourceKey, DEFAULT_ACTION);
+        if (policies.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+        Map<String, DataFieldPolicyEntity> result = new java.util.LinkedHashMap<>();
+        for (DataFieldPolicyEntity policy : policies) {
+            String fieldName = policy.getFieldName();
+            if (fieldName == null || result.containsKey(fieldName)) {
+                continue;
+            }
+            DataFieldPolicyEntity effective = getEffectiveMaskPolicy(resourceKey, fieldName, context);
+            if (effective != null) {
+                result.put(fieldName, effective);
+            }
+        }
+        return result;
     }
 
     private DataFieldPolicyEntity effective(DataFieldPolicyEntity policy, DataFieldPolicyEntity current) {

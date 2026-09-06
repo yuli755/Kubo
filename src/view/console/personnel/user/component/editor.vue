@@ -1,5 +1,7 @@
 <script lang="ts" setup>
 import { AButton, ADialog, AGroup, AInput, DialogProps, DialogUtil, getFieldLabel, useEditor } from '@airpower/web'
+import { onMounted } from 'vue'
+import { useMaskPolicy } from '@/composables/useMaskPolicy'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
 import { UserEntity } from '@/model/personnel/user/UserEntity'
@@ -8,6 +10,15 @@ import { DepartmentSelector } from '@/view/console/personnel/department/componen
 import { RoleSelector } from '../../role/component'
 
 const props = defineProps(DialogProps.withParam(new UserEntity()))
+
+// 后端开启列级脱敏后，详情接口给出的 phone/email/idCard 就是掩码。
+// 这里只负责"说清楚"，不负责改提交体：删字段在整实体更新语义里等于把该列写空，
+// 真正的兜底在服务端 MaskedWriteGuard（掩码值一律用库中原值覆盖）。
+const piiPolicy = useMaskPolicy('personnel.user', ['idCard', 'phone', 'email'])
+
+onMounted(() => piiPolicy.load())
+
+const { maskedFieldsIn } = piiPolicy
 
 const {
   isLoading,
@@ -52,6 +63,13 @@ async function selectDepartment() {
       label-width="120px"
       @submit.prevent
     >
+      <div
+        v-if="maskedFieldsIn(formData).length"
+        class="mask-tip"
+      >
+        字段 {{ maskedFieldsIn(formData).join('、') }} 当前按数据权限策略显示为脱敏值，
+        保持不动即可保留原值（提交掩码不会覆盖真实数据）
+      </div>
       <AGroup
         :column="2"
         title="基础信息"
@@ -137,5 +155,10 @@ async function selectDepartment() {
 <style lang="scss" scoped>
 .list > * {
   margin-right: 5px;
+}
+.mask-tip {
+  padding: 4px 0 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 </style>

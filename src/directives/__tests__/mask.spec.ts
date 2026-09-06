@@ -12,10 +12,11 @@ import { defineComponent, h, withDirectives } from 'vue'
  * 就是"A 用户的明文策略给 B 用户用"，与后端行权限缓存当年串号是同一类事故。
  */
 const getMyMask = vi.hoisted(() => vi.fn())
+const getMyMaskMap = vi.hoisted(() => vi.fn())
 const currentUser = vi.hoisted(() => ({ token: 'token-a' }))
 
 vi.mock('@/api/system', () => ({
-  dataFieldPolicyApi: { getMyMask },
+  dataFieldPolicyApi: { getMyMask, getMyMaskMap },
 }))
 
 // user store 只用到 token；真实 store 依赖 pinia 与 WebConfig，测试里给最小替身
@@ -24,7 +25,13 @@ vi.mock('@/stores/user', () => ({
 }))
 
 const { vMask } = await import('../mask')
-const { clearMaskPolicyCache, ensureMaskPolicy, useMaskPolicy } = await import('@/composables/useMaskPolicy')
+const {
+  clearMaskPolicyCache,
+  ensureMaskPolicy,
+  ensureResourceMaskPolicies,
+  maskPolicyEntry,
+  useMaskPolicy,
+} = await import('@/composables/useMaskPolicy')
 
 function mountMasked(binding: Record<string, unknown>) {
   const Comp = defineComponent({
@@ -37,6 +44,7 @@ describe('v-mask · 后端策略优先', () => {
   beforeEach(() => {
     clearMaskPolicyCache()
     getMyMask.mockReset()
+    getMyMaskMap.mockReset()
     currentUser.token = 'token-a'
   })
 
@@ -101,6 +109,7 @@ describe('useMaskPolicy · 缓存与身份失效', () => {
   beforeEach(() => {
     clearMaskPolicyCache()
     getMyMask.mockReset()
+    getMyMaskMap.mockReset()
     currentUser.token = 'token-a'
   })
 
@@ -131,5 +140,54 @@ describe('useMaskPolicy · 缓存与身份失效', () => {
     const policy = useMaskPolicy('channel.purchasePrice', ['price'])
     expect(policy.restricted('price')).toBe(true)
     expect(policy.masked('price', 12.5)).toBe('****')
+  })
+})
+
+describe('批量策略（my-mask-map）与掩码识别', () => {
+  beforeEach(() => {
+    clearMaskPolicyCache()
+    getMyMask.mockReset()
+    getMyMaskMap.mockReset()
+    currentUser.token = 'token-a'
+  })
+
+  it('按资源一次拉取即可覆盖多个字段，未出现在返回里的字段=后端确认无需脱敏', async () => {
+    getMyMaskMap.mockResolvedValue({ price: { maskType: 'FULL' } })
+    await ensureResourceMaskPolicies('channel.purchasePrice', ['price', 'qty'])
+
+    expect(getMyMaskMap).toHaveBeenCalledTimes(1)
+    // 关键：退回逐字段一次都不发，N+1 消失
+    expect(getMyMask).not.toHaveBeenCalled()
+    expect(maskPolicyEntry('channel.purchasePrice', 'price')?.policy).toMatchObject({ maskType: 'FULL' })
+    const qty = maskPolicyEntry('channel.purchasePrice', 'qty')
+    expect(qty).toMatchObject({ loaded: true, failed: false, policy: null })
+  })
+
+  it('同一资源的第二次加载不再发请求（跨视图共享）', async () => {
+    getMyMaskMap.mockResolvedValue({})
+    await ensureResourceMaskPolicies('channel.salePrice', ['price'])
+    await ensureResourceMaskPolicies('channel.salePrice', ['price', 'qty'])
+    expect(getMyMaskMap).toHaveBeenCalledTimes(1)
+  })
+
+  it('老后端没有该端点时自动退回逐字段，前端不必等后端发版', async () => {
+    getMyMaskMap.mockRejectedValue(new Error('404'))
+    getMyMask.mockResolvedValue({ maskType: 'PARTIAL' })
+    await ensureResourceMaskPolicies('channel.purchasePrice', ['price'])
+
+    expect(getMyMask).toHaveBeenCalledWith('channel.purchasePrice', 'price')
+    expect(maskPolicyEntry('channel.purchasePrice', 'price')?.loaded).toBe(true)
+    const policy = useMaskPolicy('channel.purchasePrice', ['price'])
+    expect(policy.restricted('price')).toBe(true)
+    // '28000.0' 长度 7 → 首 1 + min(7-2,6)=5 个星 + 尾 1
+    expect(policy.masked('price', '28000.0')).toBe('2*****0')
+  })
+
+  it('掩码字段只用于提示，不改提交体（删字段等于把该列写空）', () => {
+    getMyMaskMap.mockResolvedValue({ phone: { maskType: 'FULL' } })
+    const policy = useMaskPolicy('personnel.user', ['phone', 'idCard'])
+    expect(policy.maskedFieldsIn({ phone: '138****000', idCard: '110101199001011234' }))
+      .toEqual(['phone'])
+    expect(policy.maskedFieldsIn(null)).toEqual([])
   })
 })

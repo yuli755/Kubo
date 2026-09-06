@@ -23,6 +23,7 @@ import cn.hamm.spms.module.system.menu.MenuEntity;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
+import cn.hamm.spms.module.system.datapermission.service.MaskedWriteGuard;
 import jakarta.mail.MessagingException;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Join;
@@ -478,6 +479,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
 
     @Override
     protected @NotNull UserEntity beforeAdd(@NotNull UserEntity user) {
+        rejectMaskedInputs(user);
         UserEntity existUser = repository.getByEmail(user.getEmail());
         FORBIDDEN_EXIST.whenNotNull(existUser, "����已经存在，请��重复��加用户");
         if (!StringUtils.hasLength(user.getPassword())) {
@@ -487,6 +489,49 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
             user.setSalt(salt);
         }
         return user;
+    }
+
+    /**
+     * 拒绝把脱敏占位值写进库
+     *
+     * <p>开启列级脱敏后详情接口返回的是 {@code 138****000}，而编辑表单是"整实体回填再整实体提交"，
+     * 不拦就会把掩码存成真实手机号（不可逆损坏）。报错而非静默保留，是为了让"受限"这件事
+     * 在用户眼前发生一次，而不是悄悄丢数据。前端配套做法见 {@code useMaskPolicy().omitRestricted}。</p>
+     */
+    @Override
+    protected @NotNull UserEntity beforeUpdate(@NotNull UserEntity user) {
+        restoreMaskedInputs(user);
+        return user;
+    }
+
+    private void rejectMaskedInputs(UserEntity user) {
+        MaskedWriteGuard.rejectMaskedPlaceholder("身份证号", user.getIdCard());
+        MaskedWriteGuard.rejectMaskedPlaceholder("手机号", user.getPhone());
+        MaskedWriteGuard.rejectMaskedPlaceholder("邮箱", user.getEmail());
+    }
+
+    /**
+     * 把掩码字段恢复成库里的值，而不是拒绝整次保存
+     *
+     * <p>开启列级脱敏后，详情接口给出的 {@code phone} 就是 {@code 138****000}；
+     * 管理员改昵称时把它一起提交回来，若原样落库则手机号被永久损坏。
+     * 这里按字段判定"是不是掩码"，是就用库里的值覆盖 —— 用户没改的字段不该被脱敏牵连。
+     * 也让"前端提交前删字段"这种危险做法变得没有必要（删字段在整实体更新语义里等于清空该列）。</p>
+     */
+    private void restoreMaskedInputs(UserEntity user) {
+        boolean anyMasked = MaskedWriteGuard.looksLikeMaskedPlaceholder(user.getPhone())
+                || MaskedWriteGuard.looksLikeMaskedPlaceholder(user.getEmail())
+                || MaskedWriteGuard.looksLikeMaskedPlaceholder(user.getIdCard());
+        if (!anyMasked || user.getId() == null) {
+            return;
+        }
+        UserEntity stored = repository.findById(user.getId()).orElse(null);
+        if (stored == null) {
+            return;
+        }
+        user.setPhone((String) MaskedWriteGuard.keepStoredWhenMasked("手机号", user.getPhone(), stored.getPhone()));
+        user.setEmail((String) MaskedWriteGuard.keepStoredWhenMasked("邮箱", user.getEmail(), stored.getEmail()));
+        user.setIdCard((String) MaskedWriteGuard.keepStoredWhenMasked("身份证号", user.getIdCard(), stored.getIdCard()));
     }
 
     @Override

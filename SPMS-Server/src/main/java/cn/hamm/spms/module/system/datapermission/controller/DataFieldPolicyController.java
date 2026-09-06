@@ -59,6 +59,23 @@ public class DataFieldPolicyController extends BaseController<DataFieldPolicyEnt
      * @param fieldName   字段名（如 price）
      * @return 生效策略；无需脱敏（当前用户无匹配策略）时返回 {@code null}
      */
+    /**
+     * 按资源解析当前登录用户在<b>全部字段</b>上生效的脱敏策略
+     *
+     * <p>存在的理由不是省流量，而是编辑表单必须知道"哪些字段受限"才能<b>提交前剔除</b>：
+     * 逐字段查会让一个 8 字段的表单发 8 个请求，而表单恰恰是最需要这份信息的地方
+     * （见 {@code useMaskPolicy().omitRestricted}）。</p>
+     *
+     * @param resourceKey 数据资源标识（如 personnel.user）
+     * @return 字段名 → 生效策略；资源未注册或无策略时为空对象
+     */
+    @GetMapping("my-mask-map")
+    @Description("按资源获取当前用户全部字段的脱敏策略")
+    public Json getMyMaskMap(@RequestParam String resourceKey) {
+        PermissionContext context = PermissionContextHolder.current().orElse(null);
+        return Json.data(columnMaskingService.getEffectiveMaskPolicyMap(resourceKey, context));
+    }
+
     @GetMapping("my-mask")
     @Description("按资源/字段获取当前用户生效的脱敏策略")
     public Json getMyMask(

@@ -217,6 +217,18 @@ export const dataFieldPolicyApi = {
   },
 
   /**
+   * 一次取回「当前用户在某资源全部字段」上的脱敏策略。
+   *
+   * 编辑表单需要知道哪些字段受限（8 个字段的表单逐字段查就是 8 个请求），
+   * 列表页只关心 1~2 个列时可以继续用 `getMyMask`。
+   *
+   * @returns 字段名 → 生效策略；无策略的字段不会出现在返回对象里
+   */
+  getMyMaskMap(resourceKey: string): Promise<Record<string, MaskPolicy>> {
+    return request.get('/dataFieldPolicy/my-mask-map', { params: { resourceKey } })
+  },
+
+  /**
    * 按资源 / 字段 / 角色查询策略列表（管理端与联调用）
    */
   getByResourceFieldRole(resourceKey: string, fieldName: string, roleCode?: string): Promise<DataFieldPolicyEntity[]> {

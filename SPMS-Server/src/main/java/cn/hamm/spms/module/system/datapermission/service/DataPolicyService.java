@@ -47,14 +47,34 @@ public class DataPolicyService extends BaseService<DataPolicyEntity, DataPolicyR
      */
     @Override
     protected DataPolicyEntity beforeAdd(DataPolicyEntity entity) {
+        validateDimensions(entity);
         validateCondition(entity);
         return super.beforeAdd(entity);
     }
 
     @Override
     protected DataPolicyEntity beforeUpdate(DataPolicyEntity entity) {
+        validateDimensions(entity);
         validateCondition(entity);
         return super.beforeUpdate(entity);
+    }
+
+    /**
+     * 拒绝"配了也白配"的策略（见 {@link DimensionGuard}）
+     *
+     * <p>为什么卡在写入侧而不是读侧：读侧最多记一条 binding 指标，运维要翻日志才发现
+     * 防护其实没生效；而保存成功的那一刻，管理员的心智模型已经是"这条数据被限住了"。</p>
+     */
+    private void validateDimensions(DataPolicyEntity entity) {
+        String subjectReason = DimensionGuard.rejectUnavailableSubject(entity.getSubjectType());
+        if (subjectReason != null) {
+            PARAM_INVALID.show(subjectReason);
+            return;
+        }
+        String conditionReason = DimensionGuard.rejectUnavailableCondition(entity.getConditionJson());
+        if (conditionReason != null) {
+            PARAM_INVALID.show(conditionReason);
+        }
     }
 
     private void validateCondition(DataPolicyEntity entity) {

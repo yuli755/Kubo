@@ -1,5 +1,7 @@
 package cn.hamm.spms.module.personnel.user;
 
+import cn.hamm.spms.module.system.datapermission.annotation.SensitiveField;
+
 import cn.hamm.airpower.core.annotation.*;
 import cn.hamm.airpower.core.enums.DesensitizeType;
 import cn.hamm.airpower.curd.annotation.Search;
@@ -59,10 +61,16 @@ public class UserEntity extends BaseEntity<UserEntity> implements IUserAction {
 
     @Description("身份证号")
     @Desensitize(DesensitizeType.ID_CARD)
+    /**
+     * 身份证号：策略驱动脱敏。未配 data_field_policy 时输出原值（零行为变更），
+     * 配了才遮 —— 与 price 同一套机制，前端列表默认打码只是"防瞄屏"，不是权限
+     */
+    @SensitiveField(resourceKey = "personnel.user")
     @Column(columnDefinition = "varchar(255) default '' comment '身份证号'")
     private String idCard;
 
     @Description("邮箱")
+    @SensitiveField(resourceKey = "personnel.user")
     @Column(columnDefinition = "varchar(255) default '' comment '邮箱'", unique = true)
     @NotBlank(groups = {WhenSendEmail.class}, message = "邮箱不能为空")
     @Email(groups = {WhenResetMyPassword.class, WhenSendEmail.class}, message = "邮箱格式不正确")
@@ -70,6 +78,7 @@ public class UserEntity extends BaseEntity<UserEntity> implements IUserAction {
     private String email;
 
     @Description("手机号")
+    @SensitiveField(resourceKey = "personnel.user")
     @Column(columnDefinition = "varchar(255) default '' comment '手机号'", unique = true)
     @Phone(groups = {WhenResetMyPassword.class, WhenSendSms.class}, message = "手机格式不正确")
     @Search
