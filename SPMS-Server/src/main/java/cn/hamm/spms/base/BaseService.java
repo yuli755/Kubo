@@ -10,10 +10,13 @@ import cn.hamm.spms.module.system.datapermission.service.ColumnMaskingService;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionGuard;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionRuntime;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionResourceResolver;
+import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import cn.hamm.spms.module.system.datapermission.service.MaskedInputRegistry;
 import cn.hamm.spms.module.system.datapermission.service.SensitiveWriteProtection;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.List;
 
 import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
 
@@ -178,5 +181,21 @@ public class BaseService<
     }
 
     protected void afterAppUpdate(long id, @NotNull E source) {
+    }
+
+    /**
+     * 导出内容遮蔽（数据权限）
+     *
+     * <p>框架的导出行是"反射取字段值 → 拼 CSV"（{@code CollectionUtil.getCsvValueList} →
+     * {@code ExportHelper.saveCsvListToFile}，全部静态），不经过 Jackson，
+     * 所以序列化层那套 {@code @SensitiveField} 遮罩<b>对导出文件无效</b>。
+     * {@code afterExportQuery} 是 {@code CurdService} 上唯一还能插手这批行的位置
+     * （{@code createExportTask} 是 final、{@code queryPageToSaveExportFile} 是 private —— 均由 javap 确认）。</p>
+     *
+     * <p>语义见 {@link ExportColumnMasker}：只改副本、按 QUERY 口径生成掩码、拿到 EXPORT 明文授权的列保留原值。</p>
+     */
+    @Override
+    protected List<E> afterExportQuery(List<E> entities) {
+        return ExportColumnMasker.maskForExport(entities);
     }
 }
