@@ -24,6 +24,9 @@ import java.util.Set;
  *     tenant-required: false       # 用户无租户归属时是否直接拒绝（回填完成后改 true）
  *     default-tenant-id: 1         # tenant-required=false 时的兜底租户（平台默认租户）
  *     shadow-diff-log: true        # 观察模式是否输出「本应被过滤」的明细日志
+ *     shadow:
+ *       sample-rate: 0.02          # 影子双跑采样率
+ *       persist: true              # 差异是否落 data_permission_diff_log
  * }</pre>
  *
  * @author Hamm.cn
@@ -85,6 +88,34 @@ public class DataPermissionProperties {
      * 是否审计「明文敏感字段访问」。
      */
     private boolean auditPlaintextAccess = true;
+
+    /**
+     * 影子双跑（shadow 模式下用 COUNT 比对"加条件/不加条件"的行数差）
+     */
+    private Shadow shadow = new Shadow();
+
+    /**
+     * 影子双跑配置
+     */
+    @Data
+    public static class Shadow {
+
+        /**
+         * 采样率 0..1。双跑要多打一次 COUNT，默认只抽 2%：
+         * 够统计差异率，又不至于把库压垮。
+         */
+        private double sampleRate = 0.02D;
+
+        /**
+         * 是否把差异写入 {@code data_permission_diff_log}（关掉就只打指标）
+         */
+        private boolean persist = true;
+
+        /**
+         * 单次比对允许记录的最大明细行数（超过则只记行数不记主键）
+         */
+        private int maxDetailRows = 200;
+    }
 
     /**
      * 判断指定资源的生效模式

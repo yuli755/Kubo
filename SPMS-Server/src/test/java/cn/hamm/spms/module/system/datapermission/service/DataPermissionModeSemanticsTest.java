@@ -76,7 +76,9 @@ class DataPermissionModeSemanticsTest {
     void setUp() {
         properties = new DataPermissionProperties();
         audit = mock(DataPermissionAudit.class);
-        specification = new DataPermissionSpecification(dataPermissionService, properties, audit);
+        specification = new DataPermissionSpecification(dataPermissionService, properties, audit,
+                new cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser(),
+                new cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler());
         lenient().when(builder.disjunction()).thenReturn(disjunction);
         lenient().when(root.get(anyString())).thenReturn(path);
         PermissionContextHolder.open(new PermissionContext(1L, 100L, Set.of(1L), Set.of(), Set.of(), Set.of("planner"), false));

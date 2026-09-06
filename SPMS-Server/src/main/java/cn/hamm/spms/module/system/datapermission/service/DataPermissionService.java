@@ -39,7 +39,35 @@ public class DataPermissionService {
             return List.of();
         }
         DataResourceEntity resource = requireResource(resourceKey);
-        return ruleProvider.getPolicies(resource, action, context);
+        // 主体筛选优先走 provider 的 policiesFor（缓存边界外的方法），
+        // 其他实现（如后续 gRPC）若未提供，则退化为"取回后本地筛选"，
+        // 但绝不允许"缓存里已经筛过一遍"。
+        if (ruleProvider instanceof JpaPermissionRuleProvider jpa) {
+            return jpa.policiesFor(resource, action, context);
+        }
+        return ruleProvider.getPolicies(resource, action, context).stream()
+                .filter(policy -> matchesSubject(policy, context))
+                .toList();
+    }
+
+    /**
+     * 兜底实现的主体匹配（与 {@link JpaPermissionRuleProvider} 语义保持一致）
+     */
+    private boolean matchesSubject(DataPolicyEntity policy, PermissionContext context) {
+        String subjectType = policy.getSubjectType();
+        if (subjectType == null) {
+            return false;
+        }
+        return switch (subjectType) {
+            case "SYSTEM" -> true;
+            case "USER" -> context.userId() != null && context.userId().equals(policy.getSubjectId());
+            case "TENANT" -> context.tenantId() != null && context.tenantId().equals(policy.getSubjectId());
+            case "ROLE" -> policy.getRoleCode() != null && context.roleCodes().contains(policy.getRoleCode());
+            case "DEPARTMENT" -> policy.getSubjectId() != null && context.departmentIds().contains(policy.getSubjectId());
+            case "FACTORY" -> policy.getSubjectId() != null && context.factoryIds().contains(policy.getSubjectId());
+            case "WAREHOUSE" -> policy.getSubjectId() != null && context.warehouseIds().contains(policy.getSubjectId());
+            default -> false;
+        };
     }
 
     public boolean shouldDenyByDefault(String resourceKey, PermissionContext context) {

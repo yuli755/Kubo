@@ -59,6 +59,10 @@ public class DataResourceEntity extends BaseEntity<DataResourceEntity> {
     @Column(name = "supported_actions", nullable = false, length = 256)
     private String supportedActions;
 
+    @Description("条件树可引用的列（CSV；DB 列名或实体属性名均可，两者自动互通）")
+    @Column(name = "filterable_columns", length = 512)
+    private String filterableColumns;
+
     @Description("资源状态")
     @Column(name = "status", nullable = false, length = 16)
     private String status = "DRAFT";

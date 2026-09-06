@@ -105,3 +105,9 @@ kubo:
     shadow-diff-log: true
     audit-plaintext-access: true
     enforce-resources: []
+    # 影子双跑：同一次查询多打一次 COUNT，比较"加条件/不加条件"的行数差
+    # （差异写 data_permission_diff_log，见 docs/database/migration/20260907_*.sql）
+    shadow:
+      sample-rate: 0.02
+      persist: true
+      max-detail-rows: 200

@@ -61,7 +61,9 @@ class DataPermissionSpecificationTest {
         DataPermissionProperties properties = new DataPermissionProperties();
         properties.setMode(DataPermissionProperties.Mode.ENFORCE);
         specification = new DataPermissionSpecification(
-                dataPermissionService, properties, mock(DataPermissionAudit.class));
+                dataPermissionService, properties, mock(DataPermissionAudit.class),
+                new cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser(),
+                new cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler());
         PermissionContextHolder.clear();
         lenient().when(builder.disjunction()).thenReturn(predicate);
         // builder.equal(Expression, Expression) 与 builder.equal(Expression, Object) 是两个重载方法，

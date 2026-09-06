@@ -7,10 +7,16 @@ import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
 import cn.hamm.spms.module.system.datapermission.repository.DataPolicyRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRule;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashSet;
 import java.util.Set;
+
+import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
 
 /**
  * <h1>数据权限策略管理服务</h1>
@@ -22,10 +28,77 @@ import java.util.Set;
 public class DataPolicyService extends BaseService<DataPolicyEntity, DataPolicyRepository> {
     private final DataPermissionEventPublisher eventPublisher;
     private final DataResourceRepository resourceRepository;
+    private final PermissionRuleParser ruleParser;
 
-    public DataPolicyService(DataPermissionEventPublisher eventPublisher, DataResourceRepository resourceRepository) {
+    public DataPolicyService(DataPermissionEventPublisher eventPublisher,
+                             DataResourceRepository resourceRepository,
+                             PermissionRuleParser ruleParser) {
         this.eventPublisher = eventPublisher;
         this.resourceRepository = resourceRepository;
+        this.ruleParser = ruleParser;
+    }
+
+    /**
+     * 保存前校验并规范化 {@code condition_json}
+     *
+     * <p>把"禁止裸 SQL、列必须在白名单、深度/数量上限"这些规则前移到写入侧：
+     * 否则运维可以存进一条永远不会生效、也可能永远不会报错的条件，
+     * 读链路只能事后从 binding 指标里发现。</p>
+     */
+    @Override
+    protected DataPolicyEntity beforeAdd(DataPolicyEntity entity) {
+        validateCondition(entity);
+        return super.beforeAdd(entity);
+    }
+
+    @Override
+    protected DataPolicyEntity beforeUpdate(DataPolicyEntity entity) {
+        validateCondition(entity);
+        return super.beforeUpdate(entity);
+    }
+
+    private void validateCondition(DataPolicyEntity entity) {
+        if (entity.getConditionJson() == null || entity.getConditionJson().isBlank()) {
+            entity.setConditionJson("{}");
+            return;
+        }
+        DataResourceEntity resource = entity.getResourceId() == null
+                ? null : resourceRepository.findById(entity.getResourceId()).orElse(null);
+        String resourceKey = resource != null ? resource.getResourceKey() : ("resourceId=" + entity.getResourceId());
+        PermissionRuleValidator.FieldAllowList allowList = allowListOf(resource);
+        PermissionRule rule;
+        try {
+            rule = ruleParser.parse(resourceKey, entity.getConditionJson());
+            new PermissionRuleValidator(allowList).validate(resourceKey, rule);
+        }
+        catch (RuntimeException ex) {
+            PARAM_INVALID.show(ex.getMessage());
+            return;
+        }
+        if (!rule.contributes()) {
+            entity.setConditionJson("{}");
+        }
+    }
+
+    private PermissionRuleValidator.FieldAllowList allowListOf(DataResourceEntity resource) {
+        Set<String> columns = new LinkedHashSet<>();
+        if (resource != null) {
+            addCsv(columns, resource.getTenantColumn());
+            addCsv(columns, resource.getOwnerColumns());
+            addCsv(columns, resource.getFilterableColumns());
+        }
+        return new PermissionRuleValidator.FieldAllowList(columns);
+    }
+
+    private void addCsv(Set<String> target, String csv) {
+        if (csv == null || csv.isBlank()) {
+            return;
+        }
+        for (String part : csv.split(",")) {
+            if (!part.isBlank()) {
+                target.add(part.trim());
+            }
+        }
     }
 
     @Override

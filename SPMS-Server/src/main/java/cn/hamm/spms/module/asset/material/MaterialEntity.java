@@ -4,7 +4,7 @@ import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Dictionary;
 import cn.hamm.airpower.core.annotation.Meta;
 import cn.hamm.airpower.curd.annotation.Search;
-import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.asset.material.enums.MaterialType;
 import cn.hamm.spms.module.asset.material.enums.MaterialUseType;
@@ -26,6 +26,13 @@ import org.hibernate.annotations.DynamicUpdate;
 /**
  * <h1>物料实体</h1>
  *
+ * <p>试点：从 {@code BaseEntity} 换成 {@code TenantAwareEntity}，因此自动获得
+ * {@code tenant_id}/{@code creator_id} 两个映射（迁移已加列）与写入期归属填充。
+ * 换掉之后 {@code DataPermissionSpecification} 里的 {@code root.get("tenant_id")}
+ * 才第一次真的取到路径 —— 之前实体没映射该列，条件生成不出来，
+ * 这正是"24 个 Service 接了权限代码却零效果"的机制。
+ * 其余 T1/T2 实体按模块同样一行改动接入，不要一次性全换。</p>
+ *
  * @author Hamm.cn
  */
 @EqualsAndHashCode(callSuper = true)
@@ -36,7 +43,7 @@ import org.hibernate.annotations.DynamicUpdate;
 @DynamicUpdate
 @Table(name = "material")
 @Description("物料")
-public class MaterialEntity extends BaseEntity<MaterialEntity> {
+public class MaterialEntity extends TenantAwareEntity<MaterialEntity> {
     @Description("物料名称")
     @Search
     @Column(columnDefinition = "varchar(255) default '' comment '物料名称'", unique = true)

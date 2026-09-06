@@ -6,6 +6,10 @@ import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRule;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleValidator;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -46,14 +50,20 @@ public class DataPermissionSpecification {
     private final DataPermissionService dataPermissionService;
     private final DataPermissionProperties properties;
     private final DataPermissionAudit audit;
+    private final PermissionRuleParser ruleParser;
+    private final JpaPermissionRuleCompiler ruleCompiler;
 
     public DataPermissionSpecification(
             DataPermissionService dataPermissionService,
             DataPermissionProperties properties,
-            DataPermissionAudit audit) {
+            DataPermissionAudit audit,
+            PermissionRuleParser ruleParser,
+            JpaPermissionRuleCompiler ruleCompiler) {
         this.dataPermissionService = dataPermissionService;
         this.properties = properties;
         this.audit = audit;
+        this.ruleParser = ruleParser;
+        this.ruleCompiler = ruleCompiler;
     }
 
     /**
@@ -193,7 +203,7 @@ public class DataPermissionSpecification {
 
         for (DataPolicyEntity policy : policies) {
             boolean filtering = isFilteringSubject(policy.getSubjectType());
-            Predicate predicate = buildSinglePredicate(root, builder, resource, policy, context);
+            Predicate predicate = buildPolicyPredicate(root, builder, resource, policy, context);
             if (predicate != null) {
                 predicates.add(predicate);
             }
@@ -218,6 +228,75 @@ public class DataPermissionSpecification {
             case "ROLE", "SYSTEM" -> false;
             default -> false;
         };
+    }
+
+    /**
+     * 单条策略 = 「主体匹配条件」AND「condition_json 条件树」
+     *
+     * <p>历史上 {@code condition_json} 从来没被读过（列一直存在、值恒为 {@code {}}），
+     * 于是"配了条件也不生效"。这里把它接上，并且<b>不静默跳过</b>非法条件：
+     * 解析/校验异常会冒到 {@link #apply} 的统一兜底，enforce 下变成拒绝 + binding 指标。</p>
+     */
+    private <T> Predicate buildPolicyPredicate(
+            Root<T> root,
+            CriteriaBuilder builder,
+            DataResourceEntity resource,
+            DataPolicyEntity policy,
+            PermissionContext context
+    ) {
+        Predicate subjectPredicate = buildSinglePredicate(root, builder, resource, policy, context);
+        Predicate conditionPredicate = buildConditionPredicate(resource, policy, root, builder, context);
+        if (subjectPredicate == null) {
+            return conditionPredicate;
+        }
+        if (conditionPredicate == null) {
+            return subjectPredicate;
+        }
+        return builder.and(subjectPredicate, conditionPredicate);
+    }
+
+    /**
+     * 编译 condition_json 条件树
+     */
+    private <T> Predicate buildConditionPredicate(
+            DataResourceEntity resource,
+            DataPolicyEntity policy,
+            Root<T> root,
+            CriteriaBuilder builder,
+            PermissionContext context
+    ) {
+        String json = policy.getConditionJson();
+        if (json == null || json.isBlank() || "{}".equals(json.trim())) {
+            return null;
+        }
+        PermissionRule rule = ruleParser.parse(resource.getResourceKey(), json);
+        if (!rule.contributes()) {
+            return null;
+        }
+        new PermissionRuleValidator(allowListOf(resource)).validate(resource.getResourceKey(), rule);
+        return ruleCompiler.compile(rule, root, builder, new cn.hamm.spms.module.system.datapermission.rule.PermissionRuleContext(context));
+    }
+
+    /**
+     * 条件树可引用的列：归属列 + 显式登记的可过滤列（白名单为空时任何 field 都会被拒）
+     */
+    private PermissionRuleValidator.FieldAllowList allowListOf(DataResourceEntity resource) {
+        java.util.Set<String> columns = new java.util.LinkedHashSet<>();
+        addCsv(columns, resource.getTenantColumn());
+        addCsv(columns, resource.getOwnerColumns());
+        addCsv(columns, resource.getFilterableColumns());
+        return new PermissionRuleValidator.FieldAllowList(columns);
+    }
+
+    private void addCsv(java.util.Collection<String> target, String csv) {
+        if (csv == null || csv.isBlank()) {
+            return;
+        }
+        for (String part : csv.split(",")) {
+            if (!part.isBlank()) {
+                target.add(part.trim());
+            }
+        }
     }
 
     /**

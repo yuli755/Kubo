@@ -37,14 +37,32 @@ public class JpaPermissionRuleProvider implements PermissionRuleProvider {
         return resourceRepository.getByResourceKey(resourceKey);
     }
 
+    /**
+     * 取该资源该动作下<b>与主体无关</b>的全部启用策略
+     *
+     * <p>缓存 key 只含 {@code resource.id + action}，因此返回值<b>绝不能</b>已经按当前用户过滤过：
+     * 历史实现把 {@code matchesSubject(policy, context)} 放在 {@code @Cacheable} 方法内部，
+     * 于是 A 用户算出来的策略列表会被 B 用户直接命中 —— 轻则多/少几条过滤条件，
+     * 重则把"别人租户可见的策略"当成"B 也有"，属于权限串号。
+     * 正确形状：缓存原始行，主体过滤放在缓存之外（{@link #policiesFor}）。</p>
+     */
     @Override
     @Cacheable(value = "datapermission:policies", key = "#resource.id + ':' + #action.name()")
     public List<DataPolicyEntity> getPolicies(DataResourceEntity resource, DataPermissionAction action, PermissionContext context) {
         if (resource == null || resource.getId() == null) {
             return List.of();
         }
-        return policyRepository.findByResourceIdAndActionNameAndEnabledTrueOrderByPriorityDesc(resource.getId(), action.name())
-                .stream()
+        return policyRepository.findByResourceIdAndActionNameAndEnabledTrueOrderByPriorityDesc(resource.getId(), action.name());
+    }
+
+    /**
+     * 主体相关的策略筛选（无缓存，依赖上下文，必须在缓存边界之外做）
+     */
+    public List<DataPolicyEntity> policiesFor(DataResourceEntity resource, DataPermissionAction action, PermissionContext context) {
+        if (context == null) {
+            return List.of();
+        }
+        return getPolicies(resource, action, context).stream()
                 .filter(policy -> matchesSubject(policy, context))
                 .toList();
     }
