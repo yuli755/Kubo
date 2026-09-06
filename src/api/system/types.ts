@@ -228,3 +228,24 @@ export interface InertPolicyItem {
   /** 动作名，原样回显（可能正是拼错的那个值；未填时后端给「(未填)」） */
   actionName: string
 }
+
+/**
+ * 一条"启用着但永远不会命中"的行级策略。
+ *
+ * 类别与原因都由后端给（`RowPolicyRiskAnalyzer` 的判据直接来自取数与主体匹配那两处代码）：
+ * 前端若自己判"哪个动作算合法"，就多了一份会过期的消费集。
+ */
+export interface RowPolicyRiskItem {
+  /** 策略行主键 */
+  policyId: number
+  /** 数据资源 ID */
+  resourceId: number
+  /** 数据资源标识 */
+  resourceKey: string
+  /** 策略编码（人认这个，不认 ID） */
+  policyCode: string
+  /** 风险类别，原样回显 */
+  kind: string
+  /** 人话说明 */
+  detail: string
+}

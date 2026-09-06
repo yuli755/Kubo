@@ -345,6 +345,42 @@ describe('mask contract · 脱敏实现只允许存在一处', () => {
     expect(list).toContain('useInertPolicyReport')
   })
 
+  it('行级盘点：路径前后端对得上，且前端不抄判定', () => {
+    /**
+     * 三个自查端点（export-gaps / inert-policies / row-policy-risks）共用同一套失效模式：
+     * composable 的 catch 刻意沉默 ⇒ 路径写错不会有任何界面异常，只会让面板长期显示"没问题"。
+     * 所以每加一个盘点，这里就必须多一条对账，否则它等于没接线。
+     */
+    const api = read(join(ROOT, 'src', 'api', 'system.ts'))
+    expect(api).toContain('request.get(\'/dataResource/row-policy-risks\')')
+
+    const controllerPath = join(SERVER, 'module/system/datapermission/controller/DataResourceController.java')
+    expect(readJavaCode(controllerPath)).toContain('@GetMapping("row-policy-risks")')
+
+    // 反向：行级策略自己的控制器上没有权限校验之外的额外暴露面，盘点不放那儿
+    const policyController = readJavaCode(join(SERVER, 'module/system/datapermission/controller/DataPolicyController.java'))
+    expect(policyController).not.toContain('row-policy-risks')
+
+    // 前端不许抄判定：出现 kind 比较 = 在重算风险类别；出现动作/主体白名单 = 在抄消费集
+    const COMPARO = /kind\s*(?:===|!==|==|!=)\s*['"]|includes\('(?:QUERY|EXPORT|ROLE|FACTORY)'\)/
+    const offenders: string[] = []
+    for (const file of [...collect(join(ROOT, 'src', 'composables'), '.ts'), ...collect(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission'), '.vue')]) {
+      stripComments(read(file)).split('\n').forEach((line, index) => {
+        if (COMPARO.test(line)) {
+          offenders.push(`${relative(ROOT, file)}:${index + 1}`)
+        }
+      })
+    }
+    expect(offenders, 'composable/视图在自行判风险类别或抄动作白名单').toEqual([])
+    // 自检：扫描认得违规、不误伤"把 kind 显示出来"
+    expect(COMPARO.test('if (item.kind === \'FACTORY\') {')).toBe(true)
+    expect(COMPARO.test('<span>{{ item.kind }}</span>')).toBe(false)
+
+    const list = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'policy', 'list.vue'))
+    expect(list, '行级策略列表没渲染盘点结果').toMatch(/<ElAlert[^>]*v-if="riskCount"/)
+    expect(list).toContain('useRowPolicyRiskReport')
+  })
+
   it('导出缺口自查的前后端路径必须对得上（它失败是静默的）', () => {
     /**
      * `useExportGapReport` 的 catch 分支刻意只标记 `failed`、不弹错：一个自查面板不该把列表页打断。

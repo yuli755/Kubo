@@ -14,6 +14,7 @@ import type {
   MenuQuery,
   PermissionEntity,
   PermissionQuery,
+  RowPolicyRiskItem,
   UnitEntity,
   UnitQuery,
 } from './system/types'
@@ -226,6 +227,15 @@ export const dataResourceApi = {
    */
   getInertPolicies(): Promise<InertPolicyItem[]> {
     return request.get('/dataResource/inert-policies')
+  },
+
+  /**
+   * 行级策略"永不命中"盘点（安全侧：这类行显示"已启用"，实际不参与任何请求）
+   *
+   * @returns 风险条目列表；无问题时为空数组
+   */
+  getRowPolicyRisks(): Promise<RowPolicyRiskItem[]> {
+    return request.get('/dataResource/row-policy-risks')
   },
 }
 

@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
 import cn.hamm.spms.base.BaseService;
+import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
@@ -28,9 +29,71 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      */
     private final DataFieldPolicyProvider fieldPolicyProvider;
 
-    public DataResourceService(DataPermissionEventPublisher eventPublisher, DataFieldPolicyProvider fieldPolicyProvider) {
+    /**
+     * 行级策略取数（盘点专用）
+     */
+    private final DataPolicyService rowPolicyService;
+
+    public DataResourceService(DataPermissionEventPublisher eventPublisher,
+                               DataFieldPolicyProvider fieldPolicyProvider,
+                               DataPolicyService rowPolicyService) {
         this.eventPublisher = eventPublisher;
         this.fieldPolicyProvider = fieldPolicyProvider;
+        this.rowPolicyService = rowPolicyService;
+    }
+
+    /**
+     * 一条"永不命中"的行级策略（带资源定位）
+     *
+     * @param policyId    策略行主键
+     * @param resourceId  数据资源 ID
+     * @param resourceKey 数据资源标识
+     * @param policyCode  策略编码（人认这个）
+     * @param kind        风险类别（与 {@link RowPolicyRiskAnalyzer} 的三个常量一致）
+     * @param detail      人话说明
+     */
+    public record RowPolicyRiskItem(Long policyId,
+                                    Long resourceId,
+                                    String resourceKey,
+                                    String policyCode,
+                                    String kind,
+                                    String detail) {
+    }
+
+    /**
+     * 行级策略里"启用着但永远不会命中"的存量行
+     *
+     * <p>为什么这件事值得单独盘：行级规则不命中的后果不是少个提示，而是<b>该主体在这个资源上没有防护</b>，
+     * 而策略列表里它显示"已启用"。写错动作名、少填 subjectId、给还没接入的 FACTORY 配策略，
+     * 三种都是保存成功的。</p>
+     *
+     * <p>工厂维度的开关从 {@code DataPermissionRuntime} 取（与 {@code DimensionGuard} 同一入口，
+     * 保证"面板说的"和"写入侧拦的"是同一个事实）；取不到配置时按<b>未接入</b>处理，
+     * 因为默认值就是未接入 —— 宁可按现实报，也不按愿望报。</p>
+     *
+     * @return 风险条目列表；无问题时为空列表
+     */
+    public List<RowPolicyRiskItem> rowPolicyRisks() {
+        DataPermissionProperties properties = DataPermissionRuntime.properties();
+        boolean factoryWired = properties != null && properties.isFactoryDimensionEnabled();
+        List<DataResourceEntity> resources = repository.findAll();
+        if (resources == null || resources.isEmpty()) {
+            return List.of();
+        }
+        List<RowPolicyRiskItem> items = new ArrayList<>();
+        for (DataResourceEntity resource : resources) {
+            Long resourceId = resource.getId();
+            String resourceKey = resource.getResourceKey();
+            if (resourceId == null || resourceKey == null || resourceKey.isBlank()) {
+                continue;
+            }
+            for (RowPolicyRiskAnalyzer.Risk risk : RowPolicyRiskAnalyzer.risks(
+                    rowPolicyService.getEnabledPoliciesByResource(resourceId), factoryWired)) {
+                items.add(new RowPolicyRiskItem(risk.policyId(), resourceId, resourceKey,
+                        risk.policyCode(), risk.kind(), risk.detail()));
+            }
+        }
+        return items;
     }
 
     /**

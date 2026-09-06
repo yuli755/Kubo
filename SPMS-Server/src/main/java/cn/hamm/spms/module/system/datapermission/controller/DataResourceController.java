@@ -45,6 +45,21 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
         return Json.data(service.inertPolicies());
     }
 
+    /**
+     * 列出"启用着但永远不会命中"的行级策略
+     *
+     * <p>行级规则不命中 = 该主体在这个资源上没有防护，而界面显示"已启用" —— 这种反差必须由机器核对，
+     * 靠人读 condition_json 与动作名是读不出来的。与 {@code export-gaps} / {@code inert-policies}
+     * 同一权限面（返回的都是跨角色的策略元数据）。</p>
+     *
+     * @return 风险条目列表（策略 ID、资源、编码、类别、原因）
+     */
+    @GetMapping("row-policy-risks")
+    @Description("行级策略永不命中盘点")
+    public Json getRowPolicyRisks() {
+        return Json.data(service.rowPolicyRisks());
+    }
+
     @GetMapping("export-gaps")
     @Description("导出明文授权缺口自查")
     public Json getExportGaps() {

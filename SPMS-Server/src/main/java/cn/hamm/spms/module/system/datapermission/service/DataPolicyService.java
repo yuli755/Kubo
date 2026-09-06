@@ -100,6 +100,24 @@ public class DataPolicyService extends BaseService<DataPolicyEntity, DataPolicyR
         }
     }
 
+    /**
+     * 按资源取全部启用中的行级策略（跨动作），管理端盘点用
+     *
+     * <p>刻意<b>不</b>走 {@code JpaPermissionRuleProvider} 那份缓存：它的键是
+     * {@code resourceId + action.name()}，而盘点要看的正是"不在任何合法动作里"的行。
+     * 塞进同一缓存会凭空多出第三种键语义，收益只是省一次几十行的表扫描。</p>
+     *
+     * @param resourceId 数据资源 ID
+     * @return 启用中的策略，按 priority 降序；无则空列表
+     */
+    public List<DataPolicyEntity> getEnabledPoliciesByResource(Long resourceId) {
+        if (resourceId == null) {
+            return List.of();
+        }
+        List<DataPolicyEntity> policies = repository.findByResourceIdAndEnabledTrueOrderByPriorityDesc(resourceId);
+        return policies != null ? policies : List.of();
+    }
+
     private PermissionRuleValidator.FieldAllowList allowListOf(DataResourceEntity resource) {
         Set<String> columns = new LinkedHashSet<>();
         if (resource != null) {
