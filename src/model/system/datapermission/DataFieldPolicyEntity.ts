@@ -60,6 +60,11 @@ export class DataFieldPolicyEntity extends BaseEntity {
   @Table({
     width: 100,
   })
+  @Form({
+    // 库里 `action_name` 是 NOT NULL：不声明必填的话，留空会提交成空串/undefined，
+    // 报错发生在后端持久层，界面只给一个 500。
+    requiredString: true,
+  })
   @Field({
     dictionary: DataPermissionActionType,
     label: '动作',

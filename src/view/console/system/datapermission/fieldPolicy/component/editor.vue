@@ -37,6 +37,7 @@ const {
         受限角色导出时，被 QUERY 遮蔽的每一个字段都要有一条 EXPORT 且「允许明文＝是」，缺一条整个导出被拒
         （导出是一整份文件，不部分放行）。roleCode 留空或填 default 表示对所有角色兜底，精确角色优先。
         后端 kubo.data-permission.mode=shadow 时只记 export-bypass 账、不拦；enforce 才拦。
+        动作下拉里 QUERY 与 EXPORT 是两条独立策略：只配 QUERY 会得到「界面遮蔽 + 导出被拒」，这是预期行为，不是漏配。
       </div>
       <AFormField field="resourceId" />
       <AFormField field="fieldName" />

@@ -347,4 +347,93 @@ describe('mask contract · 界面文案与后端能力对齐', () => {
       expect(hit, `tip 引用的 ${cls} 在后端找不到`).toBe(true)
     }
   })
+})describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
+  /**
+   * 动作名是**字符串存的**（`data_field_policy.action_name`），前后端没有编译期耦合：
+   * 前端少一个成员，管理员就选不到那个动作（配不出来 = 该能力在界面上不存在）；
+   * 前端多一个成员，就能配出一条后端永远查不到的策略（看起来配了，实际 fail-open）。
+   * 两种漂移都不会让任何一方报错，所以必须在这里对账 —— 而且**读的是 Java 源码**，
+   * 不是这份测试里手抄一份名单（抄的那份同样会漂移）。
+   */
+  const ENUM = join(SERVER, 'module/system/datapermission/enums/DataPermissionAction.java')
+  const DICT = join(ROOT, 'src/model/system/datapermission/DataPermissionActionType.ts')
+
+  const backendActions = (): string[] => {
+    const java = readJavaCode(ENUM)
+    const body = java.slice(java.indexOf('enum DataPermissionAction'))
+    const members = [...body.matchAll(/^ {4}([A-Z][A-Z0-9_]*)[,;]?$/gm)].map(m => m[1])
+    // 解析不到成员 = 后端把枚举改了形状（换成常量类/加了注释块），这时"两边都空"会假绿
+    expect(members.length, '没解析到后端 DataPermissionAction 成员：解析逻辑已失效').toBeGreaterThan(0)
+    return members
+  }
+
+  type DictEntry = { name: string, value: string, label: string, disabled: boolean }
+
+  const dictEntries = (): DictEntry[] => {
+    // 按行扫而不是一个大正则：这个文件里每个成员是 `static readonly X = new Y('X', '标签')`
+    // 后面跟若干 ` .setColor(...)` 链式调用、**行尾没有分号**（ prettier 的 style:{} 配置），
+    // 指望 `...);` 收尾的正则会一条都不匹配，而"匹配不到"在门禁里长得像"通过"。
+    const lines = read(DICT).split('
+')
+    const entries: DictEntry[] = []
+    for (let i = 0; i < lines.length; i++) {
+      const m = /^\s*static readonly ([A-Z][A-Z0-9_]*)\s*=\s*new [A-Za-z]+\('([A-Z0-9_]+)',\s*'([^']*)'\)/.exec(lines[i])
+      if (!m) {
+        continue
+      }
+      let j = i + 1
+      let tail = ''
+      while (j < lines.length && /^\s*\.\w+\(/.test(lines[j])) {
+        tail += lines[j]
+        j++
+      }
+      i = j - 1
+      expect(m[1], `键名 ${m[1]} 与字典值 ${m[2]} 不一致（后端按值匹配）`).toBe(m[2])
+      entries.push({ name: m[1], value: m[2], label: m[3], disabled: /setDisabled\(true\)/.test(tail) })
+    }
+    expect(entries.length, '一个成员都没解析到：字典形状变了，别把空转读成通过').toBeGreaterThan(0)
+    return entries
+  }
+
+  it('前端字典成员必须与后端枚举一一对应（双向）', () => {
+    const backend = backendActions().sort()
+    const front = dictEntries().map(e => e.name).sort()
+    expect(front).toEqual(backend)
+  })
+
+  it('EXPORT 可选性必须与后端导出实现的存在性一致（双向）', () => {
+    /**
+     * 这一条来自本轮实际发现的状态：`EXPORT` 被 `.setDisabled(true)` 灰掉，注释写的是
+     * "导出侧尚未接脱敏" —— 而 `ExportBypassGuard` 与 `ExportColumnMasker` 都已落地。
+     * 后果不是"少个选项"：enforce 打开后受限角色**无法被授权**明文导出，全量导出被拒，
+     * 且管理端没有入口去修。灰掉一个已实现的能力 = 把 fail-closed 变成事实上的全拒。
+     */
+    const impl = ['ExportBypassGuard.java', 'ExportColumnMasker.java']
+      .map(f => join(SERVER, 'module/system/datapermission/service', f))
+    const implemented = impl.every(f => statSync(f, { throwIfNoEntry: false })?.isFile() === true)
+    const entry = dictEntries().find(e => e.name === 'EXPORT')
+    expect(entry, '字典里没有 EXPORT：后端枚举有，前端就必须能选').toBeTruthy()
+
+    if (implemented) {
+      expect(entry!.disabled, '后端导出遮蔽已实现，字典里仍灰掉 EXPORT 会让管理员无法授权').toBe(false)
+      // 标签也不许继续承诺"没接线"：那会让人不去配授权，与灰掉等价
+      const label = entry!.label
+      expect(label).not.toMatch(/未接线|尚未|暂不|没生效|不生效/)
+      expect(label).toContain('导出')
+    }
+    else {
+      expect(entry!.disabled, '后端导出遮蔽不在了，前端就不能给一个会静默失效的选项').toBe(true)
+    }
+  })
+
+  it('字典 tip 引用的后端类必须真实存在', () => {
+    // 与 fieldPolicy 编辑器 tip 同一条规矩：写一个不存在的类名，比不写更误导
+    const doc = read(DICT)
+    for (const cls of doc.match(/\b(?:Export|Masked|Dimension|Column)[A-Za-z0-9]*(?:Guard|Service|Masker)\b/g) ?? []) {
+      const hit = collect(join(SERVER, 'module/system/datapermission'), '.java')
+        .some(file => file.endsWith(`/${cls}.java`))
+      expect(hit, `字典注释引用的 ${cls} 在后端找不到`).toBe(true)
+    }
+  })
 })
+

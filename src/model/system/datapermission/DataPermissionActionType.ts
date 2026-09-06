@@ -6,9 +6,17 @@ import { WebColor, WebEnum } from '@airpower/web'
  * 与后端 `DataPermissionAction` 同名（`data_policy.action_name` /
  * `data_field_policy.action_name` 存字符串）。
  *
- * 注意消费范围：**列级脱敏的读链路目前只解析 QUERY**（`ColumnMaskingService.DEFAULT_ACTION`），
- * 给其它动作配脱敏策略不会报错、也不会生效；行级策略同理按 action 精确匹配。
- * 这点在界面上说明，比让人"配了却查不到原因"便宜得多。
+ * 消费范围（写在这里是为了别让"配了不生效"变成口头传说）：
+ *
+ * - `QUERY`：列级脱敏的读链路默认动作（`ColumnMaskingService.DEFAULT_ACTION`），界面与详情都走它；
+ * - `EXPORT`：由 `ExportBypassGuard`（请求线程上决定"这次导出能不能发生"）与
+ *   `ExportColumnMasker`（导出内容层）共同消费 —— 受限角色要导出带某列明文，必须有
+ *   `actionName=EXPORT + allowPlaintext=true` 的这条策略，缺一条整个导出被拒；
+ * - `DETAIL` / `CREATE` / `UPDATE` / `DELETE`：行级策略按 action 精确匹配；列级脱敏不看这些动作，
+ *   给它们配脱敏策略不报错、也不会生效。
+ *
+ * 枚举成员与后端 `DataPermissionAction` 的一致性由 `src/config/__tests__/maskContract.spec.ts`
+ * 对账（它直接读 Java 源码，不靠这里的手抄清单）。
  */
 export class DataPermissionActionType extends WebEnum<string> {
   static readonly QUERY = new DataPermissionActionType('QUERY', '列表查询')
@@ -27,10 +35,14 @@ export class DataPermissionActionType extends WebEnum<string> {
     .setColor(WebColor.DANGER)
 
   /**
-   * 导出：`data_resource.supported_actions` 里可声明，但导出侧尚未接脱敏
-   * （导出走文件流不经过 Jackson），因此这里灰掉，避免"配了以为生效"。
+   * 导出：受限角色导出某一列明文的**唯一入口**（`ExportBypassGuard` 认这条策略）。
+   *
+   * 这里曾经写的是"导出侧尚未接脱敏 ⇒ `.setDisabled(true)`"。那个前提已经不存在：
+   * `ExportBypassGuard`（enforce 下拒）与 `ExportColumnMasker`（内容层遮蔽）都已落地，
+   * 而灰掉的选项会让人**根本没法授权** —— enforce 一开，所有受限角色的导出都是"缺明文授权"全拒，
+   * 且管理端没有入口去修。灰掉一个已实现的能力，比少一个功能严重得多。
+   * 反向保险在测试里：后端那两个类一旦被删，门禁就要求这里重新灰掉。
    */
-  static readonly EXPORT = new DataPermissionActionType('EXPORT', '导出（脱敏未接线）')
+  static readonly EXPORT = new DataPermissionActionType('EXPORT', '导出（明文需单独授权）')
     .setColor(WebColor.NORMAL)
-    .setDisabled(true)
 }
