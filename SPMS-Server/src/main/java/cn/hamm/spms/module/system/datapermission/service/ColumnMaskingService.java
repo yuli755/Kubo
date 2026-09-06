@@ -126,7 +126,21 @@ public class ColumnMaskingService {
      * @return 字段名 → 生效策略；资源未注册或无策略时返回空 Map
      */
     public Map<String, DataFieldPolicyEntity> getEffectiveMaskPolicyMap(String resourceKey, PermissionContext context) {
-        List<DataFieldPolicyEntity> policies = resolvePolicies(resourceKey, DEFAULT_ACTION);
+        return getEffectiveMaskPolicyMap(resourceKey, DEFAULT_ACTION, context);
+    }
+
+    /**
+     * 指定动作的整表解析（导出等旁路出口要用同一套"角色精确匹配 + default 兜底"规则，
+     * 不能再各写一份 —— 写侧与读侧口径不一致是这套机制最容易出现"看起来生效"的地方）
+     *
+     * @param resourceKey 数据资源标识
+     * @param actionName  动作名（QUERY / EXPORT 等）
+     * @param context     权限上下文
+     * @return 字段名 → 生效策略；无策略时为空 Map
+     */
+    public Map<String, DataFieldPolicyEntity> getEffectiveMaskPolicyMap(
+            String resourceKey, String actionName, PermissionContext context) {
+        List<DataFieldPolicyEntity> policies = resolvePolicies(resourceKey, actionName);
         if (policies.isEmpty()) {
             return java.util.Collections.emptyMap();
         }
@@ -136,7 +150,7 @@ public class ColumnMaskingService {
             if (fieldName == null || result.containsKey(fieldName)) {
                 continue;
             }
-            DataFieldPolicyEntity effective = getEffectiveMaskPolicy(resourceKey, fieldName, context);
+            DataFieldPolicyEntity effective = getEffectiveMaskPolicy(resourceKey, fieldName, actionName, context);
             if (effective != null) {
                 result.put(fieldName, effective);
             }

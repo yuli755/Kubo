@@ -54,6 +54,9 @@ public class RequestInterceptor extends CurdRequestInterceptor {
     @Autowired
     private TenantContextResolver tenantContextResolver;
 
+    @Autowired
+    private cn.hamm.spms.module.system.datapermission.service.ExportBypassGuard exportBypassGuard;
+
     /**
      * 验证指定的用户是否有指定权限标识的权限
      *
@@ -71,6 +74,10 @@ public class RequestInterceptor extends CurdRequestInterceptor {
         long userId = verifiedToken.getPayloadId();
         UserEntity existUser = userService.getWithEnable(userId);
         ensurePermissionContext(existUser, request);
+        // 导出走文件流、不经过 Jackson，是列级脱敏的已知旁路：在这里统一收口
+        // （为什么放拦截器而不是各 controller：BaseController 全局排掉了 Curd.Export，
+        //  只有个别实体通过 @Extends 加回来，逐个加钩子必然漏；旁路漏一个就等于没做）
+        exportBypassGuard.guard(request);
         if (existUser.isRootUser()) {
             return;
         }
