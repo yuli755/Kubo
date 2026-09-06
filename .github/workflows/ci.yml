@@ -1,0 +1,95 @@
+name: CI
+
+# 说明：
+# - web 这个 job 是**门禁**（前端 F0 起生效）：lint / 类型 / 单测 / 构建 / 体积预算任一不过即失败。
+# - server 的 compile 是硬门禁；test 暂时 continue-on-error（后端集成用例依赖 DB/Redis，
+#   待 P1 用 Testcontainers 收口后翻成必过）。不要因为"本地跑不过"就直接注掉整个 job。
+
+on:
+  push:
+    branches: [ main, master, 'feat/**' ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web (lint / typecheck / test / build / size)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint:ci
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      # 双指标：首屏关键路径（index.html + 静态 import 闭包）与总量分别设预算。
+      # 历史口径"所有产物 gzip < 800KB"含懒加载分包，导致无法判定达标与否；
+      # 预算数字改动必须连同理由写进 docs/数据权限目标态落地施工图.md 的决策记录。
+      - name: Bundle size budget
+        run: pnpm size -- --entry-budget 450 --total-budget 850 --json dist/size-report.json
+
+      - name: Upload size report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-size-report
+          path: dist/size-report.json
+          if-no-files-found: ignore
+
+  server:
+    name: Server (compile / test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: SPMS-Server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: 17
+          cache: maven
+
+      - name: Compile
+        run: ./mvnw -B -s settings.xml -DskipTests compile
+
+      - name: Unit & slice tests
+        continue-on-error: true   # TODO(P1)：Testcontainers 收口后删除本行
+        run: ./mvnw -B -s settings.xml test
+
+      - name: Reject forbidden dependencies
+        run: |
+          set -e
+          # 架构红线（见 docs/二次改造前后端推进路线与可行性建议.md）：
+          # 不得引入 AMQP 之外的消息中间件客户端；MyBatis 必须与 MyBatis-Plus 同版本族。
+          tree=$(./mvnw -B -s settings.xml -q dependency:tree || true)
+          if echo "$tree" | grep -Ei "kafka-clients|rocketmq-client|spring-boot-starter-artemis"; then
+            echo "禁止引入上述 MQ 客户端"; exit 1
+          fi

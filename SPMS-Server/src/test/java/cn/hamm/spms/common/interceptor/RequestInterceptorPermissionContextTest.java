@@ -10,6 +10,7 @@ import cn.hamm.spms.module.system.datapermission.SystemPermissionIdentities;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.service.SystemPermissionService;
+import cn.hamm.spms.module.system.datapermission.service.TenantContextResolver;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
 import cn.hamm.spms.module.system.permission.PermissionService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,7 +31,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 
 /**
  * <h1>RequestInterceptor 数据权限上下文测试</h1>
@@ -55,6 +58,9 @@ class RequestInterceptorPermissionContextTest {
     private SystemPermissionService systemPermissionService;
 
     @Mock
+    private TenantContextResolver tenantContextResolver;
+
+    @Mock
     private HttpServletRequest request;
 
     @Mock
@@ -73,6 +79,9 @@ class RequestInterceptorPermissionContextTest {
         injectField(interceptor, "userService", userService);
         injectField(interceptor, "personalTokenService", personalTokenService);
         injectField(interceptor, "systemPermissionService", systemPermissionService);
+        injectField(interceptor, "tenantContextResolver", tenantContextResolver);
+        // 默认：服务端解析出的租户为 1（具体语义见 TenantContextResolverTest）
+        lenient().when(tenantContextResolver.resolve(any(UserEntity.class), any(HttpServletRequest.class))).thenReturn(1L);
         PermissionContextHolder.clear();
         // ensurePermissionContext 总会检查 bypass 权限，需要默认 stub
         lenient().when(systemPermissionService.has(any(UserEntity.class), anyString())).thenReturn(false);
@@ -134,38 +143,32 @@ class RequestInterceptorPermissionContextTest {
             assertTrue(context.bypassDataPermission(), "拥有 data-permission:bypass 的用户应绕过数据权限");
         }
 
+        /**
+         * 决策 D1：租户只信任服务端解析结果。
+         *
+         * 旧实现是「从 X-Tenant-Id 请求头解析、缺省回落 0L」，等于把租户隔离交给前端，
+         * 一旦业务表补上 tenant_id 就是横向越权入口。这里改为断言「拦截器把解析职责
+         * 委托给 TenantContextResolver，并把它的结果原样写进上下文」。
+         * 解析规则本身（成员校验、非法头拒绝、无归属处理）见 TenantContextResolverTest。
+         */
         @Test
-        void resolvesTenantIdFromHeader() {
-            given(request.getHeader("X-Tenant-Id")).willReturn("200");
-
+        void delegatesTenantResolutionToServerSideResolver() throws Exception {
             UserEntity user = createUser(1L, "张三", false);
             given(verifiedToken.getPayloadId()).willReturn(1L);
             given(userService.getWithEnable(1L)).willReturn(user);
             given(permissionService.getPermissionByIdentity(anyString()))
                     .willReturn(new PermissionEntity().setIdentity("test:permission").setName("测试权限"));
             given(systemPermissionService.has(any(UserEntity.class), eq("test:permission"))).willReturn(true);
+            // 客户端伪造的租户头不应影响结果：解析器返回什么就用什么
+            given(request.getHeader("X-Tenant-Id")).willReturn("999999");
+            given(tenantContextResolver.resolve(any(UserEntity.class), any(HttpServletRequest.class))).willReturn(7L);
 
             interceptor.checkUserPermission(verifiedToken, "test:permission", request);
 
             PermissionContext context = PermissionContextHolder.require();
-            assertEquals(200L, context.tenantId(), "应从请求头解析租户 ID");
-        }
-
-        @Test
-        void defaultsTenantIdToZeroWhenHeaderMissing() {
-            given(request.getHeader("X-Tenant-Id")).willReturn(null);
-
-            UserEntity user = createUser(1L, "张三", false);
-            given(verifiedToken.getPayloadId()).willReturn(1L);
-            given(userService.getWithEnable(1L)).willReturn(user);
-            given(permissionService.getPermissionByIdentity(anyString()))
-                    .willReturn(new PermissionEntity().setIdentity("test:permission").setName("测试权限"));
-            given(systemPermissionService.has(any(UserEntity.class), eq("test:permission"))).willReturn(true);
-
-            interceptor.checkUserPermission(verifiedToken, "test:permission", request);
-
-            PermissionContext context = PermissionContextHolder.require();
-            assertEquals(0L, context.tenantId(), "无租户头时应默认为 0");
+            assertEquals(7L, context.tenantId(), "上下文租户必须来自服务端解析结果");
+            then(tenantContextResolver).should().resolve(user, request);
+            then(request).should(never()).getParameter("tenantId");
         }
     }
 

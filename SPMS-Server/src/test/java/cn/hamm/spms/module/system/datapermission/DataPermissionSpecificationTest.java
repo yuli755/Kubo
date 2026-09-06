@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
+import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
@@ -26,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 
 /**
  * <h1>DataPermissionSpecification 单元测试</h1>
@@ -54,7 +56,12 @@ class DataPermissionSpecificationTest {
 
     @BeforeEach
     void setUp() {
-        specification = new DataPermissionSpecification(dataPermissionService);
+        // 本测试类验证的是"给定策略如何拼成谓词"，因此固定为 ENFORCE；
+        // 模式语义（off/shadow/enforce）另有 DataPermissionModeSemanticsTest 覆盖。
+        DataPermissionProperties properties = new DataPermissionProperties();
+        properties.setMode(DataPermissionProperties.Mode.ENFORCE);
+        specification = new DataPermissionSpecification(
+                dataPermissionService, properties, mock(DataPermissionAudit.class));
         PermissionContextHolder.clear();
         lenient().when(builder.disjunction()).thenReturn(predicate);
         // builder.equal(Expression, Expression) 与 builder.equal(Expression, Object) 是两个重载方法，

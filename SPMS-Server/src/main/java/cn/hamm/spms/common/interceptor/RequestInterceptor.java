@@ -14,6 +14,7 @@ import cn.hamm.spms.module.personnel.user.token.PersonalTokenService;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.service.SystemPermissionService;
+import cn.hamm.spms.module.system.datapermission.service.TenantContextResolver;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
 import cn.hamm.spms.module.system.permission.PermissionService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -48,6 +49,9 @@ public class RequestInterceptor extends CurdRequestInterceptor {
 
     @Autowired
     private SystemPermissionService systemPermissionService;
+
+    @Autowired
+    private TenantContextResolver tenantContextResolver;
 
     /**
      * 验证指定的用户是否有指定权限标识的权限
@@ -140,7 +144,8 @@ public class RequestInterceptor extends CurdRequestInterceptor {
                 user, cn.hamm.spms.module.system.datapermission.SystemPermissionIdentities.DATA_PERMISSION_BYPASS
         );
 
-        Long tenantId = resolveTenantId(request);
+        // 租户 ID 只信任服务端解析结果（user_tenant 关系），请求头仅作切换意图（决策 D1）
+        Long tenantId = tenantContextResolver.resolve(user, request);
 
         PermissionContext context = new PermissionContext(
                 user.getId(),
@@ -153,21 +158,6 @@ public class RequestInterceptor extends CurdRequestInterceptor {
         );
 
         PermissionContextHolder.open(context);
-    }
-
-    /**
-     * 从请求中解析租户 ID
-     */
-    private Long resolveTenantId(HttpServletRequest request) {
-        String tenantHeader = request.getHeader("X-Tenant-Id");
-        if (StringUtils.hasText(tenantHeader)) {
-            try {
-                return Long.parseLong(tenantHeader);
-            } catch (NumberFormatException ignored) {
-                // 忽略非法租户 ID
-            }
-        }
-        return 0L;
     }
 
     @Override

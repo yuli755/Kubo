@@ -1,5 +1,21 @@
 import type { ChangePasswordRequest, RefreshTokenRequest, RefreshTokenResponse, UserEntity } from './types'
-import type { CodeRuleEntity, CodeRuleField, CodeRuleParam, CodeRuleQuery, ConfigEntity, ConfigQuery, DataFieldPolicyQuery, MaskPolicy, MenuEntity, MenuQuery, PermissionEntity, PermissionQuery, UnitEntity, UnitQuery } from './system/types'
+import type {
+  CodeRuleEntity,
+  CodeRuleField,
+  CodeRuleParam,
+  CodeRuleQuery,
+  ConfigEntity,
+  ConfigQuery,
+  DataFieldPolicyEntity,
+  DataFieldPolicyQuery,
+  MaskPolicy,
+  MenuEntity,
+  MenuQuery,
+  PermissionEntity,
+  PermissionQuery,
+  UnitEntity,
+  UnitQuery,
+} from './system/types'
 import { request } from './axios'
 
 export const authApi = {
@@ -178,5 +194,52 @@ export const codeRuleApi = {
 
   getParamList(): Promise<CodeRuleParam[]> {
     return request.post('/coderule/getParamList')
+  },
+}
+
+// ──────────────────────────────────────────
+// 数据字段权限策略 (DataFieldPolicy · 列级脱敏)
+// ──────────────────────────────────────────
+
+export const dataFieldPolicyApi = {
+  /**
+   * 获取「当前登录用户」在指定资源字段上生效的脱敏策略。
+   *
+   * 角色取自服务端权限上下文，**不接受前端传入 roleCode**，
+   * 因此不能通过手工构造参数绕过脱敏。
+   *
+   * @param resourceKey 数据资源标识，如 `channel.salePrice`
+   * @param fieldName   字段名，如 `price`
+   * @returns 生效策略；`null` 表示该字段对当前用户无需脱敏
+   */
+  getMyMask(resourceKey: string, fieldName: string): Promise<MaskPolicy | null> {
+    return request.get('/dataFieldPolicy/my-mask', { params: { resourceKey, fieldName } })
+  },
+
+  /**
+   * 按资源 / 字段 / 角色查询策略列表（管理端与联调用）
+   */
+  getByResourceFieldRole(resourceKey: string, fieldName: string, roleCode?: string): Promise<DataFieldPolicyEntity[]> {
+    return request.get('/dataFieldPolicy/by-resource-field-role', { params: { resourceKey, fieldName, roleCode } })
+  },
+
+  getPage(params: DataFieldPolicyQuery): Promise<{ list: DataFieldPolicyEntity[], total: number }> {
+    return request.post('/dataFieldPolicy/getPage', params)
+  },
+
+  getDetail(id: number): Promise<DataFieldPolicyEntity> {
+    return request.post('/dataFieldPolicy/getDetail', { id })
+  },
+
+  add(data: Partial<DataFieldPolicyEntity>): Promise<DataFieldPolicyEntity> {
+    return request.post('/dataFieldPolicy/add', data)
+  },
+
+  update(data: Partial<DataFieldPolicyEntity>): Promise<DataFieldPolicyEntity> {
+    return request.post('/dataFieldPolicy/update', data)
+  },
+
+  delete(id: number): Promise<void> {
+    return request.post('/dataFieldPolicy/delete', { id })
   },
 }

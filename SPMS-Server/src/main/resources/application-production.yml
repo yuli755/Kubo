@@ -2,8 +2,10 @@ spring:
   jpa:
     show-sql: false
     hibernate:
-      # 生产模式请严格使用 validate
-      ddl-auto: update
+      # 生产必须 validate：schema 由 docs/database/migration/*.sql 受控变更（决策 D2）。
+      # 历史这里是 update —— 与注释自相矛盾，且会让"实体没有映射列"这种问题
+      # 被 Hibernate 静默改表掩盖掉（tenant_id 加列后尤其危险）。
+      ddl-auto: validate
   datasource:
     url: 'jdbc:mysql://kubo-mysql:3306/kubo?allowPublicKeyRetrieval=true&serverTimezone=UTC&useUnicode=true&characterEncoding=utf8&useSSL=false'
     username: kubo
@@ -25,3 +27,11 @@ springdoc:
   swagger-ui:
     enabled: false # 生产环境建议关闭 UI
   show-actuator: false
+
+# 生产先跑观察模式：只记录差异，不改变结果。
+# 观察窗口内 binding 指标必须归零，才按资源逐个进入 enforce（见施工图 §8）。
+kubo:
+  data-permission:
+    mode: shadow
+    tenant-required: false
+    shadow-diff-log: true

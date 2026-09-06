@@ -87,3 +87,21 @@ springdoc:
   model-converters:
     pageable-converter:
       enabled: true
+
+# 数据权限（行级过滤 + 列级脱敏）灰度开关
+# 见 docs/数据权限目标态落地施工图.md 决策 D2 / D3
+#  - off    : 完全不参与（回滚位，与改造前行为一致）
+#  - shadow : 计算并记录差异，不改变查询结果（观察期）
+#  - enforce: 真正注入过滤条件，绑定失败按空结果集处理（fail-closed）
+# 目标态是 shadow 全量 -> enforce 逐资源白名单放开；
+# 注意 enforce 的前提是迁移脚本已执行且实体已映射 tenant_id/creator_id，
+# 否则这里会把"列不存在"直接变成查不到数据 —— 这正是用来暴露空转的机制。
+kubo:
+  data-permission:
+    mode: off
+    tenant-required: false
+    default-tenant-id: 1
+    deny-unregistered: false
+    shadow-diff-log: true
+    audit-plaintext-access: true
+    enforce-resources: []

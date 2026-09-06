@@ -107,6 +107,11 @@ public class ColumnMaskingService {
         if (policy == null) {
             return value;
         }
+        if (context == null) {
+            // 有策略但身份未解析：安全失败（遮蔽）而不是原样输出。
+            // 系统内部调用应显式构造带 bypass 的上下文，而不是依赖此处放行。
+            return defaultMask(policy);
+        }
         if (Boolean.TRUE.equals(policy.getAllowPlaintext())) {
             return value;
         }
@@ -115,6 +120,14 @@ public class ColumnMaskingService {
 
     /**
      * 根据脱敏类型应用脱敏
+     *
+     * <p>遮蔽结果一律是<b>字符串</b>：被标记字段在本项目里多为 {@code Double price}
+     * 这类数值字段，序列化层必须以字符串写出（{@code SensitiveFieldSerializer} 负责），
+     * 切勿把结果回写进实体字段。</p>
+     *
+     * <p>口径与前端 {@code packages/shared/src/utils/mask.ts} 对齐：
+     * LAST4 只留末四位（数值字段等价于全遮蔽），HASH 输出不可逆摘要前缀
+     * （"需要比对但不能看原值"的场景），未知类型按最严格处理。</p>
      */
     private Object applyMask(String maskType, String maskExpression, Object value) {
         if (value == null) {
@@ -123,11 +136,53 @@ public class ColumnMaskingService {
         String strValue = value.toString();
 
         return switch (maskType != null ? maskType.toUpperCase() : "FULL") {
-            case "FULL" -> "****";
+            case "FULL" -> maskExpression != null ? maskExpression : "****";
             case "REPLACE" -> maskExpression != null ? maskExpression : "****";
             case "PARTIAL" -> maskPartial(strValue);
+            case "LAST4" -> maskLast4(strValue, maskExpression);
+            case "HASH" -> digest(strValue);
+            // 未配置或配置了未知类型：安全失败，绝不回退原值
             default -> "****";
         };
+    }
+
+    /**
+     * 只保留末四位；长度不足时整体遮蔽
+     */
+    private String maskLast4(String value, String maskExpression) {
+        if (value.length() <= 4) {
+            return maskExpression != null ? maskExpression : "****";
+        }
+        return "*".repeat(value.length() - 4) + value.substring(value.length() - 4);
+    }
+
+    /**
+     * 不可逆摘要（SHA-256 前 12 位十六进制）：同值同码可比对、不可还原
+     */
+    private String digest(String value) {
+        try {
+            byte[] bytes = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : bytes) {
+                hex.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
+                if (hex.length() >= 12) {
+                    break;
+                }
+            }
+            return "h:" + hex.substring(0, Math.min(12, hex.length()));
+        }
+        catch (java.security.NoSuchAlgorithmException ex) {
+            return "****";
+        }
+    }
+
+    /**
+     * 身份缺失时使用的兜底遮蔽值
+     */
+    private Object defaultMask(DataFieldPolicyEntity policy) {
+        String expression = policy.getMaskExpression();
+        return expression != null && !expression.isBlank() ? expression : "****";
     }
 
     /**
