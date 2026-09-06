@@ -4,9 +4,9 @@ import type { CodeRuleField } from '@/model/system/coderule/CodeRuleField'
 import type { CodeRuleParam } from '@/model/system/coderule/CodeRuleParam'
 import { APanel, ATable, DateTimeUtil } from '@airpower/web'
 import { ref } from 'vue'
+import { Permissions } from '@/config/permissions'
 import { useTanStackTable } from '@/hook/useTanStackTable'
 import { CodeRuleService } from '@/model/system/coderule/CodeRuleService'
-import { Permissions } from '@/config/permissions'
 
 import { CodeRuleEditor } from '@/view/console/system/coderule/component'
 

@@ -5,7 +5,6 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import Components from 'unplugin-vue-components/vite'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
-import vueDevTools from 'vite-plugin-vue-devtools'
 import { airpowerElementPlusShimPlugin } from './infra/plugins/airpower-element-plus-shim'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))

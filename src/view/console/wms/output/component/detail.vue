@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import {
   AButton,
   ADialog,
@@ -105,6 +107,7 @@ async function onAddFinish(detail: OutputDetailEntity, billId: number) {
         >
           <template #endRow="{ data }">
             <AButton
+              v-permission="Permissions.Wms.Output.addFinish"
               :disabled="!OutputStatusEnum.OUTPUTTING.equalsKey(formData.status)
               "
               link

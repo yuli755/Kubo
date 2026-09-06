@@ -13,6 +13,8 @@ import {
   getTableConfigList,
   useEditor,
 } from '@airpower/web'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 
 import { PlanDetailEntity } from '@/model/mes/plan/PlanDetailEntity'
 import { PlanEntity } from '@/model/mes/plan/PlanEntity'
@@ -106,6 +108,7 @@ async function deleteDetail(index: number) {
         >
           <template #addButton>
             <AButton
+              v-permission="[Permissions.Mes.Plan.add, Permissions.Mes.Plan.update]"
               icon="ADD"
               @click="addDetail()"
             >
@@ -114,6 +117,7 @@ async function deleteDetail(index: number) {
           </template>
           <template #customRow="{ index }">
             <AButton
+              v-permission="[Permissions.Mes.Plan.add, Permissions.Mes.Plan.update]"
               danger
               link
               @click="deleteDetail(index)"

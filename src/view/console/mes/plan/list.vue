@@ -2,11 +2,11 @@
 import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
 
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
-import { useTanStackTable } from '@/hook/useTanStackTable'
+import { Permissions } from '@/config/permissions'
 import { usePlanAudit, usePlanReject } from '@/hook/mes/usePlan'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { PlanService } from '@/model/mes/plan/PlanService'
 import { PlanStatusEnum } from '@/model/mes/plan/PlanStatusEnum'
-import { Permissions } from '@/config/permissions'
 import { PlanDetail, PlanEditor } from './component'
 
 const hook = useTanStackTable(PlanService, {

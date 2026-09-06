@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import {
   AButton,
   ADialog,
@@ -91,6 +93,7 @@ async function deleteDetail(index: number) {
         >
           <template #addButton>
             <AButton
+              v-permission="[Permissions.Wms.Output.add, Permissions.Wms.Output.update]"
               v-if="isDetailEditable"
               icon="ADD"
               @click="addDetail()"
@@ -100,6 +103,7 @@ async function deleteDetail(index: number) {
           </template>
           <template #customRow="{ index }">
             <AButton
+              v-permission="[Permissions.Wms.Output.add, Permissions.Wms.Output.update]"
               v-if="isDetailEditable"
               danger
               link

@@ -51,6 +51,7 @@ const {
         v-if="!isMultiple"
         #customRow="{ data }"
       >
+        <!-- permission-exempt: 选择器确认只回填表单，不构成数据写入 -->
         <AButton
           :disabled="data.isDisabled"
           link

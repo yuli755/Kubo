@@ -1,11 +1,11 @@
 <script lang="ts" setup>
 import type { ContractEntity } from '@/model/asset/contract/ContractEntity'
 import { AButton, APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { useTanStackTable } from '@/hook/useTanStackTable'
 import { ContractService } from '@/model/asset/contract/ContractService'
 import { ContractStatusEnum } from '@/model/asset/contract/ContractStatusEnum'
-import { Permissions } from '@/config/permissions'
-import { vPermission } from '@/directives'
 import { ContractDetail, ContractEditor } from './component'
 
 const hook = useTanStackTable(ContractService, {
@@ -74,6 +74,7 @@ async function onDetail(contract: ContractEntity) {
           终止
         </AButton>
         <AButton
+          v-permission="Permissions.Asset.Contract.getDetail"
           link
           @click="onDetail(data)"
         >

@@ -37,7 +37,9 @@
  * 否则 TS 与运行时会报缺失导出。已逐一核验下列每个子路径的具名导出名（见 PR 注释）。
  */
 
+import type { App } from 'vue'
 import { provideGlobalConfig as _provideGlobalConfig } from 'element-plus/es/components/config-provider/src/hooks/use-global-config.mjs'
+
 // ── default 导出（供 airpower `import ElementPlus from "element-plus"` 使用）──
 // dev 预构建不经过 transform，shim 不会替换 airpower 的默认导入行，故此 default 必须存在。
 // 与 build 期 airpower-element-plus-shim 的 install 体等价：仅 v-loading 指令 + locale，
@@ -45,8 +47,8 @@ import { provideGlobalConfig as _provideGlobalConfig } from 'element-plus/es/com
 // 因此不会重新拉入全量组件，保持树摇友好。
 import { ElLoading as _ElLoading } from 'element-plus/es/components/loading/index.mjs'
 
-export { ElButton } from 'element-plus/es/components/button/index.mjs'
 export { ElAlert } from 'element-plus/es/components/alert/index.mjs'
+export { ElButton } from 'element-plus/es/components/button/index.mjs'
 export { ElCheckTag } from 'element-plus/es/components/check-tag/index.mjs'
 // ── 项目源码使用的组件（components.d.ts 声明 + main.ts 命令式 API）────────
 export { ElCheckbox } from 'element-plus/es/components/checkbox/index.mjs'
@@ -77,10 +79,10 @@ export { ElMessage } from 'element-plus/es/components/message/index.mjs'
 export { ElPagination } from 'element-plus/es/components/pagination/index.mjs'
 export { ElPopover } from 'element-plus/es/components/popover/index.mjs'
 export { ElProgress } from 'element-plus/es/components/progress/index.mjs'
-export { ElResult } from 'element-plus/es/components/result/index.mjs'
-
 // radio 子路径同时导出 ElRadioGroup / ElRadioButton
 export { ElRadioButton, ElRadioGroup } from 'element-plus/es/components/radio/index.mjs'
+
+export { ElResult } from 'element-plus/es/components/result/index.mjs'
 // select 子路径同时导出 ElSelect / ElOption
 export { ElOption, ElSelect } from 'element-plus/es/components/select/index.mjs'
 export { ElSwitch } from 'element-plus/es/components/switch/index.mjs'
@@ -94,8 +96,6 @@ export { ElTimeline, ElTimelineItem } from 'element-plus/es/components/timeline/
 export type { TreeInstance } from 'element-plus/es/components/tree/index.mjs'
 export { ElTree } from 'element-plus/es/components/tree/index.mjs'
 export { ElUpload } from 'element-plus/es/components/upload/index.mjs'
-
-import type { App } from 'vue'
 
 const ElementPlus = {
   install(app: App, options?: Record<string, unknown>) {

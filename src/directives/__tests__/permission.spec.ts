@@ -1,6 +1,6 @@
+import { mount } from '@vue/test-utils'
 // @vitest-environment jsdom
 import { createPinia, setActivePinia } from 'pinia'
-import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref, withDirectives } from 'vue'
 
@@ -22,7 +22,7 @@ const { usePermissionStore } = await import('@/stores/permission')
  *
  * 用 withDirectives + h 而不是 template，避免依赖 Vue 运行时编译器。
  */
-function mountHarness(required: ReturnType<typeof ref<string[] | undefined>>) {
+function mountHarness(required: { value: string | string[] | undefined }) {
   const Comp = defineComponent({
     setup() {
       return () => withDirectives(h('button', null, '审核'), [[vPermission, required.value]])

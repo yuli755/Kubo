@@ -41,7 +41,6 @@ const Mes = {
   Order: {
     add: `Order_${Crud.add}`,
     update: `Order_${Crud.update}`,
-    delete: `Order_${Crud.delete}`,
     getDetail: `Order_${Crud.getDetail}`,
     audit: `Order_${Crud.audit}`,
     reject: `Order_${Crud.reject}`,
@@ -53,7 +52,6 @@ const Mes = {
   Plan: {
     add: `Plan_${Crud.add}`,
     update: `Plan_${Crud.update}`,
-    delete: `Plan_${Crud.delete}`,
     getDetail: `Plan_${Crud.getDetail}`,
     audit: `Plan_${Crud.audit}`,
     reject: `Plan_${Crud.reject}`,
@@ -61,7 +59,6 @@ const Mes = {
   Picking: {
     add: `Picking_${Crud.add}`,
     update: `Picking_${Crud.update}`,
-    delete: `Picking_${Crud.delete}`,
     getDetail: `Picking_${Crud.getDetail}`,
     audit: `Picking_${Crud.audit}`,
     reject: `Picking_${Crud.reject}`,
@@ -93,6 +90,7 @@ const Wms = {
     getDetail: `Input_${Crud.getDetail}`,
     audit: `Input_${Crud.audit}`,
     reject: `Input_${Crud.reject}`,
+    addFinish: 'Input_addFinish',
   },
   Output: {
     add: `Output_${Crud.add}`,
@@ -100,6 +98,7 @@ const Wms = {
     getDetail: `Output_${Crud.getDetail}`,
     audit: `Output_${Crud.audit}`,
     reject: `Output_${Crud.reject}`,
+    addFinish: 'Output_addFinish',
   },
   Move: {
     add: `Move_${Crud.add}`,
@@ -107,6 +106,7 @@ const Wms = {
     getDetail: `Move_${Crud.getDetail}`,
     audit: `Move_${Crud.audit}`,
     reject: `Move_${Crud.reject}`,
+    addFinish: 'Move_addFinish',
   },
   Inventory: {
     /** 库存只读，无 CRUD 按钮 */
@@ -121,6 +121,7 @@ const Channel = {
     getDetail: `Sale_${Crud.getDetail}`,
     audit: `Sale_${Crud.audit}`,
     reject: `Sale_${Crud.reject}`,
+    addFinish: 'Sale_addFinish',
   },
   Purchase: {
     add: `Purchase_${Crud.add}`,
@@ -128,11 +129,11 @@ const Channel = {
     getDetail: `Purchase_${Crud.getDetail}`,
     audit: `Purchase_${Crud.audit}`,
     reject: `Purchase_${Crud.reject}`,
+    addFinish: 'Purchase_addFinish',
   },
   Supplier: {
     add: `Supplier_${Crud.add}`,
     update: `Supplier_${Crud.update}`,
-    delete: `Supplier_${Crud.delete}`,
   },
   Customer: {
     add: `Customer_${Crud.add}`,
@@ -154,6 +155,7 @@ const Channel = {
 /** 资产 (Asset) 模块 */
 const Asset = {
   Device: {
+    getDetail: 'Device_getDetail',
     add: `Device_${Crud.add}`,
     update: `Device_${Crud.update}`,
     delete: `Device_${Crud.delete}`,
@@ -165,6 +167,7 @@ const Asset = {
     export: `Material_${Crud.export}`,
   },
   Contract: {
+    getDetail: 'Contract_getDetail',
     add: `Contract_${Crud.add}`,
     update: `Contract_${Crud.update}`,
     delete: `Contract_${Crud.delete}`,
@@ -248,6 +251,7 @@ const System = {
 /** 开放平台 (Open) 模块 */
 const Open = {
   App: {
+    getDetail: 'OpenApp_getDetail',
     add: `OpenApp_${Crud.add}`,
     update: `OpenApp_${Crud.update}`,
     disable: `OpenApp_${Crud.disable}`,
@@ -295,13 +299,13 @@ export const Permissions = {
 } as const
 
 /** 权限码类型（用于需要提取所有权限码的场景） */
-export type PermissionCode =
-  | (typeof Permissions.Mes)[keyof typeof Permissions.Mes][keyof (typeof Permissions.Mes)[keyof typeof Permissions.Mes]]
-  | (typeof Permissions.Wms)[keyof typeof Permissions.Wms][keyof (typeof Permissions.Wms)[keyof typeof Permissions.Wms]]
-  | (typeof Permissions.Channel)[keyof typeof Permissions.Channel][keyof (typeof Permissions.Channel)[keyof typeof Permissions.Channel]]
-  | (typeof Permissions.Asset)[keyof typeof Permissions.Asset][keyof (typeof Permissions.Asset)[keyof typeof Permissions.Asset]]
-  | (typeof Permissions.Personnel)[keyof typeof Permissions.Personnel][keyof (typeof Permissions.Personnel)[keyof typeof Permissions.Personnel]]
-  | (typeof Permissions.Factory)[keyof typeof Permissions.Factory][keyof (typeof Permissions.Factory)[keyof typeof Permissions.Factory]]
-  | (typeof Permissions.System)[keyof typeof Permissions.System][keyof (typeof Permissions.System)[keyof typeof Permissions.System]]
-  | (typeof Permissions.Open)[keyof typeof Permissions.Open][keyof (typeof Permissions.Open)[keyof typeof Permissions.Open]]
-  | (typeof Permissions.IoT)[keyof typeof Permissions.IoT][keyof (typeof Permissions.IoT)[keyof typeof Permissions.IoT]]
+export type PermissionCode
+  = | (typeof Permissions.Mes)[keyof typeof Permissions.Mes][keyof (typeof Permissions.Mes)[keyof typeof Permissions.Mes]]
+    | (typeof Permissions.Wms)[keyof typeof Permissions.Wms][keyof (typeof Permissions.Wms)[keyof typeof Permissions.Wms]]
+    | (typeof Permissions.Channel)[keyof typeof Permissions.Channel][keyof (typeof Permissions.Channel)[keyof typeof Permissions.Channel]]
+    | (typeof Permissions.Asset)[keyof typeof Permissions.Asset][keyof (typeof Permissions.Asset)[keyof typeof Permissions.Asset]]
+    | (typeof Permissions.Personnel)[keyof typeof Permissions.Personnel][keyof (typeof Permissions.Personnel)[keyof typeof Permissions.Personnel]]
+    | (typeof Permissions.Factory)[keyof typeof Permissions.Factory][keyof (typeof Permissions.Factory)[keyof typeof Permissions.Factory]]
+    | (typeof Permissions.System)[keyof typeof Permissions.System][keyof (typeof Permissions.System)[keyof typeof Permissions.System]]
+    | (typeof Permissions.Open)[keyof typeof Permissions.Open][keyof (typeof Permissions.Open)[keyof typeof Permissions.Open]]
+    | (typeof Permissions.IoT)[keyof typeof Permissions.IoT][keyof (typeof Permissions.IoT)[keyof typeof Permissions.IoT]]

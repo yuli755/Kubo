@@ -3,11 +3,11 @@ import type { CollectionEntity } from '@/model/iot/collection/CollectionEntity'
 import { ADialog, AEmpty, DialogProps, DialogUtil, WebColor } from '@airpower/web'
 import { ElMessage } from 'element-plus'
 import { ref } from 'vue'
+import { usePolling } from '@/hook'
 import { AlarmStatusEnum } from '@/model/asset/device/AlarmStatusEnum'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
 import { DeviceService } from '@/model/asset/device/DeviceService'
 import { DeviceStatusEnum } from '@/model/asset/device/DeviceStatusEnum'
-import { usePolling } from '@/hook'
 import { CollectionDefault } from '@/model/iot/collection/CollectionDefault'
 import { ParameterEditor } from '@/view/console/iot/parameter/component'
 import DeviceCollectHistory from './history.vue'
@@ -29,11 +29,16 @@ async function getDetail() {
 
 async function getCurrentReport() {
   try {
+    // polling 在下方定义；回调只在挂载后执行，不存在 TDZ 问题
     monitorList.value = await DeviceService.create().getCurrentReport(props.param.id)
+    // polling 在下方 usePolling(...) 创建；回调只在挂载后执行，无 TDZ 风险
+    // eslint-disable-next-line ts/no-use-before-define
     polling.markSuccess()
   }
   catch (error) {
     console.error('获取设备实时数据失败:', error)
+    // polling 在下方 usePolling(...) 创建；回调只在挂载后执行，无 TDZ 风险
+    // eslint-disable-next-line ts/no-use-before-define
     polling.markFail()
   }
 }

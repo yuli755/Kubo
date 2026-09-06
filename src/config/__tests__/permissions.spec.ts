@@ -15,7 +15,17 @@ import { Permissions } from '../permissions'
 
 /** 后端 CRUD 扫描出的标准动作 */
 const STANDARD_ACTIONS = new Set([
-  'add', 'update', 'delete', 'getDetail', 'enable', 'disable', 'export', 'import', 'audit', 'reject', 'publish',
+  'add',
+  'update',
+  'delete',
+  'getDetail',
+  'enable',
+  'disable',
+  'export',
+  'import',
+  'audit',
+  'reject',
+  'publish',
 ])
 
 /**
@@ -43,7 +53,7 @@ function flatten(node: Node, prefix: string[] = []): Array<{ path: string, entit
 
 const all = flatten(Permissions as unknown as Node)
 
-describe('Permissions 常量', () => {
+describe('permissions 常量', () => {
   it('非空（防止误删导致前端权限判定整体失效）', () => {
     expect(all.length).toBeGreaterThan(100)
   })

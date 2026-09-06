@@ -1,5 +1,7 @@
 <script lang="ts" setup>
 import { AButton, ADialog, AGroup, AInput, DialogProps, DialogUtil, getFieldLabel, useEditor } from '@airpower/web'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { UserEntity } from '@/model/personnel/user/UserEntity'
 import { UserService } from '@/model/personnel/user/UserService'
 import { DepartmentSelector } from '@/view/console/personnel/department/component'
@@ -88,6 +90,7 @@ async function selectDepartment() {
       >
         <div class="list">
           <AButton
+            v-permission="[Permissions.Personnel.User.add, Permissions.Personnel.User.update]"
             icon="ADD"
             @click="selectRole()"
           >
@@ -110,6 +113,7 @@ async function selectDepartment() {
       >
         <div class="list">
           <AButton
+            v-permission="[Permissions.Personnel.User.add, Permissions.Personnel.User.update]"
             icon="ADD"
             @click="selectDepartment()"
           >

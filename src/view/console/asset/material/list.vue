@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import { APanel, ATable } from '@airpower/web'
+import { Permissions } from '@/config/permissions'
 import { useTanStackTable } from '@/hook/useTanStackTable'
 import { MaterialService } from '@/model/asset/material/MaterialService'
 import { UnitEntity } from '@/model/system/unit/UnitEntity'
-import { Permissions } from '@/config/permissions'
 import { MaterialEditor } from './component'
 
 const hook = useTanStackTable(MaterialService, {

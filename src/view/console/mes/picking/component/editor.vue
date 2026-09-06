@@ -14,6 +14,8 @@ import {
   getTableConfigList,
   useEditor,
 } from '@airpower/web'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 
 import { PickingDetailEntity } from '@/model/mes/picking/PickingDetailEntity'
 import { PickingEntity } from '@/model/mes/picking/PickingEntity'
@@ -98,6 +100,7 @@ async function deleteDetail(index: number) {
         >
           <template #addButton>
             <AButton
+              v-permission="[Permissions.Mes.Picking.add, Permissions.Mes.Picking.update]"
               icon="ADD"
               @click="addDetail()"
             >
@@ -106,6 +109,7 @@ async function deleteDetail(index: number) {
           </template>
           <template #customRow="{ index }">
             <AButton
+              v-permission="[Permissions.Mes.Picking.add, Permissions.Mes.Picking.update]"
               danger
               link
               @click="deleteDetail(index)"

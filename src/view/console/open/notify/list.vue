@@ -2,9 +2,9 @@
 import type { IWebEnum } from '@airpower/web'
 import { APanel, ATable } from '@airpower/web'
 import { ref } from 'vue'
+import { Permissions } from '@/config/permissions'
 import { useTanStackTable } from '@/hook/useTanStackTable'
 import { NotifyService } from '@/model/open/notify/NotifyService'
-import { Permissions } from '@/config/permissions'
 import { NotifyEditor } from '@/view/console/open/notify/component'
 
 const hook = useTanStackTable(NotifyService, {

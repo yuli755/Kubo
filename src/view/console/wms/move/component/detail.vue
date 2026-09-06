@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 import { AButton, ADialog, AFormField, AGroup, ATable, DialogProps, getTableConfigList } from '@airpower/web'
-
 import { BillFormCode, BillFormMoreDetail } from '@/component'
+import { Permissions } from '@/config/permissions'
+
+import { vPermission } from '@/directives'
 import { useBillDetail } from '@/hook/billTable/useBillDetail'
 import { MoveDetailEntity } from '@/model/wms/move/MoveDetailEntity'
 import { MoveEntity } from '@/model/wms/move/MoveEntity'
@@ -58,6 +60,7 @@ const {
         >
           <template #endRow="{ data }">
             <AButton
+              v-permission="Permissions.Wms.Move.addFinish"
               :disabled="!MoveStatusEnum.MOVING.equalsKey(formData.status)"
               link
               @click="addDetailFinishQuantity(data, formData.id)"

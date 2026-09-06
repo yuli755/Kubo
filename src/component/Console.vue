@@ -1,4 +1,4 @@
-﻿<script lang="ts" setup>
+<script lang="ts" setup>
 import type { MenuEntity } from '@/model/system/menu/MenuEntity'
 import { AFrame, RouterUtil } from '@airpower/web'
 import { onErrorCaptured, ref } from 'vue'
@@ -26,8 +26,10 @@ onErrorCaptured((error) => {
 
 function applyMenuPermissions(menus: MenuEntity[]): MenuEntity[] {
   return menus.map((menu) => {
-    if (menu.permission) menu.meta = { ...menu.meta, permission: menu.permission }
-    if (menu.children?.length) menu.children = applyMenuPermissions(menu.children)
+    if (menu.permission)
+      menu.meta = { ...menu.meta, permission: menu.permission }
+    if (menu.children?.length)
+      menu.children = applyMenuPermissions(menu.children)
     return menu
   })
 }
@@ -73,22 +75,40 @@ init()
 </script>
 
 <template>
-  <div v-if="loadError" class="console-error">
-    <el-result icon="error" :title="errorTitle" :sub-title="errorMessage">
+  <div
+    v-if="loadError"
+    class="console-error"
+  >
+    <el-result
+      icon="error"
+      :title="errorTitle"
+      :sub-title="errorMessage"
+    >
       <template #extra>
-        <el-button type="primary" @click="retryInit">重试</el-button>
-        <el-button @click="backToHome">返回首页</el-button>
+        <el-button
+          type="primary"
+          @click="retryInit"
+        >
+          重试
+        </el-button>
+        <el-button @click="backToHome">
+          返回首页
+        </el-button>
       </template>
     </el-result>
   </div>
   <AFrame
     v-else
+    v-loading="isLoading"
     :header-height="50"
     :menu-list="menuList"
-    v-loading="isLoading"
   >
     <template #logo>
-      <img class="logo" height="40" src="@/assets/img/logo.svg">
+      <img
+        class="logo"
+        height="40"
+        src="@/assets/img/logo.svg"
+      >
     </template>
     <template #user>
       <UserCard :user="currentUserInfo" />

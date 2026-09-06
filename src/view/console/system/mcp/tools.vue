@@ -32,6 +32,7 @@ getList()
       hide-ctrl
     >
       <template #beforePage>
+        <!-- permission-exempt: 复制 MCP 地址不改动服务端状态，页面可见性由后端菜单控制 -->
         <AButton
           link
           @click="copy()"

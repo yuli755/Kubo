@@ -1,5 +1,7 @@
 <script lang="ts" setup>
 import { AButton, ADialog, AFormField, AGroup, DialogProps, DialogUtil, useEditor } from '@airpower/web'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { StructureEntity } from '@/model/factory/structure/StructureEntity'
 
 import { StructureService } from '@/model/factory/structure/StructureService'
@@ -56,6 +58,7 @@ async function selectDepartment() {
       <AGroup title="可执行工序">
         <div class="list">
           <AButton
+            v-permission="[Permissions.Factory.Structure.add, Permissions.Factory.Structure.update]"
             icon="ADD"
             @click="selectOperation()"
           >
@@ -75,6 +78,7 @@ async function selectDepartment() {
       <AGroup title="所属部门">
         <div class="list">
           <AButton
+            v-permission="[Permissions.Factory.Structure.add, Permissions.Factory.Structure.update]"
             icon="ADD"
             @click="selectDepartment()"
           >

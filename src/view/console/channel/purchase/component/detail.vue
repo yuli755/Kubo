@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 import { AButton, ADialog, AFormField, AGroup, ATable, DialogProps } from '@airpower/web'
 import { BillFormCode, BillFormMoreDetail } from '@/component'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { useBillDetail } from '@/hook/billTable/useBillDetail'
 
 import { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
@@ -57,6 +59,7 @@ const {
         >
           <template #endRow="{ data }">
             <AButton
+              v-permission="Permissions.Channel.Purchase.addFinish"
               :disabled="!PurchaseStatusEnum.PURCHASING.equalsKey(formData.status)"
               link
               @click="addDetailFinishQuantity(data, param.id)"

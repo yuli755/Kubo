@@ -38,12 +38,12 @@ describe('normalizeMaskPolicy', () => {
 })
 
 describe('maskPolicyKeepTail', () => {
-  it('FULL / REPLACE 不保留尾位', () => {
+  it('fULL / REPLACE 不保留尾位', () => {
     expect(maskPolicyKeepTail({ masked: true, maskType: 'FULL' })).toBe(0)
     expect(maskPolicyKeepTail({ masked: true, maskType: 'REPLACE' })).toBe(0)
   })
 
-  it('PARTIAL 保留 1 位（与后端 ColumnMaskingService.maskPartial 一致）', () => {
+  it('pARTIAL 保留 1 位（与后端 ColumnMaskingService.maskPartial 一致）', () => {
     expect(maskPolicyKeepTail({ masked: true, maskType: 'PARTIAL' })).toBe(1)
   })
 

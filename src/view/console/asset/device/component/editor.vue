@@ -82,6 +82,7 @@ async function selectParameter() {
         title="采集参数"
       >
         <div class="parameter-list">
+          <!-- permission-exempt: 选择按钮只打开选择器，写入由父表单的新增/编辑权限收口 -->
           <AButton
             type="CHECK"
             @click="selectParameter()"

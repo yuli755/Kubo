@@ -13,6 +13,8 @@ import {
   useEditor,
   WebFileUtil,
 } from '@airpower/web'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 
 import { ContractEntity } from '@/model/asset/contract/ContractEntity'
 import { ContractService } from '@/model/asset/contract/ContractService'
@@ -118,6 +120,7 @@ async function onUpload() {
         >
           <template #addButton>
             <AButton
+              v-permission="[Permissions.Asset.Contract.add, Permissions.Asset.Contract.update]"
               icon="ADD"
               primary
               @click="onAddParticipant"
@@ -127,12 +130,14 @@ async function onUpload() {
           </template>
           <template #customRow="{ data, index }">
             <AButton
+              v-permission="[Permissions.Asset.Contract.add, Permissions.Asset.Contract.update]"
               link
               @click="onEdit(data, index)"
             >
               编辑
             </AButton>
             <AButton
+              v-permission="[Permissions.Asset.Contract.add, Permissions.Asset.Contract.update]"
               danger
               link
               @click="onDelete(index)"
@@ -161,6 +166,7 @@ async function onUpload() {
           </template>
           <template #addButton>
             <AButton
+              v-permission="[Permissions.Asset.Contract.add, Permissions.Asset.Contract.update]"
               icon="UPLOAD"
               primary
               @click="onUpload"
@@ -170,6 +176,7 @@ async function onUpload() {
           </template>
           <template #customRow="{ index }">
             <AButton
+              v-permission="[Permissions.Asset.Contract.add, Permissions.Asset.Contract.update]"
               danger
               link
               @click="onDeleteDocument(index)"

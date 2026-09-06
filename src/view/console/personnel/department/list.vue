@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { APanel, ATable, useTableTree } from '@airpower/web'
-import { DepartmentService } from '@/model/personnel/department/DepartmentService'
 import { Permissions } from '@/config/permissions'
+import { DepartmentService } from '@/model/personnel/department/DepartmentService'
 import { DepartmentEditor } from './component'
 
 const hook = useTableTree(DepartmentService, {

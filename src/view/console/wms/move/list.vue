@@ -1,11 +1,11 @@
 <script lang="ts" setup>
 import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
+import { Permissions } from '@/config/permissions'
 import { useTanStackTable } from '@/hook/useTanStackTable'
 import { useMoveAudit, useMoveReject } from '@/hook/wms/useMove'
 import { MoveService } from '@/model/wms/move/MoveService'
 import { MoveStatusEnum } from '@/model/wms/move/MoveStatusEnum'
-import { Permissions } from '@/config/permissions'
 import { MoveDetail, MoveEditor } from './component'
 
 const hook = useTanStackTable(MoveService, {

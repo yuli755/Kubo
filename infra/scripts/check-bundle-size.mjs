@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { dirname, extname, join, resolve } from 'node:path'
 /**
  * # 构建产物体积门禁（M0 硬门槛）
  *
@@ -21,15 +23,14 @@
  * 退出码：0 达标；1 超预算；2 dist 不存在（先 build）。
  */
 import { gzipSync } from 'node:zlib'
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { dirname, extname, join, resolve } from 'node:path'
+import process from 'node:process'
 
 const argv = process.argv.slice(2)
-const num = (name, dflt) => {
+function num(name, dflt) {
   const hit = argv.find(a => a.startsWith(`--${name}=`))
   return hit ? Number(hit.split('=')[1]) : dflt
 }
-const str = (name, dflt) => {
+function str(name, dflt) {
   const hit = argv.find(a => a.startsWith(`--${name}=`))
   return hit ? hit.split('=').slice(1).join('=') : dflt
 }
@@ -88,8 +89,7 @@ const files = walk(DIST)
   .map(f => ({ file: f.slice(DIST.length + 1), gzip: gzipSize(f) }))
   .sort((a, b) => b.gzip - a.gzip)
 
-const closure = entryClosure(DIST).map(f => ({ file: f.slice(DIST.length + 1), gzip: gzipSize(f) }))
-  .sort((a, b) => b.gzip - a.gzip)
+const closure = entryClosure(DIST).map(f => ({ file: f.slice(DIST.length + 1), gzip: gzipSize(f) })).sort((a, b) => b.gzip - a.gzip)
 
 const totalGzip = files.reduce((s, f) => s + f.gzip, 0)
 const entryGzip = closure.reduce((s, f) => s + f.gzip, 0)

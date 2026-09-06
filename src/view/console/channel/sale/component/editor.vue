@@ -13,6 +13,8 @@ import {
   getTableConfigList,
   useEditor,
 } from '@airpower/web'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 
 import { SaleDetailEntity } from '@/model/channel/sale/SaleDetailEntity'
 import { SaleEntity } from '@/model/channel/sale/SaleEntity'
@@ -104,6 +106,7 @@ async function deleteDetail(index: number) {
         >
           <template #addButton>
             <AButton
+              v-permission="[Permissions.Channel.Sale.add, Permissions.Channel.Sale.update]"
               icon="ADD"
               @click="addDetail()"
             >
@@ -112,6 +115,7 @@ async function deleteDetail(index: number) {
           </template>
           <template #customRow="{ index }">
             <AButton
+              v-permission="[Permissions.Channel.Sale.add, Permissions.Channel.Sale.update]"
               danger
               link
               @click="deleteDetail(index)"

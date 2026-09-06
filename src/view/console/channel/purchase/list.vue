@@ -1,11 +1,11 @@
 <script lang="ts" setup>
 import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
-import { useTanStackTable } from '@/hook/useTanStackTable'
+import { Permissions } from '@/config/permissions'
 import { usePurchaseAudit, usePurchaseReject } from '@/hook/channel/usePurchase'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { PurchaseService } from '@/model/channel/purchase/PurchaseService'
 import { PurchaseStatusEnum } from '@/model/channel/purchase/PurchaseStatusEnum'
-import { Permissions } from '@/config/permissions'
 import { PurchaseDetail, PurchaseEditor } from './component'
 
 const hook = useTanStackTable(PurchaseService, {

@@ -7,7 +7,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, master, 'feat/**' ]
+    branches: [main, master, 'feat/**']
   pull_request:
   workflow_dispatch:
 
@@ -81,7 +81,7 @@ jobs:
         run: ./mvnw -B -s settings.xml -DskipTests compile
 
       - name: Unit & slice tests
-        continue-on-error: true   # TODO(P1)：Testcontainers 收口后删除本行
+        continue-on-error: true # TODO(P1)：Testcontainers 收口后删除本行
         run: ./mvnw -B -s settings.xml test
 
       - name: Reject forbidden dependencies

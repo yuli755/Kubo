@@ -2,10 +2,10 @@
 import type { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
 import { AButton, APanel, ATable, ClipboardUtil, DialogUtil, FeedbackUtil } from '@airpower/web'
 import { ElMessageBox } from 'element-plus'
-import { useTanStackTable } from '@/hook/useTanStackTable'
-import { OpenAppService } from '@/model/open/app/OpenAppService'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
+import { useTanStackTable } from '@/hook/useTanStackTable'
+import { OpenAppService } from '@/model/open/app/OpenAppService'
 import { OpenAppEditor, OpenAppLog, OpenAppTest } from './component'
 
 const hook = useTanStackTable(OpenAppService, {
@@ -95,6 +95,7 @@ function openOAuth2(app: OpenAppEntity) {
     >
       <template #afterButton>
         <AButton
+          v-permission="Permissions.Open.App.getDetail"
           icon="CHECK"
           @click="onTest()"
         >
@@ -124,6 +125,7 @@ function openOAuth2(app: OpenAppEntity) {
           重置密钥对
         </AButton>
         <AButton
+          v-permission="Permissions.Open.App.getDetail"
           link
           @click="onAppLog(data)"
         >

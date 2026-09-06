@@ -1,11 +1,12 @@
 <script lang="ts" setup>
 import { AButton, APanel, ATable, DialogUtil } from '@airpower/web'
 import { ref } from 'vue'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { useTanStackTable } from '@/hook/useTanStackTable'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
 import { DeviceService } from '@/model/asset/device/DeviceService'
 import { DeviceEditor, DeviceMonitor } from './component'
-import { Permissions } from '@/config/permissions'
 
 const filter = ref(new DeviceEntity())
 const hook = useTanStackTable(DeviceService, {
@@ -30,6 +31,7 @@ function showMonitor(device: DeviceEntity) {
     >
       <template #customRow="{ data }">
         <AButton
+          v-permission="Permissions.Asset.Device.getDetail"
           :disabled="!data.isReporting"
           link
           @click="showMonitor(data)"

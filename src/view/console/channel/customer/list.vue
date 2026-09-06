@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { APanel, ATable } from '@airpower/web'
+import { Permissions } from '@/config/permissions'
 import { useTanStackTable } from '@/hook/useTanStackTable'
 import { CustomerService } from '@/model/channel/customer/CustomerService'
-import { Permissions } from '@/config/permissions'
 import { CustomerEditor } from './component'
 
 const hook = useTanStackTable(CustomerService, {

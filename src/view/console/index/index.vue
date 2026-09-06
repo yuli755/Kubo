@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import type { IJson } from '@airpower/web'
-import { RouterUtil } from '@airpower/web'
-import { APanel } from '@airpower/web'
+import { APanel, RouterUtil } from '@airpower/web'
 import { ref } from 'vue'
 
 const modules = ref<IJson[]>([

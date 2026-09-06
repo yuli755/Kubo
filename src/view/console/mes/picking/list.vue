@@ -2,11 +2,11 @@
 import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
 
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
-import { useTanStackTable } from '@/hook/useTanStackTable'
+import { Permissions } from '@/config/permissions'
 import { usePickingAudit, usePickingReject } from '@/hook/mes/usePicking'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { PickingService } from '@/model/mes/picking/PickingService'
 import { PickingStatusEnum } from '@/model/mes/picking/PickingStatusEnum'
-import { Permissions } from '@/config/permissions'
 import { PickingDetail, PickingEditor } from './component'
 
 const hook = useTanStackTable(PickingService, {

@@ -3,10 +3,11 @@ import type { RoutingEntity } from '@/model/mes/routing/RoutingEntity'
 import { AButton, APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
 import { useQueryClient } from '@tanstack/vue-query'
 import PublishButton from '@/component/PublishButton.vue'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { useRoutingPublish } from '@/hook/mes/useRouting'
 import { useTanStackTable } from '@/hook/useTanStackTable'
 import { RoutingService } from '@/model/mes/routing/RoutingService'
-import { Permissions } from '@/config/permissions'
 import { RoutingEditor, RoutingProgress } from './component'
 
 const queryClient = useQueryClient()
@@ -49,6 +50,7 @@ async function onProgress(data: RoutingEntity) {
         />
         <AButton
           v-if="data.isPublished"
+          v-permission="Permissions.Mes.Routing.update"
           link
           @click="onProgress(data)"
         >

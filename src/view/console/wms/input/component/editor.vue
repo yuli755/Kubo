@@ -14,6 +14,8 @@ import {
   useEditor,
 } from '@airpower/web'
 import { computed } from 'vue'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { InputDetailEntity } from '@/model/wms/input/InputDetailEntity'
 import { InputEntity } from '@/model/wms/input/InputEntity'
 import { InputService } from '@/model/wms/input/InputService'
@@ -102,6 +104,7 @@ async function deleteDetail(index: number) {
           <template #addButton>
             <AButton
               v-if="isDetailEditable"
+              v-permission="[Permissions.Wms.Input.add, Permissions.Wms.Input.update]"
               icon="ADD"
               @click="addDetail()"
             >
@@ -111,6 +114,7 @@ async function deleteDetail(index: number) {
           <template #customRow="{ index }">
             <AButton
               v-if="isDetailEditable"
+              v-permission="[Permissions.Wms.Input.add, Permissions.Wms.Input.update]"
               danger
               link
               @click="deleteDetail(index)"

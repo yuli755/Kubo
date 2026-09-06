@@ -1,7 +1,7 @@
 import type { CurdServiceConstructor, ITableOption, ITableResult, QueryPage, QuerySort } from '@airpower/web'
+import type { Ref } from 'vue'
 import type { AbstractBaseService } from '@/base/AbstractBaseService'
 import type { BaseEntity } from '@/base/BaseEntity'
-import type { Ref } from 'vue'
 import { DialogUtil, FeedbackUtil, QueryRequestPage, QueryResponsePage } from '@airpower/web'
 import { keepPreviousData, useQuery } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
@@ -34,16 +34,16 @@ export function useTanStackTable<E extends BaseEntity, S extends AbstractBaseSer
     queryKey: string[]
   },
 ): ITableResult<E, S> {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  // 传入的是"类本身"（参数名小写是约定，不是实例），因此 new 首字母小写是刻意的
+  // eslint-disable-next-line new-cap
   const entity: E = new (serviceClass as unknown as { entityClass: new () => E }).entityClass()
+  // eslint-disable-next-line new-cap
   const service = new serviceClass() as S
 
   // ── 查询状态 ──
   // QueryRequestPage 构造函数接受 ITransformerConstructor<E>，
   // 运行时也接受实体实例（airpower 内部提取 constructor）
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const request = ref<QueryRequestPage<E>>(new (QueryRequestPage as any)(entity))
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const response = ref<QueryResponsePage<E>>(new (QueryResponsePage as any)()) as Ref<QueryResponsePage<E>>
   const selectList = ref<E[]>([])
   const isLoading = ref(false)
@@ -52,12 +52,13 @@ export function useTanStackTable<E extends BaseEntity, S extends AbstractBaseSer
 
   const { data, isFetching, refetch } = useQuery<QueryResponsePage<E>>({
     queryKey: [...option.queryKey, 'list', resolvedRequest],
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     queryFn: () => service.getPage(request.value as any),
     placeholderData: keepPreviousData,
   })
 
-  watch(isFetching, (val) => { isLoading.value = val })
+  watch(isFetching, (val) => {
+    isLoading.value = val
+  })
   watch(data, (val) => {
     if (val) {
       response.value = val

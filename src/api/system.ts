@@ -1,4 +1,3 @@
-import type { ChangePasswordRequest, RefreshTokenRequest, RefreshTokenResponse, UserEntity } from './types'
 import type {
   CodeRuleEntity,
   CodeRuleField,
@@ -16,6 +15,7 @@ import type {
   UnitEntity,
   UnitQuery,
 } from './system/types'
+import type { ChangePasswordRequest, RefreshTokenRequest, RefreshTokenResponse, UserEntity } from './types'
 import { request } from './axios'
 
 export const authApi = {

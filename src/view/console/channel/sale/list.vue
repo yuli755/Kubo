@@ -1,11 +1,11 @@
 <script lang="ts" setup>
 import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
-import { useTanStackTable } from '@/hook/useTanStackTable'
+import { Permissions } from '@/config/permissions'
 import { useSaleAudit, useSaleReject } from '@/hook/channel/useSale'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { SaleService } from '@/model/channel/sale/SaleService'
 import { SaleStatusEnum } from '@/model/channel/sale/SaleStatusEnum'
-import { Permissions } from '@/config/permissions'
 import { SaleDetail, SaleEditor } from './component'
 
 const hook = useTanStackTable(SaleService, {

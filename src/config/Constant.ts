@@ -5,4 +5,4 @@
  * 此处仅做再导出以兼容旧导入路径。新代码请直接 `import from '@kubo/shared'`。
  */
 
-export { BOOLEAN_YES, BOOLEAN_NO, Constant } from '@kubo/shared'
+export { BOOLEAN_NO, BOOLEAN_YES, Constant } from '@kubo/shared'

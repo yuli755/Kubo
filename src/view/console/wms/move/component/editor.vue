@@ -13,6 +13,8 @@ import {
   getTableConfigList,
   useEditor,
 } from '@airpower/web'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { InventoryEntity } from '@/model/wms/inventory/InventoryEntity'
 
 import { InventoryTypeEnum } from '@/model/wms/inventory/InventoryTypeEnum'
@@ -104,6 +106,7 @@ async function deleteDetail(index: number) {
         >
           <template #addButton>
             <AButton
+              v-permission="[Permissions.Wms.Move.add, Permissions.Wms.Move.update]"
               icon="ADD"
               @click="addDetail()"
             >
@@ -112,6 +115,7 @@ async function deleteDetail(index: number) {
           </template>
           <template #customRow="{ index }">
             <AButton
+              v-permission="[Permissions.Wms.Move.add, Permissions.Wms.Move.update]"
               danger
               link
               @click="deleteDetail(index)"

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { APanel, ATable, useTableTree } from '@airpower/web'
-import { MenuService } from '@/model/system/menu/MenuService'
 import { Permissions } from '@/config/permissions'
+import { MenuService } from '@/model/system/menu/MenuService'
 import { MenuEditor } from './component'
 
 const hook = useTableTree(MenuService, {

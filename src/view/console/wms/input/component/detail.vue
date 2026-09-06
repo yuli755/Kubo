@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 import { AButton, ADialog, AFormField, AGroup, ATable, DialogProps, DialogUtil, FeedbackUtil } from '@airpower/web'
 import { BillFormCode, BillFormMoreDetail } from '@/component'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { useBillDetail } from '@/hook/billTable/useBillDetail'
 
 import { InputDetailEntity } from '@/model/wms/input/InputDetailEntity'
@@ -92,6 +94,7 @@ async function onAddFinish(detail: InputDetailEntity) {
         >
           <template #endRow="{ data }">
             <AButton
+              v-permission="Permissions.Wms.Input.addFinish"
               :disabled="!InputStatusEnum.INPUTTING.equalsKey(formData.status)"
               link
               @click="onAddFinish(data)"

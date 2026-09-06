@@ -2,11 +2,11 @@
 import { AEmpty, AGroup, APanel, DialogUtil, QueryRequest, WebColor } from '@airpower/web'
 import { ElMessage } from 'element-plus'
 import { ref } from 'vue'
+import { usePolling } from '@/hook'
 import { AlarmStatusEnum } from '@/model/asset/device/AlarmStatusEnum'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
 import { DeviceService } from '@/model/asset/device/DeviceService'
 import { DeviceStatusEnum } from '@/model/asset/device/DeviceStatusEnum'
-import { usePolling } from '@/hook'
 import { DeviceMonitor } from '../../asset/device/component'
 
 const deviceList = ref<DeviceEntity[]>([])
@@ -18,10 +18,14 @@ request.value.filter.isReporting = true
 async function getDeviceList() {
   try {
     deviceList.value = await DeviceService.create().getList(request.value)
+    // polling 在下方 usePolling(...) 创建；回调只在挂载后执行，无 TDZ 风险
+    // eslint-disable-next-line ts/no-use-before-define
     polling.markSuccess()
   }
   catch (error) {
     console.error('获取设备列表失败:', error)
+    // polling 在下方 usePolling(...) 创建；回调只在挂载后执行，无 TDZ 风险
+    // eslint-disable-next-line ts/no-use-before-define
     polling.markFail()
   }
 }

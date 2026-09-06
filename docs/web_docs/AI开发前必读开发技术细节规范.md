@@ -1,7 +1,7 @@
 # AI开发前必读开发技术细节规范
 
-> 适用范围：任何前端项目，包括 Web、H5、管理后台、官网、可视化大屏、组件库、小程序、跨端和桌面端项目。  
-> 文档定位：给 AI 或开发者在真正写代码前使用，约束编码细节、目录组织、类型、接口、组件、样式、状态、测试和交付。  
+> 适用范围：任何前端项目，包括 Web、H5、管理后台、官网、可视化大屏、组件库、小程序、跨端和桌面端项目。
+> 文档定位：给 AI 或开发者在真正写代码前使用，约束编码细节、目录组织、类型、接口、组件、样式、状态、测试和交付。
 > 配套文档：开发判断标准见《资深前端编码前必读开发规范》；异常、兜底、恢复、监控见《前端页面兜底机制与稳定性经验文档》。
 
 ## 0. 使用方式
@@ -73,10 +73,10 @@ src/
 示例：
 
 ```ts
-type UserQuery = {}
-type UserForm = {}
-type UserListItem = {}
-type UserDetailVO = {}
+interface UserQuery {}
+interface UserForm {}
+interface UserListItem {}
+interface UserDetailVO {}
 ```
 
 ## 4. TypeScript 规范
@@ -93,19 +93,19 @@ type UserDetailVO = {}
 不推荐：
 
 ```ts
-const submit = (data: any) => {}
+function submit(data: any) {}
 ```
 
 推荐：
 
 ```ts
-type UserForm = {
+interface UserForm {
   name: string
   phone?: string
   status: 'ENABLED' | 'DISABLED'
 }
 
-const submit = (data: UserForm) => {}
+function submit(data: UserForm) {}
 ```
 
 ## 5. API 请求规范
@@ -143,10 +143,10 @@ export function createUser(data: UserForm) {
 常见拆分：
 
 ```ts
-type Query = {}
-type Form = {}
-type ListItem = {}
-type Detail = {}
+interface Query {}
+interface Form {}
+interface ListItem {}
+interface Detail {}
 ```
 
 ## 7. 组件拆分规范
@@ -189,12 +189,12 @@ UserPage
 示例：
 
 ```ts
-type Props = {
+interface Props {
   visible: boolean
   record?: UserDetailVO
 }
 
-type Emits = {
+interface Emits {
   close: []
   success: [data: UserDetailVO]
 }

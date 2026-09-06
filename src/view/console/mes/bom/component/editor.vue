@@ -12,6 +12,8 @@ import {
   getTableConfigList,
   useEditor,
 } from '@airpower/web'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 
 import { BomDetailEntity } from '@/model/mes/bom/BomDetailEntity'
 import { BomEntity } from '@/model/mes/bom/BomEntity'
@@ -91,6 +93,7 @@ async function deleteDetail(index: number) {
         >
           <template #addButton>
             <AButton
+              v-permission="[Permissions.Mes.Bom.add, Permissions.Mes.Bom.update]"
               icon="ADD"
               @click="addDetail()"
             >
@@ -99,6 +102,7 @@ async function deleteDetail(index: number) {
           </template>
           <template #customRow="{ index }">
             <AButton
+              v-permission="[Permissions.Mes.Bom.add, Permissions.Mes.Bom.update]"
               danger
               link
               @click="deleteDetail(index)"

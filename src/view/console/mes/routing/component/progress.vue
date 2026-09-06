@@ -15,6 +15,8 @@ import {
 } from '@airpower/web'
 import { nextTick, ref } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
+import { Permissions } from '@/config/permissions'
+import { vPermission } from '@/directives'
 import { BomDetailEntity } from '@/model/mes/bom/BomDetailEntity'
 import { BomService } from '@/model/mes/bom/BomService'
 import { RoutingOperationEntity } from '@/model/mes/routing/operation/RoutingOperationEntity'
@@ -123,6 +125,7 @@ function onDeleteRoutingOperation(index: number) {
           <div class="button">
             <AButton
               v-if="!formData.isPublished"
+              v-permission="[Permissions.Mes.Routing.add, Permissions.Mes.Routing.update]"
               icon="ADD"
               @click="onAddOperation"
             >

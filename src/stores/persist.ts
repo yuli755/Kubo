@@ -30,7 +30,11 @@ import { parse, stringify } from 'flatted'
  * Pinia 模块增强：为 `DefineStoreOptionsBase` 添加 `persist` 选项，
  * 使 `defineStore` 的 setup store 和 options store 都能接受 `persist` 配置。
  */
+// 泛型参数名必须与 pinia 的声明**完全一致**（TS declaration merging 要求
+// "identical type parameters"），改成 _S/_Store 会直接让所有 defineStore 的 `persist`
+// 选项失效；S / Store 在此只用于签名匹配，因此豁免"未使用"告警。
 declare module 'pinia' {
+  // eslint-disable-next-line unused-imports/no-unused-vars
   export interface DefineStoreOptionsBase<S extends StateTree, Store> {
     /** 持久化配置（由 persist 插件消费） */
     persist?: PersistOptions

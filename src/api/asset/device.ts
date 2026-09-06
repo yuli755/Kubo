@@ -1,4 +1,4 @@
-import type { DeviceEntity, DeviceQuery, CollectionEntity } from './types'
+import type { CollectionEntity, DeviceEntity, DeviceQuery } from './types'
 import { request } from '@/api/axios'
 
 export const deviceApi = {
