@@ -109,7 +109,10 @@ jobs:
           exit "$status"
 
       - name: Unit & slice tests
-        continue-on-error: true # TODO(P1)：Testcontainers 收口后删除本行
+        # 2026-09-06：这行 `continue-on-error: true` 被删掉了，因为 CI 里 145 个用例连续通过
+        # （含 @SpringBootTest + H2 的缓存/事件/多租户隔离用例）。从这一刻起"后端测试红着也能合"不再成立。
+        # 它证明的边界要看清：跑的是 H2 + schema-test.sql，**不等于**真实库 schema 与方言正确性
+        # （行级 SQL 在生产 MySQL 上的行为仍需 shadow 模式实采，见 docs §19.10 末）。
         run: |
           set +e
           chmod +x ./mvnw || true
@@ -119,6 +122,12 @@ jobs:
           # 之所以两步都要：test-compile 挂掉时**没有**报告目录，这时候唯一能看到的信息在日志里；
           # 而报告存在时它比日志准确得多（含断言消息，不会被 Maven 的汇总噪音挤掉）。
           node ../infra/scripts/surefire-summary.mjs target/surefire-reports --max 9 || true
+          if ! ls target/surefire-reports/TEST-*.xml >/dev/null 2>&1; then
+            # 空转防护：`mvn test` 在"一个用例都没跑"时也是 exit 0（比如哪天有人加了 -DskipTests
+            # 或把所有类改名）。这一步的绿必须是"跑过用例"的绿。
+            echo "::error::没有 surefire 报告（target/surefire-reports/TEST-*.xml 为空）：测试没有被执行，这一步不算通过"
+            status=1
+          fi
           if [ "$status" -ne 0 ] && ! ls target/surefire-reports/TEST-*.xml >/dev/null 2>&1; then
             # 只在"测试根本没跑起来"时才回到日志兜底（test-compile 挂了就没有报告目录）。
             # 有报告时以报告为准：再把日志尾部贴一遍，只会把 10 条 annotation 的名额占光，
