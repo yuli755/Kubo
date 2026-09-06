@@ -356,10 +356,40 @@ describe('mask contract · 脱敏实现只允许存在一处', () => {
     expect(editor).toContain('gapsForField')
     // 只查标识符是假门禁：把 import 删掉时上面两条仍然绿（函数体里还有这些名字），
     // 而真正的回归长这样"提示不再渲染"。所以直接断模板，并钉住"文案取后端 reason"。
-    expect(editor, '编辑器没把缺口提示渲染到表单上').toMatch(/<ElAlert[^>]*v-if="fieldGaps\(\)\.length"/)
+    expect(editor, '编辑器没把缺口提示渲染到表单上').toMatch(/<ElAlert[^>]*v-if="fieldGaps\.length"/)
     expect(editor).toContain('g.reason')
-    // 反向：编辑器不许自己下结论（判据只有一份）——缺口条目里的 allowPlaintext 一律不许碰
-    expect(/gap\.allowPlaintext|fieldGaps\(\)\s*(?:===|!==)/.test(editor)).toBe(false)
+    // "不许自己下结论"由上面那条扫 src/view 全量的规则统一守（本文件就在 src/view 下），
+    // 这里不再重复一份正则 —— 两处规则会各自烂掉。
+  })
+
+  it('视图 script 段不许直接读 formData.x（框架返回的是 Ref）', () => {
+    /**
+     * 本轮 CI 的 typecheck 抓到的就是这个：`:model="formData"` 在模板里自动解包，
+     * 于是"formData 是个普通对象"读起来很自然，script 里写 `formData.resourceId` 就直接编译失败。
+     * 沙箱跑不了 vue-tsc（只在 CI 有），所以这类"模板/脚本解包规则不对称"的错误必须本地就有等价物。
+     *
+     * 判据只认 `<script>` 段里的 `formData.<不是 value>`：模板里的 `formData.x` 是合法写法，
+     * 扫全文会大面积误伤 —— 那会让这条规则第一天就被加白名单。
+     */
+    const offenders: string[] = []
+    for (const file of collect(join(ROOT, 'src'), '.vue')) {
+      const block = /<script[^>]*>([\s\S]*?)<\/script>/.exec(stripComments(read(file)))?.[1]
+      if (!block) {
+        continue
+      }
+      block.split('\n').forEach((line, index) => {
+        if (/\bformData\s*\.\s*(?!value\b)[A-Za-z_]/.test(line)) {
+          offenders.push(`${relative(ROOT, file)}:script+${index + 1}`)
+        }
+      })
+    }
+    expect(offenders, `这些地方要么写 formData.value.x，要么放到模板里：\n${offenders.join('\n')}`).toEqual([])
+
+    // 自检：认得违规写法、且不把 .value 与模板用法当违规（否则这条规则等于没写）
+    expect(/\bformData\s*\.\s*(?!value\b)[A-Za-z_]/.test('const a = formData.resourceId')).toBe(true)
+    expect(/\bformData\s*\.\s*(?!value\b)[A-Za-z_]/.test('const a = formData.value.resourceId')).toBe(false)
+    // 规则的边界是"只看 script 段"，靠的是取块的正则；这步退化就会变成扫全文 ⇒ 模板写法大面积误伤
+    expect(/<script[^>]*>([\s\S]*?)<\/script>/.exec('<template>{{ formData.fieldName }}</template>')?.[1]).toBeUndefined()
   })
 
   it('每个 infra 自查脚本都必须真的被 CI 调用（本地跑过 != 每轮都跑）', () => {

@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { ADialog, AFormField, DialogProps, useEditor } from '@airpower/web'
 import { ElAlert } from 'element-plus'
+import { computed } from 'vue'
 import { gapsForField, useExportGapReport } from '@/composables/useExportGapReport'
 
 import { DataFieldPolicyEntity } from '@/model/system/datapermission/DataFieldPolicyEntity'
@@ -24,13 +25,14 @@ const {
  * 此刻是"该不该顺手补一条 EXPORT 明文"唯一的决策窗口。列表页的汇总只是入口，
  * 真到编辑时还得切页面去回忆是哪个字段，等于没有。
  *
- * 为什么用函数而不是 computed：`formData` 是不是 reactive 由框架决定，computed 的缓存
- * 在这种"读第三方返回值"的场合会过期（管理员改了字段名而提示不变）。模板里直接调函数
- * = 每次渲染重算，代价是几十条数组 filter，比一个会说谎的缓存便宜得多。
+ * 这里必须写 `formData.value.*`：`useEditor` 返回的是 `Ref<Entity>`（模板里自动解包，
+ * script 里不解包 —— 这一点不是推测，是 vue-tsc 在本轮 CI 上撞出来的：
+ * "Property 'resourceId' does not exist on type 'Ref<DataFieldPolicyEntity, …>'"）。
+ * 既然 `.value` 本身就是响应式依赖，computed 不会读到过期值，无需退回每次渲染重算。
  */
 const { items: gapItems, failed: gapsUnavailable } = useExportGapReport()
 
-const fieldGaps = () => gapsForField(gapItems, formData.resourceId, formData.fieldName)
+const fieldGaps = computed(() => gapsForField(gapItems, formData.value.resourceId, formData.value.fieldName))
 </script>
 
 <template>
@@ -49,13 +51,13 @@ const fieldGaps = () => gapsForField(gapItems, formData.resourceId, formData.fie
       @submit.prevent
     >
       <ElAlert
-        v-if="fieldGaps().length"
+        v-if="fieldGaps.length"
         class="gap-hint"
         type="warning"
         :closable="false"
         show-icon
-        :title="`这个字段还有 ${fieldGaps().length} 处导出缺口`"
-        :description="fieldGaps().map(g => `在 ${g.resourceKey}：${g.reason}`).join('；')"
+        :title="`这个字段还有 ${fieldGaps.length} 处导出缺口`"
+        :description="fieldGaps.map(g => `在 ${g.resourceKey}：${g.reason}`).join('；')"
       />
       <ElAlert
         v-else-if="gapsUnavailable"
