@@ -25,6 +25,11 @@
  * 用法（在 SPMS-Server 目录下，先备好 classpath）：
  *   ./mvnw -B -s settings.xml -q dependency:build-classpath -Dmdep.outputFile=/tmp/cp.txt
  *   node ../infra/scripts/framework-intel.mjs --cp /tmp/cp.txt
+ *   node ../infra/scripts/framework-intel.mjs --cp /tmp/cp.txt --classes a.B,c.D   # 定向看某几个类
+ *
+ * `--classes` 是给"已经有假设要验证"的第二次探测用的：泛扫只能给出类清单，
+ * 而真正决定方案的是某个方法体到底调了谁（例如导出行是走 Jackson 序列化还是反射取字段 ——
+ * 前者意味着 `@SensitiveField` 已经天然遮住导出，后者意味着必须在导出链路上另做一层）。
  */
 import {execFileSync} from 'node:child_process'
 import {existsSync, readFileSync} from 'node:fs'
@@ -38,6 +43,7 @@ const opt = (name, dflt) => {
 const cpFile = opt('cp', '/tmp/cp.txt')
 const grep = opt('grep', 'export|excel|csv|poi|easyexcel|download|curd')
 const maxChunks = Number(opt('chunks', 9))
+const targeted = String(opt('classes', '')).split(',').map((x) => x.trim()).filter(Boolean)
 const CHUNK = 3200
 
 const notes = []
@@ -69,6 +75,34 @@ const cp = readFileSync(cpFile, 'utf-8').trim()
 const cpEntries = cp.split(':').filter((p) => p.endsWith('.jar'))
 const airpower = cpEntries.filter((p) => /airpower|hamm/.test(p))
 const thirdParty = cpEntries.filter((p) => /easyexcel|poi|apache.*poi/i.test(p))
+
+const javapFor = (cls) => run('javap', ['-p', '-classpath', cp, cls])
+// （probeClass 复用它；定义顺序在这里是为了让"泛扫"和"定向"共用一套取数逻辑）
+/** 一个类的签名 + 方法体里"取值/写出"相关的调用，压成一块 */
+const probeClass = (cls) => {
+  const sig = javapFor(cls)
+  if (sig.startsWith('__') || /^Error:/.test(sig.trim())) {
+    push(`缺席 ${cls.split('.').pop()}`, `javap 拿不到 ${cls}（${sig.split('\n')[0]}）`)
+    return
+  }
+  const lines = run('javap', ['-p', '-c', '-classpath', cp, cls]).split('\n')
+  const calls = lines.filter((l) => /^\s*\d+:\s+invoke/.test(l))
+  const interesting = calls.filter((l) => /ObjectMapper|writeValue|Jackson|toJson|toMap|Csv|Excel|Bean|Field|getter|Getter|serialize| reflective/i.test(l))
+  push(`类 ${cls.split('.').pop()}`, [
+    ...sig.split('\n').slice(0, 60),
+    `— 方法体共 ${calls.length} 处 invoke，其中与"序列化/取值/写出"相关的 ${interesting.length} 处：`,
+    ...interesting.slice(0, 26).map((l) => l.trim()),
+    interesting.length === 0 && calls.length > 0
+      ? `（没有命中的关键调用，退化为前 14 处 invoke：\n${calls.slice(0, 14).map((l) => l.trim()).join('\n')}）`
+      : '',
+  ].filter(Boolean).join('\n'))
+}
+
+if (targeted.length > 0) {
+  for (const cls of targeted.slice(0, 6)) {
+    probeClass(cls)
+  }
+}
 
 // 1) 有哪些 jar 可查
 push('jar', [
@@ -111,7 +145,6 @@ const uniq = [...new Map(candidates.map((c) => [c.cls, c])).values()]
 push('候选类', uniq.slice(0, 90).map((c) => c.cls).join('\n'))
 
 // 3) 关键类的成员签名
-const javapFor = (cls) => run('javap', ['-p', '-classpath', cp, cls])
 for (const c of uniq.slice(0, 3)) {
   push(`签名 ${c.simple}`, javapFor(c.cls).split('\n').slice(0, 70).join('\n'))
 }
