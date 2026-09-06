@@ -347,7 +347,9 @@ describe('mask contract · 界面文案与后端能力对齐', () => {
       expect(hit, `tip 引用的 ${cls} 在后端找不到`).toBe(true)
     }
   })
-})describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
+})
+
+describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
   /**
    * 动作名是**字符串存的**（`data_field_policy.action_name`），前后端没有编译期耦合：
    * 前端少一个成员，管理员就选不到那个动作（配不出来 = 该能力在界面上不存在）；
@@ -367,14 +369,13 @@ describe('mask contract · 界面文案与后端能力对齐', () => {
     return members
   }
 
-  type DictEntry = { name: string, value: string, label: string, disabled: boolean }
+  interface DictEntry { name: string, value: string, label: string, disabled: boolean }
 
   const dictEntries = (): DictEntry[] => {
-    // 按行扫而不是一个大正则：这个文件里每个成员是 `static readonly X = new Y('X', '标签')`
-    // 后面跟若干 ` .setColor(...)` 链式调用、**行尾没有分号**（ prettier 的 style:{} 配置），
+    // 按行扫而不是一个大正则：这个文件里每个成员是 `static readonly X = new Y('X', 标签)`，
+    // 后面跟着若干 `.setColor(...)` 链式调用、**行尾没有分号**，
     // 指望 `...);` 收尾的正则会一条都不匹配，而"匹配不到"在门禁里长得像"通过"。
-    const lines = read(DICT).split('
-')
+    const lines = read(DICT).split(/\r?\n/)
     const entries: DictEntry[] = []
     for (let i = 0; i < lines.length; i++) {
       const m = /^\s*static readonly ([A-Z][A-Z0-9_]*)\s*=\s*new [A-Za-z]+\('([A-Z0-9_]+)',\s*'([^']*)'\)/.exec(lines[i])
@@ -401,7 +402,7 @@ describe('mask contract · 界面文案与后端能力对齐', () => {
     expect(front).toEqual(backend)
   })
 
-  it('EXPORT 可选性必须与后端导出实现的存在性一致（双向）', () => {
+  it('eXPORT 可选性必须与后端导出实现的存在性一致（双向）', () => {
     /**
      * 这一条来自本轮实际发现的状态：`EXPORT` 被 `.setDisabled(true)` 灰掉，注释写的是
      * "导出侧尚未接脱敏" —— 而 `ExportBypassGuard` 与 `ExportColumnMasker` 都已落地。
@@ -436,4 +437,3 @@ describe('mask contract · 界面文案与后端能力对齐', () => {
     }
   })
 })
-
