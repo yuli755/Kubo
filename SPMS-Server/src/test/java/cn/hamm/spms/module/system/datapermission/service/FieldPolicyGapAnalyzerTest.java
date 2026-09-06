@@ -41,7 +41,7 @@ class FieldPolicyGapAnalyzerTest {
     }
 
     @Test
-    @DisplayName("只配了遮蔽、没配导出授权 → 报缺口，且说清"缺一个就整份被拒"")
+    @DisplayName("只配了遮蔽、没配导出授权 → 报缺口，且说清「缺一个就整份被拒」")
     void missingGrantIsReported() {
         List<FieldPolicyGapAnalyzer.Gap> gaps =
                 FieldPolicyGapAnalyzer.gaps(List.of(masking("price", "buyer")), List.of());
@@ -53,7 +53,7 @@ class FieldPolicyGapAnalyzerTest {
     }
 
     @Test
-    @DisplayName("EXPORT 行存在但没允许明文 → 仍算缺口（授权语义不是"有一行就行"）")
+    @DisplayName("EXPORT 行存在但没允许明文 → 仍算缺口（授权语义不是「有一行就行」）")
     void exportRowWithoutPlaintextIsNotAGrant() {
         DataFieldPolicyEntity maskedExport = new DataFieldPolicyEntity()
                 .setFieldName("price").setRoleCode("buyer").setActionName("EXPORT").setAllowPlaintext(false);
