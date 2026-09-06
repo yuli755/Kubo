@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 /**
  * # 脱敏契约门禁（前端 F2 的卡点）
  *
- * 五条规则都来自本轮实际踩到的坑，不是"看起来该有"：
+ * 下面每一条都来自实际踩到的坑，不是"看起来该有"（清单长了就别再数条数，数字会烂在文档里）：
  *
  * 1. **前端 `MaskType` 必须覆盖后端 `ColumnMaskingService#applyMask` 的全部分支**。
  *    后端早已支持 `LAST4` / `HASH`，前端 union 里只有 3 个值 —— 后果不是编译失败，
@@ -22,6 +22,12 @@ import { describe, expect, it } from 'vitest'
  *    `@SensitiveField` 标记的字段**。这是比资源键更容易犯的错（复制粘贴改一个词），
  *    后果同第 2 条：策略查不到 = 前端认为"无需脱敏"，静默 fail-open，
  *    而界面上一切看起来都正常 —— 所以必须在提交前被机器拦住。
+ * 6. **视图层不得自己算"导出能不能带明文"**。判据在 `ExportBypassGuard`/`ExportColumnMasker`，
+ *    前端再实现一遍就是第二套真相；面板骗人的代价是管理员开始无视它。
+ * 7. **`/dataResource/export-gaps` 这类自查端点的路径必须前后端对得上**。取数失败被刻意做成
+ *    沉默（一个自查面板不该打断列表页），于是路径写错在运行期毫无痕迹 —— 只能由 CI 对账。
+ * 8. **`infra/scripts/check-*.mjs` 必须真的被 CI 调用**。"脚本存在且本地跑绿"不等于每轮都跑；
+ *    而没人调用的门禁与没有门禁等价，更糟的是它给出"已经防住了"的错觉。
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
@@ -315,6 +321,28 @@ describe('mask contract · 脱敏实现只允许存在一处', () => {
 
     // 反向：前端不许把这条自查挂到业务用户也会调的控制器上（跨角色策略地图）
     expect(api).not.toMatch(/request\.get\('\/dataFieldPolicy\/export-gaps'\)/)
+  })
+
+  it('每个 infra 自查脚本都必须真的被 CI 调用（本地跑过 != 每轮都跑）', () => {
+    /**
+     * 本轮差点凭"ci.yml 里 grep 不到 check-source-text"就断言门禁没接 CI —— 实际接线是
+     * `run: pnpm text:check`，中间隔了一层 package.json 别名。反向的风险更实在：
+     * 以后新增一个 check-*.mjs 忘了接进 CI，它就成了只在作者机器上跑过的装饰品。
+     * 这里按"文件名 → 别名 → CI 步骤"三层追一遍，断任何一层都红。
+     */
+    const pkg = JSON.parse(read(join(ROOT, 'package.json'))) as { scripts: Record<string, string> }
+    const ci = read(join(ROOT, '.github', 'workflows', 'ci.yml'))
+    const scriptFile = (cmd: string) => cmd.match(/node\s+(infra\/scripts\/[\w.-]+\.mjs)/)?.[1]
+    const runAliases = [...ci.matchAll(/^\s*run:\s*pnpm\s+([\w:.-]+)/gm)].map(m => m[1])
+    const covered = new Set(runAliases.map(alias => scriptFile(pkg.scripts[alias] ?? '')).filter(Boolean))
+
+    const scripts = readdirSync(join(ROOT, 'infra', 'scripts')).filter(f => f.startsWith('check-') && f.endsWith('.mjs'))
+    // 自检：扫描本身要有效，否则这条用例会安静地永远通过
+    expect(scripts.length, '扫不到 infra/scripts/check-*.mjs：目录或命名已变，本用例失效').toBeGreaterThan(0)
+
+    for (const name of scripts) {
+      expect(covered.has(`infra/scripts/${name}`), `${name} 没有任何 CI 步骤调用它（只在本地跑 = 没有门禁）`).toBe(true)
+    }
   })
 
   it('白名单确实存在（防止规则因为文件被改名而空转）', () => {
