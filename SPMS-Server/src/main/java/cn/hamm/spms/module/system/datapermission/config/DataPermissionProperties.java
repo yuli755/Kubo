@@ -21,6 +21,7 @@ import java.util.Set;
  *       - wms.inventory
  *       - mes.order
  *     deny-unregistered: false     # enforce 下未注册资源是否默认拒绝（阶段 7 末尾改 true）
+ *     factory-dimension-enabled: false  # 工厂维度是否已落地（三条前置条件见 DimensionGuard）
  *     tenant-required: false       # 用户无租户归属时是否直接拒绝（回填完成后改 true）
  *     default-tenant-id: 1         # tenant-required=false 时的兜底租户（平台默认租户）
  *     shadow-diff-log: true        # 观察模式是否输出「本应被过滤」的明细日志
@@ -78,6 +79,16 @@ public class DataPermissionProperties {
      * 平台默认租户 ID（与 {@code tenant} 表的 code=default 记录一致）。
      */
     private Long defaultTenantId = 1L;
+
+    /**
+     * 工厂（FACTORY）维度是否已落地（默认 false = 策略保存时直接拒绝该维度）。
+     *
+     * <p>打开前必须核对三条前置条件（建 {@code user_factory} 表并回填、{@code PermissionContext
+     * .factoryIds()} 真实解析、行权限与写入侧共用同一份 factoryIds），
+     * 详见 {@code DimensionGuard#isFactoryAvailable()}。缺一条就别开：这个维度在数据模型上
+     * 是恒空的，开了要么假安全（策略永不命中），要么自锁（条件树渲染成恒假、全员空结果）。</p>
+     */
+    private boolean factoryDimensionEnabled = false;
 
     /**
      * 观察模式是否输出差异明细日志。

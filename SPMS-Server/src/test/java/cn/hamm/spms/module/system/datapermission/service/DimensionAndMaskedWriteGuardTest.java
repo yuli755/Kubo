@@ -17,7 +17,8 @@ class DimensionAndMaskedWriteGuardTest {
 
     @Test
     void factorySubjectIsRejectedWhileDimensionIsUnimplemented() {
-        assertFalse(DimensionGuard.FACTORY_AVAILABLE, "user_factory 建表前该维度必须保持不可用");
+        // 无 Spring 上下文时配置句柄为 null，必须落到"不可用"这一侧（fail-fast 的默认方向）
+        assertFalse(DimensionGuard.isFactoryAvailable(), "user_factory 建表前该维度必须保持不可用");
         assertNotNull(DimensionGuard.rejectUnavailableSubject("FACTORY"), "FACTORY 策略必须被拒");
         assertNotNull(DimensionGuard.rejectUnavailableSubject("factory"), "大小写不敏感");
         assertNull(DimensionGuard.rejectUnavailableSubject("DEPARTMENT"), "已落地维度不受影响");

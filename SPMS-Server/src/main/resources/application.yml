@@ -105,6 +105,9 @@ kubo:
     shadow-diff-log: true
     audit-plaintext-access: true
     enforce-resources: []
+    # 工厂维度落地开关：建 user_factory 表 + 真实解析 factoryIds 之前保持 false
+    # （开着它但数据模型没跟上 = 策略永不命中的假安全，见 DimensionGuard#isFactoryAvailable）
+    factory-dimension-enabled: false
     # 影子双跑：同一次查询多打一次 COUNT，比较"加条件/不加条件"的行数差
     # （差异写 data_permission_diff_log，见 docs/database/migration/20260907_*.sql）
     shadow:
