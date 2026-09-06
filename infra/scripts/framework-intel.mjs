@@ -87,14 +87,15 @@ const probeClass = (cls) => {
   }
   const lines = run('javap', ['-p', '-c', '-classpath', cp, cls]).split('\n')
   const calls = lines.filter((l) => /^\s*\d+:\s+invoke/.test(l))
-  const interesting = calls.filter((l) => /ObjectMapper|writeValue|Jackson|toJson|toMap|Csv|Excel|Bean|Field|getter|Getter|serialize| reflective/i.test(l))
+  const KEYWORD = /ObjectMapper|writeValue|Jackson|toJson|toMap|Csv|Excel|Bean|Field|getter|Getter|serialize|Thread|Executor|submit|runAsync|CompletableFuture|Supplier|TaskUtil|CountDown|sleep/i
+  const interesting = calls.filter((l) => KEYWORD.test(l))
   const sigLines = sig.split('\n')
-  const exportish = sigLines.filter((l) => /export|csv|queryList|findPage|beforeGetList/i.test(l))
+  const exportish = sigLines.filter((l) => /export|csv|queryList|findPage|beforeGetList|createExportTask|TaskUtil|async|Async/i.test(l))
   push(`类 ${cls.split('.').pop()}`, [
     `— 与导出/查询相关的签名 ${exportish.length} 条（全类 ${sigLines.length} 行）：`,
     ...exportish.slice(0, 24),
     ...(exportish.length === 0 ? sigLines.slice(0, 40) : []),
-    `— 方法体共 ${calls.length} 处 invoke，其中与"序列化/取值/写出"相关的 ${interesting.length} 处：`,
+    `— 方法体共 ${calls.length} 处 invoke，命中"序列化/取值/写出/异步"关键词的 ${interesting.length} 处：`,
     ...interesting.slice(0, 26).map((l) => l.trim()),
     interesting.length === 0 && calls.length > 0
       ? `（没有命中的关键调用，退化为前 14 处 invoke：\n${calls.slice(0, 14).map((l) => l.trim()).join('\n')}）`
