@@ -22,7 +22,7 @@
  * 用法：node infra/scripts/surefire-summary.mjs [报告目录] [--max 8]
  */
 import{existsSync, readFileSync, readdirSync} from 'node:fs'
-import {join} from 'node:path'
+import {join, relative, resolve} from 'node:path'
 
 const argv = process.argv.slice(2)
 let dir = null  // 参数：surefire 报告目录
@@ -39,9 +39,29 @@ dir = dir || 'target/surefire-reports'
 // 本脚本可能被两种 cwd 调用：CI 里 job 的工作目录就是 SPMS-Server（有 pom.xml），
 // 本地则是仓库根。annotation 的 file= 必须相对**仓库根**，而 existsSync 要相对 cwd，
 // 所以先探一次基准目录，别把路径拼成 SPMS-Server/SPMS-Server/。
-const baseDir = existsSync('pom.xml') ? '.' : 'SPMS-Server'
-const relToRoot = (rel) => (baseDir === '.' ? rel : `${baseDir}/${rel}`)
-const exists = (rel) => existsSync(join(baseDir, rel))
+const moduleDir = existsSync(join('src', 'main', 'java')) ? '.' : 'SPMS-Server'
+
+// 从 cwd 往上找仓库根（有 .git 的那一层）：CI 里 cwd 是 SPMS-Server，本地多半就是仓库根。
+// 用 resolve 而不是猜前缀，是因为 annotation 的 file= 必须相对**仓库根**——
+// 少一层前缀时 GitHub 不报错，只是静默把 annotation 钉到 .github 上，看起来像"报了但点不进去"。
+const findRepoRoot = () => {
+  let dirNow = process.cwd()
+  for (let i = 0; i < 6; i++) {
+    if (existsSync(join(dirNow, '.git'))) {
+      return dirNow
+    }
+    const up = resolve(dirNow, '..')
+    if (up === dirNow) {
+      break
+    }
+    dirNow = up
+  }
+  return null
+}
+const repoRoot = findRepoRoot()
+const absOf = (rel) => join(moduleDir === '.' ? process.cwd() : join(process.cwd(), moduleDir), rel)
+const relToRoot = (rel) => (repoRoot ? relative(repoRoot, absOf(rel)) : (moduleDir === '.' ? rel : `${moduleDir}/${rel}`))
+const exists = (rel) => existsSync(absOf(rel))
 
 const attr = (tag, name) => {
   const m = new RegExp(`\\b${name}="([^"]*)"`).exec(tag)

@@ -85,7 +85,11 @@ class DataPermissionModeSemanticsTest {
         // 编译器对 EQ 条件调的是 builder.equal(...)；不打桩就返回 null，
         // 于是规格把这条策略读成"绑不上列"（binding-invalid），根本走不到 shadow 打点 ——
         // 看起来像实现漏了打点，其实是 mock 少了一个桩。用 disjunction 这个现成 mock 当返回值即可。
-        lenient().when(builder.equal(any(Expression.class), any())).thenReturn(disjunction);
+        // 第 2 个参数必须写成 any(Object.class)：`any()` 会让 javac 把调用绑到
+        // equal(Expression, Expression) 这个**更具体的重载**上，而生产代码传的是 Long，
+        // 绑到 equal(Expression, Object) —— stub 打在另一个重载上就等于没打，
+        // 现象是"补了桩还是说绑不上列"，非常费解。
+        lenient().when(builder.equal(any(Expression.class), any(Object.class))).thenReturn(disjunction);
         PermissionContextHolder.open(new PermissionContext(1L, 100L, Set.of(1L), Set.of(), Set.of(), Set.of("planner"), false));
     }
 
