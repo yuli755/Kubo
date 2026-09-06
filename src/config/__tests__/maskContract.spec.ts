@@ -59,9 +59,11 @@ const read = (path: string): string => readFileSync(path, 'utf-8')
  * 于是资源键写错也能通过门禁 —— 这是自我安慰式的检查，比没有检查更糟。
  */
 function readJavaCode(path: string): string {
+  // 把注释行**抹成空行**而不是 filter 掉：门禁的报错文案要带行号，而删行会让编号整体前移
+  // （实测把 69 行报成 28 行）。空行对所有 .toContain/.match 判据等价，却保住了"点开就是那一行"。
   return read(path)
     .split('\n')
-    .filter(line => !/^\s*(?:\*|\/\/)/.test(line))
+    .map(line => (/^\s*(?:\*|\/\/)/.test(line) ? '' : line))
     .join('\n')
 }
 
@@ -582,6 +584,90 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
     else {
       expect(entry!.disabled, '后端导出遮蔽不在了，前端就不能给一个会静默失效的选项').toBe(true)
     }
+  })
+
+  it('cOLUMN_MASKED 必须等于后端列级遮蔽实际消费的动作', () => {
+    /**
+     * `action_name` 是字符串存的，前后端没有编译期耦合：后端哪天让 DETAIL 也参与遮蔽，
+     * 前端这边"这一行不会被读到"的提示就变成谎话 —— 而谎话比沉默更糟，管理员会拿它当依据。
+     * 所以消费集不看注释、直接读后端那两个常量的字面值。
+     */
+    const masking = readJavaCode(join(SERVER, 'module/system/datapermission/service/ColumnMaskingService.java'))
+    const guard = readJavaCode(join(SERVER, 'module/system/datapermission/service/ExportBypassGuard.java'))
+    const readAction = /DEFAULT_ACTION = "([A-Z0-9_]+)"/.exec(masking)?.[1]
+    const exportAction = /ACTION_EXPORT = "([A-Z0-9_]+)"/.exec(guard)?.[1]
+    expect(readAction, '没解析到 ColumnMaskingService.DEFAULT_ACTION：后端改了写法，本用例已失效').toBeTruthy()
+    expect(exportAction, '没解析到 ExportBypassGuard.ACTION_EXPORT：后端改了写法，本用例已失效').toBeTruthy()
+    const consumed = [readAction!, exportAction!].sort()
+
+    const block = /static readonly COLUMN_MASKED[^=]*= \[([\s\S]*?)\]/.exec(read(DICT))?.[1] ?? ''
+    const declared = [...block.matchAll(/DataPermissionActionType\.([A-Z][A-Z0-9_]*)\.key/g)].map(m => m[1]).sort()
+    expect(declared.length, 'COLUMN_MASKED 解析不到成员：字典形状变了，别把空转读成通过').toBeGreaterThan(0)
+    expect(declared, `前端声明的消费集与后端不一致：后端是 ${consumed.join('/')}`).toEqual(consumed)
+  })
+
+  it('列级遮蔽不许悄悄接上新动作（接了就要同步编辑器提示）', () => {
+    /**
+     * 上一条对的是"常量值"，这一条对的是"调用点"：只看常量会漏掉直接传字面量的写法
+     * （`getEffectiveMaskPolicy(rk, f, "DETAIL", ctx)`），那正是最容易在重构里顺手写出来的形式。
+     */
+    const allowed = new Set(['QUERY', 'EXPORT'])
+    const CALL = /\bget(?:Effective)?MaskPolicy(?:Map)?\(/
+    const offenders: string[] = []
+    let sites = 0
+    for (const file of collect(join(SERVER, 'module/system/datapermission'), '.java')) {
+      // 按行扫，不用"配对到分号"的跨行正则：那种写法会把方法声明和它体内的调用吃成同一个 match
+      // （声明的 `(` 里没有分号，贪婪量词一路吞到内部调用之后），于是违规被当成声明跳过 —— 反证时就没红。
+      // 调用点在这一带都是一行一句，按行读反而与真实形状一致，也不会漏掉同类内部调用（它没有点号）。
+      readJavaCode(file).split('\n').forEach((line, index) => {
+        if (!CALL.test(line)) {
+          return
+        }
+        const literal = /"([A-Z0-9_]+)"/.exec(line)?.[1]
+        const constant = /\b(?:DEFAULT_ACTION|ACTION_EXPORT)\b/.test(line)
+        if (line.match(/\b(?:public|private|protected)\b/)) {
+          return // 声明行本身没有语义，动作由参数传进来
+        }
+        if (!literal && !constant) {
+          return // 两参重载 = 走默认动作，不是一次"显式选动作"
+        }
+        sites++
+        if (literal && !allowed.has(literal)) {
+          offenders.push(`${relative(ROOT, file)}:${index + 1} → "${literal}"`)
+        }
+      })
+    }
+    expect(sites, '一个遮蔽调用点都没抓到：解析已失效，这条用例等于没写').toBeGreaterThan(0)
+    expect(offenders, '列级遮蔽出现了 QUERY/EXPORT 之外的动作 —— 字典的 COLUMN_MASKED 与编辑器提示都要跟着改').toEqual([])
+
+    // 自检：必须认得"同类内部调用"（上一版只认带点号的写法而漏检过一次）
+    const inside = '        return getEffectiveMaskPolicy(resourceKey, fieldName, "DETAIL", context);'
+    expect(CALL.test(inside) && /"([A-Z0-9_]+)"/.exec(inside)?.[1]).toBe('DETAIL')
+    expect(/\b(?:public|private|protected)\b/.test('    public Map<String, X> getMaskPolicy(String k) {')).toBe(true)
+  })
+
+  it('supportedActions 只被开发期初始化读取，不参与权限判定', () => {
+    /**
+     * 这条最初写的是"后端不许有任何读取点"—— 被 DevDataInitRunner:733 直接证伪（它用
+     * `getSupportedActions().contains("CREATE")` 决定要不要给该资源生成示例策略）。
+     * 于是判据收窄成既能守文案又不误伤的形式：**读取点只许出现在开发初始化里**。
+     * 谁哪天在判定路径上读它（拦截器、guard、specification），资源编辑器的说明即刻过期 ⇒ 用例先红。
+     */
+    const ALLOWED_READER = /(?:^|\/)DevDataInitRunner\.java$/
+    const entity = join(SERVER, 'module/system/datapermission/entity/DataResourceEntity.java')
+    expect(readJavaCode(entity), 'DataResourceEntity 里没有 supportedActions：字段已改名或移除，本用例要重写')
+      .toContain('supportedActions')
+
+    const readers = collect(SERVER, '.java')
+      .map(file => ({ file: relative(ROOT, file), code: readJavaCode(file) }))
+      .filter(item => /\.getSupportedActions\(\)/.test(item.code))
+    expect(readers.length, '一个读取点都没扫到：字段没人读了，这条用例与那句文案都要重写').toBeGreaterThan(0)
+
+    const illegal = readers.filter(item => !ALLOWED_READER.test(item.file)).map(item => item.file)
+    expect(illegal, `supportedActions 被判定路径读取了（${illegal.join(', ')}）：资源编辑器那句「不参与权限判定」必须改`).toEqual([])
+
+    const editor = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'resource', 'component', 'editor.vue'))
+    expect(editor, '资源编辑器要如实说明这一列不影响判定').toContain('不参与权限判定')
   })
 
   it('字典 tip 引用的后端类必须真实存在', () => {

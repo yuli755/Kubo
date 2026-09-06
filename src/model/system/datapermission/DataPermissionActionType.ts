@@ -45,4 +45,29 @@ export class DataPermissionActionType extends WebEnum<string> {
    */
   static readonly EXPORT = new DataPermissionActionType('EXPORT', '导出（明文需单独授权）')
     .setColor(WebColor.NORMAL)
+
+  /**
+   * 列级遮蔽（读侧 + 导出侧）真正消费的动作。
+   *
+   * 为什么这份名单写在字典里而不是让编辑器各写一遍：本字典同时被行级策略（DataPolicyEntity）
+   * 与列级策略（DataFieldPolicyEntity）使用。行级按动作精确匹配、列级只读 QUERY/EXPORT，
+   * 所以不能把 DETAIL/CREATE/UPDATE/DELETE 整族 setDisabled —— 那会直接让行级策略配不出来
+   * （同一个坑的反向版本就写在本文件 EXPORT 的注释里）。列级这边只负责告诉管理员"这一行没人读"。
+   *
+   * 位置也有讲究：必须排在 EXPORT 之后，静态成员按声明顺序初始化，放前面会引用到未构造的成员。
+   */
+  static readonly COLUMN_MASKED: string[] = [
+    DataPermissionActionType.QUERY.key,
+    DataPermissionActionType.EXPORT.key,
+  ]
+
+  /**
+   * 这个动作在列级遮蔽里会不会被读到
+   *
+   * 一致性不靠这段注释：maskContract.spec.ts 直接读后端 ColumnMaskingService.DEFAULT_ACTION
+   * 与 ExportBypassGuard.ACTION_EXPORT 的字面值对账，还扫一遍遮蔽调用点（抄名单的对账等于没对账）。
+   */
+  static isColumnMasked = (key?: string): boolean => {
+    return !!key && DataPermissionActionType.COLUMN_MASKED.includes(key)
+  }
 }

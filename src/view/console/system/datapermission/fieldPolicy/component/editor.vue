@@ -44,6 +44,20 @@ const fieldGaps = computed(() => gapsForField(gapItems, formData.value.resourceI
  */
 const isCreating = computed(() => !formData.value.id)
 
+/**
+ * 当前选的动作在列级遮蔽里是否无人消费
+ *
+ * 为什么值得在表单里挡一句：`action_name` 是**字符串存的**，后端不会因为选了 `DETAIL` 而报错，
+ * 于是这条策略保存成功、列表里看得见、编辑时一切正常 —— 只有"界面没有任何变化"这一个证据。
+ * "配了却没人读"比报错更难发现，因为它不产生任何失败信号。
+ * （详情页与列表页共用同一份遮蔽：脱敏发生在 Jackson 序列化层、按实体生效，与端点无关，
+ * 所以"只配 QUERY 会不会漏掉详情"这件事不成立 —— 取证见施工文档 §19.21。）
+ */
+const inertAction = computed(() => {
+  const action = formData.value.actionName
+  return !!action && !DataPermissionActionType.isColumnMasked(action)
+})
+
 /** 预填要动的键：与后端 `data_field_policy` 的 NOT NULL 列一一对应，多一个都不碰 */
 const PREFILL_KEYS = ['actionName', 'roleCode', 'maskType', 'allowPlaintext', 'priority', 'enabled'] as const
 
@@ -153,6 +167,15 @@ function undoPrefill() {
         show-icon
         title="未能取得导出缺口自查结果"
         description="不影响保存这条策略；但此刻看不到缺口，别把它读成「没有缺口」。"
+      />
+      <ElAlert
+        v-if="inertAction"
+        class="gap-hint"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="这个动作不会被列级遮蔽读到"
+        description="列级只消费 QUERY（界面与详情）和 EXPORT（导出）。DETAIL / CREATE / UPDATE / DELETE 只在行级策略里按动作精确匹配：这一行保存后不会改变任何输出，要配条件请到「数据权限-行级策略」。"
       />
       <div class="tip">
         只有被 @SensitiveField 标记的字段会被这条策略影响；字段名必须与实体的 JSON 属性名一致，写错等于没配。
