@@ -1,11 +1,14 @@
 <script lang="ts" setup>
+import type { ExportGapItem } from '@/api/system/types'
 import { ADialog, AFormField, DialogProps, useEditor } from '@airpower/web'
-import { ElAlert } from 'element-plus'
-import { computed } from 'vue'
+import { ElAlert, ElButton } from 'element-plus'
+import { computed, ref } from 'vue'
 import { gapsForField, useExportGapReport } from '@/composables/useExportGapReport'
-
 import { DataFieldPolicyEntity } from '@/model/system/datapermission/DataFieldPolicyEntity'
 import { DataFieldPolicyService } from '@/model/system/datapermission/DataFieldPolicyService'
+
+import { DataPermissionActionType } from '@/model/system/datapermission/DataPermissionActionType'
+import { DataPermissionMaskType } from '@/model/system/datapermission/DataPermissionMaskType'
 
 const props = defineProps(DialogProps.withParam(new DataFieldPolicyEntity()))
 
@@ -33,6 +36,56 @@ const {
 const { items: gapItems, failed: gapsUnavailable } = useExportGapReport()
 
 const fieldGaps = computed(() => gapsForField(gapItems, formData.value.resourceId, formData.value.fieldName))
+
+/**
+ * 新增态判定：`useEditor` 不暴露 isAdd（已从 @airpower/web 的 IEditorResult/IDetailResult 核对，
+ *  它只给 title/formData/isLoading/service/getDetail），而比对"新增"标题文案会随语言环境失效，
+ *  所以用主键是否存在 —— 列表页"新增"传的是 `new DataFieldPolicyEntity()`，id 为空。
+ */
+const isCreating = computed(() => !formData.value.id)
+
+/** 预填要动的键：与后端 `data_field_policy` 的 NOT NULL 列一一对应，多一个都不碰 */
+const PREFILL_KEYS = ['actionName', 'roleCode', 'maskType', 'allowPlaintext', 'priority', 'enabled'] as const
+
+const snapshot = ref<Partial<DataFieldPolicyEntity> | null>(null)
+const prefilledFrom = ref('')
+
+/**
+ * 把本表单预填成"补齐这条缺口所需的 EXPORT 明文授权"
+ *
+ * 三条刻意的边界：
+ * 1. **只写非空列**：后端 `resource_id/field_name/role_code/action_name/mask_type/allow_plaintext/
+ *    priority/enabled` 都是 NOT NULL，漏一个就变成保存时 500（界面上只有一句服务器错误）。
+ *    `roleCode` 直接取缺口条目里的值（含 `default`）—— 这也顺手堵掉"角色留空写库报错"的老坑。
+ * 2. **maskType 只是占位**：`allowPlaintext=true` 时后端不会走遮蔽分支，取 `FULL` 是为了让这一行
+ *    在读侧一眼看出"它不是遮蔽策略"。
+ * 3. **不猜语义、不查库**：预填只把后端已经算好的 (字段, 角色) 搬进表单；
+ *    "补完是不是就没缺口了"仍由下一次自查结果回答，这里不写"已修复"那种话。
+ */
+function prefill(gap: ExportGapItem) {
+  const form = formData.value
+  snapshot.value = PREFILL_KEYS.reduce<Record<string, unknown>>((acc, key) => {
+    acc[key] = (form as unknown as Record<string, unknown>)[key]
+    return acc
+  }, {}) as Partial<DataFieldPolicyEntity>
+  prefilledFrom.value = `${gap.fieldName} / ${gap.roleCode}`
+  form.actionName = DataPermissionActionType.EXPORT.key
+  form.roleCode = gap.roleCode
+  form.maskType = DataPermissionMaskType.FULL.key
+  form.allowPlaintext = true
+  form.priority = 0
+  form.enabled = true
+}
+
+function undoPrefill() {
+  const backup = snapshot.value
+  if (!backup) {
+    return
+  }
+  Object.assign(formData.value, backup)
+  snapshot.value = null
+  prefilledFrom.value = ''
+}
 </script>
 
 <template>
@@ -57,8 +110,41 @@ const fieldGaps = computed(() => gapsForField(gapItems, formData.value.resourceI
         :closable="false"
         show-icon
         :title="`这个字段还有 ${fieldGaps.length} 处导出缺口`"
-        :description="fieldGaps.map(g => `在 ${g.resourceKey}：${g.reason}`).join('；')"
-      />
+      >
+        <div
+          v-for="gap in fieldGaps"
+          :key="`${gap.resourceKey}-${gap.roleCode}`"
+          class="gap-row"
+        >
+          <span class="gap-row-text">在 {{ gap.resourceKey }}：{{ gap.reason }}</span>
+          <ElButton
+            v-if="isCreating"
+            size="small"
+            type="primary"
+            link
+            @click="prefill(gap)"
+          >
+            按此预填
+          </ElButton>
+          <span
+            v-else
+            class="gap-row-note"
+          >（编辑已有策略时不给预填：那会把这一行改成导出授权，遮蔽就被删了）</span>
+        </div>
+        <div
+          v-if="prefilledFrom"
+          class="gap-row"
+        >
+          <span class="gap-row-text">已按「{{ prefilledFrom }}」预填本表单，核对后即可保存</span>
+          <ElButton
+            size="small"
+            link
+            @click="undoPrefill"
+          >
+            撤销
+          </ElButton>
+        </div>
+      </ElAlert>
       <ElAlert
         v-else-if="gapsUnavailable"
         class="gap-hint"
@@ -92,6 +178,22 @@ const fieldGaps = computed(() => gapsForField(gapItems, formData.value.resourceI
 <style lang="scss" scoped>
 .gap-hint {
   margin-bottom: 8px;
+
+  .gap-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    line-height: 1.8;
+  }
+
+  .gap-row-text {
+    flex: 1;
+  }
+
+  .gap-row-note {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+  }
 }
 
 .tip {

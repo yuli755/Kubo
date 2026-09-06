@@ -357,7 +357,17 @@ describe('mask contract · 脱敏实现只允许存在一处', () => {
     // 只查标识符是假门禁：把 import 删掉时上面两条仍然绿（函数体里还有这些名字），
     // 而真正的回归长这样"提示不再渲染"。所以直接断模板，并钉住"文案取后端 reason"。
     expect(editor, '编辑器没把缺口提示渲染到表单上').toMatch(/<ElAlert[^>]*v-if="fieldGaps\.length"/)
-    expect(editor).toContain('g.reason')
+    expect(editor).toContain('gap.reason')
+
+    // 预填的两条硬约束：只在新增态出现（否则会把已有 QUERY 遮蔽行改成导出授权 = 静默解除遮蔽），
+    // 且动作/类型必须走字典枚举而不是裸字符串 —— 枚举成员由本文件另一条用例与后端 Java 枚举对账。
+    expect(editor, '预填按钮必须被新增态判定包着，编辑已有策略时点它会删掉遮蔽')
+      .toMatch(/<ElButton[^>]*v-if="isCreating"[^>]*@click="prefill\(gap\)"/)
+    expect(editor).toContain('DataPermissionActionType.EXPORT.key')
+    expect(editor).toContain('DataPermissionMaskType.FULL.key')
+    expect(editor, '别在视图里写死动作名：后端枚举改名时这里不会报错，只会在保存时 500')
+      .not
+      .toMatch(/actionName\s*=\s*'(?:EXPORT|QUERY)'/)
     // "不许自己下结论"由上面那条扫 src/view 全量的规则统一守（本文件就在 src/view 下），
     // 这里不再重复一份正则 —— 两处规则会各自烂掉。
   })
