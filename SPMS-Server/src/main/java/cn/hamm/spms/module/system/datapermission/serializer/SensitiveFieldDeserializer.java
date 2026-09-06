@@ -91,7 +91,11 @@ public class SensitiveFieldDeserializer extends JsonDeserializer<Object> impleme
         JavaType type = property.getType();
         Class<?> raw = (type == null) ? null : type.getRawClass();
         boolean textual = raw != null && CharSequence.class.isAssignableFrom(raw);
-        return new SensitiveFieldDeserializer(property.getDeclaringClass(), property.getName(), textual, type);
+        // BeanProperty 上没有 getDeclaringClass()：宿主类只能经 getMember()（AnnotatedMember）拿。
+        // getMember() 理论可为空（如构造器绑定），空就保持未装配状态，与 property == null 分支同处置。
+        Class<?> declaringClass = (property.getMember() == null)
+                ? null : property.getMember().getDeclaringClass();
+        return new SensitiveFieldDeserializer(declaringClass, property.getFullName().getSimpleName(), textual, type);
     }
 
     @Override

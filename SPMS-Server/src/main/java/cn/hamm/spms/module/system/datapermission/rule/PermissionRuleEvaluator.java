@@ -102,7 +102,9 @@ public final class PermissionRuleEvaluator {
                 break;
         }
 
-        int comparison = compare(actual, expected);
+        // 返回 Integer 而不是 int：类型不兼容（拿日期去比字符串）时 compare 给 null 表示
+        // "这条规则没法判断"，用 int 接会在这一行就 NPE/编译不过，语义也从"未知"变成 0（等于 EQ 成立）。
+        Integer comparison = compare(actual, expected);
         if (comparison == null) {
             return false;
         }

@@ -147,7 +147,9 @@ public class DataPermissionSpecification {
 
         // 只有「本该产生 SQL 条件却一条都没绑上」才算绑定失败；
         // SYSTEM / ROLE 策略语义是"允许全部"，生成不出条件是正确结果，不能误判为异常。
-        if (predicates.isEmpty() && build.expectedConditions()) {
+        // expectedConditions() 是 int 计数（"本该产生几条条件"），不是一眼看上去像布尔的开关；
+        // 这里必须显式比较，写成 `&& build.expectedConditions()` 是 javac 级别的错误。
+        if (predicates.isEmpty() && build.expectedConditions() > 0) {
             audit.binding(resourceKey, DataPermissionAudit.REASON_BINDING_INVALID,
                     build.expectedConditions() + " 条策略无法绑定到实体列，检查 tenant_id/creator_id 是否在实体上映射");
             return enforced(mode) ? deny(builder, resourceKey, DataPermissionAudit.REASON_BINDING_INVALID, null) : List.of();
