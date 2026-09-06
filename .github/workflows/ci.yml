@@ -44,6 +44,9 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Permission codes match backend controllers
+        run: pnpm perms:check
+
       - name: Build
         run: pnpm build
 
