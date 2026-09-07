@@ -4,6 +4,7 @@ import cn.hamm.spms.base.mapper.KuboBaseMapper;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
 import cn.hamm.spms.module.system.datapermission.service.RowParityCounter;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.Map;
 
@@ -14,9 +15,9 @@ import java.util.Map;
  * {@code tenant_id / creator_id} 在实体上真映射了，行级条件绑得上列 —— 这是"读侧能算出条件"的前提，
  * 24 个资源里只有它先满足。</p>
  *
- * <p>本接口只有一个方法，而且刻意不叫 {@code page}/{@code list}：它现在回答的是
- * <b>"这段权限片段在 Mapper 侧数出多少行"</b>，供 JPA 侧与 Mapper 侧对账用。真正的读端点接管
- * （列表/详情/统计/导出四条出口一起换）要等"判据合一"那一格，见施工图 §19.34。</p>
+ * <p>所有业务读出口都显式写在本接口的 XML 中：列表、详情、统计、总数各有自己的
+ * {@code mappedStatementId}，因此每一条 SQL 都会经过同一个资源绑定和数据权限拦截器。
+ * 写路径仍然只走 AirPower JPA；本 Mapper 不承载新增、修改或删除。</p>
  *
  * @author Hamm.cn
  */
@@ -36,12 +37,45 @@ public interface MaterialMapper extends KuboBaseMapper<MaterialEntity>, RowParit
     }
 
     /**
-     * 按权限片段数一遍 {@code material}
+     * 真实列表读出口；权限条件由运行时拦截器按 statement ID 注入。
      *
-     * <p>参数用<b>一个 Map</b> 而不是 {@code @Param} 分列：片段文本里的
-     * {@code #{dpRule0}} 之类占位符要在同一个参数对象上解析得出来，Map 是最小可行的形状
-     * （见 {@code RowPermissionPredicate#myBatisStatementParameters}）。片段来自渲染器，
-     * 调用方不许自己拼 SQL —— 这条由门禁看着。</p>
+     * @param filter 物料筛选条件
+     * @param offset 分页偏移
+     * @param limit  分页大小
+     * @return 当前页
+     */
+    java.util.List<MaterialEntity> selectPageByPermission(
+            @Param("filter") MaterialEntity filter,
+            @Param("offset") int offset,
+            @Param("limit") int limit
+    );
+
+    /**
+     * 真实详情读出口；不存在或无权行均返回 null，由 Service 转为统一的数据不存在错误。
+     *
+     * @param id 主键
+     * @return 详情
+     */
+    MaterialEntity selectDetailByPermission(@Param("id") Long id);
+
+    /**
+     * 与列表筛选条件一致的总数出口。
+     *
+     * @param filter 物料筛选条件
+     * @return 权限范围内总数
+     */
+    Long countByPermission(@Param("filter") MaterialEntity filter);
+
+    /**
+     * 与列表筛选条件一致的统计出口。
+     *
+     * @param filter 物料筛选条件
+     * @return 权限范围内统计
+     */
+    MaterialReadStat statByPermission(@Param("filter") MaterialEntity filter);
+
+    /**
+     * 按权限片段数一遍 {@code material}，供 JPA/Mapper parity 对账使用。
      *
      * @param parameters 至少含 {@code fragment} 键（可为空串 = 不加条件），其余是片段用到的命名参数
      * @return 行数

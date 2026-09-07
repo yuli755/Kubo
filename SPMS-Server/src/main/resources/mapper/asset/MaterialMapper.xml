@@ -1,14 +1,101 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!--
-  物料读侧语句。这里只允许出现"表 + ${fragment}"，权限条件本身来自 SqlPermissionRuleRenderer。
-  ${fragment} 与 #{} 的关系值得说明：MyBatis 先做 ${} 文本替换、再解析 #{}，所以渲染器产出的
-  material.tenant_id = #{dpRule0} 能正常参数化 —— 这是本格用集成测试验过的事实（不是推断），
-  因为整套"Mapper 侧收口"都站在这条机制上。
-  刻意不写别名：FROM material 之后 m.tenant_id 这种写法要求别名，而片段是"表名.列"形式（渲染器的
-  tableAlias 传表名），两者必须对上，别在 XML 里加别名把片段变成无效引用。
+  物料读侧语句。权限条件不在 XML 里手写：MyBatis-Plus 的
+  DataPermissionInterceptor 根据 mappedStatementId 把同一棵策略树的条件追加到主表。
+  只有业务筛选、分页和固定排序留在这里；请求方不能提交 SQL 或 ORDER BY 文本。
 -->
 <mapper namespace="cn.hamm.spms.module.asset.material.mapper.MaterialMapper">
+
+    <resultMap id="materialReadMap" type="cn.hamm.spms.module.asset.material.MaterialEntity">
+        <id column="id" property="id"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_disabled" property="isDisabled"/>
+        <result column="is_published" property="isPublished"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="creator_id" property="creatorId"/>
+        <result column="name" property="name"/>
+        <result column="code" property="code"/>
+        <result column="spc" property="spc"/>
+        <result column="material_type" property="materialType"/>
+        <result column="use_type" property="useType"/>
+        <result column="purchase_price" property="purchasePrice"/>
+        <result column="sale_price" property="salePrice"/>
+        <!-- 关系表不在本资源的权限绑定中；详情先只返回关联 ID，避免无策略的 JOIN 表成为旁路。 -->
+        <association property="unit" javaType="cn.hamm.spms.module.system.unit.UnitEntity">
+            <id column="unit_id" property="id"/>
+        </association>
+    </resultMap>
+
+    <sql id="materialColumns">
+        m.id,
+        m.create_time,
+        m.update_time,
+        m.is_disabled,
+        m.is_published,
+        m.tenant_id,
+        m.creator_id,
+        m.name,
+        m.code,
+        m.spc,
+        m.material_type,
+        m.use_type,
+        m.purchase_price,
+        m.sale_price,
+        m.unit_id
+    </sql>
+
+    <sql id="materialFilter">
+        <if test="filter != null and filter.name != null and filter.name != ''">
+            AND m.name LIKE CONCAT('%', #{filter.name}, '%')
+        </if>
+        <if test="filter != null and filter.code != null and filter.code != ''">
+            AND m.code LIKE CONCAT('%', #{filter.code}, '%')
+        </if>
+        <if test="filter != null and filter.materialType != null">
+            AND m.material_type = #{filter.materialType}
+        </if>
+        <if test="filter != null and filter.useType != null">
+            AND m.use_type = #{filter.useType}
+        </if>
+    </sql>
+
+    <select id="selectPageByPermission" resultMap="materialReadMap">
+        SELECT
+        <include refid="materialColumns"/>
+        FROM material m
+        <where>
+            <include refid="materialFilter"/>
+        </where>
+        ORDER BY m.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectDetailByPermission" resultMap="materialReadMap">
+        SELECT
+        <include refid="materialColumns"/>
+        FROM material m
+        WHERE m.id = #{id}
+    </select>
+
+    <select id="countByPermission" resultType="long">
+        SELECT COUNT(1)
+        FROM material m
+        <where>
+            <include refid="materialFilter"/>
+        </where>
+    </select>
+
+    <select id="statByPermission" resultType="cn.hamm.spms.module.asset.material.mapper.MaterialReadStat">
+        SELECT
+            COUNT(1) AS total,
+            COALESCE(SUM(CASE WHEN m.is_published THEN 1 ELSE 0 END), 0) AS published_total
+        FROM material m
+        <where>
+            <include refid="materialFilter"/>
+        </where>
+    </select>
 
     <select id="countByPermissionFragment" resultType="long">
         SELECT COUNT(1) FROM material

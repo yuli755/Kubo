@@ -161,10 +161,14 @@ const Asset = {
     delete: `Device_${Crud.delete}`,
   },
   Material: {
+    getPage: 'Material_getPage',
+    getDetail: 'Material_getDetail',
     add: `Material_${Crud.add}`,
     update: `Material_${Crud.update}`,
     delete: `Material_${Crud.delete}`,
     export: `Material_${Crud.export}`,
+    getCount: 'Material_getCount',
+    getStat: 'Material_getStat',
   },
   Contract: {
     getDetail: 'Contract_getDetail',
