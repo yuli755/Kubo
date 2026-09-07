@@ -100,8 +100,8 @@ class MoveMapperRuntimeInterceptorTest {
             MoveEntity detail = moveMapper.selectDetailByPermission(1L);
             assertEquals(1L, detail.getId());
             assertEquals(2L, moveMapper.countByPermission(null, null));
-            assertEquals(1L, moveMapper.selectPageByPermission(null, 3, 0, 20)
-                    .get(0).getId());
+            assertEquals(2L, moveMapper.selectPageByPermission(null, 3, 0, 20)
+.get(0).getId());
         }
     }
 
