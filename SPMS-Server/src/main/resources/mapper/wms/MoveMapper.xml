@@ -1,13 +1,80 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- 权限片段只来自 SqlPermissionRuleRenderer；${fragment} 后仍由 #{} 参数化。 -->
+<!-- 移库单主表读 SQL；权限条件由 MyBatis-Plus 追加，仓库关系只投影 ID。 -->
 <mapper namespace="cn.hamm.spms.module.wms.move.mapper.MoveMapper">
+    <resultMap id="moveReadMap" type="cn.hamm.spms.module.wms.move.MoveEntity">
+        <id column="id" property="id"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_disabled" property="isDisabled"/>
+        <result column="is_published" property="isPublished"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="creator_id" property="creatorId"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="bill_code" property="billCode"/>
+        <result column="status" property="status"/>
+        <association property="storage" javaType="cn.hamm.spms.module.factory.storage.StorageEntity">
+            <id column="storage_id" property="id"/>
+        </association>
+    </resultMap>
+
+    <sql id="moveColumns">
+        m.id,
+        m.create_time,
+        m.update_time,
+        m.is_disabled,
+        m.is_published,
+        m.tenant_id,
+        m.creator_id,
+        m.reject_reason,
+        m.bill_code,
+        m.status,
+        m.storage_id
+    </sql>
+
+    <sql id="moveFilter">
+        <if test="billCode != null and billCode != ''">
+            AND m.bill_code LIKE CONCAT('%', #{billCode}, '%')
+        </if>
+        <if test="status != null">
+            AND m.status = #{status}
+        </if>
+    </sql>
+
+    <sql id="moveParityFilter">
+        <if test="billCode != null and billCode != ''">
+            AND bill_code LIKE CONCAT('%', #{billCode}, '%')
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+    </sql>
+
+    <select id="selectPageByPermission" resultMap="moveReadMap">
+        SELECT <include refid="moveColumns"/>
+        FROM move m
+        <where><include refid="moveFilter"/></where>
+        ORDER BY m.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectDetailByPermission" resultMap="moveReadMap">
+        SELECT <include refid="moveColumns"/>
+        FROM move m
+        WHERE m.id = #{id}
+    </select>
+
+    <select id="countByPermission" resultType="long">
+        SELECT COUNT(1)
+        FROM move m
+        <where><include refid="moveFilter"/></where>
+    </select>
+
     <select id="countByPermissionFragment" resultType="long">
         SELECT COUNT(1) FROM move
         <where>
-            <if test="fragment != null and fragment != ''">
-                ${fragment}
-            </if>
+            <include refid="moveParityFilter"/>
+            <if test="fragment != null and fragment != ''">AND ${fragment}</if>
         </where>
     </select>
 </mapper>
