@@ -57,12 +57,12 @@ class InventoryMapperRuntimeInterceptorTest {
         jdbcTemplate.update("DELETE FROM inventory");
         jdbcTemplate.update("DELETE FROM data_policy");
         jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO inventory (id, tenant_id, creator_id, material_id, quantity, type, storage_id, structure_id) "
-                + "VALUES (1, 10, 7, 101, 5.0, 1, 201, NULL)");
-        jdbcTemplate.update("INSERT INTO inventory (id, tenant_id, creator_id, material_id, quantity, type, storage_id, structure_id) "
-                + "VALUES (2, 10, 8, 102, 8.0, 1, 202, NULL)");
-        jdbcTemplate.update("INSERT INTO inventory (id, tenant_id, creator_id, material_id, quantity, type, storage_id, structure_id) "
-                + "VALUES (3, 20, 7, 103, 13.0, 1, 203, NULL)");
+        jdbcTemplate.update("INSERT INTO inventory (id, tenant_id, creator_id, material_id, quantity, type, storage_id, structure_id, is_published) "
+                + "VALUES (1, 10, 7, 101, 5.0, 1, 201, NULL, TRUE)");
+        jdbcTemplate.update("INSERT INTO inventory (id, tenant_id, creator_id, material_id, quantity, type, storage_id, structure_id, is_published) "
+                + "VALUES (2, 10, 8, 102, 8.0, 1, 202, NULL, FALSE)");
+        jdbcTemplate.update("INSERT INTO inventory (id, tenant_id, creator_id, material_id, quantity, type, storage_id, structure_id, is_published) "
+                + "VALUES (3, 20, 7, 103, 13.0, 1, 203, NULL, TRUE)");
         jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
                         + "owner_columns, supported_actions, status, version_no) "
                         + "VALUES (9201, 'wms.inventory', 'inventory', 'inventory', 'tenant_id', 'creator_id', "
@@ -82,12 +82,13 @@ class InventoryMapperRuntimeInterceptorTest {
     }
 
     @Test
-    @DisplayName("库存 page/detail/count 经过同一资源权限绑定")
+    @DisplayName("库存 page/detail/count/stat 经过同一资源权限绑定")
     void realReadStatementsFilterByTenant() {
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             List<InventoryEntity> page = inventoryMapper.selectPageByPermission(1, List.of(), List.of(), 0, 20);
             InventoryEntity detail = inventoryMapper.selectDetailByPermission(1L);
             Long count = inventoryMapper.countByPermission(1, List.of(), List.of());
+            var stat = inventoryMapper.statByPermission(1, List.of(), List.of());
 
             assertEquals(2L, count);
             assertEquals(2, page.size());
@@ -95,6 +96,8 @@ class InventoryMapperRuntimeInterceptorTest {
             assertEquals(101L, page.get(1).getMaterial().getId());
             assertEquals(202L, page.get(0).getStorage().getId());
             assertEquals(1L, detail.getId());
+            assertEquals(2L, stat.getTotal());
+            assertEquals(1L, stat.getPublishedTotal(), "当前租户两行中仅 id=1 已发布");
         }
     }
 
@@ -128,6 +131,7 @@ class InventoryMapperRuntimeInterceptorTest {
             assertEquals(0L, inventoryMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(inventoryMapper.selectDetailByPermission(1L));
             assertEquals(0, inventoryMapper.selectForExport(1, List.of(), List.of()).size());
+            assertEquals(0L, inventoryMapper.statByPermission(1, List.of(), List.of()).getTotal());
         }
     }
 }

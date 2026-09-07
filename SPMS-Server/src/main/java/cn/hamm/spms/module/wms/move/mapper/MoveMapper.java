@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.wms.move.mapper;
 
 import cn.hamm.spms.base.mapper.KuboBaseMapper;
+import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
 import cn.hamm.spms.module.system.datapermission.service.RowParityCounter;
 import cn.hamm.spms.module.wms.move.MoveEntity;
@@ -31,6 +32,14 @@ public interface MoveMapper extends KuboBaseMapper<MoveEntity>, RowParityCounter
     MoveEntity selectDetailByPermission(@Param("id") Long id);
 
     Long countByPermission(
+            @Param("billCode") String billCode,
+            @Param("status") Integer status
+    );
+
+    /**
+     * 与总数完全相同的统计出口；只返回行数与已发布行数。
+     */
+    ReadStat statByPermission(
             @Param("billCode") String billCode,
             @Param("status") Integer status
     );

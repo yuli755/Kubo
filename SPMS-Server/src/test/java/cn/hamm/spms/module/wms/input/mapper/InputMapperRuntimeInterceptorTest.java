@@ -58,12 +58,12 @@ class InputMapperRuntimeInterceptorTest {
         jdbcTemplate.update("DELETE FROM input");
         jdbcTemplate.update("DELETE FROM data_policy");
         jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO input (id, tenant_id, creator_id, bill_code, status, type) "
-                + "VALUES (1, 10, 7, 'IN-001', 2, 1)");
-        jdbcTemplate.update("INSERT INTO input (id, tenant_id, creator_id, bill_code, status, type) "
-                + "VALUES (2, 10, 8, 'IN-002', 3, 2)");
-        jdbcTemplate.update("INSERT INTO input (id, tenant_id, creator_id, bill_code, status, type) "
-                + "VALUES (3, 20, 7, 'IN-003', 2, 1)");
+        jdbcTemplate.update("INSERT INTO input (id, tenant_id, creator_id, bill_code, status, type, is_published) "
+                + "VALUES (1, 10, 7, 'IN-001', 2, 1, TRUE)");
+        jdbcTemplate.update("INSERT INTO input (id, tenant_id, creator_id, bill_code, status, type, is_published) "
+                + "VALUES (2, 10, 8, 'IN-002', 3, 2, FALSE)");
+        jdbcTemplate.update("INSERT INTO input (id, tenant_id, creator_id, bill_code, status, type, is_published) "
+                + "VALUES (3, 20, 7, 'IN-003', 2, 1, TRUE)");
         jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
                         + "owner_columns, supported_actions, status, version_no) "
                         + "VALUES (9301, 'wms.input', 'input', 'input', 'tenant_id', 'creator_id', "
@@ -104,6 +104,9 @@ class InputMapperRuntimeInterceptorTest {
             InputEntity detail = inputMapper.selectDetailByPermission(1L);
             assertEquals(1L, detail.getId());
             assertEquals(2L, inputMapper.countByPermission(null, null, null));
+            var stat = inputMapper.statByPermission(null, null, null);
+            assertEquals(2L, stat.getTotal());
+            assertEquals(1L, stat.getPublishedTotal(), "当前租户两行中仅 id=1 已发布");
             List<InputEntity> rows = inputMapper.selectPageByPermission(null, 2, null, 0, 20);
             assertEquals(1, rows.size());
             assertEquals(1L, rows.get(0).getId());
@@ -129,6 +132,7 @@ class InputMapperRuntimeInterceptorTest {
             assertEquals(0L, inputMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(inputMapper.selectDetailByPermission(1L));
             assertEquals(0, inputMapper.selectForExport(null, null, null).size());
+            assertEquals(0L, inputMapper.statByPermission(null, null, null).getTotal());
         }
     }
 }

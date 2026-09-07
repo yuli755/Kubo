@@ -13,6 +13,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.airpower.exception.Errors;
 import cn.hamm.spms.base.BaseService;
+import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.asset.material.MaterialService;
 import cn.hamm.spms.module.wms.inventory.mapper.InventoryMapper;
@@ -148,6 +149,28 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
         InventoryEntity normalized = filter == null ? new InventoryEntity() : filter;
         return inventoryMapper.countByPermission(normalized.getType(), storageIds(normalized, normalized.getType()),
                 structureIds(normalized, normalized.getType()));
+    }
+
+    /**
+     * 库存统计读出口；与总数使用同一筛选和权限语句，只返回行数与已发布行数。
+     *
+     * @param filter 业务筛选（库存类型/树节点）
+     * @return 权限范围内统计
+     */
+    public ReadStat getMapperStat(InventoryEntity filter) {
+        InventoryEntity normalized = filter == null ? new InventoryEntity() : filter;
+        if (isMapperReadEnabled()) {
+            Integer type = normalized.getType();
+            List<Long> storageIds = storageIds(normalized, type);
+            List<Long> structureIds = structureIds(normalized, type);
+            inventoryReadShadowService.submit(type, storageIds, structureIds);
+            return inventoryMapper.statByPermission(type, storageIds, structureIds);
+        }
+        List<InventoryEntity> rows = filter(normalized);
+        ReadStat stat = new ReadStat();
+        stat.setTotal(rows.size());
+        stat.setPublishedTotal(rows.stream().filter(row -> Boolean.TRUE.equals(row.getIsPublished())).count());
+        return stat;
     }
 
     /**

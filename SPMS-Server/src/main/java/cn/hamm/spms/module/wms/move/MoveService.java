@@ -9,6 +9,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.bill.AbstractBaseBillService;
+import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
@@ -129,6 +130,40 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
                     .get(bill.getStorage().getId()));
         }
         return bill;
+    }
+
+    /**
+     * 移库单总数读出口；与分页使用同一筛选和权限语句。
+     *
+     * @param filter 业务筛选（单号/状态）
+     * @return 权限范围内总数
+     */
+    public long getMapperCount(MoveEntity filter) {
+        MoveEntity normalized = filter == null ? new MoveEntity() : filter;
+        if (isMapperReadEnabled()) {
+            moveReadShadowService.submit(normalized);
+            return moveMapper.countByPermission(normalized.getBillCode(), normalized.getStatus());
+        }
+        return filter(normalized).size();
+    }
+
+    /**
+     * 移库单统计读出口；只返回行数与已发布行数，与总数同一权限语句。
+     *
+     * @param filter 业务筛选（单号/状态）
+     * @return 权限范围内统计
+     */
+    public ReadStat getMapperStat(MoveEntity filter) {
+        MoveEntity normalized = filter == null ? new MoveEntity() : filter;
+        if (isMapperReadEnabled()) {
+            moveReadShadowService.submit(normalized);
+            return moveMapper.statByPermission(normalized.getBillCode(), normalized.getStatus());
+        }
+        List<MoveEntity> rows = filter(normalized);
+        ReadStat stat = new ReadStat();
+        stat.setTotal(rows.size());
+        stat.setPublishedTotal(rows.stream().filter(row -> Boolean.TRUE.equals(row.getIsPublished())).count());
+        return stat;
     }
 
     /**

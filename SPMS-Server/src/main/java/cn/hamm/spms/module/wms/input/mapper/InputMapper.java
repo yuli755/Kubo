@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.wms.input.mapper;
 
 import cn.hamm.spms.base.mapper.KuboBaseMapper;
+import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
 import cn.hamm.spms.module.system.datapermission.service.RowParityCounter;
 import cn.hamm.spms.module.wms.input.InputEntity;
@@ -54,6 +55,15 @@ public interface InputMapper extends KuboBaseMapper<InputEntity>, RowParityCount
      * @return 行数
      */
     Long countByPermission(
+            @Param("billCode") String billCode,
+            @Param("status") Integer status,
+            @Param("type") Integer type
+    );
+
+    /**
+     * 与总数完全相同的统计出口；只返回行数与已发布行数。
+     */
+    ReadStat statByPermission(
             @Param("billCode") String billCode,
             @Param("status") Integer status,
             @Param("type") Integer type

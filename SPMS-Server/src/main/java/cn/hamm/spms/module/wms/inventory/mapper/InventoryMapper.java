@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.wms.inventory.mapper;
 
 import cn.hamm.spms.base.mapper.KuboBaseMapper;
+import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
 import cn.hamm.spms.module.system.datapermission.service.RowParityCounter;
 import cn.hamm.spms.module.wms.inventory.InventoryEntity;
@@ -61,6 +62,20 @@ public interface InventoryMapper extends KuboBaseMapper<InventoryEntity>, RowPar
      * @return 行数
      */
     Long countByPermission(
+            @Param("type") Integer type,
+            @Param("storageIds") List<Long> storageIds,
+            @Param("structureIds") List<Long> structureIds
+    );
+
+    /**
+     * 与总数完全相同的统计出口；只返回行数与已发布行数。
+     *
+     * @param type         库存类型
+     * @param storageIds   仓库及子仓库 ID
+     * @param structureIds 生产单元及子单元 ID
+     * @return 权限范围内统计
+     */
+    ReadStat statByPermission(
             @Param("type") Integer type,
             @Param("storageIds") List<Long> storageIds,
             @Param("structureIds") List<Long> structureIds

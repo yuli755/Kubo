@@ -56,6 +56,32 @@ public class InventoryController extends BaseController<InventoryEntity, Invento
     }
 
     /**
+     * 库存总数读出口（Mapper）。
+     *
+     * @param request 筛选请求
+     * @return 权限范围内总数
+     */
+    @Description("查询库存总数")
+    @PostMapping("getCount")
+    public Json getCount(@RequestBody(required = false) QueryListRequest<InventoryEntity> request) {
+        InventoryEntity filter = request == null ? null : request.getFilter();
+        return Json.data(service.getMapperCount(filter));
+    }
+
+    /**
+     * 库存统计读出口（Mapper）。
+     *
+     * @param request 筛选请求
+     * @return 权限范围内统计
+     */
+    @Description("查询库存统计")
+    @PostMapping("getStat")
+    public Json getStat(@RequestBody(required = false) QueryListRequest<InventoryEntity> request) {
+        InventoryEntity filter = request == null ? null : request.getFilter();
+        return Json.data(service.getMapperStat(filter));
+    }
+
+    /**
      * 库存导出出口：Mapper 读链路开启时走受权限拦截的取数 + 请求线程列级遮蔽；关闭时回退框架 JPA 导出。
      * 返回 fileCode 契约与框架一致，前端 queryExport 不变。
      *

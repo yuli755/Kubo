@@ -54,12 +54,12 @@ class MoveMapperRuntimeInterceptorTest {
         jdbcTemplate.update("DELETE FROM move");
         jdbcTemplate.update("DELETE FROM data_policy");
         jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO move (id, tenant_id, creator_id, bill_code, status, storage_id) "
-                + "VALUES (1, 10, 7, 'MOVE-001', 2, 201)");
-        jdbcTemplate.update("INSERT INTO move (id, tenant_id, creator_id, bill_code, status, storage_id) "
-                + "VALUES (2, 10, 8, 'MOVE-002', 3, 202)");
-        jdbcTemplate.update("INSERT INTO move (id, tenant_id, creator_id, bill_code, status, storage_id) "
-                + "VALUES (3, 20, 7, 'MOVE-003', 2, 203)");
+        jdbcTemplate.update("INSERT INTO move (id, tenant_id, creator_id, bill_code, status, storage_id, is_published) "
+                + "VALUES (1, 10, 7, 'MOVE-001', 2, 201, TRUE)");
+        jdbcTemplate.update("INSERT INTO move (id, tenant_id, creator_id, bill_code, status, storage_id, is_published) "
+                + "VALUES (2, 10, 8, 'MOVE-002', 3, 202, FALSE)");
+        jdbcTemplate.update("INSERT INTO move (id, tenant_id, creator_id, bill_code, status, storage_id, is_published) "
+                + "VALUES (3, 20, 7, 'MOVE-003', 2, 203, TRUE)");
         jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
                         + "owner_columns, supported_actions, status, version_no) "
                         + "VALUES (9501, 'wms.move', 'move', 'move', 'tenant_id', 'creator_id', "
@@ -94,12 +94,15 @@ class MoveMapperRuntimeInterceptorTest {
     }
 
     @Test
-    @DisplayName("移库 detail/count 使用同一权限绑定")
+    @DisplayName("移库 detail/count/stat 使用同一权限绑定")
     void detailAndCountArePermissionAware() {
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             MoveEntity detail = moveMapper.selectDetailByPermission(1L);
             assertEquals(1L, detail.getId());
             assertEquals(2L, moveMapper.countByPermission(null, null));
+            var stat = moveMapper.statByPermission(null, null);
+            assertEquals(2L, stat.getTotal());
+            assertEquals(1L, stat.getPublishedTotal(), "当前租户两行中仅 id=1 已发布");
             assertEquals(2L, moveMapper.selectPageByPermission(null, 3, 0, 20)
 .get(0).getId());
         }
@@ -124,6 +127,7 @@ class MoveMapperRuntimeInterceptorTest {
             assertEquals(0L, moveMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(moveMapper.selectDetailByPermission(1L));
             assertEquals(0, moveMapper.selectForExport(null, null).size());
+            assertEquals(0L, moveMapper.statByPermission(null, null).getTotal());
         }
     }
 }
