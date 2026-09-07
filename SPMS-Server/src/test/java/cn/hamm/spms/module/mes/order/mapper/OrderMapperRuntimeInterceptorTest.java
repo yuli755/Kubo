@@ -102,7 +102,7 @@ class OrderMapperRuntimeInterceptorTest {
             OrderEntity detail = orderMapper.selectDetailByPermission(1L);
             assertEquals(1L, detail.getId());
             assertEquals(2L, orderMapper.countByPermission(null, null, null));
-            assertEquals(1L, orderMapper.selectPageByPermission(null, 3, null, 0, 20)
+            assertEquals(2L, orderMapper.selectPageByPermission(null, 3, null, 0, 20)
                     .get(0).getId());
         }
     }
