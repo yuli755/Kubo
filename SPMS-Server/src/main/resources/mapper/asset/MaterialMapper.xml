@@ -61,6 +61,23 @@
         </if>
     </sql>
 
+    <!-- 对账探针不使用 m 别名：拦截器的资源绑定限定名是登记的物理表名 material，
+         与 page/count 的 SQL 别名 m 刻意分开，避免 H2/MySQL 在物理表名与别名之间产生歧义。 -->
+    <sql id="materialParityFilter">
+        <if test="filter != null and filter.name != null and filter.name != ''">
+            AND name LIKE CONCAT('%', #{filter.name}, '%')
+        </if>
+        <if test="filter != null and filter.code != null and filter.code != ''">
+            AND code LIKE CONCAT('%', #{filter.code}, '%')
+        </if>
+        <if test="filter != null and filter.materialType != null">
+            AND material_type = #{filter.materialType}
+        </if>
+        <if test="filter != null and filter.useType != null">
+            AND use_type = #{filter.useType}
+        </if>
+    </sql>
+
     <select id="selectPageByPermission" resultMap="materialReadMap">
         SELECT
         <include refid="materialColumns"/>
@@ -98,9 +115,9 @@
     </select>
 
     <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM material m
+        SELECT COUNT(1) FROM material
         <where>
-            <include refid="materialFilter"/>
+            <include refid="materialParityFilter"/>
             <if test="fragment != null and fragment != ''">
                 AND ${fragment}
             </if>
