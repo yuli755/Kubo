@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.jpa.domain.Specification;
@@ -26,6 +27,9 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -128,7 +132,45 @@ class ShadowDiffWiringTest {
 
         assertTrue(build().isEmpty(), "shadow 模式绝不能改变查询结果");
         then(shadowDiffService).should().compare(eq(RESOURCE), eq(DataPermissionAction.QUERY),
-                eq(DataResourceEntity.class), any(Specification.class), any(PermissionContext.class));
+                eq(DataResourceEntity.class), any(Specification.class), any(PermissionContext.class),
+                any(ShadowDiffService.OrmParityProbe.class));
+    }
+
+    @Test
+    @DisplayName("对账探针带的是登记表里的表名与同一批树（比对侧不许再按策略算一遍）")
+    void probeCarriesRegisteredTableAndTheSameTrees() {
+        standOnShadow();
+        doReturn(DataResourceEntity.class).when(root).getJavaType();
+
+        build();
+
+        ArgumentCaptor<ShadowDiffService.OrmParityProbe> captor =
+                ArgumentCaptor.forClass(ShadowDiffService.OrmParityProbe.class);
+        then(shadowDiffService).should().compare(eq(RESOURCE), eq(DataPermissionAction.QUERY),
+                eq(DataResourceEntity.class), any(Specification.class), any(PermissionContext.class), captor.capture());
+        ShadowDiffService.OrmParityProbe probe = captor.getValue();
+
+        assertNotNull(probe, "合一之后影子比对应该拿到第三个 COUNT 的输入；null 意味着 §19.36 那条链又断了");
+        assertEquals("inventory", probe.tableAlias(),
+                "表名必须是 data_resource.table_name 那一列，不是从实体名推的（§19.34 写进基类注释的坑）");
+        assertEquals(1, probe.rules().size(), "一条策略一棵树；比对侧重建一遍就是第四份判据");
+        assertFalse(probe.rules().get(0) instanceof cn.hamm.spms.module.system.datapermission.rule.PermissionRule.AllowAll,
+                "不参与行级过滤的主体混进对账树，就会拿「两边都不加条件」冒充「一致」");
+        assertTrue(probe.usable(), "表名/树/上下文齐了才可对账");
+    }
+
+    @Test
+    @DisplayName("只有一条 ROLE 策略时连比对都不叫（没有可比的条件，就别数出一个假的一致）")
+    void nothingToCompareMeansNoCallAtAll() {
+        properties.setMode(DataPermissionProperties.Mode.SHADOW);
+        given(dataPermissionService.requireResource(RESOURCE)).willReturn(resource());
+        given(dataPermissionService.getPolicies(eq(RESOURCE), any(DataPermissionAction.class), any(PermissionContext.class)))
+                .willReturn(List.of(new DataPolicyEntity().setSubjectType("ROLE").setSubjectId(9L)
+                        .setActionName("QUERY").setEnabled(true)));
+
+        assertTrue(build().isEmpty());
+
+        then(shadowDiffService).should(never()).compare(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -141,7 +183,7 @@ class ShadowDiffWiringTest {
 
         build();
 
-        then(shadowDiffService).should(never()).compare(any(), any(), any(), any(), any());
+        then(shadowDiffService).should(never()).compare(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -162,7 +204,7 @@ class ShadowDiffWiringTest {
 
         build();
 
-        then(shadowDiffService).should(never()).compare(any(), any(), any(), any(), any());
+        then(shadowDiffService).should(never()).compare(any(), any(), any(), any(), any(), any());
     }
 
     @Test

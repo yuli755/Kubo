@@ -114,8 +114,11 @@ kubo:
     enforce-resources: []
     # 读侧 Mapper（P2 · A2「读走 Mapper，写留 JPA」）：默认 false = 容器里一个 Mapper Bean 都没有，
     # 而不是"注册了但不用"，所以"关掉 = 与换轨前逐字节相同"这句话是可验的（MybatisJpaCoexistenceTest 钉住）。
-    # 打开的前置：判据合一已完成（§19.35，主体维度只由 SubjectDimensionRules 回答一次），
-    # 但 Mapper 侧的第三个 COUNT 与它的证据落点还没接（下一格）——现在打开只会多一条没人读的对账语句。
+    # 它同时是 ORM 对账的唯一开关（§19.36）：RowParityRegistry 这个 Bean 就挂在本类上，
+    # 关着 ⇒ 探针表不存在 ⇒ ShadowDiffService 连第三个 COUNT 都不发，enforce-readiness 的 ORM_PARITY
+    # 那一档对每个资源都报"不适用"（不是"通过"）。刻意不加第二个开关：两个旋钮管同一件事，
+    # 迟早出现"探针没注册但 Mapper 已注册"这种半开状态，那种比全关难查。
+    # 打开之后仍然没有生产读端点（列表/详情/统计/导出还在 JPA）：现在多出来的只有对账证据。
     mapper-read:
       enabled: false
     # 工厂维度落地开关：建 user_factory 表 + 真实解析 factoryIds 之前保持 false

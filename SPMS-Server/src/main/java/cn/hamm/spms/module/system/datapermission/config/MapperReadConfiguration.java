@@ -1,8 +1,12 @@
 package cn.hamm.spms.module.system.datapermission.config;
 
 import cn.hamm.spms.base.mapper.KuboBaseMapper;
+import cn.hamm.spms.module.system.datapermission.service.RowParityCounter;
+import cn.hamm.spms.module.system.datapermission.service.RowParityRegistry;
 import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
@@ -22,4 +26,23 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnProperty(prefix = "kubo.data-permission.mapper-read", name = "enabled", havingValue = "true")
 @MapperScan(basePackages = "cn.hamm.spms", markerInterface = KuboBaseMapper.class)
 public class MapperReadConfiguration {
+
+    /**
+     * 对账探针的索引：从容器里的 {@link RowParityCounter} 汇总，不在这里逐个点名资源
+     *
+     * <p>为什么住在这里：本类由 {@code mapper-read.enabled} 整块挡住，注册表跟着它在/不在，
+     * "开关关掉 ⇒ 一条对账 SQL 都不会发"就自动成立，不需要第二个开关。反过来，如果这张表由
+     * 某个总配置类装配，就会出现"探针没注册但 Mapper 已注册"这种半开状态，那种状态比全关难查。</p>
+     *
+     * <p>用 {@link ObjectProvider#orderedStream()} 而不是 {@code List<RowParityCounter>} 形参：
+     * 后者在一个实现都没有时是按"缺 Bean"处理的，会让本类的存在与否取决于"有没有人写第一个 Mapper" ——
+     * 那等于把地基的可装配性挂在某个模块身上。流式取就没有这个耦合（空表 = 合法状态）。</p>
+     *
+     * @param counters 容器里的探针
+     * @return 注册表（可能为空）
+     */
+    @Bean
+    RowParityRegistry dataPermissionRowParityRegistry(ObjectProvider<RowParityCounter> counters) {
+        return new RowParityRegistry(counters.orderedStream().toList());
+    }
 }

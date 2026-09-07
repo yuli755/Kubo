@@ -46,11 +46,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 合一之前它长了两份，两份各自静默。</p>
  *
  * <h2>两边不一致是被允许、并且要写下来的</h2>
- * <p>JPA 侧按实体元模型试绑，绑不上的候选列会跳过；SQL 侧没有元模型可问，只能按登记的顺序全取。
- * 于是"数据库有这一列、实体没映射"时 <b>SQL 侧比 JPA 侧多一个过滤条件，也就是更严</b>。
- * 这个方向是可以接受的（多滤掉的行不会泄露数据，而漏滤会），所以本类直接把它断言下来：
- * 若哪天有人为了让两边"数字相等"而给 SQL 侧补一次实体元模型查询，那条改动会把"更严"变成"更松"，
- * 这个用例就是他必须正面回答的问题。</p>
+ * <p>JPA 侧按实体元模型试绑，绑不上的候选列会跳过；SQL 侧没有元模型可问，只能按登记的列全取再 OR。
+ * 于是"数据库有这一列、实体没映射"时 <b>SQL 侧多一个 OR 分支，结果集更大 —— 也就是更松</b>。
+ * 这个方向不能靠"多认的那列本来就是他的数据"放过：多放行就是泄露面变大，所以 §19.36 把它做成对账表里的
+ * {@code MAPPER_LOOSE}，并且是放开前置检查里唯一阻塞的那一档（本类断言数与方向，落库那条在
+ * {@code OrmParityEvidenceTest}）。反过来，若哪天有人为了让两边数字相等而给 SQL 侧补一次实体元模型查询
+ * （绑不上就跳过），那是把"更松"改成"少放行"：用户会开始看不见本该看见的行，而这个用例就是
+ * 他必须正面回答的问题。</p>
  *
  * <p>不开事务：种子数据由 JdbcTemplate 直写，JPA 事务不接管那条连接，{@code @Transactional}
  * 回滚不到它 —— 写成"看起来会回滚"只会让下一个加用例的人留下脏行互相影响。表也是这里现建的
@@ -197,8 +199,8 @@ class MaterialMapperReadParityTest {
     // 见 SubjectDimensionUnificationTest#nullValueDenies —— 记在这儿是为了别让下一次又把它写成线上路径。
 
     @Test
-    @DisplayName("负责人档：能绑上的列两边都算；实体没映射的列只有 SQL 侧在用（更严，不是更松）")
-    void ownerCandidatesDivergeTowardsStricter() {
+    @DisplayName("负责人档：实体没映射的列只有 SQL 侧在用 ⇒ SQL 多放行（更松），不是更严")
+    void unmappedOwnerColumnMakesMapperSideLooser() {
         // tenantId 必须给值（上下文不允许 null）；本用例只挂 USER 一维，租户不参与比较，取哪个租户都一样
         PermissionContext context = context(100L, TENANT_C);
         // 登记 creator_id,owner_id 两列：owner_id 在 material 上有列，但实体没有 ownerId 属性
@@ -212,7 +214,8 @@ class MaterialMapperReadParityTest {
         // JPA：只有 creator_id=100 ⇒ 1 行；SQL：creator_id=100 OR owner_id=100 ⇒ 3 行
         assertEquals(1L, viaJpa);
         assertTrue(viaMapper > viaJpa,
-                "SQL 侧应当比 JPA 侧多认一列：多认的那列是 owner_id 命中的行，属于「更严」方向的已知不对称");
+                "SQL 侧多认 owner_id 这一列 ⇒ 命中更多行。方向必须是 Mapper 更多（更松）：\n"
+                        + "对账表会把它记成 MAPPER_LOOSE 并阻塞放开");
     }
 
     @Test

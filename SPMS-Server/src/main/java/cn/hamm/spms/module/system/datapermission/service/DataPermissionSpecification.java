@@ -177,7 +177,7 @@ public class DataPermissionSpecification {
 
         if (!enforced(mode)) {
             audit.shadow(resourceKey, "would-filter", describe(predicates));
-            submitShadowDiff(root, resourceKey, action, resource, policies, context);
+            submitShadowDiff(root, resourceKey, action, resource, policies, context, build.ruleTrees());
             return List.of();
         }
         return predicates;
@@ -192,14 +192,17 @@ public class DataPermissionSpecification {
      * 一个只读面板把自己的判据建在了一张没有生产者的表上（§19.30 欠的那条就是这里）。</p>
      *
      * <p>条件不在这儿重写一遍：直接把 {@link #buildPredicatesFromPolicies} 包成一个
-     * {@link Specification}，比对侧拿到的就是 enforce 会注入的同一份条件。</p>
+     * {@link Specification}，比对侧拿到的就是 enforce 会注入的同一份条件。JPA 侧比"加不加条件"，
+     * Mapper 侧比"同一棵树换个渲染方向"，所以这里额外把 {@code BuildResult#ruleTrees} 交出去 ——
+     * 两个消费方读的都是同一次建树的产物，§19.35 之后这条链上再没有第二处会算"谁能看哪些行"。</p>
      */
     private <T> void submitShadowDiff(Root<T> root,
                                       String resourceKey,
                                       DataPermissionAction action,
                                       DataResourceEntity resource,
                                       List<DataPolicyEntity> policies,
-                                      PermissionContext context) {
+                                      PermissionContext context,
+                                      List<PermissionRule> ruleTrees) {
         if (shadowDiffService == null) {
             return;
         }
@@ -215,7 +218,13 @@ public class DataPermissionSpecification {
             return inner.isEmpty() ? filterBuilder.conjunction()
                     : filterBuilder.and(inner.toArray(new Predicate[0]));
         };
-        shadowDiffService.compare(resourceKey, action, entityClass, guardedFilter, context);
+        // 对账用的是刚建好的那批树，不在比对侧按策略重算一遍：重算就是第四个判据现场
+        // （表名同理，取登记的 table_name，不从实体名推 —— 那是 §19.34 写进基类注释的坑）。
+        // 树为空时传 null：比对侧会把"不参与对账"读成"没证据"，而不是"一致"。
+        ShadowDiffService.OrmParityProbe probe = ruleTrees == null || ruleTrees.isEmpty()
+                ? null
+                : new ShadowDiffService.OrmParityProbe(resource.getTableName(), ruleTrees, context);
+        shadowDiffService.compare(resourceKey, action, entityClass, guardedFilter, context, probe);
     }
 
     /**
@@ -248,8 +257,12 @@ public class DataPermissionSpecification {
      *
      * @param predicates         实际生成的谓词
      * @param expectedConditions 本该生成 SQL 条件的策略条数（用于识别"绑不上列"的空转）
+     * @param ruleTrees          与 predicates 同一批的<em>条件树</em>（未编译的形状），Mapper 侧对账用它；
+     *                           两者条数可以不等 —— 某条树在 JPA 侧绑不上列时会少一条谓词，
+     *                           而 SQL 侧照样把它拼进片段 ⇒ 两边行数必然不同（对账会记成 MAPPER_LOOSE，
+     *                           也就是"Mapper 多放行"，那是换轨前必须解释掉的形状）
      */
-    private record BuildResult(List<Predicate> predicates, int expectedConditions) {
+    private record BuildResult(List<Predicate> predicates, int expectedConditions, List<PermissionRule> ruleTrees) {
     }
 
     /**
@@ -263,10 +276,14 @@ public class DataPermissionSpecification {
             PermissionContext context
     ) {
         List<Predicate> predicates = new ArrayList<>();
+        List<PermissionRule> ruleTrees = new ArrayList<>(policies.size());
         int expected = 0;
 
         for (DataPolicyEntity policy : policies) {
             PolicyBuild build = buildPolicyBuild(root, builder, resource, policy, context);
+            if (build.tree() != null) {
+                ruleTrees.add(build.tree());
+            }
             if (build.predicate() != null) {
                 predicates.add(build.predicate());
             }
@@ -278,7 +295,7 @@ public class DataPermissionSpecification {
             }
         }
 
-        return new BuildResult(predicates, expected);
+        return new BuildResult(predicates, expected, List.copyOf(ruleTrees));
     }
 
     /**
@@ -313,13 +330,13 @@ public class DataPermissionSpecification {
             parts.add(condition);
         }
         if (parts.isEmpty()) {
-            return new PolicyBuild(null, subject.shouldBind());
+            return new PolicyBuild(null, subject.shouldBind(), null);
         }
         PermissionRule combined = parts.size() == 1
                 ? parts.get(0)
                 : PermissionRule.group(PermissionRuleOp.ALL_OF, parts);
         Predicate predicate = ruleCompiler.compile(combined, root, builder, new PermissionRuleContext(context));
-        return new PolicyBuild(predicate, subject.shouldBind());
+        return new PolicyBuild(predicate, subject.shouldBind(), combined);
     }
 
     /**
@@ -357,7 +374,8 @@ public class DataPermissionSpecification {
      *
      * @param predicate  编译出的 JPA 谓词；{@code null} 表示这一条不贡献条件
      * @param shouldBind 该主体类型本该拼出条件（用来把"结构性空转"数出来）
+     * @param tree       编译前的条件树；给 Mapper 侧渲染同一棵树用（不重新按策略建一遍树）
      */
-    private record PolicyBuild(Predicate predicate, boolean shouldBind) {
+    private record PolicyBuild(Predicate predicate, boolean shouldBind, PermissionRule tree) {
     }
 }

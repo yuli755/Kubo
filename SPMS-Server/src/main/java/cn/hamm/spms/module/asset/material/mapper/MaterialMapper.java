@@ -2,6 +2,7 @@ package cn.hamm.spms.module.asset.material.mapper;
 
 import cn.hamm.spms.base.mapper.KuboBaseMapper;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
+import cn.hamm.spms.module.system.datapermission.service.RowParityCounter;
 
 import java.util.Map;
 
@@ -18,7 +19,19 @@ import java.util.Map;
  *
  * @author Hamm.cn
  */
-public interface MaterialMapper extends KuboBaseMapper<MaterialEntity> {
+public interface MaterialMapper extends KuboBaseMapper<MaterialEntity>, RowParityCounter {
+
+    /**
+     * 本 Mapper 服务的资源键（对账登记用）
+     *
+     * <p>写成 {@code default} 是必须的，不是风格：MyBatis 会给接口里每个抽象方法找一条语句，
+     * 一个只有 Java 语义的方法若不写成 default，就会在启动或调用时报"Invalid bound statement"。
+     * 这条约束适用于所有 {@link RowParityCounter} 的实现，不是本接口的特例。</p>
+     */
+    @Override
+    default String parityResourceKey() {
+        return "asset.material";
+    }
 
     /**
      * 按权限片段数一遍 {@code material}

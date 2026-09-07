@@ -51,6 +51,15 @@ class DataResourceReadinessTest {
         return ready(3L, 2L, 0L, false, true, 0L, 7L);
     }
 
+    /**
+     * 带上 ORM 对账四档的输入（换轨中的资源才用得到；其余资源走上面那个九参形状）
+     */
+    private static ReadinessInput readyWithParity(boolean required, boolean tableAvailable,
+                                                  long looseOrError, long samples) {
+        return new ReadinessInput(enabledResource(), DataPermissionProperties.Mode.ENFORCE,
+                3L, 2L, 0L, false, true, 0L, 7L, required, tableAvailable, looseOrError, samples);
+    }
+
     private static String detailOf(List<ReadinessCheck> checks, String code) {
         return checks.stream().filter(c -> code.equals(c.code())).map(ReadinessCheck::detail).findFirst().orElse("");
     }
@@ -184,7 +193,66 @@ class DataResourceReadinessTest {
                 .stream().map(ReadinessCheck::code).toList();
 
         assertEquals(List.of("REGISTERED_ENABLED", "DIMENSIONS_BINDABLE", "QUERY_POLICY", "WRITE_POLICY",
-                "EXPORT_GRANT", "SHADOW_EVIDENCE", "CONFIG_NOTES"), codes);
+                "EXPORT_GRANT", "SHADOW_EVIDENCE", "ORM_PARITY", "CONFIG_NOTES"), codes);
+    }
+
+    @Test
+    @DisplayName("未登记 Mapper 探针的资源：ORM_PARITY 报「不适用」，既不通红也不阻塞")
+    void parityNotApplicableWhenNoProbe() {
+        List<ReadinessCheck> checks = DataResourceService.readinessChecks(
+                readyWithParity(false, false, 0L, 0L), enforce());
+
+        ReadinessCheck parity = checks.stream().filter(c -> "ORM_PARITY".equals(c.code())).findFirst().orElseThrow();
+        assertTrue(parity.passed());
+        assertFalse(parity.blocking(), "对没换轨的资源报红会把面板刷成噪声，然后大家学会忽略它");
+        assertTrue(parity.detail().contains("不适用"), parity.detail());
+        assertTrue(DataResourceService.readyOf(checks), checks.toString());
+    }
+
+    @Test
+    @DisplayName("换轨中的资源读不到对账表：按「无证据」阻塞，不读成「没有差异」")
+    void parityMissingTableBlocks() {
+        List<ReadinessCheck> checks = DataResourceService.readinessChecks(
+                readyWithParity(true, false, 0L, 0L), enforce());
+
+        assertTrue(DataResourceService.blockersOf(checks).stream().anyMatch(text -> text.contains("读不到对账表")),
+                DataResourceService.blockersOf(checks).toString());
+        assertFalse(DataResourceService.readyOf(checks));
+    }
+
+    @Test
+    @DisplayName("Mapper 侧多放行 ⇒ 阻塞：这一档是整套对账唯一不能放过的形状")
+    void mapperLooserBlocksRelease() {
+        List<ReadinessCheck> checks = DataResourceService.readinessChecks(
+                readyWithParity(true, true, 1L, 40L), enforce());
+
+        String detail = detailOf(checks, "ORM_PARITY");
+        assertFalse(checks.stream().filter(c -> "ORM_PARITY".equals(c.code())).findFirst().orElseThrow().passed());
+        assertTrue(detail.contains("多放行"), detail);
+        assertFalse(DataResourceService.readyOf(checks));
+    }
+
+    @Test
+    @DisplayName("探针登记了却一条样本都没有 ⇒ 阻塞（大概率是片段根本没进 SQL）")
+    void zeroParitySamplesBlocks() {
+        List<ReadinessCheck> checks = DataResourceService.readinessChecks(
+                readyWithParity(true, true, 0L, 0L), enforce());
+
+        assertTrue(detailOf(checks, "ORM_PARITY").contains("一条对账样本都没有"), detailOf(checks, "ORM_PARITY"));
+        assertFalse(DataResourceService.readyOf(checks));
+    }
+
+    @Test
+    @DisplayName("有可比样本且 0 条多放行 ⇒ 这一档过（MAPPER_STRICT 留在文案里解释）")
+    void parityGreenWithSamples() {
+        List<ReadinessCheck> checks = DataResourceService.readinessChecks(
+                readyWithParity(true, true, 0L, 12L), enforce());
+
+        ReadinessCheck parity = checks.stream().filter(c -> "ORM_PARITY".equals(c.code())).findFirst().orElseThrow();
+        assertTrue(parity.passed(), parity.detail());
+        assertTrue(parity.blocking(), "换轨中的资源这一档必须是要过的，不是「仅供参考」");
+        assertTrue(detailOf(checks, "ORM_PARITY").contains("12"), detailOf(checks, "ORM_PARITY"));
+        assertTrue(DataResourceService.readyOf(checks), checks.toString());
     }
 
     @Test

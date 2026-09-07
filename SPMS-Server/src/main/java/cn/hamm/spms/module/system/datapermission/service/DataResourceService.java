@@ -7,7 +7,9 @@ import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionDiffEntity;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.entity.DataPermissionOrmParityEntity;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDiffRepository;
+import cn.hamm.spms.module.system.datapermission.repository.DataPermissionOrmParityRepository;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
 import cn.hamm.spms.module.system.datapermission.rule.OwnerColumnRegistration;
@@ -76,13 +78,26 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      */
     private final ObjectProvider<DataPermissionDiffRepository> diffRepositoryProvider;
 
+    /**
+     * 影子对账的 Mapper 侧仓库（同样是"读不到就报无证据"的形状，见 {@link #diffRepositoryProvider}）
+     */
+    private final ObjectProvider<DataPermissionOrmParityRepository> parityRepositoryProvider;
+
+    /**
+     * 对账探针清单：回答"这个资源进没进换轨范围"。<b>它不参与任何判定</b>，只决定 ORM_PARITY
+     * 那一档是"不适用"还是"缺证据"
+     */
+    private final ObjectProvider<RowParityRegistry> parityRegistryProvider;
+
     public DataResourceService(DataPermissionEventPublisher eventPublisher,
                                DataFieldPolicyProvider fieldPolicyProvider,
                                DataPolicyService rowPolicyService,
                                EntityManagerFactory entityManagerFactory,
                                DataPermissionProperties properties,
                                ApplicationContext applicationContext,
-                               ObjectProvider<DataPermissionDiffRepository> diffRepositoryProvider) {
+                               ObjectProvider<DataPermissionDiffRepository> diffRepositoryProvider,
+                               ObjectProvider<DataPermissionOrmParityRepository> parityRepositoryProvider,
+                               ObjectProvider<RowParityRegistry> parityRegistryProvider) {
         this.eventPublisher = eventPublisher;
         this.fieldPolicyProvider = fieldPolicyProvider;
         this.rowPolicyService = rowPolicyService;
@@ -90,6 +105,17 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
         this.properties = properties;
         this.applicationContext = applicationContext;
         this.diffRepositoryProvider = diffRepositoryProvider;
+        this.parityRepositoryProvider = parityRepositoryProvider;
+        this.parityRegistryProvider = parityRegistryProvider;
+    }
+
+    /**
+     * 注册表可能整块不存在（{@code mapper-read} 关着），因此每次问一遍而不是在构造期抓住
+     *
+     * @return 探针注册表；没有返回 null
+     */
+    private RowParityRegistry parityRegistry() {
+        return parityRegistryProvider == null ? null : parityRegistryProvider.getIfAvailable();
     }
 
     /**
@@ -345,6 +371,10 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      * @param shadowTableAvailable     差异表是否可读
      * @param shadowAnomalies          差异表里 ANOMALY + ERROR 的条数
      * @param shadowFilteredSamples    差异表里 EXPECTED_FILTER 的条数（证明防护真的生效过）
+     * @param parityRequired           该资源是否已进入"两套 ORM 并存"的范围（登记了 Mapper 探针）
+     * @param parityTableAvailable     对账表是否可读
+     * @param parityLooseOrError       对账表里 MAPPER_LOOSE + ERROR 的条数（多放行 = 泄露）
+     * @param paritySamples            对账表里 CONSISTENT + MAPPER_STRICT 的条数（证明对账真的跑过）
      */
     public record ReadinessInput(DataResourceEntity resource,
                                  DataPermissionProperties.Mode mode,
@@ -354,7 +384,31 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
                                  boolean exportGap,
                                  boolean shadowTableAvailable,
                                  long shadowAnomalies,
-                                 long shadowFilteredSamples) {
+                                 long shadowFilteredSamples,
+                                 boolean parityRequired,
+                                 boolean parityTableAvailable,
+                                 long parityLooseOrError,
+                                 long paritySamples) {
+
+        /**
+         * 还没进入换轨范围的老形状：对账"不适用"
+         *
+         * <p>为什么给便捷构造器而不是让每个调用方补四个 {@code false}/{@code 0L}：{@code parityRequired=false}
+         * 是唯一正确的默认（没登记探针就没有对账义务），而把 {@code true,false,0,0} 写成默认会把
+         * "没跑过对账"读成"要跑却没跑"，凭空给 23 个未换轨资源各加一条阻塞项。</p>
+         */
+        public ReadinessInput(DataResourceEntity resource,
+                              DataPermissionProperties.Mode mode,
+                              long queryPolicyCount,
+                              long writePolicyCount,
+                              long bindingRiskCount,
+                              boolean exportGap,
+                              boolean shadowTableAvailable,
+                              long shadowAnomalies,
+                              long shadowFilteredSamples) {
+            this(resource, mode, queryPolicyCount, writePolicyCount, bindingRiskCount, exportGap,
+                    shadowTableAvailable, shadowAnomalies, shadowFilteredSamples, false, false, 0L, 0L);
+        }
     }
 
     /**
@@ -463,6 +517,31 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
         }
         checks.add(new ReadinessCheck("SHADOW_EVIDENCE", "影子比对已有正向样本且无异常", shadowOk, true, shadowDetail));
 
+        // ORM 对账：只在"这个资源真的开始用 Mapper 读数"之后才是阻塞项。
+        // 对未换轨的资源报红没有意义（它压根没有第二个渲染方向），而把"不适用"报成"通过"更糟 ——
+        // 面板上会出现一片绿，读的人以为对账做过。所以这里三档：不适用 / 缺证据（红）/ 有证据（绿）。
+        if (!in.parityRequired()) {
+            checks.add(new ReadinessCheck("ORM_PARITY", "两套 ORM 行数一致", true, false,
+                    "该资源未登记 Mapper 行数探针（kubo.data-permission.mapper-read 之外还要在"
+                            + " RowParityCounter 上出现），本轮不适用；换轨前先按 §19.36 补探针"));
+        } else if (!in.parityTableAvailable()) {
+            checks.add(new ReadinessCheck("ORM_PARITY", "两套 ORM 行数一致", false, true,
+                    "读不到对账表（未建表或数据源不可用）：无法证明 Mapper 侧数得出同一批行，"
+                            + "不能视为「一致」—— 与影子那条同一口径，缺证据不等于干净"));
+        } else if (in.parityLooseOrError() > 0L) {
+            checks.add(new ReadinessCheck("ORM_PARITY", "两套 ORM 行数一致", false, true,
+                    "有 " + in.parityLooseOrError() + " 条 MAPPER_LOOSE/ERROR：Mapper 侧比 JPA 侧多放行行"
+                            + "（或对账本身跑失败）。多放行就是泄露，先归因再放开"));
+        } else if (in.paritySamples() == 0L) {
+            checks.add(new ReadinessCheck("ORM_PARITY", "两套 ORM 行数一致", false, true,
+                    "一条对账样本都没有：探针登记了、影子也跑了，却没数出过可比的两行 —— "
+                            + "大概率是采样没命中或片段根本没进 SQL"));
+        } else {
+            checks.add(new ReadinessCheck("ORM_PARITY", "两套 ORM 行数一致", true, true,
+                    in.paritySamples() + " 条可比样本，0 条 MAPPER_LOOSE/ERROR；MAPPER_STRICT（Mapper 少放行）"
+                            + "不阻塞放开，但它是「有人少看了数据」的线索，detail 要能解释"));
+        }
+
         List<String> notes = runtimeNotes(resource, in.mode(), in.queryPolicyCount(), in.writePolicyCount(),
                 in.bindingRiskCount(), properties);
         checks.add(new ReadinessCheck("CONFIG_NOTES", "配置与策略数量之间没有已知冲突", notes.isEmpty(), true,
@@ -510,7 +589,10 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
         if (resource == null) {
             DataResourceEntity ghost = new DataResourceEntity().setResourceKey(resourceKey).setStatus("MISSING");
             List<ReadinessCheck> checks = readinessChecks(new ReadinessInput(ghost,
-                    properties.effectiveMode(resourceKey), 0L, 0L, 0L, false, false, 0L, 0L), properties);
+                    properties.effectiveMode(resourceKey), 0L, 0L, 0L, false, false, 0L, 0L,
+                    // 资源本身不存在，谈不上"已换轨"；但探针登记了它也得暴露出来（有人先写了 Mapper 再补登记）
+                    parityRegistry() != null && parityRegistry().resources().contains(resourceKey),
+                    false, 0L, 0L), properties);
             return new Readiness(resourceKey, properties.effectiveMode(resourceKey).name(), false,
                     blockersOf(checks), checks);
         }
@@ -579,8 +661,37 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
                 log.warn("放开前置检查读不到影子差异表，按「无证据」处理: {}", e.getMessage());
             }
         }
+        boolean parityRequired = false;
+        boolean parityTableAvailable = false;
+        long parityLooseOrError = 0L;
+        long paritySamples = 0L;
+        RowParityRegistry registry = parityRegistry();
+        if (registry != null && resourceKey != null && registry.counterFor(resourceKey) != null) {
+            parityRequired = true;
+            DataPermissionOrmParityRepository parityRepository = parityRepositoryProvider == null
+                    ? null : parityRepositoryProvider.getIfAvailable();
+            if (parityRepository != null) {
+                try {
+                    // 四个数分档，不用 verdict <> 'CONSISTENT' 一把捞：捞出来的"异常"里混着可解释的
+                    // MAPPER_STRICT，那样放开检查就会长期红着一个不必修的东西，而大家学会忽略红
+                    parityLooseOrError = parityRepository.countByResourceKeyAndVerdict(resourceKey,
+                                    DataPermissionOrmParityEntity.VERDICT_MAPPER_LOOSER)
+                            + parityRepository.countByResourceKeyAndVerdict(resourceKey,
+                                    DataPermissionOrmParityEntity.VERDICT_ERROR);
+                    paritySamples = parityRepository.countByResourceKeyAndVerdict(resourceKey,
+                                    DataPermissionOrmParityEntity.VERDICT_CONSISTENT)
+                            + parityRepository.countByResourceKeyAndVerdict(resourceKey,
+                                    DataPermissionOrmParityEntity.VERDICT_MAPPER_STRICTER);
+                    parityTableAvailable = true;
+                }
+                catch (RuntimeException e) {
+                    log.warn("放开前置检查读不到 ORM 对账表，按「无证据」处理: {}", e.getMessage());
+                }
+            }
+        }
         List<ReadinessCheck> checks = readinessChecks(new ReadinessInput(resource, properties.effectiveMode(resourceKey),
-                query, write, bindingRiskCount, exportGap, tableAvailable, anomalies, filtered), properties);
+                query, write, bindingRiskCount, exportGap, tableAvailable, anomalies, filtered,
+                parityRequired, parityTableAvailable, parityLooseOrError, paritySamples), properties);
         return new Readiness(resourceKey, properties.effectiveMode(resourceKey).name(), readyOf(checks),
                 blockersOf(checks), checks);
     }

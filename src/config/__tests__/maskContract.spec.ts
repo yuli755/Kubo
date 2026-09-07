@@ -1528,3 +1528,138 @@ describe('mask contract · 归属判据合一', () => {
       .toEqual(['RowPermissionPredicate.java'])
   })
 })
+
+describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
+  const DPM = join(SERVER, 'module', 'system', 'datapermission')
+  const CONFIG = join(DPM, 'config', 'MapperReadConfiguration.java')
+  const SHADOW = join(DPM, 'service', 'ShadowDiffService.java')
+  const REGISTRY = join(DPM, 'service', 'RowParityRegistry.java')
+  const COUNTER = join(DPM, 'service', 'RowParityCounter.java')
+  const READINESS = join(DPM, 'service', 'DataResourceService.java')
+  const PARITY_ENTITY = join(DPM, 'entity', 'DataPermissionOrmParityEntity.java')
+  const DIFF_ENTITY = join(DPM, 'entity', 'DataPermissionDiffEntity.java')
+  const MIGRATION_DIR = join(ROOT, 'SPMS-Server', 'docs', 'database', 'migration')
+  const TEST_SCHEMA = join(ROOT, 'SPMS-Server', 'src', 'test', 'resources', 'schema-test.sql')
+  const YML = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'application.yml')
+  const PARITY_TABLE = 'data_permission_orm_parity_log'
+
+  it('对账表名三处同源：迁移脚本 / 实体 / H2 测试 schema', () => {
+    const migration = collect(MIGRATION_DIR, '.sql').filter(file => read(file).includes(PARITY_TABLE))
+    expect(migration, `迁移脚本里没有 ${PARITY_TABLE}：生产上是"实体在、表不在"，`
+    + '启动期 ddl-auto=validate 直接崩，而 H2 那边因为另有手抄 schema 完全不会红')
+      .toHaveLength(1)
+    expect(read(PARITY_ENTITY), '对账实体没把表名钉在 @Table 上：那三处同源就无从对起')
+      .toContain(`@Table(name = "${PARITY_TABLE}")`)
+    expect(read(TEST_SCHEMA), 'H2 测试 schema 里没有这张表：对账用例会在"表不存在"上红，'
+    + '而那条红看起来像业务缺陷，实际是缺一份手抄')
+      .toContain(PARITY_TABLE)
+
+    // 实体声明的每一列都要在迁移脚本里出现（ddl:check 也查这件事，但它跑在 Web job；
+    // 这里只查表名与列名是否同现于那份 CREATE TABLE，出错时 annotation 更早、更靠近改代码的人）
+    const ddl = read(migration[0])
+    const block = ddl.slice(ddl.indexOf(`CREATE TABLE IF NOT EXISTS \`${PARITY_TABLE}\``))
+    const columns = [...readJavaCode(PARITY_ENTITY).matchAll(/@Column\(name = "([a-z_]+)"/g)].map(m => m[1])
+    // 列数写死是有意的：加列时必须同时改迁移脚本、H2 手抄与这个数字，
+    // 少改一处就会在这里红 —— 换成"至少 12 列"就变成一条永远过的计数
+    expect(columns, '对账实体的 @Column 数量与门禁不符：新增/删除列要同时改迁移脚本、schema-test.sql 和这一处')
+      .toHaveLength(12)
+    for (const column of columns) {
+      expect(block, `${PARITY_TABLE} 少了列 ${column}：MySQL 上"表存在但少列"是运行期 500，不是启动期报错`)
+        .toContain(`\`${column}\``)
+    }
+  })
+
+  it('两张证据表互不越界：verdict 常量不许复用', () => {
+    const parity = readJavaCode(PARITY_ENTITY)
+    const diff = readJavaCode(DIFF_ENTITY)
+    expect(parity, '对账表里出现了影子差异的 verdict：两种判据混进一张表之后，'
+    + 'enforce-readiness 的"有正向样本"就会被"两套 ORM 一致"这种无关语义污染')
+      .not
+      .toContain('EXPECTED_FILTER')
+    expect(diff, '影子差异表里出现了对账的 MAPPER_* verdict：同上，方向反了')
+      .not
+      .toMatch(/VERDICT_MAPPER_(?:LOOSER|STRICTER)/)
+    for (const verdict of ['CONSISTENT', 'MAPPER_STRICT', 'MAPPER_LOOSE', 'ERROR']) {
+      expect(parity, `对账实体缺 verdict 常量 ${verdict}：判据分档写死在 SQL 字符串上，改一处漏一处`)
+        .toContain(`"${verdict}"`)
+    }
+  })
+
+  it('对账只在 mapper-read 那块开关底下注册；registry 全仓只构造一次', () => {
+    const config = readJavaCode(CONFIG)
+    expect(config, 'RowParityRegistry 的构造点跑了：注册面与开关分离之后，'
+    + '"关掉就没有对账"这句不再成立，运维要从两个地方确认同一件事')
+      .toContain('new RowParityRegistry(')
+    expect(config, 'MapperReadConfiguration 不再是条件装配的：它一存在，探针就在，默认关等于没关')
+      .toMatch(/@ConditionalOnProperty\(prefix = "kubo\.data-permission\.mapper-read", name = "enabled", havingValue = "true"\)/)
+
+    const holders = collect(SERVER, '.java')
+      .filter(file => !file.endsWith('RowParityRegistry.java') && readJavaCode(file).includes('new RowParityRegistry('))
+      .map(file => file.split('/').pop() ?? file)
+    expect(holders, '`new RowParityRegistry(` 出现在第二个地方：注册面分裂，谁在跑对账就没人说得清')
+      .toEqual(['MapperReadConfiguration.java'])
+
+    const yml = read(YML)
+    // 注释写在键的<em>上面</em>（YAML 的习惯），所以从键往前取一段再判：
+    // 只往后取会永远判不到，那条"配置必须自己说清楚"的门禁就变成一条常绿的装饰
+    const keyAt = yml.indexOf('mapper-read:\n')
+    expect(keyAt, 'application.yml 里找不到 mapper-read 这一段：读侧开关漂了位置，注释与配置对不上').toBeGreaterThan(-1)
+    const block = yml.slice(Math.max(0, keyAt - 1200), keyAt + 60)
+    expect(block, 'application.yml 里 mapper-read 那段没提对账：一个开关管两件事，配置必须自己说清楚，'
+    + '否则运维以为它只管读端点')
+      .toMatch(/ORM_PARITY|对账/)
+    expect(yml.match(/^ {4}mapper-read:\n {6}enabled: false$/m), '读侧 Mapper 不再是默认关：那对账就默认在生产跑').toBeTruthy()
+    expect(readJavaCode(REGISTRY), '注册表没有对"同一资源两个探针"设防：静默取第一个，证据就来自随机那张表')
+      .toContain('duplicated RowParityCounter')
+  })
+
+  it('探针接口的方法形状：MyBatis 会给抽象方法找语句', () => {
+    const counter = readJavaCode(COUNTER)
+    expect(counter, 'RowParityCounter 自己声明了非 default 的业务方法之外的东西：实现方一旦把它写成抽象方法，'
+    + 'MyBatis 会去找一条不存在的语句，报 Invalid bound statement（通常已经是线上）')
+      .toContain('String parityResourceKey();')
+
+    const implementors = collect(SERVER, '.java').filter(file => /implements[^;]*RowParityCounter|extends[^;]*RowParityCounter/.test(readJavaCode(file)))
+    expect(implementors, '没有任何探针实现：这张表与整套对账判据就成了没人消费的机器，要么接上第一个资源，要么删掉')
+      .toHaveLength(1)
+    for (const file of implementors) {
+      expect(readJavaCode(file), `${file.split('/').pop()} 的 parityResourceKey 必须是 default 方法`)
+        .toMatch(/default\s+String\s+parityResourceKey\s*\(\)/)
+    }
+  })
+
+  it('对账的组合方向必须是 ALL_OF，且判据只认 LOOSE/ERROR 两档', () => {
+    const shadow = readJavaCode(SHADOW)
+    const parityBody = shadow.slice(shadow.indexOf('private void runParity('))
+    expect(parityBody, '对账侧不是 ALL_OF：多策略在 JPA 侧是被 builder.and(...) 合起来的，'
+    + '这里写成 ANY_OF 会让两边一起放松，行数还"一致"，对账从此只生产假绿灯')
+      .toContain('PermissionRuleOp.ALL_OF')
+    expect(parityBody, '对账侧出现了 ANY_OF：同上，这是能把整套证据变成噪声的一处改动')
+      .not
+      .toContain('ANY_OF')
+
+    const readiness = readJavaCode(READINESS)
+    for (const verdict of ['VERDICT_MAPPER_LOOSER', 'VERDICT_ERROR', 'VERDICT_CONSISTENT', 'VERDICT_MAPPER_STRICTER']) {
+      expect(readiness, `放开判据没引用 ${verdict}：改成"verdict 不等于 CONSISTENT 就算异常"是一把捞，`
+      + '会把可解释的 MAPPER_STRICT 也变成长期红灯')
+        .toContain(verdict)
+    }
+    // 阻塞位用"读结构"而不是"匹配一段代码"：后者要靠 [\s\S]{0,400} 这种区间正则，
+    // 既能被 ESLint 的 no-super-linear-backtracking 挡下，也容易在下次换行就悄悄不再匹配
+    const from = readiness.indexOf('in.parityRequired()')
+    const to = readiness.indexOf('checks.add(new ReadinessCheck("CONFIG_NOTES"')
+    expect(from, 'ORM_PARITY 的三档判据找不到了：是谁把它挪出 readinessChecks 的？').toBeGreaterThan(-1)
+    const parityBlock = readiness.slice(from, to > from ? to : readiness.length)
+    // 逐档把 (passed, blocking) 两个位读出来比"数逗号"可靠：反证时我先写成统计 'true, false,'，
+    // 结果把 LOOSE 那一档改成 'false, false,' 照样过关 —— 计数式判据只认它自己想到过的写法，
+    // 而这种门禁的价值恰恰在"没想到的那种改法也要红"
+    const flags = [...parityBlock.matchAll(
+      /new ReadinessCheck\("ORM_PARITY",\s*"[^"]*",\s*(true|false),\s*(true|false),/g,
+    )].map(hit => `${hit[1]}/${hit[2]}`)
+    expect(flags, 'ORM_PARITY 五档的 (passed, blocking) 组合变了。期望：不适用=通过且不阻塞，'
+    + '缺表/多放行/零样本=红且阻塞，有证据=绿且阻塞。'
+    + '把任何一档的 blocking 降成 false，换轨就重新变成"一次改配置就能打坏生产"的动作；'
+    + '把"不适用"升成 true，未换轨的 23 个资源会被一条它永远无法满足的判据挡住')
+      .toEqual(['true/false', 'false/true', 'false/true', 'false/true', 'true/true'])
+  })
+})
