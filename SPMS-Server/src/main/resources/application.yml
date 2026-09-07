@@ -88,6 +88,13 @@ springdoc:
     pageable-converter:
       enabled: true
 
+# MyBatis（读侧专用，开关在 kubo.data-permission.mapper-read）
+# mapper-locations 与 MyBatis-Plus 的默认值相同，这里刻意写出来：默认值是看不见的约定，
+# 而"XML 放在哪"决定新增资源的语句会不会被加载 —— 漏了不会在启动时报错，
+# 只会在第一次调用时抛 Invalid bound statement（那通常已经是线上）。
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+
 # 数据权限（行级过滤 + 列级脱敏）灰度开关
 # 见 docs/数据权限目标态落地施工图.md 决策 D2 / D3
 #  - off    : 完全不参与（回滚位，与改造前行为一致）
@@ -105,6 +112,11 @@ kubo:
     shadow-diff-log: true
     audit-plaintext-access: true
     enforce-resources: []
+    # 读侧 Mapper（P2 · A2「读走 Mapper，写留 JPA」）：默认 false = 容器里一个 Mapper Bean 都没有，
+    # 而不是"注册了但不用"。打开的前提是判据合一（主体维度只能有一份实现，见 §19.34），
+    # 否则 XML 侧与 JPA 侧各算一遍"谁能看哪些行"，那种不一致不会报错，只会多放行一些行。
+    mapper-read:
+      enabled: false
     # 工厂维度落地开关：建 user_factory 表 + 真实解析 factoryIds 之前保持 false
     # （开着它但数据模型没跟上 = 策略永不命中的假安全，见 DimensionGuard#isFactoryAvailable）
     factory-dimension-enabled: false

@@ -30,8 +30,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * <h1>MyBatis-Plus 与 airpower-JPA 并存的最小验证（P2 换轨的前提）</h1>
  *
- * <p>本类<em>不测任何业务读路径</em>：现在仓里没有一个 Mapper、没有 {@code @MapperScan}、没有 XML。
- * 它只回答一个此前只能靠猜的问题 —— <b>把 MyBatis-Plus 放进这个应用，两件事会不会互相挤掉</b>。
+ * <p>本类<em>不测任何业务读路径</em>。§19.34 之后仓里多了一个读侧 Mapper（{@code MaterialMapper}）与一份 XML，
+ * 但默认配置下它们<b>根本不会注册</b>（开关 {@code kubo.data-permission.mapper-read.enabled=false}），
+ * 所以本类的口径不变：它只回答一个此前只能靠猜的问题 —— <b>把 MyBatis-Plus 放进这个应用，
+ * 两件事会不会互相挤掉</b>；外加一条：那个开关是否真的能把注册一刀切断（见最后一例）。
  * 风险表里那行"MyBatis 与 AirPower-JPA 并存 → 事务/一二级缓存语义不一致"（🔴 P0）说的就是这个，
  * 而它无法在本地验证（沙箱没有 JDK、也没有依赖树），所以把它做成一次可回归的断言，
  * 而不是"我看着应该没问题"。</p>
@@ -128,6 +130,26 @@ class MybatisJpaCoexistenceTest {
                 "这一格的前提是零接线：一旦出现插件，上面那段关于「不对外部类名下断言」的注释就必须被反转成「插件与解析面已就绪」");
         assertNotNull(Class.forName("com.baomidou.mybatisplus.core.MybatisSqlSessionFactoryBuilder"),
                 "mybatis-plus-core 不在 classpath：starter 被 airpower 的依赖管理挤掉了");
+    }
+
+    /**
+     * 默认关下"没接线"必须是可证的，而不是一句注释。
+     *
+     * <p>这里防的不是有人把开关打开 —— 那是灰度动作。防的是<b>开关被绕过</b>：读侧接口只要标上
+     * {@code @Mapper}，MyBatis-Plus 的自动扫描器就会绕过 {@code @ConditionalOnProperty} 把它注册掉，
+     * 于是 {@code application.yml} 里那行 {@code enabled: false} 变成装饰，而"关掉就等于换轨前"
+     * 这句话从此不可信。这条断言只在配置为默认时才有意义，所以它必须留在这个不打开开关的上下文里。</p>
+     */
+    @Test
+    @DisplayName("读侧 Mapper 默认不注册：开关关掉时容器里一个 Mapper Bean 都没有")
+    void mapperReadIsOffByDefault() {
+        String[] mappers = applicationContext.getBeanNamesForType(
+                cn.hamm.spms.module.asset.material.mapper.MaterialMapper.class);
+        assertEquals(0, mappers.length,
+                "默认关却注册上了：多半是有人给 Mapper 接口加了 @Mapper，绕过了 mapper-read 开关（见 KuboBaseMapper 纪律一）");
+        assertEquals(0, applicationContext.getBeanNamesForType(
+                        cn.hamm.spms.module.system.datapermission.config.MapperReadConfiguration.class).length,
+                "注册配置本身被加载了：@ConditionalOnProperty 的键名或 havingValue 漂了");
     }
 
     @Test

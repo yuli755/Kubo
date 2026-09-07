@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  物料读侧语句。这里只允许出现"表 + ${fragment}"，权限条件本身来自 SqlPermissionRuleRenderer。
+  ${fragment} 与 #{} 的关系值得说明：MyBatis 先做 ${} 文本替换、再解析 #{}，所以渲染器产出的
+  material.tenant_id = #{dpRule0} 能正常参数化 —— 这是本格用集成测试验过的事实（不是推断），
+  因为整套"Mapper 侧收口"都站在这条机制上。
+  刻意不写别名：FROM material 之后 m.tenant_id 这种写法要求别名，而片段是"表名.列"形式（渲染器的
+  tableAlias 传表名），两者必须对上，别在 XML 里加别名把片段变成无效引用。
+-->
+<mapper namespace="cn.hamm.spms.module.asset.material.mapper.MaterialMapper">
+
+    <select id="countByPermissionFragment" resultType="long">
+        SELECT COUNT(1) FROM material
+        <where>
+            <if test="fragment != null and fragment != ''">
+                ${fragment}
+            </if>
+        </where>
+    </select>
+
+</mapper>
