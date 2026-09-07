@@ -3,10 +3,8 @@ package cn.hamm.spms.module.system.datapermission.rule;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionSubjectType;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 /**
  * <h1>{@code data_resource.owner_columns} 的登记语法</h1>
