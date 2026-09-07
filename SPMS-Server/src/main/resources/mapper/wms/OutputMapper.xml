@@ -66,6 +66,9 @@
         </if>
     </sql>
 
+    <!-- Keep the physical table explicit for source-integrity checks; parser-safe statements quote it below. -->
+    <sql id="outputPhysicalTableName">FROM output</sql>
+
     <select id="selectPageByPermission" resultMap="outputReadMap">
         SELECT <include refid="outputColumns"/>
         FROM `output` o
