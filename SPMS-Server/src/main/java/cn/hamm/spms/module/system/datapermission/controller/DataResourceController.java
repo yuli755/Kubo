@@ -121,4 +121,20 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
                 ? service.readinessAll()
                 : service.readiness(resourceKey));
     }
+
+    /**
+     * 最近的拒绝事件（事后追认：谁在何时、因何、在哪个档位下被数据权限拒绝）
+     *
+     * <p>与其余盘点接口同一权限面（{@code dataResource}）：这份数据是跨角色的「谁被拒过」，
+     * 不能对业务角色开放。取不到表 / 没有记录时返回空数组，前端按「取不到」显示，
+     * 不把空结果读成「从没拒绝过」。</p>
+     *
+     * @param resourceKey 资源标识；省略则返回全量最近记录
+     * @return 最近拒绝事件（最多 50 条，最新在前）
+     */
+    @GetMapping("deny-logs")
+    @Description("数据权限拒绝事件")
+    public Json getDenyLogs(String resourceKey) {
+        return Json.data(service.denyLogs(resourceKey));
+    }
 }

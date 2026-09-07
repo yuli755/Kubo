@@ -366,3 +366,29 @@ export interface DataPermissionRuntimeStatus {
   /** 各资源状态 */
   resources: ResourceRuntimeStatus[]
 }
+
+/**
+ * 一条数据权限拒绝事件（`data_permission_deny_log`）。
+ *
+ * 语义是「拒绝事件」，不是「策略命中审计」：本仓策略是过滤条件而非 allow/deny 规则，
+ * 因此没有策略 ID 字段，只有资源、原因、档位、主体与明细 —— 前端不要把它渲染成
+ * 「被某条策略命中」的列表。
+ */
+export interface DenyLogItem {
+  /** 事件主键 */
+  id: number
+  /** 发生时间（毫秒时间戳，来自框架基类 create_time） */
+  createTime: number
+  /** 数据资源标识 */
+  resourceKey: string
+  /** 拒绝原因（unregistered-resource / write-without-policy / row-not-writable / export-bypass …） */
+  reason: string
+  /** 拒绝发生时该资源的生效档位：OFF / SHADOW / ENFORCE */
+  mode: string
+  /** 被拒主体用户；无上下文（内部调用）时为 null */
+  userId: number | null
+  /** 被拒主体租户；无上下文时为 null */
+  tenantId: number | null
+  /** 运维明细（ID、字段名、动作等）；可为 null */
+  detail: string | null
+}

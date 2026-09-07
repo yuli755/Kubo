@@ -1767,4 +1767,30 @@ describe('mask contract · 拒绝事件落库（B4）', () => {
     expect(persist, 'persist 吞不掉写库异常：拒绝路径会被落库失败改写（审计坏了不能变成 500 或放行）')
       .toContain('catch (RuntimeException')
   })
+
+  it('deny-logs 路径前后端对得上，且只挂在管理端点上', () => {
+    const API = join(ROOT, 'src', 'api', 'system.ts')
+    expect(read(API)).toContain('request.get(\'/dataResource/deny-logs\'')
+    const controller = join(DPM, 'controller', 'DataResourceController.java')
+    expect(readJavaCode(controller)).toContain('@GetMapping("deny-logs")')
+    for (const file of collect(join(DPM, 'controller'), '.java')) {
+      if (file.endsWith('DataResourceController.java')) {
+        continue
+      }
+      expect(read(file), `拒绝事件端点出现在 ${file.split('/').pop()}：这份「谁被拒过」的跨角色数据会从 dataResource 权限面漂走`)
+        .not
+        .toContain('deny-logs')
+    }
+  })
+
+  it('前端只回显拒绝事件，不把档位/原因当判定', () => {
+    const report = read(join(ROOT, 'src', 'composables', 'useDenyLogReport.ts'))
+    expect(report, '前端开始判 mode/reason 语义：档位与原因是后端判定的，抄一遍就是第二套真相')
+      .not
+      .toMatch(/mode\s*===|reason\s*===|reason\s*!==/)
+    const list = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'resource', 'list.vue'))
+    expect(list).toContain('useDenyLogReport')
+    expect(list, '取数失败必须能被看见（这里显示「没人被拒」等于把取不到表读成审计干净）')
+      .toMatch(/<ElAlert[^>]*v-else-if="denyLogFailed"/)
+  })
 })

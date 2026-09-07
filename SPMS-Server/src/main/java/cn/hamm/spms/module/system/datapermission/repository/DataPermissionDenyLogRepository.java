@@ -27,6 +27,11 @@ public interface DataPermissionDenyLogRepository extends JpaRepository<DataPermi
     List<DataPermissionDenyLogEntity> findTop50ByResourceKeyOrderByIdDesc(String resourceKey);
 
     /**
+     * 全量最近的拒绝事件（管理端看板：放开后第一眼要看的「挡了谁」）
+     */
+    List<DataPermissionDenyLogEntity> findTop50ByOrderByIdDesc();
+
+    /**
      * 删除指定时间点之前的拒绝事件；长期归档由数据库备份/归档层负责。
      *
      * <p>用原生 SQL 是刻意的：{@code create_time} 来自 AirPower 的基类，应用 Java 属性名不是本模块

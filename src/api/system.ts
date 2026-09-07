@@ -8,6 +8,7 @@ import type {
   DataFieldPolicyEntity,
   DataFieldPolicyQuery,
   DataPermissionRuntimeStatus,
+  DenyLogItem,
   DimensionBindingRiskItem,
   EnforceReadiness,
   ExportGapItem,
@@ -279,6 +280,20 @@ export const dataResourceApi = {
    */
   getRuntimeStatus(): Promise<DataPermissionRuntimeStatus> {
     return request.get('/dataResource/runtime-status')
+  },
+
+  /**
+   * 最近的拒绝事件（事后追认：谁在何时、因何、在哪个档位下被数据权限拒绝）。
+   *
+   * 与其余盘点接口同挂 `dataResource`（跨角色的「谁被拒过」，不进业务用户也会调的策略接口）。
+   * 取不到表 / 没有记录时后端返回空数组，调用方要按「取不到 ≠ 从没拒绝过」来处理
+   * （见 `useDenyLogReport` 的失败取向）。
+   *
+   * @param resourceKey 省略则返回全量最近记录（最多 50 条，最新在前）
+   * @returns 拒绝事件列表；无记录 / 表未建时为空数组
+   */
+  getDenyLogs(resourceKey?: string): Promise<DenyLogItem[]> {
+    return request.get('/dataResource/deny-logs', resourceKey ? { params: { resourceKey } } : undefined)
   },
 }
 

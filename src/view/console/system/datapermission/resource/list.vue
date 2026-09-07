@@ -2,6 +2,7 @@
 import { APanel, ATable } from '@airpower/web'
 import { ElAlert } from 'element-plus'
 import { useDataPermissionRuntimeStatus } from '@/composables/useDataPermissionRuntimeStatus'
+import { useDenyLogReport } from '@/composables/useDenyLogReport'
 import { useDimensionBindingRiskReport } from '@/composables/useDimensionBindingRiskReport'
 import { useEnforceReadiness } from '@/composables/useEnforceReadiness'
 import { useExportGapReport } from '@/composables/useExportGapReport'
@@ -38,6 +39,9 @@ const {
   readyCount: readinessReadyCount,
   preview: readinessPreview,
 } = useEnforceReadiness()
+
+// 拒绝事件盘点：谁在何时被拒、因何、在哪个档位下。判定都在后端，这里只搬运与摘要。
+const { count: denyLogCount, preview: denyLogPreview, failed: denyLogFailed } = useDenyLogReport()
 
 const hook = useTanStackTable(DataResourceService, {
   queryKey: ['system:datapermission:resource'],
@@ -186,6 +190,24 @@ const hook = useTanStackTable(DataResourceService, {
       show-icon
       title="已登记资源都满足放开前置"
       description="全绿只说明「可以试放一个」：放开后请回本页与审计页复核，一次只放一个资源。"
+    />
+    <ElAlert
+      v-if="denyLogCount"
+      class="gap-warning"
+      type="info"
+      :closable="false"
+      show-icon
+      title="最近的数据权限拒绝事件"
+      :description="`最近 ${denyLogCount} 条（${denyLogPreview.join('；')}）。谁在何时被拒、因何、在哪个档位下，是放开 enforce 后第一眼要复核的账。`"
+    />
+    <ElAlert
+      v-else-if="denyLogFailed"
+      class="gap-warning"
+      type="info"
+      :closable="false"
+      show-icon
+      title="未能取得拒绝事件"
+      description="刷新本页或检查 /dataResource/deny-logs 是否可用；取不到结果时不会显示为「没人被拒」。"
     />
     <ATable
       :use-hook="hook"

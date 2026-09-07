@@ -5,9 +5,11 @@ import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
+import cn.hamm.spms.module.system.datapermission.entity.DataPermissionDenyLogEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionDiffEntity;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionOrmParityEntity;
+import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDenyLogRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDiffRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionOrmParityRepository;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
@@ -84,6 +86,13 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
     private final ObjectProvider<DataPermissionOrmParityRepository> parityRepositoryProvider;
 
     /**
+     * 拒绝事件仓库（{@code data_permission_deny_log}）：管理端「事后追认」的取数来源。
+     * 同样是 ObjectProvider —— 表没建 / 最小化测试库没有它时，面板按「取不到」处理，
+     * 不把「查不到记录」伪装成「从没拒绝过」。
+     */
+    private final ObjectProvider<DataPermissionDenyLogRepository> denyLogRepositoryProvider;
+
+    /**
      * 对账探针清单：回答"这个资源进没进换轨范围"。<b>它不参与任何判定</b>，只决定 ORM_PARITY
      * 那一档是"不适用"还是"缺证据"
      */
@@ -97,6 +106,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
                                ApplicationContext applicationContext,
                                ObjectProvider<DataPermissionDiffRepository> diffRepositoryProvider,
                                ObjectProvider<DataPermissionOrmParityRepository> parityRepositoryProvider,
+                               ObjectProvider<DataPermissionDenyLogRepository> denyLogRepositoryProvider,
                                ObjectProvider<RowParityRegistry> parityRegistryProvider) {
         this.eventPublisher = eventPublisher;
         this.fieldPolicyProvider = fieldPolicyProvider;
@@ -106,6 +116,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
         this.applicationContext = applicationContext;
         this.diffRepositoryProvider = diffRepositoryProvider;
         this.parityRepositoryProvider = parityRepositoryProvider;
+        this.denyLogRepositoryProvider = denyLogRepositoryProvider;
         this.parityRegistryProvider = parityRegistryProvider;
     }
 
@@ -991,6 +1002,45 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
             for (FieldPolicyGapAnalyzer.Gap gap : FieldPolicyGapAnalyzer.gaps(masking, grants)) {
                 items.add(new ExportGapItem(resource.getId(), resourceKey, gap.fieldName(), gap.roleCode(), gap.reason()));
             }
+        }
+        return items;
+    }
+
+    public record DenyLogItem(Long id,
+                              Long createTime,
+                              String resourceKey,
+                              String reason,
+                              String mode,
+                              Long userId,
+                              Long tenantId,
+                              String detail) {
+    }
+
+    /**
+     * 最近的拒绝事件（管理端「事后追认」：放开 enforce 后第一眼要看的「挡了谁」）
+     *
+     * <p>语义是<em>拒绝事件</em>，不是「策略命中审计」：本仓策略是过滤条件而非 deny 规则，
+     * 因此记录里没有策略 ID，只有资源、原因、档位、主体与明细。表没建 / 取数失败都返回空列表，
+     * 前端按「取不到」显示，不把空结果渲染成「从没拒绝过」。</p>
+     *
+     * @param resourceKey 资源标识；为空则返回全量最近记录
+     * @return 最近最多 50 条（按 id 倒序，即最新在前）
+     */
+    public List<DenyLogItem> denyLogs(String resourceKey) {
+        DataPermissionDenyLogRepository repository = denyLogRepositoryProvider.getIfAvailable();
+        if (repository == null) {
+            return List.of();
+        }
+        List<DataPermissionDenyLogEntity> rows = (resourceKey == null || resourceKey.isBlank())
+                ? repository.findTop50ByOrderByIdDesc()
+                : repository.findTop50ByResourceKeyOrderByIdDesc(resourceKey);
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        List<DenyLogItem> items = new ArrayList<>(rows.size());
+        for (DataPermissionDenyLogEntity row : rows) {
+            items.add(new DenyLogItem(row.getId(), row.getCreateTime(), row.getResourceKey(),
+                    row.getReason(), row.getMode(), row.getUserId(), row.getTenantId(), row.getDetail()));
         }
         return items;
     }
