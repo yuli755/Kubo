@@ -100,7 +100,7 @@ class RowWriteGuardTest {
     void invisibleRowIsDeniedInEnforce() {
         probe.visible = false;
 
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
+        RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> guard.enforce(row(9L), KEY, DataPermissionAction.DELETE));
         assertTrue(ex.getMessage().contains("不在你当前的数据范围内"), ex.getMessage());
         verify(audit).deny(eq(KEY), eq(DataPermissionAudit.REASON_ROW_NOT_WRITABLE), contains("id=9"));
@@ -122,7 +122,7 @@ class RowWriteGuardTest {
     void probeFailureFailsClosed() {
         probe.error = new IllegalStateException("条件生成失败");
 
-        assertThrows(IllegalStateException.class, () -> guard.enforce(row(9L), KEY, DataPermissionAction.UPDATE));
+        assertThrows(RuntimeException.class, () -> guard.enforce(row(9L), KEY, DataPermissionAction.UPDATE));
         verify(audit).deny(eq(KEY), eq(DataPermissionAudit.REASON_PARSE_FAILED), anyString());
     }
 

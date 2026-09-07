@@ -35,8 +35,10 @@ public class DataPermissionService {
      * 该资源是否已登记且启用；<b>不抛异常</b>
      *
      * <p>存在这个方法是必要的：{@link #requireResource} 的抛异常语义对读侧/管理端预览是对的
-     * （调用方本就该只处理纳管资源），但对写侧守卫是错的 —— 拿它判"要不要管"等于
-     * "没登记 = 500"，见 {@link DataPermissionGuard#enforce}。判据只留一份，两边各取所需。</p>
+     * （调用方本就该只处理纳管资源），但对写侧守卫是错的 —— 拿它判"要不要管"，等于把
+     * "这个模块还没在 data_resource 里建行"变成所有保存/删除直接报错，而页面上看不出原因。
+     * 守卫改成先看 {@code deny-unregistered} 三态，拒的时候走 {@link DataPermissionDenial}
+     * （403 + deny 计数，文案指向那个配置项）。判据只留一份，两边各取所需。</p>
      *
      * @param resourceKey 资源标识
      * @return 已登记且启用返回该资源；否则 null

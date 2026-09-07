@@ -16,8 +16,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
-
 /**
  * <h1>导出旁路的写侧收口</h1>
  *
@@ -125,10 +123,13 @@ public class ExportBypassGuard {
                     resourceKey, detail);
             return;
         }
-        FORBIDDEN.show(String.format(
-                "%s 的 %s 列对当前角色已按数据权限策略遮蔽，导出文件不经过脱敏、会原样带出明文，因此本次导出被拒绝。"
-                        + "确需导出请在【数据权限-字段策略】为这些字段配置 EXPORT 动作的明文授权",
-                resourceKey, String.join("、", restricted)));
+        // 以前这里是框架的 show(msg)：状态码对，但真拒不进 deny 计数（只有 shadow 分支记了一笔），
+        // 于是"放开后挡了多少人导出"这个数在指标里恒为 0，只能翻日志。改成与写侧同一个出口。
+        DataPermissionDenial.denied(dataPermissionAudit, resourceKey, REASON_EXPORT_BYPASS,
+                "导出被拒：" + detail,
+                String.format("%s 的 %s 列对当前角色已按数据权限策略遮蔽，导出文件不经过脱敏、会原样带出明文，"
+                                + "因此本次导出被拒绝。确需导出请在【数据权限-字段策略】为这些字段配置 EXPORT 动作的明文授权",
+                        resourceKey, String.join("、", restricted)));
     }
 
     /**

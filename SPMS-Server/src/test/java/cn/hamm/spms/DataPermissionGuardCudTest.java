@@ -78,8 +78,12 @@ class DataPermissionGuardCudTest {
         given(resourceRepository.getByResourceKey("wms.input")).willReturn(resource);
         PermissionContextHolder.open(context(false));
 
-        assertThrows(IllegalStateException.class,
+        // 类型只断到 RuntimeException：FORBIDDEN.show 抛的是框架异常（类名不在本仓可见），
+        // 契约是「消息里写清了原因与下一步」—— 与 TenantContextResolverTest 同一口径
+        RuntimeException error = assertThrows(RuntimeException.class,
                 () -> guard.enforce("wms.input", DataPermissionAction.CREATE));
+        // 只断"抛了"是不够的：资源没登记也抛，但那是完全不同的原因
+        assertTrue(error.getMessage().contains("数据权限不足"), error.getMessage());
     }
 
     @Test
@@ -149,7 +153,7 @@ class DataPermissionGuardCudTest {
         properties.setDenyUnregistered(true);
         PermissionContextHolder.open(context(false));
 
-        IllegalStateException error = assertThrows(IllegalStateException.class,
+        RuntimeException error = assertThrows(RuntimeException.class,
                 () -> guard.enforce("wms.input", DataPermissionAction.DELETE));
         assertTrue(error.getMessage().contains("deny-unregistered"),
                 "拒绝原因必须指向那个配置项，否则运维只能翻代码：" + error.getMessage());
@@ -169,7 +173,7 @@ class DataPermissionGuardCudTest {
         org.mockito.BDDMockito.given(resourceRepository.getByResourceKey("wms.input")).willReturn(resource);
         PermissionContextHolder.open(context(false));
 
-        IllegalStateException error = assertThrows(IllegalStateException.class,
+        RuntimeException error = assertThrows(RuntimeException.class,
                 () -> guard.enforce("wms.input", DataPermissionAction.UPDATE));
         assertTrue(error.getMessage().contains("enforce"), "文案要给出下一步动作：" + error.getMessage());
     }

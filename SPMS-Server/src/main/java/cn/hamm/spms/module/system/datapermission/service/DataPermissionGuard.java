@@ -23,9 +23,10 @@ import java.util.List;
  * 资源未登记 / 未启用 ⇒ 按 {@code deny-unregistered} 决定拒还是放，与读侧同一规则。
  * 之后才问"这个动作有没有策略"。</p>
  *
- * <p>这里抛的是 {@link IllegalStateException}，全局异常处理会映射成 500 而不是 403 ——
- * 与 {@code DataPermissionSpecification} 的既有口径一致，统一成 403 属于 B5 的错误语义收口，
- * 不在本刀范围（改了会影响所有依赖 500 的前端提示分支，需要一次单独联调）。</p>
+ * <p>拒答一律走 {@link DataPermissionDenial#denied}：<b>先记 {@code kubo.datapermission.deny}，
+ * 再以「权限不足」语义抛出</b>（框架把它映射成 403，前端会原样显示那句话而不是"服务器内部错误"）。
+ * 读侧不抛：它返回恒假条件并记同一个原因串（见 {@code DataPermissionSpecification}），
+ * 两侧共用的是<em>计数与原因口径</em>，不是异常类型 —— 读侧一抛就把"查不到"变成了"报错"。</p>
  *
  * @author Hamm.cn
  */
@@ -70,13 +71,12 @@ public class DataPermissionGuard {
         }
 
         if (dataPermissionService.findResource(resourceKey) == null) {
-            // 未登记 / 未启用：与读侧同一个三态判据（deny-unregistered），而不是"必然 500"。
-            // 现状是没登记就抛 IllegalStateException，于是「新模块刚加进来、还没在 data_resource 里建行」
-            // 与「资源键被改名」都表现为所有保存/删除 500，而配置页上看不出任何原因。
+            // 未登记 / 未启用：与读侧同一个三态判据（deny-unregistered）。
+            // 文案必须自己说清"是配置要求的拒绝"而不是"内部错误"，否则运维只能翻代码；
+            // 而资源没登记这件事本身在「灰度状态」面板的未纳管清单里也能看见，两处指向同一个动作。
             if (properties.isDenyUnregistered()) {
-                audit.deny(resourceKey, DataPermissionAudit.REASON_UNREGISTERED,
-                        "写侧 " + action.name() + "：资源未登记或未启用，deny-unregistered=true");
-                throw new IllegalStateException(
+                DataPermissionDenial.denied(audit, resourceKey, DataPermissionAudit.REASON_UNREGISTERED,
+                        "写侧 " + action.name() + "：资源未登记或未启用，deny-unregistered=true",
                         "数据权限：资源 " + resourceKey + " 尚未登记或未启用，而当前配置要求未登记一律拒绝"
                                 + "（kubo.data-permission.deny-unregistered=true）。"
                                 + "请到「数据资源」把该资源登记并启用，或由管理员确认此项配置。");
@@ -89,9 +89,8 @@ public class DataPermissionGuard {
 
         List<DataPolicyEntity> policies = dataPermissionService.getPolicies(resourceKey, action, context);
         if (policies.isEmpty()) {
-            audit.deny(resourceKey, DataPermissionAudit.REASON_WRITE_DENIED,
-                    "写侧 " + action.name() + "：该主体在此动作下没有任何策略");
-            throw new IllegalStateException(
+            DataPermissionDenial.denied(audit, resourceKey, DataPermissionAudit.REASON_WRITE_DENIED,
+                    "写侧 " + action.name() + "：该主体在此动作下没有任何策略",
                     "数据权限不足：当前用户无 " + resourceKey + " 的 " + action.name() + " 权限。"
                             + "若刚把该资源加进 enforce 名单，说明只配了查询侧策略 —— "
                             + "请到「数据策略」为更新 / 删除动作补策略，或先把该资源移出名单。");

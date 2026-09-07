@@ -123,9 +123,9 @@ public class RowWriteGuard {
             audit.shadow(resourceKey, reason, "写侧行级本应拒绝（" + detail + "）");
             return;
         }
-        audit.deny(resourceKey, reason, detail);
-        throw new IllegalStateException("数据权限不足：这条记录不在你当前的数据范围内（" + resourceKey + " "
-                + action.name() + "，ID " + id + "）。若确认它归你，请到资源页检查归属列登记；"
-                + "列表刷新后仍在，说明该行属于别人的数据。");
+        DataPermissionDenial.denied(audit, resourceKey, reason, detail,
+                "数据权限不足：这条记录不在你当前的数据范围内（" + resourceKey + " " + action.name()
+                        + "，ID " + id + "）。若确认它归你，请到资源页检查归属列登记；"
+                        + "列表刷新后仍在，说明该行属于别人的数据。");
     }
 }

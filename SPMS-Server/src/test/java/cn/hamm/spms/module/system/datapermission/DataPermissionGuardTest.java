@@ -18,6 +18,8 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 
@@ -76,8 +78,14 @@ class DataPermissionGuardTest {
             given(dataPermissionService.getPolicies(eq("wms.input"), eq(DataPermissionAction.UPDATE), any()))
                     .willReturn(List.of());
 
-            assertThrows(IllegalStateException.class,
+            // 类型只断到 RuntimeException：FORBIDDEN.show 抛的是框架异常（类名不在本仓可见），
+            // 契约是"消息里写清了原因与下一步" —— 与 TenantContextResolverTest 同一口径
+            RuntimeException error = assertThrows(RuntimeException.class,
                     () -> guard.enforce("wms.input", DataPermissionAction.UPDATE));
+            assertTrue(error.getMessage().contains("数据权限不足"), error.getMessage());
+            // 拒答同时要有 deny 计数：否则"放开后拦了多少"只能翻日志回答
+            verify(audit).deny(eq("wms.input"),
+                    eq(DataPermissionAudit.REASON_WRITE_DENIED), anyString());
         }
 
         @Test

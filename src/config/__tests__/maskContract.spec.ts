@@ -1262,3 +1262,65 @@ describe('mask contract · 逐资源放开的前置检查', () => {
     expect(test, '缺了空判据默认不通过的断言').toContain('emptyChecksAreNotReady')
   })
 })
+
+describe('mask contract · 拒答语义与留痕口径', () => {
+  const DPM = join(SERVER, 'module', 'system', 'datapermission')
+  const DENIAL = join(DPM, 'service', 'DataPermissionDenial.java')
+  const TESTS = 'SPMS-Server/src/test/java/cn/hamm/spms'
+  const GUARD_TESTS = [`${TESTS}/DataPermissionGuardCudTest.java`, `${TESTS}/module/system/datapermission/DataPermissionGuardTest.java`, `${TESTS}/module/system/datapermission/service/RowWriteGuardTest.java`, `${TESTS}/module/system/datapermission/DataPermissionIntegrationTest.java`].map(f => join(ROOT, f))
+
+  it('请求路径上的权限拒绝只有一个出口', () => {
+    for (const name of ['DataPermissionGuard.java', 'RowWriteGuard.java']) {
+      const code = readJavaCode(join(DPM, 'service', name))
+      expect(code, `${name} 里自己 throw：拒答语义（403/500）与留痕会在第二个副本里漂移`)
+        .not
+        .toContain('throw new IllegalStateException')
+      expect(code, `${name} 绕开了统一出口`).toContain('DataPermissionDenial.denied(')
+    }
+    const exportGuard = readJavaCode(join(DPM, 'service', 'ExportBypassGuard.java'))
+    expect(exportGuard, '导出直接调框架 show：真拒又不进 deny 计数了（这一处正是本轮补上的漏）')
+      .not
+      .toContain('FORBIDDEN.show(')
+    expect(exportGuard).toContain('DataPermissionDenial.denied(')
+  })
+
+  it('出口的纪律：先留痕再抛，抛不动也要兜底', () => {
+    const body = methodBody(readJavaCode(DENIAL), 'static void denied(')
+    const denyAt = body.indexOf('audit.deny(')
+    const showAt = body.indexOf('FORBIDDEN.show(')
+    expect(denyAt, '不再写 deny 计数').toBeGreaterThan(-1)
+    expect(showAt, '不再走框架的 forbidden 语义').toBeGreaterThan(-1)
+    expect(denyAt < showAt, '顺序反了：先抛后记，异常路径上这笔账永远不会出现').toBe(true)
+    expect(showAt < body.indexOf('throw new IllegalStateException'), '少了兜底 throw：框架哪天把 show 改成「只登记不抛」，这里就会悄悄变成放行')
+      .toBe(true)
+  })
+
+  it('出口必须是静态工具，不能是可被 mock 的 Bean', () => {
+    const code = read(DENIAL)
+    expect(/@Component|@Service/.test(code), '做成 Bean 之后，测试里 mock 掉它 = deny 分支静默不抛（本仓被这类替身坑过两次）')
+      .toBe(false)
+    expect(code).toContain('private DataPermissionDenial()')
+  })
+
+  it('分类纪律：配置与接线错误不许伪装成「没权限」', () => {
+    for (const name of ['ExportColumnMasker.java', 'SensitiveWriteProtection.java', 'FactoryDimensionReadiness.java', 'DataPermissionService.java', 'DataResourceService.java']) {
+      const code = readJavaCode(join(DPM, 'service', name))
+      expect(code, `${name} 开始用 forbidden 语义：那类"代码接错了"的问题会被查授权的人接手，永远查不出来`)
+        .not
+        .toContain('Errors.FORBIDDEN')
+      expect(code, `${name} 把配置错误也送进拒答出口：见上一条`).not.toContain('DataPermissionDenial.denied(')
+    }
+  })
+
+  it('守卫测试不许只断「抛了异常」（消息才是契约）', () => {
+    for (const file of GUARD_TESTS) {
+      const code = stripComments(read(file))
+      if (!code.includes('assertThrows(RuntimeException.class')) {
+        continue
+      }
+      expect(code, `${file.split('/').pop()} 里有只断类型的 assertThrows：`
+      + '「资源未注册」与「策略没配」两种原因在断言里会长得一模一样')
+        .toContain('getMessage()')
+    }
+  })
+})

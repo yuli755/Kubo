@@ -230,7 +230,7 @@ class DataPermissionIntegrationTest {
             // 没有 UPDATE 策略，应该拦截。<b>连消息一起断言</b>：本类曾经只判"抛了 IllegalStateException"，
             // 而那时抛的是「数据权限资源未注册或未启用」——与"缺 UPDATE 策略"是两件完全不同的事，
             // 断言却分不出来（这就是"绿着绿着就失真"）。
-            IllegalStateException denied = assertThrows(IllegalStateException.class,
+            RuntimeException denied = assertThrows(RuntimeException.class,
                     () -> dataPermissionGuard.enforce("wms.input", DataPermissionAction.UPDATE));
             assertTrue(denied.getMessage().contains("数据权限不足"),
                     "拦下的原因必须是「该动作没有策略」，实际是：" + denied.getMessage());
