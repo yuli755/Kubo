@@ -76,7 +76,7 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
         int offset = (int) offsetValue;
-        materialReadShadowService.submit();
+        materialReadShadowService.submit(filter);
         List<MaterialEntity> list = materialMapper.selectPageByPermission(filter, offset, pageSize);
         long total = materialMapper.countByPermission(filter);
         int totalAsInt = Math.toIntExact(total);
@@ -114,7 +114,7 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
     public long getMapperCount(MaterialEntity filter) {
         MaterialEntity normalized = filter == null ? new MaterialEntity() : filter;
         if (isMapperReadEnabled()) {
-            materialReadShadowService.submit();
+            materialReadShadowService.submit(normalized);
             return materialMapper.countByPermission(normalized);
         }
         return filter(normalized).size();
@@ -129,7 +129,7 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
     public MaterialReadStat getMapperStat(MaterialEntity filter) {
         MaterialEntity normalized = filter == null ? new MaterialEntity() : filter;
         if (isMapperReadEnabled()) {
-            materialReadShadowService.submit();
+            materialReadShadowService.submit(normalized);
             return materialMapper.statByPermission(normalized);
         }
         List<MaterialEntity> rows = filter(normalized);

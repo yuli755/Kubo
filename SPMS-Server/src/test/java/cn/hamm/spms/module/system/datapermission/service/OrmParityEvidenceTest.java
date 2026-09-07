@@ -77,6 +77,7 @@ class OrmParityEvidenceTest {
         jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS unit (id BIGINT PRIMARY KEY)");
         jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS material ("
                 + "id BIGINT PRIMARY KEY, tenant_id BIGINT, creator_id BIGINT, owner_id BIGINT, unit_id BIGINT)");
+        jdbcTemplate.execute("ALTER TABLE material ADD COLUMN IF NOT EXISTS name VARCHAR(255)");
         jdbcTemplate.update("DELETE FROM material");
         // 对账表由 schema-test.sql 建（生产那侧是迁移脚本），本类不清就会串到下一个用例：
         // H2 的 Spring 上下文在同一次 CI 里是缓存复用的
@@ -206,6 +207,26 @@ class OrmParityEvidenceTest {
         // 只断言「没数出来」这件事：jpaCount 在这里取决于 JPA 侧对该候选是绑不上（无条件、5 行）
         // 还是抛（比对失败、null），两种都算这条证据成立；把数字写死就成了下次重构的枷锁
         assertNull(row.get("mapperCount"), "没数出来就写 null，不许写 0（0 会被读成「Mapper 侧认为该看 0 行」）");
+    }
+
+    @Test
+    @DisplayName("真实业务筛选先缩小基线，再与 Mapper 权限 COUNT 对账")
+    void filteredEvidenceUsesTheSameBusinessSet() {
+        jdbcTemplate.update("UPDATE material SET name = CASE id WHEN 1 THEN 'A' ELSE 'B' END");
+        PermissionContext context = context(1L, TENANT_A);
+        PermissionRule rule = SubjectDimensionRules.forPolicy(resource(null), policy("TENANT", null), context).rule();
+        List<PermissionRule> rules = List.of(rule);
+        Specification<MaterialEntity> business = (root, query, builder) -> builder.equal(root.get("name"), "A");
+
+        shadowDiffService.doCompare(KEY, DataPermissionAction.QUERY, MaterialEntity.class, business,
+                guarded(rules, context), 1L, TENANT_A,
+                new ShadowDiffService.OrmParityProbe("material", rules, context,
+                        Map.of("filter", new MaterialEntity().setName("A"))));
+
+        Map<String, Object> row = parityRow();
+        assertEquals(VERDICT_CONSISTENT, row.get("verdict"));
+        assertEquals(1L, ((Number) row.get("jpaCount")).longValue());
+        assertEquals(1L, ((Number) row.get("mapperCount")).longValue());
     }
 
     @Test

@@ -23,6 +23,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -85,11 +86,27 @@ public class ShadowDiffService {
      * @param tableAlias 片段里的列限定名（资源的物理表名）
      * @param rules      一棵棵策略条件树（与 JPA 侧注入的是同一批对象）
      * @param context    主体上下文值对象
+     * @param statementParameters 资源自有的业务筛选参数；权限 fragment 由本类覆盖
      */
-    public record OrmParityProbe(String tableAlias, List<PermissionRule> rules, PermissionContext context) {
+    public record OrmParityProbe(String tableAlias,
+                                 List<PermissionRule> rules,
+                                 PermissionContext context,
+                                 Map<String, Object> statementParameters) {
+
+        public OrmParityProbe(String tableAlias, List<PermissionRule> rules, PermissionContext context) {
+            this(tableAlias, rules, context, Map.of());
+        }
 
         public OrmParityProbe {
             rules = rules == null || rules.isEmpty() ? List.of() : List.copyOf(rules);
+            if (statementParameters == null || statementParameters.isEmpty()) {
+                statementParameters = Map.of();
+            }
+            else {
+                // 业务筛选值可以随探针进入 XML，但 ${fragment} 永远由 runParity 覆盖为渲染器产物。
+                // 不用 Map.copyOf：MyBatis 的业务筛选对象允许以 null 表示"未填写"。
+                statementParameters = java.util.Collections.unmodifiableMap(new HashMap<>(statementParameters));
+            }
         }
 
         /**
@@ -193,6 +210,20 @@ public class ShadowDiffService {
                         Specification<?> guardedFilter,
                         PermissionContext context,
                         OrmParityProbe probe) {
+        compare(resourceKey, action, entityClass, null, guardedFilter, context, probe);
+    }
+
+    /**
+     * 带业务筛选的影子双跑：baseline 与 guarded 必须在同一筛选集合上比较，不能拿整表基线
+     * 冒充真实 page/count 请求的 parity 证据。
+     */
+    public void compare(String resourceKey,
+                        DataPermissionAction action,
+                        Class<?> entityClass,
+                        Specification<?> baselineFilter,
+                        Specification<?> guardedFilter,
+                        PermissionContext context,
+                        OrmParityProbe probe) {
         if (guardedFilter == null || !sampled(resourceKey)) {
             return;
         }
@@ -202,7 +233,8 @@ public class ShadowDiffService {
         // 后台线程去读只会读到"上一个占用该线程的请求"的身份，或者什么都没有。
         // 所以这里传的是值（userId/tenantId）与已经绑定 context 的 Specification，而不是 context 本身。
         try {
-            executor.execute(() -> doCompare(resourceKey, action, entityClass, guardedFilter, userId, tenantId, probe));
+            executor.execute(() -> doCompare(resourceKey, action, entityClass, baselineFilter, guardedFilter,
+                    userId, tenantId, probe));
         }
         catch (RejectedExecutionException ex) {
             // 队列满：丢掉这次比对，但必须让人看见"观测有缺口"
@@ -221,13 +253,24 @@ public class ShadowDiffService {
                    Long userId,
                    Long tenantId,
                    OrmParityProbe probe) {
+        doCompare(resourceKey, action, entityClass, null, guardedFilter, userId, tenantId, probe);
+    }
+
+    void doCompare(String resourceKey,
+                   DataPermissionAction action,
+                   Class<?> entityClass,
+                   Specification<?> baselineFilter,
+                   Specification<?> guardedFilter,
+                   Long userId,
+                   Long tenantId,
+                   OrmParityProbe probe) {
         long started = System.currentTimeMillis();
         Long baseline = null;
         Long guarded = null;
         String detail = null;
         try {
-            baseline = count(entityClass, null);
-            guarded = count(entityClass, guardedFilter);
+            baseline = count(entityClass, baselineFilter);
+            guarded = count(entityClass, combine(baselineFilter, guardedFilter));
         }
         catch (RuntimeException ex) {
             // 比对失败多数是"列不存在"，与 binding 指标同源，正好互相印证
@@ -340,9 +383,13 @@ public class ShadowDiffService {
             fragmentSql = fragment == null ? "" : fragment.sql();
             // 显式类型参数：三元两臂一个是 Map.of、一个是 Map<String,Object>，
             // 让目标类型去推虽然能过 javac，但读的人要自己确认一遍 —— 写出来省这笔账
-            mapperCount = counter.countByPermissionFragment(fragment == null
-                    ? Map.<String, Object>of(RowPermissionPredicate.FRAGMENT_KEY, "")
-                    : fragment.myBatisStatementParameters());
+            Map<String, Object> parameters = new HashMap<>(probe.statementParameters());
+            parameters.put(RowPermissionPredicate.FRAGMENT_KEY, fragment == null ? "" : fragment.sql());
+            if (fragment != null) {
+                // 保证 renderer 产生的参数覆盖任何同名外部值；业务筛选不能改写权限片段。
+                parameters.putAll(fragment.myBatisStatementParameters());
+            }
+            mapperCount = counter.countByPermissionFragment(parameters);
         }
         catch (RuntimeException ex) {
             detail = ex.getClass().getSimpleName() + ": " + ex.getMessage();
@@ -405,6 +452,29 @@ public class ShadowDiffService {
             return value;
         }
         return value.substring(0, max);
+    }
+
+    /**
+     * 把业务筛选与权限筛选放进同一棵 JPA predicate；baseline 只用业务筛选，guarded 两者都用。
+     */
+    private Specification<?> combine(Specification<?> baseline, Specification<?> guarded) {
+        if (baseline == null) {
+            return guarded;
+        }
+        if (guarded == null) {
+            return baseline;
+        }
+        return (root, query, builder) -> {
+            Predicate left = toPredicateUnsafe(baseline, root, query, builder);
+            Predicate right = toPredicateUnsafe(guarded, root, query, builder);
+            if (left == null) {
+                return right;
+            }
+            if (right == null) {
+                return left;
+            }
+            return builder.and(left, right);
+        };
     }
 
     /**

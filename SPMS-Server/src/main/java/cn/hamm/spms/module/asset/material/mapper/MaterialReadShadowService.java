@@ -19,6 +19,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * <h1>物料 Mapper 读侧的 JPA shadow 对账接线</h1>
@@ -67,6 +68,15 @@ public class MaterialReadShadowService {
      * 把 OFF/ENFORCE 语义误接到 shadow 队列。</p>
      */
     public void submit() {
+        submit(null);
+    }
+
+    /**
+     * 从当前请求提交带业务筛选的 Material JPA/Mapper COUNT 对账。
+     *
+     * @param filter 与真实 Mapper page/count/stat 相同的业务筛选；null 表示不筛选
+     */
+    public void submit(MaterialEntity filter) {
         if (properties.effectiveMode(RESOURCE_KEY) != DataPermissionProperties.Mode.SHADOW) {
             return;
         }
@@ -74,6 +84,7 @@ public class MaterialReadShadowService {
         if (context == null || context.bypassDataPermission()) {
             return;
         }
+        MaterialEntity normalized = filter == null ? new MaterialEntity() : filter;
         try {
             DataResourceEntity resource = dataPermissionService.requireResource(RESOURCE_KEY);
             List<DataPolicyEntity> policies = dataPermissionService.getPolicies(RESOURCE_KEY, ACTION, context);
@@ -86,13 +97,36 @@ public class MaterialReadShadowService {
                 audit.shadow(RESOURCE_KEY, "orm-parity:no-rules", "Material shadow 读没有可达 QUERY 策略");
                 return;
             }
-            Specification<MaterialEntity> guarded = guarded(rules, context);
-            shadowDiffService.compare(RESOURCE_KEY, ACTION, MaterialEntity.class, guarded, context,
-                    new ShadowDiffService.OrmParityProbe("material", rules, context));
+            Specification<MaterialEntity> business = businessFilter(normalized);
+            Specification<MaterialEntity> permission = guarded(rules, context);
+            shadowDiffService.compare(RESOURCE_KEY, ACTION, MaterialEntity.class, business, permission, context,
+                    new ShadowDiffService.OrmParityProbe("material", rules, context,
+                            Map.of("filter", normalized)));
         }
         catch (RuntimeException ex) {
             audit.binding(RESOURCE_KEY, "mapper-shadow-submit-failed", ex.getMessage());
         }
+    }
+
+    private Specification<MaterialEntity> businessFilter(MaterialEntity filter) {
+        return (root, query, builder) -> {
+            List<Predicate> predicates = new java.util.ArrayList<>();
+            if (filter.getName() != null && !filter.getName().isBlank()) {
+                predicates.add(builder.like(root.get("name"), "%" + filter.getName() + "%"));
+            }
+            if (filter.getCode() != null && !filter.getCode().isBlank()) {
+                predicates.add(builder.like(root.get("code"), "%" + filter.getCode() + "%"));
+            }
+            if (filter.getMaterialType() != null) {
+                predicates.add(builder.equal(root.get("materialType"), filter.getMaterialType()));
+            }
+            if (filter.getUseType() != null) {
+                predicates.add(builder.equal(root.get("useType"), filter.getUseType()));
+            }
+            return predicates.isEmpty()
+                    ? builder.conjunction()
+                    : builder.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     private Specification<MaterialEntity> guarded(List<PermissionRule> rules, PermissionContext context) {
