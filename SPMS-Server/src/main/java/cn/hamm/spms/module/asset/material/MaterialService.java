@@ -64,12 +64,13 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
         int totalAsInt = Math.toIntExact(total);
         int pageCount = total == 0 ? 0 : Math.toIntExact((total + pageSize - 1L) / pageSize);
         Sort sort = normalized.getSort() == null ? new Sort() : normalized.getSort();
-        return new QueryPageResponse<MaterialEntity>()
-                .setList(list)
-                .setTotal(totalAsInt)
-                .setPageCount(pageCount)
-                .setPage(new Page().setPageNum(pageNum).setPageSize(pageSize))
-                .setSort(sort);
+        QueryPageResponse<MaterialEntity> response = new QueryPageResponse<>();
+        response.setList(list);
+        response.setTotal(totalAsInt);
+        response.setPageCount(pageCount);
+        response.setPage(new Page().setPageNum(pageNum).setPageSize(pageSize));
+        response.setSort(sort);
+        return response;
     }
 
     /**
