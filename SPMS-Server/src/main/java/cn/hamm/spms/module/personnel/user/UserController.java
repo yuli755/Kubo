@@ -16,6 +16,10 @@ import cn.hamm.spms.module.open.thirdlogin.UserThirdLoginService;
 import cn.hamm.spms.module.personnel.user.enums.UserLoginType;
 import cn.hamm.spms.module.system.menu.MenuEntity;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
+import cn.hamm.spms.module.system.tenant.TenantEntity;
+import cn.hamm.spms.module.system.tenant.TenantOption;
+import cn.hamm.spms.module.system.tenant.TenantRepository;
+import cn.hamm.spms.module.system.tenant.UserTenantService;
 import jakarta.mail.MessagingException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -26,9 +30,11 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-import java.util.List;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static cn.hamm.airpower.exception.Errors.FORBIDDEN_DISABLED;
@@ -55,12 +61,52 @@ public class UserController extends BaseController<UserEntity, UserService, User
     @Autowired
     private UserThirdLoginService userThirdLoginService;
 
+    @Autowired
+    private UserTenantService userTenantService;
+
+    @Autowired
+    private TenantRepository tenantRepository;
+
     @Description("获取我的信息")
     @Permission(authorize = false)
     @PostMapping("getMyInfo")
     @ExposeAll(UserEntity.class)
     public Json getMyInfo() {
         return Json.data(service.get(getCurrentUserId()));
+    }
+
+    /**
+     * 获取当前用户可切换的租户。
+     *
+     * <p>普通用户只返回 {@code user_tenant} 中已绑定且启用的租户；根账号返回全部启用租户。
+     * 请求头仍不会在这里被信任，真正的租户上下文由 {@code TenantContextResolver} 再次校验。</p>
+     */
+    @Description("获取我的租户")
+    @Permission(authorize = false)
+    @PostMapping("getMyTenantList")
+    public Json getMyTenantList() {
+        long userId = getCurrentUserId();
+        UserEntity user = service.get(userId);
+        Long defaultTenantId = userTenantService.defaultTenantId(userId);
+        List<TenantEntity> tenants;
+        if (user != null && user.isRootUser()) {
+            tenants = tenantRepository.findAll();
+        } else {
+            Set<Long> tenantIds = userTenantService.tenantIds(userId);
+            tenants = tenantRepository.findAllById(tenantIds);
+        }
+        List<TenantOption> options = tenants.stream()
+                .filter(Objects::nonNull)
+                .filter(tenant -> Objects.equals(tenant.getStatus(), 1))
+                .sorted(Comparator.comparing(TenantEntity::getName,
+                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .map(tenant -> new TenantOption()
+                        .setId(tenant.getId())
+                        .setCode(tenant.getCode())
+                        .setName(tenant.getName())
+                        .setIsDefault(Objects.equals(defaultTenantId, tenant.getId())))
+                .toList();
+        return Json.data(options, "获取成功");
     }
 
     @Description("修改我的信息")
