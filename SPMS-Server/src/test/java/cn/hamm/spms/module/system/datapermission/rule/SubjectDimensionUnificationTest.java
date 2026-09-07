@@ -144,29 +144,40 @@ class SubjectDimensionUnificationTest {
             return rendered == null ? null : rendered.sql();
         }
 
+        /**
+         * 裁判方向也走同一个入口包装 {@link PermissionRuleContext}：本类的立场是"给同一棵树、问三个方向"，
+         * 三个方向都只吃 {@code PermissionContext}。上一版这里直接传 {@code null}（编译得过，因为形参是引用类型），
+         * 于是"裁判有没有读上下文"这件事被测试自己的写法糊掉了 —— CI 报的是 incompatible types，
+         * 那条红其实替我把这个含糊纠正成了明确。
+         */
+        private boolean matches(PermissionRule rule, Map<String, Object> row, PermissionContext context) {
+            return evaluator.matches(rule, row, new PermissionRuleContext(context));
+        }
+
         @Test
         @DisplayName("命中与不命中：三个方向给同一个答案")
         void matchAndDismatchAgree() {
+            PermissionContext context = context(1L, 100L, Set.of(), Set.of(), Set.of());
             SubjectDimensionRules.SubjectRule subject = SubjectDimensionRules.forPolicy(
-                    resource("tenant_id", null), policy("TENANT", null), context(1L, 100L, Set.of(), Set.of(), Set.of()));
+                    resource("tenant_id", null), policy("TENANT", null), context);
 
-            assertEquals("(material.tenant_id = :dpRule0)", sql(subject.rule(), "material", context(1L, 100L, Set.of(), Set.of(), Set.of())));
-            assertTrue(evaluator.matches(subject.rule(), Map.of("tenant_id", 100L), null));
-            assertFalse(evaluator.matches(subject.rule(), Map.of("tenant_id", 101L), null));
+            assertEquals("(material.tenant_id = :dpRule0)", sql(subject.rule(), "material", context));
+            assertTrue(matches(subject.rule(), Map.of("tenant_id", 100L), context));
+            assertFalse(matches(subject.rule(), Map.of("tenant_id", 101L), context));
         }
 
         @Test
         @DisplayName("OR 语义：两个候选列都能绑上时，SQL 侧也保留两个分支")
         void orSemanticsAreNotSilentlyTruncated() {
+            PermissionContext context = context(7L, 100L, Set.of(), Set.of(), Set.of());
             SubjectDimensionRules.SubjectRule subject = SubjectDimensionRules.forPolicy(
-                    resource("tenant_id", "creator_id,owner_id"), policy("USER", null),
-                    context(7L, 100L, Set.of(), Set.of(), Set.of()));
+                    resource("tenant_id", "creator_id,owner_id"), policy("USER", null), context);
 
             assertEquals("(material.creator_id = :dpRule0 OR material.owner_id = :dpRule1)",
-                    sql(subject.rule(), "material", context(7L, 100L, Set.of(), Set.of(), Set.of())));
+                    sql(subject.rule(), "material", context));
             // 裁判侧：任一列属于我 ⇒ 可见（不是"两列都要等于我"）
-            assertTrue(evaluator.matches(subject.rule(), Map.of("creator_id", 1L, "owner_id", 7L), null));
-            assertFalse(evaluator.matches(subject.rule(), Map.of("creator_id", 1L, "owner_id", 2L), null));
+            assertTrue(matches(subject.rule(), Map.of("creator_id", 1L, "owner_id", 7L), context));
+            assertFalse(matches(subject.rule(), Map.of("creator_id", 1L, "owner_id", 2L), context));
         }
 
         @Test
@@ -184,15 +195,15 @@ class SubjectDimensionUnificationTest {
             // 不是"我以为的常量值"——上一轮就红在这个括号上
             assertEquals("(" + RowPermissionPredicate.DENY_SQL + ")",
                     sql(rule, "material", context));
-            assertFalse(evaluator.matches(rule, Map.of("tenant_id", 1L), context));
+            assertFalse(matches(rule, Map.of("tenant_id", 1L), context));
             // 反过来那一半才是线上真会发生的：值取得到、行上那列是 null（归属没落库的存量行）。
             // 裁判必须判"不成立"，否则"恒假"只覆盖了配置缺失、没覆盖数据缺失
             PermissionRule valued = new PermissionRule.Dimension(PermissionRuleOp.EQ, List.of("tenant_id"), 100L, false);
             Map<String, Object> rowWithNullOwner = new java.util.HashMap<>();
             rowWithNullOwner.put("tenant_id", null);
 
-            assertFalse(evaluator.matches(valued, rowWithNullOwner, context));
-            assertTrue(evaluator.matches(valued, Map.of("tenant_id", 100L), context),
+            assertFalse(matches(valued, rowWithNullOwner, context));
+            assertTrue(matches(valued, Map.of("tenant_id", 100L), context),
                     "同一棵树的正常形状必须仍然放行：否则上一条断言只是把裁判写死成恒假");
         }
 
