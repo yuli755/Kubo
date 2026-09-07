@@ -135,10 +135,10 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
                     .get(bill.getStructure().getId()));
         }
         if (bill.getOrder() != null && bill.getOrder().getId() != null) {
-            bill.setOrder(MesServices.getOrderService().get(bill.getOrder().getId()));
+            bill.setOrder(MesServices.getOrderService().getMapperDetail(bill.getOrder().getId()));
         }
         if (bill.getMove() != null && bill.getMove().getId() != null) {
-            bill.setMove(WmsServices.getMoveService().get(bill.getMove().getId()));
+            bill.setMove(WmsServices.getMoveService().getMapperDetail(bill.getMove().getId()));
         }
     }
 

@@ -118,7 +118,7 @@ public class PickingService extends AbstractBaseBillService<PickingEntity, Picki
                     .get(bill.getStructure().getId()));
         }
         if (bill.getOrder() != null && bill.getOrder().getId() != null) {
-            bill.setOrder(MesServices.getOrderService().get(bill.getOrder().getId()));
+            bill.setOrder(MesServices.getOrderService().getMapperDetail(bill.getOrder().getId()));
         }
         return bill;
     }

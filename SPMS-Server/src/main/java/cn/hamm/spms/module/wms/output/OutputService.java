@@ -113,10 +113,10 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
             bill.setSale(ChannelServices.getSaleService().get(bill.getSale().getId()));
         }
         if (bill.getMove() != null && bill.getMove().getId() != null) {
-            bill.setMove(WmsServices.getMoveService().get(bill.getMove().getId()));
+            bill.setMove(WmsServices.getMoveService().getMapperDetail(bill.getMove().getId()));
         }
         if (bill.getPicking() != null && bill.getPicking().getId() != null) {
-            bill.setPicking(MesServices.getPickingService().get(bill.getPicking().getId()));
+            bill.setPicking(MesServices.getPickingService().getMapperDetail(bill.getPicking().getId()));
         }
         return bill;
     }

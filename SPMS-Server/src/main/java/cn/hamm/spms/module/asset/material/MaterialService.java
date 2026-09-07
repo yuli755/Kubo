@@ -77,7 +77,8 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
         }
         int offset = (int) offsetValue;
         materialReadShadowService.submit(filter);
-        List<MaterialEntity> list = materialMapper.selectPageByPermission(filter, offset, pageSize);
+        List<MaterialEntity> list = materialMapper.selectPageByPermission(filter, offset, pageSize)
+                .stream().map(this::hydrateRelations).toList();
         long total = materialMapper.countByPermission(filter);
         int totalAsInt = Math.toIntExact(total);
         int pageCount = total == 0 ? 0 : Math.toIntExact((total + pageSize - 1L) / pageSize);
@@ -102,7 +103,8 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
             return get(id);
         }
         materialReadShadowService.submit();
-        return materialMapper.selectDetailByPermission(id);
+        MaterialEntity material = materialMapper.selectDetailByPermission(id);
+        return material == null ? null : hydrateRelations(material);
     }
 
     /**
@@ -155,6 +157,16 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
 
     @Autowired
     private UnitService unitService;
+
+    /**
+     * 关系只在主表通过 Mapper 权限过滤后按独立资源服务补齐，禁止把 unit JOIN 到权限 SQL。
+     */
+    private MaterialEntity hydrateRelations(MaterialEntity material) {
+        if (material.getUnit() != null && material.getUnit().getId() != null) {
+            material.setUnit(unitService.get(material.getUnit().getId()));
+        }
+        return material;
+    }
 
     @Override
     protected MaterialEntity beforeAppSaveToDatabase(@NotNull MaterialEntity material) {

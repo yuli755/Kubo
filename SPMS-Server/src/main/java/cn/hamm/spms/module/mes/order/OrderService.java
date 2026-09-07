@@ -124,7 +124,7 @@ public class OrderService extends AbstractBaseBillService<OrderEntity, OrderRepo
                     : materialService.get(bill.getMaterial().getId()));
         }
         if (bill.getPlan() != null && bill.getPlan().getId() != null) {
-            bill.setPlan(MesServices.getPlanService().get(bill.getPlan().getId()));
+            bill.setPlan(MesServices.getPlanService().getMapperDetail(bill.getPlan().getId()));
         }
         if (bill.getCustomer() != null && bill.getCustomer().getId() != null) {
             bill.setCustomer(ChannelServices.getCustomerService().get(bill.getCustomer().getId()));
