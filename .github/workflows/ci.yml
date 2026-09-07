@@ -182,7 +182,11 @@ jobs:
           if [ -n "$mp_starter" ] && [ "$mp_starter" != "$mp_parser" ]; then
             echo "mybatis-plus 与 jsqlparser 版本必须一致（starter=$mp_starter jsqlparser=$mp_parser）"; exit 1
           fi
-          echo "MyBatis-Plus 依赖成对性检查通过（starter=${mp_starter:-未引入}）
+          echo "MyBatis-Plus 依赖成对性检查通过（starter=${mp_starter:-未引入}）"
+          # §19.33 的已知缺口：mybatis-plus-jsqlparser 不传递 jsqlparser 本体，接插件前必须补齐。
+          # 版本以这里打出来的为准（别照记忆写），空手补依赖是本项目反复付过学费的地方。
+          echo "== jsqlparser 就绪性 =="
+          echo "$tree" | grep -i "jsqlparser" || echo "（依赖树里没有 jsqlparser：任何 InnerInterceptor 还不能接）"
   # ============================================================================
   # 迁移脚本的真实方言门禁（§19.11 第 2 项里"今天就能自动化"的那一半）
   # 为什么不用 Testcontainers：那要往 pom 里加 testcontainers + mysql-connector 依赖，

@@ -100,13 +100,25 @@ class MybatisJpaCoexistenceTest {
                 "事务管理器不是 JPA 那个：JPA 侧的 flush/一级缓存语义将不受 @Transactional 管");
     }
 
+    /**
+     * 本轮只验"并存"，不验"能改 SQL"。
+     *
+     * <p><b>已实测到的缺口（CI 抓的）</b>：{@code com.github.jsqlparser} 本体<em>没有</em>随
+     * {@code mybatis-plus-jsqlparser:3.5.9} 传递到测试 classpath（{@code ClassNotFoundException:
+     * com.github.jsqlparser.parser.CCJSqlParserUtil}）。这不影响本轮结论 —— 本应用现在一个
+     * {@code InnerInterceptor} 都没注册，没有东西会去解析 SQL。但它是一条硬前置：
+     * <b>接分页或数据权限插件之前，必须先把 jsqlparser 补齐</b>（CI 的依赖树那一步会把
+     * {@code jsqlparser} 相关行打出来，定版本看它，别看记忆）。</p>
+     */
     @Test
-    @DisplayName("jsqlparser 与拦截器类可加载（starter 与它必须成对引入的证据）")
-    void sqlParserClassesAreLoadable() throws Exception {
-        assertNotNull(Class.forName("com.github.jsqlparser.parser.CCJSqlParserUtil"),
-                "缺 com.baomidou:mybatis-plus-jsqlparser 时，任何 InnerInterceptor 会在第一次解析 SQL 时"
-                        + " NoClassDefFoundError —— 那是「跑到线上第一个列表页才炸」的形状");
-        assertNotNull(new MybatisPlusInterceptor(), "MybatisPlusInterceptor 不可用：分页与数据权限插件都挂在它上面");
+    @DisplayName("MyBatis-Plus 自己的类型可用，且当前一个插件都没注册（别把这一格读成「已经在改 SQL」）")
+    void mybatisPlusIsUsableButNothingIsWired() throws Exception {
+        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
+        assertNotNull(interceptor, "MybatisPlusInterceptor 不可用：分页与数据权限插件都要挂在它上面");
+        assertTrue(interceptor.getInterceptors().isEmpty(),
+                "这一格的前提是零接线：一旦这里出现插件，上面那段关于 jsqlparser 缺口的注释就成了待爆的雷");
+        assertNotNull(Class.forName("com.baomidou.mybatisplus.core.MybatisSqlSessionFactoryBuilder"),
+                "mybatis-plus-core 不在 classpath：starter 被 airpower 的依赖管理挤掉了");
     }
 
     @Test
