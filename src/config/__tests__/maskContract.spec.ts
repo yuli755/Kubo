@@ -205,8 +205,7 @@ describe('mask contract · 前后端脱敏口径', () => {
       const source = readJavaCode(file)
       // 两种 @Extends 写法都要认：@Extends({Curd.Export, ...}) 与
       // @Extends(value = {Curd.Export, ...}, exclude = ...)（exclude 在 value 之外，不算排除 Export）
-      const extendsLine
-        = source.match(/@Extends\(\{([^}]*)\}\)/)?.[1]
+      const extendsLine = source.match(/@Extends\(\{([^}]*)\}\)/)?.[1]
         ?? source.match(/@Extends\(\s*value\s*=\s*\{([^}]*)\}/)?.[1]
         ?? ''
       if (!extendsLine.includes('Export') || extendsLine.includes('exclude')) {
