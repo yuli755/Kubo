@@ -55,12 +55,12 @@ class PlanMapperRuntimeInterceptorTest {
         jdbcTemplate.update("DELETE FROM plan");
         jdbcTemplate.update("DELETE FROM data_policy");
         jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO plan (id, tenant_id, creator_id, bill_code, status, type) "
-                + "VALUES (1, 10, 7, 'PLAN-001', 2, 1)");
-        jdbcTemplate.update("INSERT INTO plan (id, tenant_id, creator_id, bill_code, status, type) "
-                + "VALUES (2, 10, 8, 'PLAN-002', 3, 2)");
-        jdbcTemplate.update("INSERT INTO plan (id, tenant_id, creator_id, bill_code, status, type) "
-                + "VALUES (3, 20, 7, 'PLAN-003', 2, 1)");
+        jdbcTemplate.update("INSERT INTO plan (id, tenant_id, creator_id, bill_code, status, type, is_published) "
+                + "VALUES (1, 10, 7, 'PLAN-001', 2, 1, TRUE)");
+        jdbcTemplate.update("INSERT INTO plan (id, tenant_id, creator_id, bill_code, status, type, is_published) "
+                + "VALUES (2, 10, 8, 'PLAN-002', 3, 2, FALSE)");
+        jdbcTemplate.update("INSERT INTO plan (id, tenant_id, creator_id, bill_code, status, type, is_published) "
+                + "VALUES (3, 20, 7, 'PLAN-003', 2, 1, TRUE)");
         jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
                         + "owner_columns, supported_actions, status, version_no) "
                         + "VALUES (9701, 'mes.plan', 'plan', 'plan', 'tenant_id', 'creator_id', "
@@ -95,12 +95,15 @@ class PlanMapperRuntimeInterceptorTest {
     }
 
     @Test
-    @DisplayName("计划 detail/count 使用同一权限绑定")
+    @DisplayName("计划 detail/count/stat 使用同一权限绑定")
     void detailAndCountArePermissionAware() {
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             PlanEntity detail = planMapper.selectDetailByPermission(1L);
             assertEquals(1L, detail.getId());
             assertEquals(2L, planMapper.countByPermission(null, null, null));
+            var stat = planMapper.statByPermission(null, null, null);
+            assertEquals(2L, stat.getTotal());
+            assertEquals(1L, stat.getPublishedTotal(), "当前租户两行中仅 id=1 已发布");
             assertEquals(2L, planMapper.selectPageByPermission(null, 3, null, 0, 20)
                     .get(0).getId());
         }
@@ -125,6 +128,7 @@ class PlanMapperRuntimeInterceptorTest {
             assertEquals(0L, planMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(planMapper.selectDetailByPermission(1L));
             assertEquals(0, planMapper.selectForExport(null, null, null).size());
+            assertEquals(0L, planMapper.statByPermission(null, null, null).getTotal());
         }
     }
 }

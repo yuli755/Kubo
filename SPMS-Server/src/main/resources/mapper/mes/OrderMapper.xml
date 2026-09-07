@@ -105,6 +105,14 @@
         <where><include refid="orderFilter"/></where>
     </select>
 
+    <select id="statByPermission" resultType="cn.hamm.spms.base.mapper.ReadStat">
+        SELECT
+            COUNT(1) AS total,
+            COALESCE(SUM(CASE WHEN o.is_published THEN 1 ELSE 0 END), 0) AS published_total
+        FROM orders o
+        <where><include refid="orderFilter"/></where>
+    </select>
+
     <select id="countByPermissionFragment" resultType="long">
         SELECT COUNT(1) FROM orders
         <where>

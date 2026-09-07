@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.mes.plan.mapper;
 
 import cn.hamm.spms.base.mapper.KuboBaseMapper;
+import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.mes.plan.PlanEntity;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
 import cn.hamm.spms.module.system.datapermission.service.RowParityCounter;
@@ -32,6 +33,15 @@ public interface PlanMapper extends KuboBaseMapper<PlanEntity>, RowParityCounter
     PlanEntity selectDetailByPermission(@Param("id") Long id);
 
     Long countByPermission(
+            @Param("billCode") String billCode,
+            @Param("status") Integer status,
+            @Param("type") Integer type
+    );
+
+    /**
+     * 与总数完全相同的统计出口；只返回行数与已发布行数。
+     */
+    ReadStat statByPermission(
             @Param("billCode") String billCode,
             @Param("status") Integer status,
             @Param("type") Integer type

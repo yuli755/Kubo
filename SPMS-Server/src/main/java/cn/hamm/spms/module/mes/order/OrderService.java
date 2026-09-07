@@ -11,6 +11,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.bill.AbstractBaseBillService;
+import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.mes.order.detail.OrderDetailEntity;
 import cn.hamm.spms.module.mes.order.detail.OrderDetailRepository;
@@ -138,6 +139,40 @@ public class OrderService extends AbstractBaseBillService<OrderEntity, OrderRepo
             bill.setCustomer(ChannelServices.getCustomerService().get(bill.getCustomer().getId()));
         }
         return bill;
+    }
+
+    /**
+     * 生产订单总数读出口；与分页使用同一筛选和权限语句。
+     *
+     * @param filter 业务筛选（单号/状态/类型）
+     * @return 权限范围内总数
+     */
+    public long getMapperCount(OrderEntity filter) {
+        OrderEntity normalized = filter == null ? new OrderEntity() : filter;
+        if (isMapperReadEnabled()) {
+            orderReadShadowService.submit(normalized);
+            return orderMapper.countByPermission(normalized.getBillCode(), normalized.getStatus(), normalized.getType());
+        }
+        return filter(normalized).size();
+    }
+
+    /**
+     * 生产订单统计读出口；只返回行数与已发布行数，与总数同一权限语句。
+     *
+     * @param filter 业务筛选（单号/状态/类型）
+     * @return 权限范围内统计
+     */
+    public ReadStat getMapperStat(OrderEntity filter) {
+        OrderEntity normalized = filter == null ? new OrderEntity() : filter;
+        if (isMapperReadEnabled()) {
+            orderReadShadowService.submit(normalized);
+            return orderMapper.statByPermission(normalized.getBillCode(), normalized.getStatus(), normalized.getType());
+        }
+        List<OrderEntity> rows = filter(normalized);
+        ReadStat stat = new ReadStat();
+        stat.setTotal(rows.size());
+        stat.setPublishedTotal(rows.stream().filter(row -> Boolean.TRUE.equals(row.getIsPublished())).count());
+        return stat;
     }
 
     /**

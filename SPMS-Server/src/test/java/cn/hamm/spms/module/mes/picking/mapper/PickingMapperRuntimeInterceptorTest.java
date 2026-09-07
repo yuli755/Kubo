@@ -54,12 +54,12 @@ class PickingMapperRuntimeInterceptorTest {
         jdbcTemplate.update("DELETE FROM picking");
         jdbcTemplate.update("DELETE FROM data_policy");
         jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO picking (id, tenant_id, creator_id, bill_code, status, type) "
-                + "VALUES (1, 10, 7, 'PICK-001', 2, 1)");
-        jdbcTemplate.update("INSERT INTO picking (id, tenant_id, creator_id, bill_code, status, type) "
-                + "VALUES (2, 10, 8, 'PICK-002', 3, 2)");
-        jdbcTemplate.update("INSERT INTO picking (id, tenant_id, creator_id, bill_code, status, type) "
-                + "VALUES (3, 20, 7, 'PICK-003', 2, 1)");
+        jdbcTemplate.update("INSERT INTO picking (id, tenant_id, creator_id, bill_code, status, type, is_published) "
+                + "VALUES (1, 10, 7, 'PICK-001', 2, 1, TRUE)");
+        jdbcTemplate.update("INSERT INTO picking (id, tenant_id, creator_id, bill_code, status, type, is_published) "
+                + "VALUES (2, 10, 8, 'PICK-002', 3, 2, FALSE)");
+        jdbcTemplate.update("INSERT INTO picking (id, tenant_id, creator_id, bill_code, status, type, is_published) "
+                + "VALUES (3, 20, 7, 'PICK-003', 2, 1, TRUE)");
         jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
                         + "owner_columns, supported_actions, status, version_no) "
                         + "VALUES (9801, 'mes.picking', 'picking', 'picking', 'tenant_id', 'creator_id', "
@@ -94,12 +94,15 @@ class PickingMapperRuntimeInterceptorTest {
     }
 
     @Test
-    @DisplayName("领料 detail/count 使用同一权限绑定")
+    @DisplayName("领料 detail/count/stat 使用同一权限绑定")
     void detailAndCountArePermissionAware() {
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             PickingEntity detail = pickingMapper.selectDetailByPermission(1L);
             assertEquals(1L, detail.getId());
             assertEquals(2L, pickingMapper.countByPermission(null, null, null));
+            var stat = pickingMapper.statByPermission(null, null, null);
+            assertEquals(2L, stat.getTotal());
+            assertEquals(1L, stat.getPublishedTotal(), "当前租户两行中仅 id=1 已发布");
             assertEquals(2L, pickingMapper.selectPageByPermission(null, 3, null, 0, 20)
                     .get(0).getId());
         }
@@ -124,6 +127,7 @@ class PickingMapperRuntimeInterceptorTest {
             assertEquals(0L, pickingMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(pickingMapper.selectDetailByPermission(1L));
             assertEquals(0, pickingMapper.selectForExport(null, null, null).size());
+            assertEquals(0L, pickingMapper.statByPermission(null, null, null).getTotal());
         }
     }
 }

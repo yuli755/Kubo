@@ -56,12 +56,12 @@ class OrderMapperRuntimeInterceptorTest {
         jdbcTemplate.update("DELETE FROM orders");
         jdbcTemplate.update("DELETE FROM data_policy");
         jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO orders (id, tenant_id, creator_id, bill_code, status, type, quantity) "
-                + "VALUES (1, 10, 7, 'ORDER-001', 2, 1, 10)");
-        jdbcTemplate.update("INSERT INTO orders (id, tenant_id, creator_id, bill_code, status, type, quantity) "
-                + "VALUES (2, 10, 8, 'ORDER-002', 3, 2, 20)");
-        jdbcTemplate.update("INSERT INTO orders (id, tenant_id, creator_id, bill_code, status, type, quantity) "
-                + "VALUES (3, 20, 7, 'ORDER-003', 2, 1, 30)");
+        jdbcTemplate.update("INSERT INTO orders (id, tenant_id, creator_id, bill_code, status, type, quantity, is_published) "
+                + "VALUES (1, 10, 7, 'ORDER-001', 2, 1, 10, TRUE)");
+        jdbcTemplate.update("INSERT INTO orders (id, tenant_id, creator_id, bill_code, status, type, quantity, is_published) "
+                + "VALUES (2, 10, 8, 'ORDER-002', 3, 2, 20, FALSE)");
+        jdbcTemplate.update("INSERT INTO orders (id, tenant_id, creator_id, bill_code, status, type, quantity, is_published) "
+                + "VALUES (3, 20, 7, 'ORDER-003', 2, 1, 30, TRUE)");
         jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
                         + "owner_columns, supported_actions, status, version_no) "
                         + "VALUES (9601, 'mes.order', 'orders', 'orders', 'tenant_id', 'creator_id', "
@@ -96,12 +96,15 @@ class OrderMapperRuntimeInterceptorTest {
     }
 
     @Test
-    @DisplayName("订单 detail/count 使用同一权限绑定")
+    @DisplayName("订单 detail/count/stat 使用同一权限绑定")
     void detailAndCountArePermissionAware() {
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             OrderEntity detail = orderMapper.selectDetailByPermission(1L);
             assertEquals(1L, detail.getId());
             assertEquals(2L, orderMapper.countByPermission(null, null, null));
+            var stat = orderMapper.statByPermission(null, null, null);
+            assertEquals(2L, stat.getTotal());
+            assertEquals(1L, stat.getPublishedTotal(), "当前租户两行中仅 id=1 已发布");
             assertEquals(2L, orderMapper.selectPageByPermission(null, 3, null, 0, 20)
                     .get(0).getId());
         }
@@ -126,6 +129,7 @@ class OrderMapperRuntimeInterceptorTest {
             assertEquals(0L, orderMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(orderMapper.selectDetailByPermission(1L));
             assertEquals(0, orderMapper.selectForExport(null, null, null).size());
+            assertEquals(0L, orderMapper.statByPermission(null, null, null).getTotal());
         }
     }
 }

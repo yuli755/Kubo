@@ -55,6 +55,32 @@ public class PickingController extends BaseBillController<
     }
 
     /**
+     * 领料单总数读出口（Mapper）。
+     *
+     * @param request 筛选请求
+     * @return 权限范围内总数
+     */
+    @Description("查询领料单总数")
+    @PostMapping("getCount")
+    public Json getCount(@RequestBody(required = false) QueryListRequest<PickingEntity> request) {
+        PickingEntity filter = request == null ? null : request.getFilter();
+        return Json.data(service.getMapperCount(filter));
+    }
+
+    /**
+     * 领料单统计读出口（Mapper）。
+     *
+     * @param request 筛选请求
+     * @return 权限范围内统计
+     */
+    @Description("查询领料单统计")
+    @PostMapping("getStat")
+    public Json getStat(@RequestBody(required = false) QueryListRequest<PickingEntity> request) {
+        PickingEntity filter = request == null ? null : request.getFilter();
+        return Json.data(service.getMapperStat(filter));
+    }
+
+    /**
      * 领料单导出出口：Mapper 读链路开启时走受权限拦截的取数 + 请求线程列级遮蔽；关闭时回退框架 JPA 导出。
      *
      * @param request 导出请求
