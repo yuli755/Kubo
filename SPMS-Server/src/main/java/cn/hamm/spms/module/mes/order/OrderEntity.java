@@ -2,6 +2,7 @@ package cn.hamm.spms.module.mes.order;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Dictionary;
+import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.airpower.core.annotation.Meta;
 import cn.hamm.airpower.core.annotation.ReadOnly;
 import cn.hamm.airpower.curd.annotation.Search;
@@ -46,16 +47,19 @@ public class OrderEntity extends AbstractBaseBillEntity<OrderEntity, OrderDetail
     @AutoGenerateCode(OrderBillCode)
     @Search
     @Meta
+    @Export
     private String billCode;
 
     @Description("订单状态")
     @Column(columnDefinition = "int UNSIGNED default 1 comment '订单状态'")
     @Dictionary(value = OrderStatus.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer status;
 
     @Description("订单类型")
     @Column(columnDefinition = "int UNSIGNED default 1 comment '订单类型'")
     @Dictionary(value = OrderType.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer type;
 
     @Description("开始时间")
@@ -79,15 +83,18 @@ public class OrderEntity extends AbstractBaseBillEntity<OrderEntity, OrderDetail
     @Description("生产数量")
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '生产数量'")
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "生产数量不能为空")
+    @Export(Export.Type.NUMBER)
     private Double quantity;
 
     @Description("已完成数量")
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '已完成数量'")
     @ReadOnly
+    @Export(Export.Type.NUMBER)
     private Double finishQuantity;
 
     @Description("异常数量")
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '异常数量'")
+    @Export(Export.Type.NUMBER)
     private Double ngQuantity;
 
     @Description("计划信息")

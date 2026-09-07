@@ -2,6 +2,7 @@ package cn.hamm.spms.module.mes.picking;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Dictionary;
+import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.airpower.core.annotation.Meta;
 import cn.hamm.airpower.core.annotation.ReadOnly;
 import cn.hamm.spms.base.bill.AbstractBaseBillEntity;
@@ -43,17 +44,20 @@ public class PickingEntity extends AbstractBaseBillEntity<PickingEntity, Picking
     @Column(columnDefinition = "varchar(255) default '' comment '领料单号'", unique = true)
     @AutoGenerateCode(PickingBillCode)
     @Meta
+    @Export
     private String billCode;
 
     @Description("领料状态")
     @Column(columnDefinition = "int UNSIGNED default 1 comment '领料状态'")
     @Dictionary(value = PickingStatus.class, groups = {WhenAdd.class, WhenUpdate.class})
     @ReadOnly
+    @Export(Export.Type.DICTIONARY)
     private Integer status;
 
     @Description("领料类型")
     @Column(columnDefinition = "int UNSIGNED default 1 comment '领料类型'")
     @Dictionary(value = PickingType.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer type;
 
     @Description("领料位置")

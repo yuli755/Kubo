@@ -2,6 +2,7 @@ package cn.hamm.spms.module.mes.plan;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Dictionary;
+import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.airpower.core.annotation.Meta;
 import cn.hamm.airpower.core.annotation.ReadOnly;
 import cn.hamm.airpower.curd.annotation.Search;
@@ -43,16 +44,19 @@ public class PlanEntity extends AbstractBaseBillEntity<PlanEntity, PlanDetailEnt
     @AutoGenerateCode(PlanBillCode)
     @Search
     @Meta
+    @Export
     private String billCode;
 
     @Description("计划状态")
     @Column(columnDefinition = "int UNSIGNED default 1 comment '计划状态'")
     @Dictionary(value = PlanStatus.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer status;
 
     @Description("计划类型")
     @Column(columnDefinition = "int UNSIGNED default 1 comment '计划类型'")
     @Dictionary(value = PlanType.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer type;
 
     @Description("交付时间")

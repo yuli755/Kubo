@@ -78,6 +78,13 @@
         WHERE p.id = #{id}
     </select>
 
+    <select id="selectForExport" resultMap="planReadMap">
+        SELECT <include refid="planColumns"/>
+        FROM plan p
+        <where><include refid="planFilter"/></where>
+        ORDER BY p.id DESC
+    </select>
+
     <select id="countByPermission" resultType="long">
         SELECT COUNT(1)
         FROM plan p

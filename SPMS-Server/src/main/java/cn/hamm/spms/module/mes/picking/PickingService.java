@@ -1,8 +1,11 @@
 package cn.hamm.spms.module.mes.picking;
 
+import cn.hamm.airpower.core.CollectionUtil;
 import cn.hamm.airpower.core.NumberUtil;
 import cn.hamm.airpower.core.interfaces.IDictionary;
+import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
+import cn.hamm.airpower.curd.model.query.QueryListRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
@@ -17,6 +20,7 @@ import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
+import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import cn.hamm.spms.module.wms.WmsServices;
 import cn.hamm.spms.module.wms.inventory.InventoryEntity;
 import cn.hamm.spms.module.wms.inventory.InventoryService;
@@ -32,6 +36,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -54,6 +59,9 @@ public class PickingService extends AbstractBaseBillService<PickingEntity, Picki
 
     @Autowired
     private PickingReadShadowService pickingReadShadowService;
+
+    @Autowired
+    private ExportHelper exportHelper;
 
     @Autowired
     private DataPermissionSpecification dataPermissionSpecification;
@@ -121,6 +129,23 @@ public class PickingService extends AbstractBaseBillService<PickingEntity, Picki
             bill.setOrder(MesServices.getOrderService().getMapperDetail(bill.getOrder().getId()));
         }
         return bill;
+    }
+
+    /**
+     * 领料单真实导出出口（Mapper）。取数走权限拦截链，遮蔽在请求线程，落盘走框架异步契约。
+     *
+     * @param request 导出请求（含单号/状态/类型筛选）
+     * @return 导出任务文件编码，供前端 {@code queryExport} 轮询下载
+     */
+    public String createMapperExportTask(QueryListRequest<PickingEntity> request) {
+        PickingEntity filter = request == null || request.getFilter() == null ? new PickingEntity() : request.getFilter();
+        pickingReadShadowService.submit(filter);
+        List<PickingEntity> rows = pickingMapper.selectForExport(filter.getBillCode(), filter.getStatus(), filter.getType());
+        List<PickingEntity> masked = ExportColumnMasker.maskForExport(rows);
+        return exportHelper.createExportTask(() -> {
+            InputStream stream = CollectionUtil.toCsvInputStream(masked, PickingEntity.class);
+            return exportHelper.saveExportFileStream(stream);
+        });
     }
 
     @Override

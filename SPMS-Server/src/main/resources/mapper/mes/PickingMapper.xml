@@ -76,6 +76,13 @@
         WHERE p.id = #{id}
     </select>
 
+    <select id="selectForExport" resultMap="pickingReadMap">
+        SELECT <include refid="pickingColumns"/>
+        FROM picking p
+        <where><include refid="pickingFilter"/></where>
+        ORDER BY p.id DESC
+    </select>
+
     <select id="countByPermission" resultType="long">
         SELECT COUNT(1)
         FROM picking p

@@ -108,12 +108,24 @@ class OrderMapperRuntimeInterceptorTest {
     }
 
     @Test
+    @DisplayName("订单导出取数走同一权限链：只返回当前租户可见行且固定 id 倒序")
+    void exportSelectSharesPermissionPredicate() {
+        try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
+            var rows = orderMapper.selectForExport(null, null, null);
+            assertEquals(2, rows.size());
+            assertEquals(2L, rows.get(0).getId());
+            assertEquals(1L, rows.get(1).getId());
+        }
+    }
+
+    @Test
     @DisplayName("订单无策略时 fail closed")
     void noPolicyDeniesAllRows() {
         jdbcTemplate.update("DELETE FROM data_policy");
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             assertEquals(0L, orderMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(orderMapper.selectDetailByPermission(1L));
+            assertEquals(0, orderMapper.selectForExport(null, null, null).size());
         }
     }
 }

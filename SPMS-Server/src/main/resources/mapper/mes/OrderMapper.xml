@@ -92,6 +92,13 @@
         WHERE o.id = #{id}
     </select>
 
+    <select id="selectForExport" resultMap="orderReadMap">
+        SELECT <include refid="orderColumns"/>
+        FROM orders o
+        <where><include refid="orderFilter"/></where>
+        ORDER BY o.id DESC
+    </select>
+
     <select id="countByPermission" resultType="long">
         SELECT COUNT(1)
         FROM orders o
