@@ -19,6 +19,7 @@ import cn.hamm.spms.module.wms.output.OutputController;
 import cn.hamm.spms.module.wms.output.OutputService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -93,35 +94,35 @@ class CountStatWiringTest {
     @Test
     @DisplayName("八个 Controller 都暴露 getCount/getStat 端点")
     void allControllersExposeCountAndStatEndpoints() {
-        assertEndpoint(materialController.getClass(), "getCount");
-        assertEndpoint(materialController.getClass(), "getStat");
-        assertEndpoint(inventoryController.getClass(), "getCount");
-        assertEndpoint(inventoryController.getClass(), "getStat");
-        assertEndpoint(inputController.getClass(), "getCount");
-        assertEndpoint(inputController.getClass(), "getStat");
-        assertEndpoint(outputController.getClass(), "getCount");
-        assertEndpoint(outputController.getClass(), "getStat");
-        assertEndpoint(moveController.getClass(), "getCount");
-        assertEndpoint(moveController.getClass(), "getStat");
-        assertEndpoint(orderController.getClass(), "getCount");
-        assertEndpoint(orderController.getClass(), "getStat");
-        assertEndpoint(planController.getClass(), "getCount");
-        assertEndpoint(planController.getClass(), "getStat");
-        assertEndpoint(pickingController.getClass(), "getCount");
-        assertEndpoint(pickingController.getClass(), "getStat");
+        assertEndpoint(materialController, "getCount");
+        assertEndpoint(materialController, "getStat");
+        assertEndpoint(inventoryController, "getCount");
+        assertEndpoint(inventoryController, "getStat");
+        assertEndpoint(inputController, "getCount");
+        assertEndpoint(inputController, "getStat");
+        assertEndpoint(outputController, "getCount");
+        assertEndpoint(outputController, "getStat");
+        assertEndpoint(moveController, "getCount");
+        assertEndpoint(moveController, "getStat");
+        assertEndpoint(orderController, "getCount");
+        assertEndpoint(orderController, "getStat");
+        assertEndpoint(planController, "getCount");
+        assertEndpoint(planController, "getStat");
+        assertEndpoint(pickingController, "getCount");
+        assertEndpoint(pickingController, "getStat");
     }
 
     @Test
     @DisplayName("八个 Service 都有 getMapperCount/getMapperStat，返回类型统一")
     void allServicesExposeUniformCountStatMethods() {
-        assertServiceMethods(materialService.getClass());
-        assertServiceMethods(inventoryService.getClass());
-        assertServiceMethods(inputService.getClass());
-        assertServiceMethods(outputService.getClass());
-        assertServiceMethods(moveService.getClass());
-        assertServiceMethods(orderService.getClass());
-        assertServiceMethods(planService.getClass());
-        assertServiceMethods(pickingService.getClass());
+        assertServiceMethods(materialService);
+        assertServiceMethods(inventoryService);
+        assertServiceMethods(inputService);
+        assertServiceMethods(outputService);
+        assertServiceMethods(moveService);
+        assertServiceMethods(orderService);
+        assertServiceMethods(planService);
+        assertServiceMethods(pickingService);
     }
 
     @Test
@@ -137,7 +138,10 @@ class CountStatWiringTest {
         assertTrue(pickingService.isMapperReadEnabled());
     }
 
-    private static void assertEndpoint(Class<?> controllerClass, String path) {
+    private static void assertEndpoint(Object controller, String path) {
+        // Controller 会被 Spring 用 CGLIB 代理（@Validated/@Permission 触发），代理类的重写方法不带
+        // @PostMapping，必须解包到目标类再反射，否则会误报“缺少端点”。
+        Class<?> controllerClass = AopUtils.getTargetClass(controller);
         for (Method method : controllerClass.getMethods()) {
             PostMapping mapping = method.getAnnotation(PostMapping.class);
             if (mapping != null && Arrays.asList(mapping.value()).contains(path)) {
@@ -147,7 +151,8 @@ class CountStatWiringTest {
         fail(controllerClass.getSimpleName() + " 缺少端点 " + path);
     }
 
-    private static void assertServiceMethods(Class<?> serviceClass) {
+    private static void assertServiceMethods(Object service) {
+        Class<?> serviceClass = AopUtils.getTargetClass(service);
         Method count = findMethod(serviceClass, "getMapperCount");
         assertEquals(long.class, count.getReturnType(),
                 serviceClass.getSimpleName() + ".getMapperCount 应返回 long");
