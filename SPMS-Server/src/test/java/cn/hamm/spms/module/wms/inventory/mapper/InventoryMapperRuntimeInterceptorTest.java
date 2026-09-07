@@ -110,12 +110,24 @@ class InventoryMapperRuntimeInterceptorTest {
     }
 
     @Test
+    @DisplayName("库存导出取数走同一权限链：只返回当前租户可见行且固定 id 倒序")
+    void exportSelectSharesPermissionPredicate() {
+        try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
+            List<InventoryEntity> rows = inventoryMapper.selectForExport(1, List.of(), List.of());
+            assertEquals(2, rows.size());
+            assertEquals(2L, rows.get(0).getId());
+            assertEquals(1L, rows.get(1).getId());
+        }
+    }
+
+    @Test
     @DisplayName("库存没有可达策略时拒绝全部行")
     void noPolicyDeniesAllRows() {
         jdbcTemplate.update("DELETE FROM data_policy");
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             assertEquals(0L, inventoryMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(inventoryMapper.selectDetailByPermission(1L));
+            assertEquals(0, inventoryMapper.selectForExport(1, List.of(), List.of()).size());
         }
     }
 }

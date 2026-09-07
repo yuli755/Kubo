@@ -60,6 +60,20 @@ public interface InputMapper extends KuboBaseMapper<InputEntity>, RowParityCount
     );
 
     /**
+     * 真实导出取数出口；权限条件由运行时拦截器按 statement ID 注入，业务筛选与分页一致，固定 id 倒序。
+     *
+     * @param billCode 单号模糊筛选
+     * @param status   单据状态
+     * @param type     单据类型
+     * @return 当前主体可见且满足筛选条件的全部行
+     */
+    List<InputEntity> selectForExport(
+            @Param("billCode") String billCode,
+            @Param("status") Integer status,
+            @Param("type") Integer type
+    );
+
+    /**
      * @param parameters fragment 与业务筛选参数
      * @return 行数
      */

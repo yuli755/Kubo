@@ -92,6 +92,16 @@
         WHERE i.id = #{id}
     </select>
 
+    <select id="selectForExport" resultMap="inputReadMap">
+        SELECT
+        <include refid="inputColumns"/>
+        FROM input i
+        <where>
+            <include refid="inputFilter"/>
+        </where>
+        ORDER BY i.id DESC
+    </select>
+
     <select id="countByPermission" resultType="long">
         SELECT COUNT(1)
         FROM input i

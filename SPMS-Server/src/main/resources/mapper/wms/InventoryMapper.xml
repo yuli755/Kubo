@@ -98,6 +98,16 @@
         WHERE i.id = #{id}
     </select>
 
+    <select id="selectForExport" resultMap="inventoryReadMap">
+        SELECT
+        <include refid="inventoryColumns"/>
+        FROM inventory i
+        <where>
+            <include refid="inventoryFilter"/>
+        </where>
+        ORDER BY i.id DESC
+    </select>
+
     <select id="countByPermission" resultType="long">
         SELECT COUNT(1)
         FROM inventory i

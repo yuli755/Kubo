@@ -4,6 +4,8 @@ import cn.hamm.airpower.api.annotation.Api;
 import cn.hamm.airpower.core.Json;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.curd.annotation.Extends;
+import cn.hamm.airpower.curd.base.Curd;
+import cn.hamm.airpower.curd.model.query.QueryListRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import cn.hamm.spms.base.BaseController;
 import org.jetbrains.annotations.NotNull;
@@ -22,7 +24,7 @@ import static cn.hamm.airpower.exception.Errors.DATA_NOT_FOUND;
  */
 @Api("inventory")
 @Description("库存")
-@Extends({GetDetail, GetPage})
+@Extends({GetDetail, GetPage, Curd.Export, Curd.QueryExport})
 public class InventoryController extends BaseController<InventoryEntity, InventoryService, InventoryRepository> {
 
     /**
@@ -51,5 +53,23 @@ public class InventoryController extends BaseController<InventoryEntity, Invento
         InventoryEntity entity = service.getMapperDetail(source.getId());
         DATA_NOT_FOUND.whenNull(entity);
         return Json.data(entity);
+    }
+
+    /**
+     * 库存导出出口：Mapper 读链路开启时走受权限拦截的取数 + 请求线程列级遮蔽；关闭时回退框架 JPA 导出。
+     * 返回 fileCode 契约与框架一致，前端 queryExport 不变。
+     *
+     * @param request 导出请求
+     * @return 导出任务文件编码
+     */
+    @Override
+    @Description("创建导出任务")
+    @PostMapping("export")
+    public Json export(@RequestBody QueryListRequest<InventoryEntity> request) {
+        if (!service.isMapperReadEnabled()) {
+            return super.export(request);
+        }
+        Curd.Export.checkApiAvailable(this);
+        return Json.data(service.createMapperExportTask(request), "导出任务创建成功");
     }
 }

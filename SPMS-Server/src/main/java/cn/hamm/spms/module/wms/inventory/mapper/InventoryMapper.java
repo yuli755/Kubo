@@ -67,6 +67,20 @@ public interface InventoryMapper extends KuboBaseMapper<InventoryEntity>, RowPar
     );
 
     /**
+     * 真实导出取数出口；权限条件由运行时拦截器按 statement ID 注入，业务筛选与分页一致，固定 id 倒序。
+     *
+     * @param type         库存类型
+     * @param storageIds   仓库及子仓库 ID
+     * @param structureIds 生产单元及子单元 ID
+     * @return 当前主体可见且满足筛选条件的全部行
+     */
+    List<InventoryEntity> selectForExport(
+            @Param("type") Integer type,
+            @Param("storageIds") List<Long> storageIds,
+            @Param("structureIds") List<Long> structureIds
+    );
+
+    /**
      * ORM parity 探针。
      *
      * @param parameters fragment 与本资源业务筛选参数

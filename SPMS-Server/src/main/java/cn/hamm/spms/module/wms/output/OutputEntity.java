@@ -2,6 +2,7 @@ package cn.hamm.spms.module.wms.output;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Dictionary;
+import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.airpower.core.annotation.Meta;
 import cn.hamm.airpower.curd.annotation.Search;
 import cn.hamm.spms.base.bill.AbstractBaseBillEntity;
@@ -44,16 +45,19 @@ public class OutputEntity extends AbstractBaseBillEntity<OutputEntity, OutputDet
     @AutoGenerateCode(OutputBillCode)
     @Search
     @Meta
+    @Export
     private String billCode;
 
     @Description("出库状态")
     @Column(columnDefinition = "int UNSIGNED default 1 comment '出库状态'")
     @Dictionary(value = OutputStatus.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer status;
 
     @Description("出库类型")
     @Column(columnDefinition = "int UNSIGNED default 1 comment '出库类型'")
     @Dictionary(value = OutputType.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer type;
 
     @Description("销售单")

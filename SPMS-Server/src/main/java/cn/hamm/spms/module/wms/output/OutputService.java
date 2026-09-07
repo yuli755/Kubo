@@ -1,8 +1,11 @@
 package cn.hamm.spms.module.wms.output;
 
+import cn.hamm.airpower.core.CollectionUtil;
 import cn.hamm.airpower.core.DictionaryUtil;
 import cn.hamm.airpower.core.interfaces.IDictionary;
+import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
+import cn.hamm.airpower.curd.model.query.QueryListRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
@@ -12,6 +15,7 @@ import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
+import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import cn.hamm.spms.module.wms.WmsServices;
 import cn.hamm.spms.module.wms.inventory.InventoryEntity;
 import cn.hamm.spms.module.wms.inventory.InventoryService;
@@ -29,6 +33,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,6 +55,9 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
 
     @Autowired
     private OutputReadShadowService outputReadShadowService;
+
+    @Autowired
+    private ExportHelper exportHelper;
 
     @Autowired
     private DataPermissionSpecification dataPermissionSpecification;
@@ -119,6 +127,23 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
             bill.setPicking(MesServices.getPickingService().getMapperDetail(bill.getPicking().getId()));
         }
         return bill;
+    }
+
+    /**
+     * 出库单真实导出出口（Mapper）。与入库单同模板：取数走权限拦截链，遮蔽在请求线程，落盘走框架异步契约。
+     *
+     * @param request 导出请求（含单号/状态/类型筛选）
+     * @return 导出任务文件编码，供前端 {@code queryExport} 轮询下载
+     */
+    public String createMapperExportTask(QueryListRequest<OutputEntity> request) {
+        OutputEntity filter = request == null || request.getFilter() == null ? new OutputEntity() : request.getFilter();
+        outputReadShadowService.submit(filter);
+        List<OutputEntity> rows = outputMapper.selectForExport(filter.getBillCode(), filter.getStatus(), filter.getType());
+        List<OutputEntity> masked = ExportColumnMasker.maskForExport(rows);
+        return exportHelper.createExportTask(() -> {
+            InputStream stream = CollectionUtil.toCsvInputStream(masked, OutputEntity.class);
+            return exportHelper.saveExportFileStream(stream);
+        });
     }
 
     @Override

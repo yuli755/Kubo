@@ -5,6 +5,7 @@ import cn.hamm.airpower.core.Json;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.curd.annotation.Extends;
 import cn.hamm.airpower.curd.base.Curd;
+import cn.hamm.airpower.curd.model.query.QueryListRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import cn.hamm.spms.base.bill.BaseBillController;
 import org.jetbrains.annotations.NotNull;
@@ -26,7 +27,7 @@ import static cn.hamm.airpower.exception.Errors.DATA_NOT_FOUND;
  */
 @Api("output")
 @Description("出库")
-@Extends(exclude = Curd.Delete)
+@Extends(value = {Curd.Export, Curd.QueryExport}, exclude = Curd.Delete)
 public class OutputController extends BaseBillController<OutputEntity, OutputService, OutputRepository, OutputDetailEntity, OutputDetailService, OutputDetailRepository> {
     @Override
     @PostMapping("getPage")
@@ -48,5 +49,22 @@ public class OutputController extends BaseBillController<OutputEntity, OutputSer
         OutputEntity entity = service.getMapperDetail(source.getId());
         DATA_NOT_FOUND.whenNull(entity);
         return Json.data(entity);
+    }
+
+    /**
+     * 出库单导出出口：Mapper 读链路开启时走受权限拦截的取数 + 请求线程列级遮蔽；关闭时回退框架 JPA 导出。
+     *
+     * @param request 导出请求
+     * @return 导出任务文件编码
+     */
+    @Override
+    @Description("创建导出任务")
+    @PostMapping("export")
+    public Json export(@RequestBody QueryListRequest<OutputEntity> request) {
+        if (!service.isMapperReadEnabled()) {
+            return super.export(request);
+        }
+        Curd.Export.checkApiAvailable(this);
+        return Json.data(service.createMapperExportTask(request), "导出任务创建成功");
     }
 }

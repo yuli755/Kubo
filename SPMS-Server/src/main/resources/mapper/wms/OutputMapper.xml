@@ -83,6 +83,13 @@
         WHERE o.id = #{id}
     </select>
 
+    <select id="selectForExport" resultMap="outputReadMap">
+        SELECT <include refid="outputColumns"/>
+        FROM `output` o
+        <where><include refid="outputFilter"/></where>
+        ORDER BY o.id DESC
+    </select>
+
     <select id="countByPermission" resultType="long">
         SELECT COUNT(1)
         FROM `output` o

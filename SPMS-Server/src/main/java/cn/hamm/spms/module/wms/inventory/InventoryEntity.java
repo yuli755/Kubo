@@ -2,6 +2,7 @@ package cn.hamm.spms.module.wms.inventory;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Dictionary;
+import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
@@ -38,12 +39,14 @@ public class InventoryEntity extends TenantAwareEntity<InventoryEntity> {
     private MaterialEntity material;
 
     @Description("库存数量")
+    @Export(Export.Type.NUMBER)
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '库存数量'")
     private Double quantity;
 
     @Description("存储类型")
     @Column(columnDefinition = "int UNSIGNED default 1 comment '存储类型'")
     @Dictionary(value = InventoryType.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer type;
 
     @Description("仓库")

@@ -1,10 +1,13 @@
 package cn.hamm.spms.module.wms.inventory;
 
+import cn.hamm.airpower.core.CollectionUtil;
 import cn.hamm.airpower.core.DictionaryUtil;
 import cn.hamm.airpower.core.NumberUtil;
 import cn.hamm.airpower.core.TreeUtil;
 import cn.hamm.airpower.curd.base.CurdEntity;
+import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
+import cn.hamm.airpower.curd.model.query.QueryListRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
@@ -20,6 +23,7 @@ import cn.hamm.spms.module.factory.structure.StructureEntity;
 import cn.hamm.spms.module.factory.structure.StructureService;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
+import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import cn.hamm.spms.module.wms.inventory.enums.InventoryType;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Join;
@@ -29,6 +33,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -52,6 +57,9 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
 
     @Autowired
     private InventoryReadShadowService inventoryReadShadowService;
+
+    @Autowired
+    private ExportHelper exportHelper;
 
     @Autowired
     private MaterialService materialService;
@@ -140,6 +148,32 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
         InventoryEntity normalized = filter == null ? new InventoryEntity() : filter;
         return inventoryMapper.countByPermission(normalized.getType(), storageIds(normalized, normalized.getType()),
                 structureIds(normalized, normalized.getType()));
+    }
+
+    /**
+     * 库存真实导出出口（Mapper）。
+     *
+     * <p>行集经 {@link InventoryMapper#selectForExport} 走与分页/详情/总数相同的权限拦截链，
+     * 列级遮蔽在<b>请求线程</b>完成后再交给 {@link ExportHelper#createExportTask} 落盘，
+     * 保留 {@code fileCode → queryExport} 的异步下载契约。库存无 {@code @SensitiveField}，
+     * {@link ExportColumnMasker#maskForExport} 不改变行内容，但保留同一份遮蔽实现以防后续加敏感列。</p>
+     *
+     * @param request 导出请求（含库存类型/树节点筛选）
+     * @return 导出任务文件编码，供前端 {@code queryExport} 轮询下载
+     */
+    public String createMapperExportTask(QueryListRequest<InventoryEntity> request) {
+        InventoryEntity filter = request == null || request.getFilter() == null
+                ? new InventoryEntity() : request.getFilter();
+        Integer type = filter.getType();
+        List<Long> storageIds = storageIds(filter, type);
+        List<Long> structureIds = structureIds(filter, type);
+        inventoryReadShadowService.submit(type, storageIds, structureIds);
+        List<InventoryEntity> rows = inventoryMapper.selectForExport(type, storageIds, structureIds);
+        List<InventoryEntity> masked = ExportColumnMasker.maskForExport(rows);
+        return exportHelper.createExportTask(() -> {
+            InputStream stream = CollectionUtil.toCsvInputStream(masked, InventoryEntity.class);
+            return exportHelper.saveExportFileStream(stream);
+        });
     }
 
     private List<Long> storageIds(InventoryEntity filter, Integer type) {

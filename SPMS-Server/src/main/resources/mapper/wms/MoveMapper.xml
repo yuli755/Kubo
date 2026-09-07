@@ -64,6 +64,13 @@
         WHERE m.id = #{id}
     </select>
 
+    <select id="selectForExport" resultMap="moveReadMap">
+        SELECT <include refid="moveColumns"/>
+        FROM move m
+        <where><include refid="moveFilter"/></where>
+        ORDER BY m.id DESC
+    </select>
+
     <select id="countByPermission" resultType="long">
         SELECT COUNT(1)
         FROM move m

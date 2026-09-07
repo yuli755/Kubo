@@ -1,9 +1,12 @@
 package cn.hamm.spms.module.wms.input;
 
+import cn.hamm.airpower.core.CollectionUtil;
 import cn.hamm.airpower.core.DictionaryUtil;
 import cn.hamm.airpower.core.ReflectUtil;
 import cn.hamm.airpower.core.interfaces.IDictionary;
+import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
+import cn.hamm.airpower.curd.model.query.QueryListRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
@@ -14,6 +17,7 @@ import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
+import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import cn.hamm.spms.module.wms.WmsServices;
 import cn.hamm.spms.module.wms.input.detail.InputDetailEntity;
 import cn.hamm.spms.module.wms.input.detail.InputDetailRepository;
@@ -33,6 +37,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -56,6 +61,9 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
 
     @Autowired
     private InputReadShadowService inputReadShadowService;
+
+    @Autowired
+    private ExportHelper exportHelper;
 
     @Autowired
     private DataPermissionSpecification dataPermissionSpecification;
@@ -121,6 +129,28 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
         }
         hydrateRelations(bill);
         return bill;
+    }
+
+    /**
+     * 入库单真实导出出口（Mapper）。
+     *
+     * <p>行集经 {@link InputMapper#selectForExport} 走与分页/详情/总数相同的权限拦截链，列级遮蔽在
+     * <b>请求线程</b>完成后交给 {@link ExportHelper#createExportTask} 落盘，保留异步下载契约。
+     * 入库单无 {@code @SensitiveField}，{@link ExportColumnMasker#maskForExport} 不改变行内容，
+     * 但保留同一份遮蔽实现以防后续在明细/单据上新增敏感列。</p>
+     *
+     * @param request 导出请求（含单号/状态/类型筛选）
+     * @return 导出任务文件编码，供前端 {@code queryExport} 轮询下载
+     */
+    public String createMapperExportTask(QueryListRequest<InputEntity> request) {
+        InputEntity filter = request == null || request.getFilter() == null ? new InputEntity() : request.getFilter();
+        inputReadShadowService.submit(filter);
+        List<InputEntity> rows = inputMapper.selectForExport(filter.getBillCode(), filter.getStatus(), filter.getType());
+        List<InputEntity> masked = ExportColumnMasker.maskForExport(rows);
+        return exportHelper.createExportTask(() -> {
+            InputStream stream = CollectionUtil.toCsvInputStream(masked, InputEntity.class);
+            return exportHelper.saveExportFileStream(stream);
+        });
     }
 
     /**

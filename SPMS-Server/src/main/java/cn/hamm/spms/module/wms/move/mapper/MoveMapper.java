@@ -35,5 +35,13 @@ public interface MoveMapper extends KuboBaseMapper<MoveEntity>, RowParityCounter
             @Param("status") Integer status
     );
 
+    /**
+     * 真实导出取数出口；权限条件由运行时拦截器按 statement ID 注入，业务筛选与分页一致，固定 id 倒序。
+     */
+    List<MoveEntity> selectForExport(
+            @Param("billCode") String billCode,
+            @Param("status") Integer status
+    );
+
     Long countByPermissionFragment(Map<String, Object> parameters);
 }
