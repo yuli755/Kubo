@@ -6,6 +6,7 @@ import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.module.asset.material.mapper.MaterialMapper;
+import cn.hamm.spms.module.asset.material.mapper.MaterialReadShadowService;
 import cn.hamm.spms.module.asset.material.mapper.MaterialReadStat;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
@@ -36,6 +37,9 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
      */
     @Autowired(required = false)
     private MaterialMapper materialMapper;
+
+    @Autowired
+    private MaterialReadShadowService materialReadShadowService;
 
     /**
      * @return 是否已启用 Material 的 Mapper 读路径
@@ -72,6 +76,7 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
         int offset = (int) offsetValue;
+        materialReadShadowService.submit();
         List<MaterialEntity> list = materialMapper.selectPageByPermission(filter, offset, pageSize);
         long total = materialMapper.countByPermission(filter);
         int totalAsInt = Math.toIntExact(total);
@@ -93,7 +98,11 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
      * @return 详情或 null
      */
     public MaterialEntity getMapperDetail(long id) {
-        return isMapperReadEnabled() ? materialMapper.selectDetailByPermission(id) : get(id);
+        if (!isMapperReadEnabled()) {
+            return get(id);
+        }
+        materialReadShadowService.submit();
+        return materialMapper.selectDetailByPermission(id);
     }
 
     /**
@@ -104,7 +113,11 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
      */
     public long getMapperCount(MaterialEntity filter) {
         MaterialEntity normalized = filter == null ? new MaterialEntity() : filter;
-        return isMapperReadEnabled() ? materialMapper.countByPermission(normalized) : filter(normalized).size();
+        if (isMapperReadEnabled()) {
+            materialReadShadowService.submit();
+            return materialMapper.countByPermission(normalized);
+        }
+        return filter(normalized).size();
     }
 
     /**
@@ -116,6 +129,7 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
     public MaterialReadStat getMapperStat(MaterialEntity filter) {
         MaterialEntity normalized = filter == null ? new MaterialEntity() : filter;
         if (isMapperReadEnabled()) {
+            materialReadShadowService.submit();
             return materialMapper.statByPermission(normalized);
         }
         List<MaterialEntity> rows = filter(normalized);
