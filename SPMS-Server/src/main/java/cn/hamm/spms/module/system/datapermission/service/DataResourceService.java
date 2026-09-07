@@ -5,7 +5,9 @@ import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
+import cn.hamm.spms.module.system.datapermission.entity.DataPermissionDiffEntity;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDiffRepository;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
 import cn.hamm.spms.module.system.datapermission.rule.OwnerColumnRegistration;
@@ -13,6 +15,7 @@ import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleSupport;
 import jakarta.persistence.EntityManagerFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
@@ -64,18 +67,29 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      */
     private final ApplicationContext applicationContext;
 
+    /**
+     * 影子比对差异表（放开前置检查要查它）。
+     *
+     * <p>用 {@link ObjectProvider} 而不是直接注入：这张表在某些环境（最小化测试库）可能不存在，
+     * 此时<em>必须报"拿不到证据"</em>而不是"没有差异" —— 后者会伪装成"影子跑过且干净"，
+     * 是放开判断里最贵的一种错。</p>
+     */
+    private final ObjectProvider<DataPermissionDiffRepository> diffRepositoryProvider;
+
     public DataResourceService(DataPermissionEventPublisher eventPublisher,
                                DataFieldPolicyProvider fieldPolicyProvider,
                                DataPolicyService rowPolicyService,
                                EntityManagerFactory entityManagerFactory,
                                DataPermissionProperties properties,
-                               ApplicationContext applicationContext) {
+                               ApplicationContext applicationContext,
+                               ObjectProvider<DataPermissionDiffRepository> diffRepositoryProvider) {
         this.eventPublisher = eventPublisher;
         this.fieldPolicyProvider = fieldPolicyProvider;
         this.rowPolicyService = rowPolicyService;
         this.entityManagerFactory = entityManagerFactory;
         this.properties = properties;
         this.applicationContext = applicationContext;
+        this.diffRepositoryProvider = diffRepositoryProvider;
     }
 
     /**
@@ -261,22 +275,10 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
         DataPermissionProperties.Mode mode = properties.effectiveMode(resourceKey);
         boolean inList = properties.getEnforceResources().contains(resourceKey);
 
-        long query = 0L;
-        long write = 0L;
-        long export = 0L;
-        List<DataPolicyEntity> policies = resource.getId() == null
-                ? List.of() : rowPolicyService.getEnabledPoliciesByResource(resource.getId());
-        for (DataPolicyEntity policy : policies) {
-            String action = policy.getActionName();
-            if (DataPermissionAction.QUERY.name().equals(action)) {
-                query++;
-            } else if (DataPermissionAction.UPDATE.name().equals(action)
-                    || DataPermissionAction.DELETE.name().equals(action)) {
-                write++;
-            } else if (DataPermissionAction.EXPORT.name().equals(action)) {
-                export++;
-            }
-        }
+        RowPolicyCounts counts = countRowPolicies(resource);
+        long query = counts.query();
+        long write = counts.write();
+        long export = counts.export();
         long fieldCount = fieldPolicyProvider.getEnabledPoliciesByResource(resourceKey).size();
 
         List<String> notes = runtimeNotes(resource, mode, query, write, bindingRiskCount, properties);
@@ -294,6 +296,293 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
                 bindingRiskCount,
                 notes
         );
+    }
+
+    /**
+     * 放开前置检查里的<em>一项</em>
+     *
+     * @param code     稳定标识（前端与门禁认它，不认文案）
+     * @param title    人话标题
+     * @param passed   是否通过
+     * @param blocking 未通过时是否阻塞放开（{@code false} = 只是提醒，不影响 ready）
+     * @param detail   结论说明（含下一步该做什么）
+     */
+    public record ReadinessCheck(String code,
+                                 String title,
+                                 boolean passed,
+                                 boolean blocking,
+                                 String detail) {
+    }
+
+    /**
+     * 一个资源的"现在能不能进 enforce 名单"结论
+     *
+     * @param resourceKey   资源标识
+     * @param effectiveMode 该资源此刻的生效模式
+     * @param ready         所有阻塞项都通过
+     * @param blockers      未通过的阻塞项标题（前端直接显示，不再判一遍）
+     * @param checks        全部检查项（含提醒项）
+     */
+    public record Readiness(String resourceKey,
+                            String effectiveMode,
+                            boolean ready,
+                            List<String> blockers,
+                            List<ReadinessCheck> checks) {
+    }
+
+    /**
+     * 判据的输入：全部由调用方数好，{@link #readinessChecks} 本身<em>不查库</em>
+     *
+     * <p>这么切只有一个理由：判据必须能脱离 Spring 单测（与 {@link #runtimeNotes} 同一套办法）。
+     * 「取数」是易变的部分，「怎么判」才是需要被钉住的部分。</p>
+     *
+     * @param resource                 资源行（为 null 时按"未登记"处理）
+     * @param mode                     该资源此刻的生效模式
+     * @param queryPolicyCount         启用中的 QUERY 行级策略数
+     * @param writePolicyCount         启用中的 UPDATE + DELETE 行级策略数
+     * @param bindingRiskCount         维度可绑定性风险条数
+     * @param exportGap                该资源是否存在"配了遮蔽、没有导出明文授权"的缺口
+     * @param shadowTableAvailable     差异表是否可读
+     * @param shadowAnomalies          差异表里 ANOMALY + ERROR 的条数
+     * @param shadowFilteredSamples    差异表里 EXPECTED_FILTER 的条数（证明防护真的生效过）
+     */
+    public record ReadinessInput(DataResourceEntity resource,
+                                 DataPermissionProperties.Mode mode,
+                                 long queryPolicyCount,
+                                 long writePolicyCount,
+                                 long bindingRiskCount,
+                                 boolean exportGap,
+                                 boolean shadowTableAvailable,
+                                 long shadowAnomalies,
+                                 long shadowFilteredSamples) {
+    }
+
+    /**
+     * 一个资源启用中的行级策略按动作数好的计数
+     *
+     * @param query  QUERY 条数
+     * @param write  UPDATE + DELETE 条数
+     * @param export EXPORT 条数
+     */
+    record RowPolicyCounts(long query, long write, long export) {
+    }
+
+    /**
+     * 按动作数一遍启用中的行级策略（灰度面板与放开前置检查共用这一份数法）
+     *
+     * <p>两处都在数「QUERY 几条、UPDATE+DELETE 几条」，而放开检查的结论完全建立在这两个数上。
+     * 抄第二遍的风险不是当场算错，是两处的口径慢慢分叉 —— 例如一处顺手把 EXPORT 算进 write、
+     * 另一处没算，于是面板与检查对同一个资源给出相反的说法，而这两样东西是同一个动作的两只眼。</p>
+     *
+     * @param resource 资源行
+     * @return 三档计数（资源未落库时全为 0）
+     */
+    private RowPolicyCounts countRowPolicies(DataResourceEntity resource) {
+        long query = 0L;
+        long write = 0L;
+        long export = 0L;
+        if (resource.getId() != null) {
+            for (DataPolicyEntity policy : rowPolicyService.getEnabledPoliciesByResource(resource.getId())) {
+                String action = policy.getActionName();
+                if (DataPermissionAction.QUERY.name().equals(action)) {
+                    query++;
+                } else if (DataPermissionAction.UPDATE.name().equals(action)
+                        || DataPermissionAction.DELETE.name().equals(action)) {
+                    write++;
+                } else if (DataPermissionAction.EXPORT.name().equals(action)) {
+                    export++;
+                }
+            }
+        }
+        return new RowPolicyCounts(query, write, export);
+    }
+
+    /**
+     * 「能不能放开」的判据（静态，不查库）
+     *
+     * <p>为什么要有这个端点：{@code enforce-resources} 名单是把双刃剑 —— 少配一项会让防护形同虚设，
+     * 多配一项会让保存报错或列表查空。此前"该资源准备好了没有"只能靠人对着策略表数，
+     * 而数错的代价发生在<em>放开之后</em>。这里把六件事一次判完，并且刻意用两条比直觉更严的规矩：</p>
+     *
+     * <ul>
+     *   <li><b>影子证据必须"有 EXPECTED_FILTER 样本且无异常"</b>。只看"差异为 0"是错的：
+     *       一行差异都没有也可能意味着这个主体压根没被过滤（策略没命中），那正是放开后
+     *       "以为有防护"的状态；</li>
+     *   <li><b>拿不到差异表 = 不通过</b>，而不是当作"没有差异" —— 后者会把"没证据"伪装成"已验证"。</li>
+     * </ul>
+     *
+     * @param in         输入
+     * @param properties 灰度配置
+     * @return 检查项（顺序固定，便于对比与显示）
+     */
+    static List<ReadinessCheck> readinessChecks(ReadinessInput in, DataPermissionProperties properties) {
+        List<ReadinessCheck> checks = new ArrayList<>();
+        // runtimeNotes 直接读 status，这里先补一个「未登记」的替身，免得判据方法变成 NPE 现场
+        DataResourceEntity resource = in.resource() == null
+                ? new DataResourceEntity().setStatus("MISSING") : in.resource();
+        boolean enabled = "ENABLED".equals(resource.getStatus());
+        checks.add(new ReadinessCheck("REGISTERED_ENABLED", "资源已登记且启用", enabled, true,
+                enabled ? "status=ENABLED"
+                        : "资源未登记或已停用：读写两侧都会把它当未登记处理"));
+
+        checks.add(new ReadinessCheck("DIMENSIONS_BINDABLE", "已用维度都能绑到列", in.bindingRiskCount() == 0L, true,
+                in.bindingRiskCount() == 0L ? "无绑定风险"
+                        : "仍有 " + in.bindingRiskCount() + " 条维度绑不上列：enforce 下这些条件恒假，"
+                                + "该主体一行也查不到（先在「维度可绑定性」面板清零）"));
+
+        boolean queryOk = in.queryPolicyCount() > 0L;
+        checks.add(new ReadinessCheck("QUERY_POLICY", "查询侧至少有一条启用的策略", queryOk, true,
+                queryOk ? in.queryPolicyCount() + " 条 QUERY 策略"
+                        : "没有任何 QUERY 策略：放开后这一档不会过滤任何东西，「已 enforce」会变成假绿灯"));
+
+        boolean writeOk = in.writePolicyCount() > 0L;
+        checks.add(new ReadinessCheck("WRITE_POLICY", "更新/删除有策略", writeOk, true,
+                writeOk ? in.writePolicyCount() + " 条 UPDATE/DELETE 策略"
+                        : "没有 UPDATE/DELETE 策略：进名单后 DataPermissionGuard 会把该资源的保存与删除直接拒掉"));
+
+        checks.add(new ReadinessCheck("EXPORT_GRANT", "导出遮蔽列已配明文授权", !in.exportGap(), false,
+                in.exportGap() ? "存在「配了遮蔽、没有 EXPORT 明文授权」的列：受限角色一旦点导出会整份被拒"
+                        + "（这是 fail-closed 的预期行为，不阻塞放开；要放行某角色就补 actionName=EXPORT 策略）"
+                        : "无导出授权缺口"));
+
+        boolean shadowOk;
+        String shadowDetail;
+        if (!in.shadowTableAvailable()) {
+            shadowOk = false;
+            shadowDetail = "读不到影子差异表（未建表或数据源不可用）：无法证明影子比对跑过，不能视为「没有差异」";
+        } else if (in.shadowAnomalies() > 0L) {
+            shadowOk = false;
+            shadowDetail = "有 " + in.shadowAnomalies() + " 条 ANOMALY/ERROR 差异：先逐条解释或修好，再放开";
+        } else if (in.shadowFilteredSamples() == 0L) {
+            shadowOk = false;
+            shadowDetail = "还没有一条 EXPECTED_FILTER 样本：说明"
+                    + "「加条件后会少行」这件事从未被证明过（也可能是该主体本来就没被过滤）";
+        } else {
+            shadowOk = true;
+            shadowDetail = in.shadowFilteredSamples() + " 条 EXPECTED_FILTER 样本，0 条异常";
+        }
+        checks.add(new ReadinessCheck("SHADOW_EVIDENCE", "影子比对已有正向样本且无异常", shadowOk, true, shadowDetail));
+
+        List<String> notes = runtimeNotes(resource, in.mode(), in.queryPolicyCount(), in.writePolicyCount(),
+                in.bindingRiskCount(), properties);
+        checks.add(new ReadinessCheck("CONFIG_NOTES", "配置与策略数量之间没有已知冲突", notes.isEmpty(), true,
+                notes.isEmpty() ? "无" : String.join("；", notes)));
+        return checks;
+    }
+
+    /**
+     * 是否可放开：所有阻塞项都通过
+     *
+     * @param checks 检查项
+     * @return 可以放开返回 true
+     */
+    static boolean readyOf(List<ReadinessCheck> checks) {
+        if (checks == null || checks.isEmpty()) {
+            return false;
+        }
+        return checks.stream().noneMatch(c -> c.blocking() && !c.passed());
+    }
+
+    /**
+     * 未通过的阻塞项标题
+     *
+     * @param checks 检查项
+     * @return 阻塞原因列表（可能为空）
+     */
+    static List<String> blockersOf(List<ReadinessCheck> checks) {
+        List<String> blockers = new ArrayList<>();
+        for (ReadinessCheck check : checks) {
+            if (check.blocking() && !check.passed()) {
+                blockers.add(check.title() + "：" + check.detail());
+            }
+        }
+        return blockers;
+    }
+
+    /**
+     * 单个资源的放开前置检查（<b>只报数，不拦阻</b>：放开与否仍是配置动作）
+     *
+     * @param resourceKey 资源标识；为 null / 未登记时返回一份"全红"结果而不是抛异常
+     * @return 结论
+     */
+    public Readiness readiness(String resourceKey) {
+        DataResourceEntity resource = resourceKey == null ? null : repository.getByResourceKey(resourceKey);
+        if (resource == null) {
+            DataResourceEntity ghost = new DataResourceEntity().setResourceKey(resourceKey).setStatus("MISSING");
+            List<ReadinessCheck> checks = readinessChecks(new ReadinessInput(ghost,
+                    properties.effectiveMode(resourceKey), 0L, 0L, 0L, false, false, 0L, 0L), properties);
+            return new Readiness(resourceKey, properties.effectiveMode(resourceKey).name(), false,
+                    blockersOf(checks), checks);
+        }
+        return readinessOf(resource);
+    }
+
+    /**
+     * 全部已登记资源的放开前置检查（面板用；未登记的服务在 {@link #runtimeStatus()} 的另一张清单里）
+     *
+     * @return 按资源登记顺序
+     */
+    public List<Readiness> readinessAll() {
+        List<Readiness> result = new ArrayList<>();
+        List<DataResourceEntity> all = repository.findAll();
+        if (all == null) {
+            return result;
+        }
+        Map<String, Long> riskCounts = new LinkedHashMap<>();
+        for (DimensionBindingRiskItem risk : dimensionBindingRisks()) {
+            riskCounts.merge(risk.resourceKey(), 1L, Long::sum);
+        }
+        Set<String> gapKeys = new LinkedHashSet<>();
+        for (ExportGapItem gap : exportGaps()) {
+            gapKeys.add(gap.resourceKey());
+        }
+        for (DataResourceEntity resource : all) {
+            if (resource == null || resource.getResourceKey() == null) {
+                continue;
+            }
+            result.add(readinessOf(resource, riskCounts.getOrDefault(resource.getResourceKey(), 0L),
+                    gapKeys.contains(resource.getResourceKey())));
+        }
+        return result;
+    }
+
+    /**
+     * 组装一个资源的检查（取数在这里，判据在 {@link #readinessChecks}）
+     */
+    private Readiness readinessOf(DataResourceEntity resource) {
+        return readinessOf(resource,
+                dimensionBindingRisks().stream()
+                        .filter(item -> resource.getResourceKey().equals(item.resourceKey())).count(),
+                exportGaps().stream().anyMatch(item -> resource.getResourceKey().equals(item.resourceKey())));
+    }
+
+    /**
+     * 同上，但由调用方把两份盘点结果传进来（{@code readinessAll()} 复用同一次遍历）
+     */
+    private Readiness readinessOf(DataResourceEntity resource, long bindingRiskCount, boolean exportGap) {
+        String resourceKey = resource.getResourceKey();
+        RowPolicyCounts counts = countRowPolicies(resource);
+        long query = counts.query();
+        long write = counts.write();
+        long anomalies = 0L;
+        long filtered = 0L;
+        boolean tableAvailable = false;
+        DataPermissionDiffRepository diffRepository = diffRepositoryProvider == null
+                ? null : diffRepositoryProvider.getIfAvailable();
+        if (diffRepository != null && resourceKey != null) {
+            try {
+                anomalies = diffRepository.countByResourceKeyAndVerdict(resourceKey, DataPermissionDiffEntity.VERDICT_ANOMALY)
+                        + diffRepository.countByResourceKeyAndVerdict(resourceKey, DataPermissionDiffEntity.VERDICT_ERROR);
+                filtered = diffRepository.countByResourceKeyAndVerdict(resourceKey, DataPermissionDiffEntity.VERDICT_EXPECTED_FILTER);
+                tableAvailable = true;
+            } catch (RuntimeException e) {
+                log.warn("放开前置检查读不到影子差异表，按「无证据」处理: {}", e.getMessage());
+            }
+        }
+        List<ReadinessCheck> checks = readinessChecks(new ReadinessInput(resource, properties.effectiveMode(resourceKey),
+                query, write, bindingRiskCount, exportGap, tableAvailable, anomalies, filtered), properties);
+        return new Readiness(resourceKey, properties.effectiveMode(resourceKey).name(), readyOf(checks),
+                blockersOf(checks), checks);
     }
 
     /**

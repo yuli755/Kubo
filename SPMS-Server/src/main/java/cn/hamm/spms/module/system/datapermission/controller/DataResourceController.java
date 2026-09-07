@@ -99,4 +99,26 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
     public Json getRuntimeStatus() {
         return Json.data(service.runtimeStatus());
     }
+
+    /**
+     * 逐资源放开的前置检查（"现在能不能把这个资源写进 enforce-resources"）
+     *
+     * <p>名单是把双刃剑：少配一项，防护形同虚设；多配一项，保存报错或列表查空，而代价都要到
+     * <em>放开之后</em>才暴露。这里把六件事一次判完并给出一条条可直接照做的结论，其中最容易被跳过、
+     * 也最贵的一条是<em>影子证据</em>：只看"差异为 0"是不够的 —— 一行差异都没有，也可能是该主体
+     * 根本没被过滤；因此必须存在 {@code EXPECTED_FILTER} 样本，且 {@code ANOMALY/ERROR} 为 0，
+     * 读不到差异表时按"无证据"处理而不是"无差异"。</p>
+     *
+     * <p>只读、<b>不新增任何拦阻</b>（放开与否仍然是配置动作，这里只报数）；与其余盘点接口同一权限面。</p>
+     *
+     * @param resourceKey 资源标识；省略则返回全部已登记资源
+     * @return 检查结论（含 ready 与阻塞原因，前端不参与计算）
+     */
+    @GetMapping("enforce-readiness")
+    @Description("逐资源放开前置检查")
+    public Json getEnforceReadiness(String resourceKey) {
+        return Json.data(resourceKey == null || resourceKey.isBlank()
+                ? service.readinessAll()
+                : service.readiness(resourceKey));
+    }
 }

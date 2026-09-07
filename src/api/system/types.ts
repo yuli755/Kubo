@@ -304,6 +304,38 @@ export interface ResourceRuntimeStatus {
 }
 
 /**
+ * 放开前置检查里的单项（判据全在后端，这里只是回显）
+ */
+export interface EnforceReadinessCheck {
+  /** 稳定标识，前端样式/测试认它，不认文案 */
+  code: string
+  /** 人话标题 */
+  title: string
+  /** 是否通过 */
+  passed: boolean
+  /** 未通过时是否阻塞放开：false 表示只是提醒，不影响 ready */
+  blocking: boolean
+  /** 结论说明（含下一步） */
+  detail: string
+}
+
+/**
+ * 一个资源的"现在能不能进 enforce 名单"结论
+ */
+export interface EnforceReadiness {
+  /** 资源标识 */
+  resourceKey: string
+  /** 此刻生效档位（OFF | SHADOW | ENFORCE） */
+  effectiveMode: string
+  /** 所有阻塞项都通过（后端算，前端不得再算一遍） */
+  ready: boolean
+  /** 未通过的阻塞项，可直接显示 */
+  blockers: string[]
+  /** 全部检查项（含提醒项） */
+  checks: EnforceReadinessCheck[]
+}
+
+/**
  * 数据权限灰度状态总览（只读面板用）
  */
 export interface DataPermissionRuntimeStatus {

@@ -3,6 +3,7 @@ import { APanel, ATable } from '@airpower/web'
 import { ElAlert } from 'element-plus'
 import { useDataPermissionRuntimeStatus } from '@/composables/useDataPermissionRuntimeStatus'
 import { useDimensionBindingRiskReport } from '@/composables/useDimensionBindingRiskReport'
+import { useEnforceReadiness } from '@/composables/useEnforceReadiness'
 import { useExportGapReport } from '@/composables/useExportGapReport'
 import { useInertPolicyReport } from '@/composables/useInertPolicyReport'
 import { Permissions } from '@/config/permissions'
@@ -28,6 +29,14 @@ const {
   notePreview: runtimeNotePreview,
   unmanaged: runtimeUnmanaged,
 } = useDataPermissionRuntimeStatus()
+
+// 放开前置检查：ready / blockers 都是后端算好的（影子证据那条判据前端根本无从复现），这里只数条数
+const {
+  failed: readinessFailed,
+  total: readinessTotal,
+  readyCount: readinessReadyCount,
+  preview: readinessPreview,
+} = useEnforceReadiness()
 
 const hook = useTanStackTable(DataResourceService, {
   queryKey: ['system:datapermission:resource'],
@@ -117,6 +126,33 @@ const hook = useTanStackTable(DataResourceService, {
       show-icon
       title="未能取得灰度状态总览"
       description="刷新本页或检查 /dataResource/runtime-status 是否可用；取不到结果时不会显示为「一切正常」。"
+    />
+    <ElAlert
+      v-if="readinessFailed"
+      class="gap-warning"
+      type="info"
+      :closable="false"
+      show-icon
+      title="未能取得放开前置检查结果"
+      description="刷新本页或检查 /dataResource/enforce-readiness 是否可用；取不到结果时不会显示为「都可以放开」。"
+    />
+    <ElAlert
+      v-else-if="readinessTotal && readinessReadyCount < readinessTotal"
+      class="gap-warning"
+      type="warning"
+      :closable="false"
+      show-icon
+      title="还有资源不满足 enforce 放开前置"
+      :description="`${readinessTotal - readinessReadyCount} 个资源未就绪（${readinessPreview.join('；')}）。检查项与结论由后端给出，本页不参与判定；缺的补完再放开，一次只放一个。`"
+    />
+    <ElAlert
+      v-else-if="readinessTotal"
+      class="gap-warning"
+      type="success"
+      :closable="false"
+      show-icon
+      title="已登记资源都满足放开前置"
+      description="全绿只说明「可以试放一个」：放开后请回本页与审计页复核，一次只放一个资源。"
     />
     <ATable
       :use-hook="hook"

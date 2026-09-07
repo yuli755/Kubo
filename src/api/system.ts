@@ -9,6 +9,7 @@ import type {
   DataFieldPolicyQuery,
   DataPermissionRuntimeStatus,
   DimensionBindingRiskItem,
+  EnforceReadiness,
   ExportGapItem,
   InertPolicyItem,
   MaskPolicy,
@@ -217,6 +218,21 @@ export const dataResourceApi = {
    */
   getExportGaps(): Promise<ExportGapItem[]> {
     return request.get('/dataResource/export-gaps')
+  },
+
+  /**
+   * 逐资源放开的前置检查：「现在能不能把这个资源写进 `enforce-resources`」。
+   *
+   * 名单少配一项 = 防护形同虚设，多配一项 = 保存报错或列表查空，两种错都要到放开之后才暴露，
+   * 所以放开前先看这份报告。它只报数、不新增拦阻（放开与否仍是配置动作）。
+   *
+   * 与 `getExportGaps` 同挂 `dataResource`（跨资源的策略地图，不进业务用户也会调的策略接口）。
+   *
+   * @param resourceKey 省略则返回全部已登记资源
+   * @returns 单资源时是一条记录，全部时是数组
+   */
+  getEnforceReadiness(resourceKey?: string): Promise<EnforceReadiness | EnforceReadiness[]> {
+    return request.get('/dataResource/enforce-readiness', resourceKey ? { resourceKey } : undefined)
   },
 
   /**

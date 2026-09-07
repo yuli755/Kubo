@@ -22,4 +22,18 @@ public interface DataPermissionDiffRepository extends JpaRepository<DataPermissi
      * 某资源最近的差异（看板/排障用）
      */
     List<DataPermissionDiffEntity> findTop50ByResourceKeyOrderByIdDesc(String resourceKey);
+
+    /**
+     * 某资源在某一判定下的条数
+     *
+     * <p>为「逐资源放开」的前置检查准备：判断"影子比对是否已经跑过、有没有异常"要的是
+     * <b>全量计数</b>，翻最近 50 条会漏（差异很多时前 50 条可能全是正常的，而差异很少时
+     * 50 条又足够把样本之外的异常藏起来）。用 {@code countBy} 也让判据只依赖 verdict 一列，
+     * 不去猜表里还有什么。</p>
+     *
+     * @param resourceKey 资源标识
+     * @param verdict     判定（见 {@code DataPermissionDiffEntity.VERDICT_*}）
+     * @return 条数
+     */
+    long countByResourceKeyAndVerdict(String resourceKey, String verdict);
 }

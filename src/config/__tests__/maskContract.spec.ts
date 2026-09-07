@@ -1152,3 +1152,113 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
 function tsNameHint(names: string[]): string {
   return names.join(' / ')
 }
+
+describe('mask contract · 逐资源放开的前置检查', () => {
+  const DPM = join(SERVER, 'module', 'system', 'datapermission')
+  const SERVICE = join(DPM, 'service', 'DataResourceService.java')
+  const API = join(ROOT, 'src', 'api', 'system.ts')
+  const TYPES = join(ROOT, 'src', 'api', 'system', 'types.ts')
+  const READINESS_TEST = join(ROOT, 'SPMS-Server/src/test/java/cn/hamm/spms/module/system/datapermission/service/DataResourceReadinessTest.java')
+
+  it('enforce-readiness 路径前后端对得上，且只挂在管理端点上', () => {
+    expect(read(API)).toContain('request.get(\'/dataResource/enforce-readiness\'')
+    const controller = join(DPM, 'controller', 'DataResourceController.java')
+    expect(readJavaCode(controller)).toContain('@GetMapping("enforce-readiness")')
+    for (const file of collect(join(DPM, 'controller'), '.java')) {
+      if (file.endsWith('DataResourceController.java')) {
+        continue
+      }
+      expect(read(file), `放开前置检查出现在 ${file.split('/').pop()}：诊断端点的权限面会从 dataResource 漂走`)
+        .not
+        .toContain('enforce-readiness')
+    }
+  })
+
+  it('前端只回显结论，不反推 ready', () => {
+    // 命中写法：用 checks/blockers 自己算「能不能放开」，或在判断里读 blocking（那正是后端的判据）
+    const RECOMPUTE = /\bready\s*=[^\n]*\.(?:some|every|reduce|find)\s*\(|(?:checks|blockers)\.[^\n]{0,40}(?:some|every|reduce|find)\s*\(|\.blocking\b/
+    const offenders: string[] = []
+    for (const file of [...collect(join(ROOT, 'src', 'composables'), '.ts'), ...collect(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission'), '.vue')]) {
+      stripComments(read(file)).split('\n').forEach((line, index) => {
+        if (RECOMPUTE.test(line)) {
+          offenders.push(`${relative(ROOT, file)}:${index + 1}`)
+        }
+      })
+    }
+    expect(offenders, '前端在自行反推「能不能放开」：影子证据那条判据（要有 EXPECTED_FILTER 正向样本）前端无从复现').toEqual([])
+    // 自检：认得违规，也不误伤「把结论显示出来」
+    expect(RECOMPUTE.test('const ready = status.checks.every(c => c.passed)')).toBe(true)
+    expect(RECOMPUTE.test('row.blockers.find(x => x)')).toBe(true)
+    expect(RECOMPUTE.test('v-if="c.blocking"')).toBe(true)
+    expect(RECOMPUTE.test('const readyCount = items.filter(item => item.ready).length')).toBe(false)
+    expect(RECOMPUTE.test('state.readyCount = summary.readyCount')).toBe(false)
+    expect(RECOMPUTE.test('<ElTag v-if="row.ready">可放开</ElTag>')).toBe(false)
+
+    const list = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'resource', 'list.vue'))
+    expect(list).toContain('useEnforceReadiness')
+    expect(list, '取数失败必须能被看见（这里显示「都可以放开」会直接诱导一次错误的放开）')
+      .toMatch(/<ElAlert[^>]*v-if="readinessFailed"/)
+  })
+
+  it('判据与灰度面板同源，影子证据只认常量', () => {
+    const service = readJavaCode(SERVICE)
+    // 两处判据必须共用一份 runtimeNotes，否则面板说「先补策略」、检查说「可以放开」
+    expect(methodBody(service, 'List<ReadinessCheck> readinessChecks('), '放开前置检查另抄了一份配置判据：面板与检查会说法不一')
+      .toContain('runtimeNotes(')
+    // 影子证据读的是 verdict 常量，不是字符串（表里改枚举时这里要一起红）
+    const assembly = methodBody(service, 'Readiness readinessOf(DataResourceEntity resource, long bindingRiskCount')
+    for (const constant of ['VERDICT_ANOMALY', 'VERDICT_ERROR', 'VERDICT_EXPECTED_FILTER']) {
+      expect(assembly, `影子证据不再认 ${constant}：判据与表里的枚举定义开始分叉`).toContain(constant)
+    }
+    expect(service, '用字符串比较 verdict：枚举改名时会静默失效').not.toMatch(/equals\("(?:ANOMALY|ERROR|EXPECTED_FILTER)"\)/)
+    expect(assembly, '读不到差异表时不得当成「没有差异」').toContain('getIfAvailable()')
+  })
+
+  it('行级策略计数只有一份数法（面板与放开检查共用）', () => {
+    const code = readJavaCode(SERVICE)
+    const loops = code.match(/DataPermissionAction\.QUERY\.name\(\)\.equals\(/g) ?? []
+    expect(loops.length, '按动作数策略的循环被抄了第二遍：两处口径迟早分叉，面板与检查会对同一个资源给出相反说法')
+      .toBe(1)
+    expect(methodBody(code, 'ResourceRuntimeStatus statusOf(')).toContain('countRowPolicies(')
+    expect(methodBody(code, 'Readiness readinessOf(DataResourceEntity resource, long bindingRiskCount'))
+      .toContain('countRowPolicies(')
+  })
+
+  it('前置检查只报数：不进请求链路、不抛异常', () => {
+    const service = readJavaCode(SERVICE)
+    for (const signature of ['Readiness readiness(String resourceKey)', 'List<Readiness> readinessAll()']) {
+      const body = methodBody(service, signature)
+      expect(body).not.toContain('throw new')
+    }
+    const guard = readJavaCode(join(DPM, 'service', 'DataPermissionGuard.java'))
+    expect(guard, '守卫开始依赖 readiness：判据一处抛错就会把所有保存变成 500').not.toContain('readiness(')
+  })
+
+  it('契约字段前后端一一对得上（Readiness ↔ TS）', () => {
+    const java = stripComments(read(SERVICE))
+    const ts = stripComments(read(TYPES))
+    const pairs: Array<[string, string]> = [['Readiness', 'EnforceReadiness'], ['ReadinessCheck', 'EnforceReadinessCheck']]
+    for (const [javaName, tsName] of pairs) {
+      const at = java.indexOf(`public record ${javaName}(`)
+      expect(at, `后端找不到 record ${javaName}：放开前置检查的契约变了`).toBeGreaterThan(-1)
+      const params = java.slice(at, java.indexOf(')', at) + 1)
+      const javaFields = [...params.matchAll(/([A-Z]\w*)\s*[,)]/gi)].map(m => m[1]).filter(f => f !== javaName)
+      const start = ts.indexOf(`export interface ${tsName} {`)
+      expect(start, `前端缺 interface ${tsName}：那一格会永远空着`).toBeGreaterThan(-1)
+      const block = ts.slice(start, ts.indexOf('\n}', start))
+      const tsFields = [...block.matchAll(/^\s{2}(\w+)[:?]/gm)].map(m => m[1])
+      expect(new Set(tsFields), `${tsName}：前端有后端没有的字段（会一直是 undefined）`)
+        .toEqual(new Set(javaFields.filter(f => tsFields.includes(f))))
+      for (const field of javaFields) {
+        expect(tsFields, `${javaName}.${field} 在前端 interface 里缺失`).toContain(field)
+      }
+    }
+  })
+
+  it('最容易被「顺手改宽松」的两条判据有测试钉住', () => {
+    const test = read(READINESS_TEST)
+    expect(test, '缺了「0 差异 ≠ 安全」这条断言：把影子证据改成「差异为 0 就通过」将无人拦').toContain('EXPECTED_FILTER')
+    expect(test).toContain('consistentIsNotEnough')
+    expect(test, '缺了空判据默认不通过的断言').toContain('emptyChecksAreNotReady')
+  })
+})
