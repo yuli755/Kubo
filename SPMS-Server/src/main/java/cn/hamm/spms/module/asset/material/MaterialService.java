@@ -1,8 +1,8 @@
 package cn.hamm.spms.module.asset.material;
 
-import cn.hamm.airpower.curd.Page;
-import cn.hamm.airpower.curd.Sort;
+import cn.hamm.airpower.curd.model.query.Page;
 import cn.hamm.airpower.curd.model.query.QueryPageRequest;
+import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.module.asset.material.mapper.MaterialMapper;

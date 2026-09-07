@@ -5,7 +5,7 @@ import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.asset.material.MaterialService;
 import cn.hamm.spms.module.system.datapermission.service.RowPermissionPredicate;
-import cn.hamm.airpower.curd.Page;
+import cn.hamm.airpower.curd.model.query.Page;
 import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
