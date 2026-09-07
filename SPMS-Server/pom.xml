@@ -24,6 +24,16 @@
             </snapshots>
         </repository>
     </repositories>
+    <properties>
+        <!--
+          P2 读链路换轨的地基版本（§19.33）。两个 artifact 必须**同版本**：3.5.9 起 JSqlParser 被拆成
+          独立 artifact，只引 starter 不引 jsqlparser 的话，任何 InnerInterceptor（分页 / 我们的数据权限）
+          在第一次解析 SQL 时才 NoClassDefFoundError —— 那是"跑到线上第一个列表页才炸"的形状。
+          CI 的 Reject forbidden dependencies 会把这条成对规则钉住，不靠人记。
+        -->
+        <mybatis-plus.version>3.5.9</mybatis-plus.version>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>cn.hamm</groupId>
@@ -116,6 +126,23 @@
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>test</scope>
+        </dependency>
+
+        <!--
+          MyBatis-Plus（P2 换轨用）。本轮<em>只加依赖，不接线</em>：没有 @MapperScan、没有
+          MybatisPlusInterceptor、没有任何 XML —— 它的全部作用是让 `MybatisJpaCoexistenceTest`
+          能真起一个"两套 ORM 并存"的上下文，把"依赖能不能与 airpower+JPA 共存"这件事
+          从猜测变成一次可回归的断言。业务读路径一条都没换（换在下一格）。
+        -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-jsqlparser</artifactId>
+            <version>${mybatis-plus.version}</version>
         </dependency>
 
         <!-- API 文档: SpringDoc OpenAPI 3 + Knife4j UI -->

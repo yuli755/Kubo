@@ -171,6 +171,18 @@ jobs:
           if echo "$tree" | grep -Ei "kafka-clients|rocketmq-client|spring-boot-starter-artemis"; then
             echo "禁止引入上述 MQ 客户端"; exit 1
           fi
+          # MyBatis-Plus 成对红线（§19.33）：3.5.9 起 JSqlParser 被拆成独立 artifact，只引 starter 不引
+          # mybatis-plus-jsqlparser 时，编译与启动都正常，直到第一个走 InnerInterceptor 的查询
+          # 才 NoClassDefFoundError —— 这类"要到用户点上列表页才炸"的依赖错误必须由 CI 拦掉。
+          mp_starter=$(echo "$tree" | grep -oE "com\.baomidou:mybatis-plus-spring-boot3-starter:jar:[0-9][^:]*" | head -1 | awk -F: "{print \$NF}")
+          mp_parser=$(echo "$tree" | grep -oE "com\.baomidou:mybatis-plus-jsqlparser:jar:[0-9][^:]*" | head -1 | awk -F: "{print \$NF}")
+          if [ -n "$mp_starter" ] && [ -z "$mp_parser" ]; then
+            echo "有 mybatis-plus starter（$mp_starter）却没有 mybatis-plus-jsqlparser：分页/数据权限插件第一次解析 SQL 就会炸"; exit 1
+          fi
+          if [ -n "$mp_starter" ] && [ "$mp_starter" != "$mp_parser" ]; then
+            echo "mybatis-plus 与 jsqlparser 版本必须一致（starter=$mp_starter jsqlparser=$mp_parser）"; exit 1
+          fi
+          echo "MyBatis-Plus 依赖成对性检查通过（starter=${mp_starter:-未引入}）
   # ============================================================================
   # 迁移脚本的真实方言门禁（§19.11 第 2 项里"今天就能自动化"的那一半）
   # 为什么不用 Testcontainers：那要往 pom 里加 testcontainers + mysql-connector 依赖，
