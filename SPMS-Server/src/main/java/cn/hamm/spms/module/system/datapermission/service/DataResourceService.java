@@ -2,14 +2,18 @@ package cn.hamm.spms.module.system.datapermission.service;
 
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
+import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
+import jakarta.persistence.EntityManagerFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -33,12 +37,86 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      */
     private final DataPolicyService rowPolicyService;
 
+    /**
+     * 只用来读 JPA 元模型（表名 → 实体形状），不参与任何查询
+     */
+    private final EntityManagerFactory entityManagerFactory;
+
     public DataResourceService(DataPermissionEventPublisher eventPublisher,
                                DataFieldPolicyProvider fieldPolicyProvider,
-                               DataPolicyService rowPolicyService) {
+                               DataPolicyService rowPolicyService,
+                               EntityManagerFactory entityManagerFactory) {
         this.eventPublisher = eventPublisher;
         this.fieldPolicyProvider = fieldPolicyProvider;
         this.rowPolicyService = rowPolicyService;
+        this.entityManagerFactory = entityManagerFactory;
+    }
+
+    /**
+     * 一条"这一档维度在这个资源上没有列可绑"的结论
+     *
+     * @param resourceId   资源 ID
+     * @param resourceKey  资源标识
+     * @param subjectType  受影响的维度；{@code ENTITY_NOT_MAPPED} 时为 null（整表无映射）
+     * @param kind         类别（与 {@link DimensionBindingAnalyzer} 的常量一致）
+     * @param detail       人话说明（含建议写法）
+     */
+    public record DimensionBindingRiskItem(Long resourceId,
+                                          String resourceKey,
+                                          String subjectType,
+                                          String kind,
+                                          String detail) {
+    }
+
+    /**
+     * 已启用的行级策略里，"实体上找不到对应列"的那些维度
+     *
+     * <p>与启动门禁 {@code FactoryDimensionReadiness} 的取向刻意相反：那边信息不足必须倒向「不通过」，
+     * 这边拿不到元模型就返回空清单并打一条 WARN —— 展示型盘点若在信息不足时把 24 个资源全报成
+     * "表名没对上"，真问题会被淹掉。同理，<b>没有启用策略的资源不参与判定</b>：没配这一档却被报
+     * "这一档绑不上"是噪音，而噪音会让整个面板失去可信度。</p>
+     *
+     * @return 风险条目；无问题为空列表
+     */
+    public List<DimensionBindingRiskItem> dimensionBindingRisks() {
+        Collection<Class<?>> entities = EntityShapeIndex.entityClasses(entityManagerFactory);
+        if (entities.isEmpty()) {
+            log.warn("维度可绑定性盘点跳过：拿不到 JPA 元模型（EntityManagerFactory 未就绪）");
+            return List.of();
+        }
+        Map<String, Class<?>> byTable = EntityShapeIndex.byTable(entities);
+        List<DataResourceEntity> resources = repository.findAll();
+        if (resources == null || resources.isEmpty()) {
+            return List.of();
+        }
+        List<DimensionBindingAnalyzer.Row> rows = new ArrayList<>();
+        for (DataResourceEntity resource : resources) {
+            Long resourceId = resource.getId();
+            if (resourceId == null) {
+                continue;
+            }
+            List<DataPolicyEntity> policies = rowPolicyService.getEnabledPoliciesByResource(resourceId);
+            if (policies.isEmpty()) {
+                continue;
+            }
+            List<String> subjectTypes = new ArrayList<>();
+            for (DataPolicyEntity policy : policies) {
+                subjectTypes.add(policy.getSubjectType());
+            }
+            Class<?> entity = byTable.get(EntityShapeIndex.normalizeTableName(resource.getTableName()));
+            // 有 @Table 的类才进得来这个索引；表名写错时 entity 为 null，
+            // 交给分析器报「实体未映射」，而不是在这里当成"所有列都不存在"刷一堆假问题
+            EntityShapeIndex.Shape shape = EntityShapeIndex.shapeOf(entity);
+            rows.add(new DimensionBindingAnalyzer.Row(resourceId, resource.getResourceKey(), resource.getTableName(),
+                    resource.getTenantColumn(), resource.getOwnerColumns(), shape.attributes(), shape.associations(),
+                    DimensionBindingAnalyzer.countBySubjectType(subjectTypes)));
+        }
+        List<DimensionBindingRiskItem> items = new ArrayList<>();
+        for (DimensionBindingAnalyzer.Risk risk : DimensionBindingAnalyzer.risks(rows)) {
+            items.add(new DimensionBindingRiskItem(risk.resourceId(), risk.resourceKey(), risk.subjectType(),
+                    risk.kind(), risk.detail()));
+        }
+        return items;
     }
 
     /**

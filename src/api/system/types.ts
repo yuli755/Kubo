@@ -235,6 +235,26 @@ export interface InertPolicyItem {
  * 类别与原因都由后端给（`RowPolicyRiskAnalyzer` 的判据直接来自取数与主体匹配那两处代码）：
  * 前端若自己判"哪个动作算合法"，就多了一份会过期的消费集。
  */
+/**
+ * 一条"这一档维度在该资源上没有列可绑"的结论。
+ *
+ * 判据来自 `DimensionBindingAnalyzer`（对照 `DataPermissionSpecification` 里逐个维度拼谓词的那几行）：
+ * 类别与原因都由后端给，前端只渲染 —— 前端一旦自己判"哪个维度该有哪一列"，
+ * 实体改动就会让面板开始说谎。
+ */
+export interface DimensionBindingRiskItem {
+  /** 数据资源 ID */
+  resourceId: number
+  /** 数据资源标识 */
+  resourceKey: string
+  /** 受影响的维度；整表没有映射时为 null */
+  subjectType: string | null
+  /** 风险类别，原样回显 */
+  kind: string
+  /** 人话说明（含建议写法） */
+  detail: string
+}
+
 export interface RowPolicyRiskItem {
   /** 策略行主键 */
   policyId: number

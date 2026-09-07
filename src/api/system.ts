@@ -7,6 +7,7 @@ import type {
   ConfigQuery,
   DataFieldPolicyEntity,
   DataFieldPolicyQuery,
+  DimensionBindingRiskItem,
   ExportGapItem,
   InertPolicyItem,
   MaskPolicy,
@@ -236,6 +237,15 @@ export const dataResourceApi = {
    */
   getRowPolicyRisks(): Promise<RowPolicyRiskItem[]> {
     return request.get('/dataResource/row-policy-risks')
+  },
+
+  /**
+   * 维度可绑定性盘点（安全侧：策略读得到、列却绑不上，enforce 下等于全员查不到）
+   *
+   * @returns 风险条目列表；无问题时为空数组
+   */
+  getDimensionBindingRisks(): Promise<DimensionBindingRiskItem[]> {
+    return request.get('/dataResource/dimension-binding-risks')
   },
 }
 

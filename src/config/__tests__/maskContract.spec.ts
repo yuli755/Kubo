@@ -380,6 +380,60 @@ describe('mask contract · 脱敏实现只允许存在一处', () => {
     expect(list, '行级策略列表没渲染盘点结果').toMatch(/<ElAlert[^>]*v-if="riskCount"/)
     expect(list).toContain('useRowPolicyRiskReport')
   })
+  it('维度可绑定性盘点：路径对账、前端不重算实体形状、判据与运行期同源', () => {
+    /**
+     * 第四个自查端点。前三个的共同教训是：**composable 的 catch 只置 failed、不弹错**，
+     * 于是"路径写错"没有任何运行期痕迹，面板会安静地长期显示"没问题"。
+     * 所以每加一个盘点就多一条对账；不加对账的盘点等于没接线。
+     */
+    const api = read(join(ROOT, 'src', 'api', 'system.ts'))
+    expect(api).toContain('request.get(\'/dataResource/dimension-binding-risks\')')
+
+    const controllerPath = join(SERVER, 'module/system/datapermission/controller/DataResourceController.java')
+    expect(readJavaCode(controllerPath)).toContain('@GetMapping("dimension-binding-risks")')
+
+    // 反向：不许为它新开控制器或挂到业务控制器上（那会把权限面从 dataResource:* 漂走）
+    for (const file of collect(join(SERVER, 'module/system/datapermission/controller'), '.java')) {
+      if (file.endsWith('DataResourceController.java')) {
+        continue
+      }
+      expect(read(file), `盘点端点不该出现在 ${file.split('/').pop()}`).not.toContain('dimension-binding-risks')
+    }
+
+    // 前端不许重算：判 kind/subjectType 就是重抄风险类别，写属性名字面量就是抄实体形状
+    const SHAPE = /(?:kind|subjectType)\s*(?:===|!==|==|!=)\s*['"]|['"](?:tenantId|warehouseId|factoryId|departmentId|creatorId)['"]/
+    const offenders: string[] = []
+    for (const file of [...collect(join(ROOT, 'src', 'composables'), '.ts'), ...collect(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission'), '.vue')]) {
+      stripComments(read(file)).split('\n').forEach((line, index) => {
+        if (SHAPE.test(line)) {
+          offenders.push(`${relative(ROOT, file)}:${index + 1}`)
+        }
+      })
+    }
+    expect(offenders, 'composable/视图在自行判维度或抄实体属性名（判据只该在后端分析器里）').toEqual([])
+    // 自检：这条扫描要认得违规写法，也不能把"把 subjectType 显示出来"当违规
+    expect(SHAPE.test('if (item.subjectType === \'WAREHOUSE\') {')).toBe(true)
+    expect(SHAPE.test('<span>{{ item.subjectType }} / {{ item.kind }}</span>')).toBe(false)
+
+    // 渲染断言：删掉告警不会让任何后端测试变红，所以必须在模板这里钉住
+    const list = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'resource', 'list.vue'))
+    expect(list, '资源列表页没渲染维度可绑定性结果').toMatch(/<ElAlert[^>]*v-if="bindingCount"/)
+    expect(list).toContain('useDimensionBindingRiskReport')
+
+    // 分析器里那几个"代码写死的属性名"必须与运行期拼谓词的那处一致：
+    // 谁改了 Specification 而没改分析器，面板就开始按过时的列名报问题（这比不报更糟）
+    const spec = stripComments(read(join(SERVER, 'module/system/datapermission/service/DataPermissionSpecification.java')))
+    const analyzer = stripComments(read(join(SERVER, 'module/system/datapermission/service/DimensionBindingAnalyzer.java')))
+    for (const name of ['warehouseId', 'factoryId', 'departmentId']) {
+      expect(spec, `运行期已不再使用 ${name}：分析器的判据需要跟着改`).toContain(name)
+      expect(analyzer).toContain(name)
+    }
+
+    // 取数不许绕开唯一的"什么算启用策略"入口：自己 new 一份查询就是第二份口径
+    const service = readJavaCode(join(SERVER, 'module/system/datapermission/service/DataResourceService.java'))
+    expect(service, '维度盘点要复用 DataPolicyService 的取数入口，别自己查表').toContain('getEnabledPoliciesByResource')
+    expect(service).toContain('EntityShapeIndex.entityClasses')
+  })
 
   it('导出缺口自查的前后端路径必须对得上（它失败是静默的）', () => {
     /**

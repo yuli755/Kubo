@@ -6,7 +6,6 @@ import cn.hamm.spms.module.system.datapermission.repository.DataResourceReposito
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Table;
-import jakarta.persistence.metamodel.ManagedType;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -17,7 +16,6 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -201,29 +199,24 @@ public class FactoryDimensionReadiness {
     /**
      * 含父类的字段清单：{@code BaseEntity} 之类的继承字段也算数（映射是继承来的，不该被漏掉）
      */
+    /**
+     * 字段收集与表名归一化都委托 {@link EntityShapeIndex}：
+     * 「什么算同一个字段」只能有一份规则，否则就绪度与盘点会各说各话
+     */
     private static List<Field> fieldsOf(Class<?> type) {
-        List<Field> fields = new ArrayList<>();
-        for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
-            fields.addAll(List.of(current.getDeclaredFields()));
-        }
-        return fields;
+        return EntityShapeIndex.fieldsOf(type);
     }
 
     private static String normalize(String raw) {
-        return raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT).replace("`", "");
+        return EntityShapeIndex.normalizeTableName(raw);
     }
 
     private Collection<Class<?>> entityClasses() {
-        Set<Class<?>> classes = new LinkedHashSet<>();
-        if (entityManagerFactory == null) {
-            // 没有 EMF（例如被单测直接 new 出来）时不去猜元模型，直接判为不就绪：
-            // 这里"信息不足"必须倒向"不通过"，否则校验会因为装配顺序而随机放行
-            return List.of();
-        }
-        for (ManagedType<?> managedType : entityManagerFactory.getMetamodel().getManagedTypes()) {
-            classes.add(managedType.getJavaType());
-        }
-        return classes;
+        // 没有 EMF（例如被单测直接 new 出来）时不去猜元模型，索引为空即判不就绪：
+        // 启动门禁的"信息不足"必须倒向「不通过」，否则校验会因为装配顺序而随机放行。
+        // 注意这与 DataResourceService#dimensionBindingRisks 的取向相反 —— 那边是展示型盘点，
+        // 信息不足时报一堆「表名没对上」只会淹没真信号。
+        return EntityShapeIndex.entityClasses(entityManagerFactory);
     }
 
     private Collection<DataResourceEntity> registeredResources() {

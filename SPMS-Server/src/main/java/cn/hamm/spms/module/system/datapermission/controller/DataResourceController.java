@@ -60,6 +60,21 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
         return Json.data(service.rowPolicyRisks());
     }
 
+    /**
+     * 列出"这一档维度在该资源上没有列可绑"的项
+     *
+     * <p>这一类问题的运行期表现和"策略写错"一样安静：本该产生的条件绑不上列，enforce 下退化成恒假
+     * （该主体一行也查不到）、shadow 下等价于没配，界面上两处都没有提示。区别在于修法：这里要改的是
+     * <b>资源的列登记</b>或补关联路径支持，而不是去改策略行。所以必须分开数出来。</p>
+     *
+     * @return 风险条目（资源、维度、类别、原因）
+     */
+    @GetMapping("dimension-binding-risks")
+    @Description("维度可绑定性盘点")
+    public Json getDimensionBindingRisks() {
+        return Json.data(service.dimensionBindingRisks());
+    }
+
     @GetMapping("export-gaps")
     @Description("导出明文授权缺口自查")
     public Json getExportGaps() {
