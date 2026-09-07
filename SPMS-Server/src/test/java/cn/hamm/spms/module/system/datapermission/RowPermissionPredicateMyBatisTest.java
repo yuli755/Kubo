@@ -76,14 +76,15 @@ class RowPermissionPredicateMyBatisTest {
     }
 
     @Test
-    @DisplayName("集合值与非白名单类型 ⇒ 抛（出现即说明片段不是渲染器产出的）")
+    @DisplayName("集合值 / null 值 / 非白名单类型 ⇒ 抛（出现即说明片段不是渲染器产出的）")
     void rejectsNonScalarAndNullValues() {
         assertThrows(IllegalArgumentException.class, () -> new RowPermissionPredicate(
                 "(material.tenant_id IN (:dpRule0))", Map.of("dpRule0", List.of(1L, 2L))).forMyBatis());
-        // null 在构造期就被挡掉（紧凑构造器的 Map.copyOf 不接受 null 值），因此 forMyBatis 里没有
-        // "参数为 null"这条分支——写了也永远跑不到，那会让后来人以为 null 是走到换写阶段才被发现的
-        assertThrows(NullPointerException.class, () -> new RowPermissionPredicate(
-                "(material.tenant_id = :dpRule0)", java.util.Collections.singletonMap("dpRule0", null)));
+        // null 值能活过构造器（Map.copyOf 对单键映射不校验值 —— 这条是 CI 教我的，见 requireBindable 注释），
+        // 所以换写阶段必须自己拦下来：绑一个 NULL 进 "col = ?" 在 SQL 里是"未知"，
+        // 与恒假等价，但等价要靠方言行为维持；这里宁可抛，不让语义寄存在驱动上
+        assertThrows(IllegalArgumentException.class, () -> new RowPermissionPredicate(
+                "(material.tenant_id = :dpRule0)", java.util.Collections.singletonMap("dpRule0", null)).forMyBatis());
         assertThrows(IllegalArgumentException.class, () -> new RowPermissionPredicate(
                 "(material.created_at > :dpRule0)",
                 Map.of("dpRule0", java.time.Instant.parse("2026-09-07T00:00:00Z"))).forMyBatis());
@@ -96,6 +97,18 @@ class RowPermissionPredicateMyBatisTest {
                 "(material.tenant_id = :a); DROP TABLE material", Map.of("a", 1L)).forMyBatis());
         assertThrows(IllegalArgumentException.class, () -> new RowPermissionPredicate(
                 "(material.tenant_id = :a) -- 注释", Map.of("a", 1L)).forMyBatis());
+    }
+
+    @Test
+    @DisplayName("换写是幂等的：已经写成 #{} 的片段再过一次不会被判成「参数没被引用」")
+    void translationIsIdempotent() {
+        RowPermissionPredicate once = new RowPermissionPredicate(
+                "(material.tenant_id = :dpRule0)", Map.of("dpRule0", 7L)).forMyBatis();
+
+        assertEquals(once.sql(), once.forMyBatis().sql());
+        // 但"参数确实没被引用"仍然要红：幂等只认"每个键都在 #{} 里"这一种形状
+        assertThrows(IllegalArgumentException.class, () -> new RowPermissionPredicate(
+                "(material.tenant_id = #{dpRule0})", Map.of("dpRule0", 7L, "dpRule1", 8L)).forMyBatis());
     }
 
     @Test

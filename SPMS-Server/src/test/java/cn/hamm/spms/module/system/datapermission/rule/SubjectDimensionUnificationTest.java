@@ -170,21 +170,30 @@ class SubjectDimensionUnificationTest {
         }
 
         @Test
-        @DisplayName("这一维取不到值 ⇒ 恒假，且恒假只有一处写法")
-        void missingContextValueDenies() {
-            SubjectDimensionRules.SubjectRule subject = SubjectDimensionRules.forPolicy(
-                    resource("tenant_id", null), policy("TENANT", null), context(1L, null, Set.of(), Set.of(), Set.of()));
+        @DisplayName("Dimension 的值为 null ⇒ 恒假，且恒假只有一处写法")
+        void nullValueDenies() {
+            // 为什么在节点层面构造、不从上下文走：PermissionContext 的紧凑构造器要求 userId / tenantId 非空
+            // （CI 实测），而 DEPARTMENT / FACTORY / WAREHOUSE 三档的 subjectId 要先过"是否在当前范围"的门槛
+            // 才成为值 —— 所以"取不到值"在今天的入口上不可达。这一档守的是渲染器的兜底：
+            // 外来节点（下一格的拦截器路径）带着 null 值拼进 SQL 时，必须恒假而不是 col = NULL。
+            // 但它不值得被伪造成线上路径：注释写清楚"不可达"，比写成"上下文缺值时会走到这里"负责。
+            PermissionRule rule = new PermissionRule.Dimension(PermissionRuleOp.EQ, List.of("tenant_id"), null, false);
+            PermissionContext context = context(1L, 100L, Set.of(), Set.of(), Set.of());
 
             // 渲染器给每个片段都套一层括号（appendGroup），恒假也不例外：断言写的是它的真实输出，
-            // 不是"我以为的常量值"——上一条用例就红在这个括号上
-            assertEquals('(' + RowPermissionPredicate.DENY_SQL + ')',
-                    sql(subject.rule(), "material", context(1L, null, Set.of(), Set.of(), Set.of())));
-            assertFalse(evaluator.matches(subject.rule(), Map.of("tenant_id", 1L), null));
-            // 列在、值为 null（归属没落库的存量行）：裁判必须判"不成立"，
-            // 否则"恒假"只覆盖了配置缺失，没覆盖数据缺失
+            // 不是"我以为的常量值"——上一轮就红在这个括号上
+            assertEquals("(" + RowPermissionPredicate.DENY_SQL + ")",
+                    sql(rule, "material", context));
+            assertFalse(evaluator.matches(rule, Map.of("tenant_id", 1L), context));
+            // 反过来那一半才是线上真会发生的：值取得到、行上那列是 null（归属没落库的存量行）。
+            // 裁判必须判"不成立"，否则"恒假"只覆盖了配置缺失、没覆盖数据缺失
+            PermissionRule valued = new PermissionRule.Dimension(PermissionRuleOp.EQ, List.of("tenant_id"), 100L, false);
             Map<String, Object> rowWithNullOwner = new java.util.HashMap<>();
             rowWithNullOwner.put("tenant_id", null);
-            assertFalse(evaluator.matches(subject.rule(), rowWithNullOwner, null));
+
+            assertFalse(evaluator.matches(valued, rowWithNullOwner, context));
+            assertTrue(evaluator.matches(valued, Map.of("tenant_id", 100L), context),
+                    "同一棵树的正常形状必须仍然放行：否则上一条断言只是把裁判写死成恒假");
         }
 
         @Test

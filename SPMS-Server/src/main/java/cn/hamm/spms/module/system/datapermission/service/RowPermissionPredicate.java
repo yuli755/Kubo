@@ -81,6 +81,12 @@ public record RowPermissionPredicate(String sql, Map<String, Object> parameters)
             matcher.appendReplacement(translated, Matcher.quoteReplacement("#{" + name + "}"));
         }
         matcher.appendTail(translated);
+        if (referenced.isEmpty() && !parameters.isEmpty() && alreadyTranslated(parameters.keySet())) {
+            // 幂等：换写过的片段（每个参数都以 #{} 的形式在场）再过一次本方法，不该被判成"参数没被引用"。
+            // 不加这一条，调用方就必须记住"render 之后只能调一次"，而那种约定一定会在某个
+            // 新调用点上忘一次（本格的 CI 红里就有一条是这个形状：测试先 forMyBatis() 再取参数）。
+            return this;
+        }
         Set<String> unused = new LinkedHashSet<>(parameters.keySet());
         unused.removeAll(referenced);
         if (!unused.isEmpty()) {
@@ -102,14 +108,29 @@ public record RowPermissionPredicate(String sql, Map<String, Object> parameters)
         return statement;
     }
 
+    private boolean alreadyTranslated(Set<String> keys) {
+        for (String key : keys) {
+            if (!sql.contains("#{" + key + "}")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * 只绑定标量。集合值一律拒绝：渲染器把 {@code IN} 列表逐项展开成 {@code :dpRule0_0} 这样的
      * 独立参数（它自己在注释里写了理由：{@code IN (:list)} 的展开依赖驱动行为，拦截器注入的片段
      * 没有那层处理）。走到这儿还有集合，说明片段不是渲染器产出的，是有人另拼了一份。
      */
     private static void requireBindable(String name, Object value) {
-        // 不在这里查 null：紧凑构造器里的 Map.copyOf 已经让 null 值到不了这一步（它抛 NPE）。
-        // 少写一条"看起来更严"的分支，是为了让读代码的人不必去猜哪条防线是活的。
+        // 这条 null 判据一开始被我删了，理由是"记录类的紧凑构造器会先挡掉 null"。CI 证伪了它：
+        // 本类没有紧凑构造器，null 一路走到换写阶段才被发现（"Expected NPE to be thrown, but nothing was thrown"）。
+        // 凭"我以为的类结构"删防线，与凭记忆写第三方类名是同一件事：防线在不在，要看代码、看断言。
+        // 值得拦而不是让它绑成 NULL 的理由：col = NULL 在 SQL 里是"未知"，效果与恒假相同，但那份"相同"
+        // 寄存在方言行为上；换写是片段离开 JPA 世界前的最后一道闸，闸口宁可抛。
+        if (value == null) {
+            throw new IllegalArgumentException("parameter " + name + " is null; bind a null only via a deny fragment");
+        }
         if (value instanceof Collection<?> || value.getClass().isArray()) {
             throw new IllegalArgumentException("parameter " + name + " is a collection; fragments must come from "
                     + "SqlPermissionRuleRenderer, which expands IN lists into scalar parameters");

@@ -55,6 +55,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>不开事务：种子数据由 JdbcTemplate 直写，JPA 事务不接管那条连接，{@code @Transactional}
  * 回滚不到它 —— 写成"看起来会回滚"只会让下一个加用例的人留下脏行互相影响。表也是这里现建的
  * （{@code schema-test.sql} 只放数据权限那四张共享表）。</p>
+ *
+ * <h2>本类第一次跑红留下的两条</h2>
+ * <p>一是"换写只能调一次"这个约定没被守住：{@code countByMapper} 先 {@code forMyBatis()} 再取
+ * {@code myBatisStatementParameters()}（后者内部还要换写一次），于是抛
+ * "parameter map carries keys the fragment never references"。把测试改成"只调一次"只是把约定藏起来，
+ * 下一个调用点照样会忘 —— 所以现在 {@code forMyBatis()} 对已换写的片段是幂等的（真没被引用的键仍然红）。</p>
+ * <p>二是"取不到值"那一档从上下文不可达（见下面那条注释）：它是渲染器的兜底，不是线上路径；
+ * 本类不为不可达的形状造用例，但也不许它顺手写成放行。</p>
  */
 @ActiveProfiles("test")
 @SpringBootTest(properties = {
@@ -183,20 +191,16 @@ class MaterialMapperReadParityTest {
         assertTrue(viaMapper < 5L, "过滤后没少行：那句相等就是自证空转");
     }
 
-    @Test
-    @DisplayName("这一维取不到值：两边都给空结果（成因不同，结论必须相同）")
-    void missingTenantContextYieldsNothingOnBothSides() {
-        PermissionContext context = context(1L, null);
-        PermissionRule rule = tree(resource(null), policy("TENANT", null), context);
-
-        assertEquals(0L, countByMapper(rule, context), "SQL 侧应落 1 = 0");
-        assertEquals(0L, countByJpa(rule, context), "JPA 侧是与 null 比：H2 与 MySQL 都不给行");
-    }
+    // 这里原本有一条"租户上下文缺失 ⇒ 两边都给空结果"的用例，CI 把它挡在门外：PermissionContext 的
+    // 紧凑构造器要求 userId / tenantId 非空，所以"这一维取不到值"从上下文入口根本不可达。
+    // 兜底语义仍然要测、要存在（片段逃进 SQL 之前必须恒假），但只能在节点层面测，
+    // 见 SubjectDimensionUnificationTest#nullValueDenies —— 记在这儿是为了别让下一次又把它写成线上路径。
 
     @Test
     @DisplayName("负责人档：能绑上的列两边都算；实体没映射的列只有 SQL 侧在用（更严，不是更松）")
     void ownerCandidatesDivergeTowardsStricter() {
-        PermissionContext context = context(100L, null);
+        // tenantId 必须给值（上下文不允许 null）；本用例只挂 USER 一维，租户不参与比较，取哪个租户都一样
+        PermissionContext context = context(100L, TENANT_C);
         // 登记 creator_id,owner_id 两列：owner_id 在 material 上有列，但实体没有 ownerId 属性
         PermissionRule rule = tree(resource("creator_id,owner_id"), policy("USER", null), context);
 
