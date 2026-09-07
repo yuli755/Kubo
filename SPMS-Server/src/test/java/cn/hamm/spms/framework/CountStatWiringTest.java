@@ -1,5 +1,6 @@
 package cn.hamm.spms.framework;
 
+import cn.hamm.airpower.curd.model.query.QueryListRequest;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.asset.material.MaterialController;
 import cn.hamm.spms.module.asset.material.MaterialService;
@@ -22,13 +23,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.bind.annotation.PostMapping;
 
+import java.io.IOException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -38,10 +45,12 @@ import static org.junit.jupiter.api.Assertions.fail;
  * <p>七个资源运行时测试逐资源断言了 Mapper 的 {@code statByPermission} 与 service 的
  * {@code getMapperCount/getMapperStat} 同值；本类补的是<b>全量接线</b>这一面：开关打开时，
  * 八个 Controller 都暴露 {@code getCount/getStat} 端点、八个 Service 都有同名的公开方法且返回
- * 类型统一（{@code long} / {@link ReadStat}）、八个 Service 都报告 {@code isMapperReadEnabled()==true}。
- * 任何一处漏接（端点没加、方法名漂了、返回类型不一致）都会在这里红，而不是等真实前端联调才暴露。</p>
+ * 类型统一（{@code long} / {@link ReadStat}）、八个 Service 都报告 {@code isMapperReadEnabled()==true}、
+ * 八个 Controller 都覆写了 {@code export(QueryListRequest)}（导出换轨的入口）、八个读侧 Mapper XML
+ * 只注册 SELECT 语句（写路径不许混入读侧 Mapper）。任何一处漏接或漂移都会在这里红，
+ * 而不是等真实前端联调才暴露。</p>
  *
- * <p>本类只反射、不查数据、不开权限上下文，因此不 seed、不依赖 data_policy；档位钉在
+ * <p>本类只反射/扫资源、不查数据、不开权限上下文，因此不 seed、不依赖 data_policy；档位钉在
  * {@code mapper-read.enabled=true}（这是八个运行时测试已证明能启动的组合），web 环境用 MOCK。</p>
  *
  * @author Hamm.cn
@@ -137,6 +146,58 @@ class CountStatWiringTest {
         assertTrue(planService.isMapperReadEnabled());
         assertTrue(pickingService.isMapperReadEnabled());
     }
+
+    @Test
+    @DisplayName("八个 Controller 都覆写了 export(QueryListRequest)（导出换轨入口）")
+    void allControllersOverrideExportMethod() {
+        assertOverridesExport(materialController);
+        assertOverridesExport(inventoryController);
+        assertOverridesExport(inputController);
+        assertOverridesExport(outputController);
+        assertOverridesExport(moveController);
+        assertOverridesExport(orderController);
+        assertOverridesExport(planController);
+        assertOverridesExport(pickingController);
+    }
+
+    @Test
+    @DisplayName("八个读侧 Mapper XML 只注册 SELECT 语句，写语句不许混入")
+    void readMapperXmlRegistersOnlySelectStatements() throws IOException {
+        Resource[] resources = new PathMatchingResourcePatternResolver()
+                .getResources("classpath*:mapper/**/*Mapper.xml");
+        assertFalse(resources.length == 0, "classpath 下应能找到读侧 Mapper XML");
+        for (Resource resource : resources) {
+            String xml = resource.getContentAsString(StandardCharsets.UTF_8);
+            assertNoWriteStatement(resource.getFilename(), xml);
+        }
+    }
+
+    private static void assertOverridesExport(Object controller) {
+        Class<?> targetClass = AopUtils.getTargetClass(controller);
+        try {
+            // getDeclaredMethod 只找本类声明的：没覆写 export 的 Controller 走父类默认 JPA 导出，
+            // 这里会直接 NoSuchMethodException，正是我们要防的“悄悄走回框架默认导出”。
+            targetClass.getDeclaredMethod("export", QueryListRequest.class);
+        } catch (NoSuchMethodException e) {
+            fail(targetClass.getSimpleName() + " 未覆写 export(QueryListRequest)，导出会走框架默认 JPA 路径");
+        }
+    }
+
+    /**
+     * 断言一份 Mapper XML 没有写语句（insert/update/delete）。
+     *
+     * <p>MyBatis-Plus 会给 {@code BaseMapper} 的抽象方法生成写语句，但那不是我们手写的 XML 语句；
+     * 这里只看自己仓库 {@code mapper} 目录下的 {@code *Mapper.xml}，与 {@code KuboBaseMapper} 纪律二对齐：
+     * 读侧 Mapper 只许承载 SELECT。剥掉 XML 注释后按标签名匹配，避免 DOCTYPE/DTD 与注释干扰。</p>
+     */
+    private static void assertNoWriteStatement(String filename, String xml) {
+        String withoutComments = XML_COMMENT.matcher(xml).replaceAll("");
+        assertFalse(WRITE_STATEMENT.matcher(withoutComments).find(),
+                filename + " 出现了写语句标签（insert/update/delete），读侧 Mapper 只许 SELECT");
+    }
+
+    private static final Pattern XML_COMMENT = Pattern.compile("(?s)<!--.*?-->");
+    private static final Pattern WRITE_STATEMENT = Pattern.compile("<\\s*(insert|update|delete)\\b", Pattern.CASE_INSENSITIVE);
 
     private static void assertEndpoint(Object controller, String path) {
         // Controller 会被 Spring 用 CGLIB 代理（@Validated/@Permission 触发），代理类的重写方法不带
