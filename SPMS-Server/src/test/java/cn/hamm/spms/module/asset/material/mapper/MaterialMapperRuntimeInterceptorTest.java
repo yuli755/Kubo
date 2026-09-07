@@ -46,13 +46,13 @@ class MaterialMapperRuntimeInterceptorTest {
     @BeforeEach
     void seed() {
         jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS material ("
-                + "id BIGINT PRIMARY KEY, tenant_id BIGINT, creator_id BIGINT, name VARCHAR(255))");
+                + "id BIGINT PRIMARY KEY, tenant_id BIGINT, creator_id BIGINT)");
         jdbcTemplate.update("DELETE FROM material");
         jdbcTemplate.update("DELETE FROM data_policy");
         jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO material (id, tenant_id, creator_id, name) VALUES (1, 10, 7, 'A')");
-        jdbcTemplate.update("INSERT INTO material (id, tenant_id, creator_id, name) VALUES (2, 10, 8, 'B')");
-        jdbcTemplate.update("INSERT INTO material (id, tenant_id, creator_id, name) VALUES (3, 20, 7, 'C')");
+        jdbcTemplate.update("INSERT INTO material (id, tenant_id, creator_id) VALUES (1, 10, 7)");
+        jdbcTemplate.update("INSERT INTO material (id, tenant_id, creator_id) VALUES (2, 10, 8)");
+        jdbcTemplate.update("INSERT INTO material (id, tenant_id, creator_id) VALUES (3, 20, 7)");
         jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
                         + "owner_columns, supported_actions, status, version_no) "
                         + "VALUES (9001, 'asset.material', 'material', 'material', 'tenant_id', 'creator_id', "
