@@ -62,12 +62,21 @@ class DataResourceRegistrationValidationTest {
     }
 
     @Test
-    @DisplayName("租户列写成怪形状 → 保存被拒（它同样要能对上实体属性）")
-    void oddTenantColumnIsRejected() {
+    @DisplayName("租户列的形状判据 = owner_columns 同一份：怪形状拒、一跳关联放行")
+    void tenantColumnSharesTheSameShapeRule() {
         assertRejected(() -> DataResourceService.validateRegistrations(
                 resource("tenant id", "creatorId", "input")));
         assertRejected(() -> DataResourceService.validateRegistrations(
+                resource("tenant-id", "creatorId", "input")));
+        assertRejected(() -> DataResourceService.validateRegistrations(
+                resource("1tenant", "creatorId", "input")));
+        // tenant_id_ 是**合法**标识符（尾巴下划线不影响），第一版把它当"怪形状"来断言，CI 直接打脸：
+        // 判据是 PermissionRuleSupport.isIdentifier，期望必须照着它推，不能照"看起来别不别扭"推。
+        assertDoesNotThrow(() -> DataResourceService.validateRegistrations(
                 resource("tenant_id_", "creatorId", "input")));
+        // 一跳关联路径同样是合法登记：租户挂在关联上时也要有入口
+        assertDoesNotThrow(() -> DataResourceService.validateRegistrations(
+                resource("tenantRef.id", "creatorId", "input")));
     }
 
     @Test
