@@ -3,6 +3,7 @@ package cn.hamm.spms.module.wms.inventory.mapper;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
 import cn.hamm.spms.module.wms.inventory.InventoryEntity;
+import cn.hamm.spms.module.wms.inventory.InventoryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +44,9 @@ class InventoryMapperRuntimeInterceptorTest {
 
     @Autowired
     private InventoryMapper inventoryMapper;
+
+    @Autowired
+    private InventoryService inventoryService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -98,6 +102,12 @@ class InventoryMapperRuntimeInterceptorTest {
             assertEquals(1L, detail.getId());
             assertEquals(2L, stat.getTotal());
             assertEquals(1L, stat.getPublishedTotal(), "当前租户两行中仅 id=1 已发布");
+
+            // service 层走同一 shadow 提交/路由，与 Mapper 直取同值
+            assertEquals(2L, inventoryService.getMapperCount(new InventoryEntity()));
+            var serviceStat = inventoryService.getMapperStat(new InventoryEntity());
+            assertEquals(2L, serviceStat.getTotal());
+            assertEquals(1L, serviceStat.getPublishedTotal());
         }
     }
 
@@ -132,6 +142,8 @@ class InventoryMapperRuntimeInterceptorTest {
             assertNull(inventoryMapper.selectDetailByPermission(1L));
             assertEquals(0, inventoryMapper.selectForExport(1, List.of(), List.of()).size());
             assertEquals(0L, inventoryMapper.statByPermission(1, List.of(), List.of()).getTotal());
+            assertEquals(0L, inventoryService.getMapperCount(new InventoryEntity()));
+            assertEquals(0L, inventoryService.getMapperStat(new InventoryEntity()).getTotal());
         }
     }
 }

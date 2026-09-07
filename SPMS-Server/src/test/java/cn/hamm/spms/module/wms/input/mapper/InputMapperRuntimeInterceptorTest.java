@@ -110,6 +110,12 @@ class InputMapperRuntimeInterceptorTest {
             List<InputEntity> rows = inputMapper.selectPageByPermission(null, 2, null, 0, 20);
             assertEquals(1, rows.size());
             assertEquals(1L, rows.get(0).getId());
+
+            // service 层走同一 shadow 提交/路由，与 Mapper 直取同值
+            assertEquals(2L, inputService.getMapperCount(null));
+            var serviceStat = inputService.getMapperStat(null);
+            assertEquals(2L, serviceStat.getTotal());
+            assertEquals(1L, serviceStat.getPublishedTotal());
         }
     }
 
@@ -133,6 +139,8 @@ class InputMapperRuntimeInterceptorTest {
             assertNull(inputMapper.selectDetailByPermission(1L));
             assertEquals(0, inputMapper.selectForExport(null, null, null).size());
             assertEquals(0L, inputMapper.statByPermission(null, null, null).getTotal());
+            assertEquals(0L, inputService.getMapperCount(null));
+            assertEquals(0L, inputService.getMapperStat(null).getTotal());
         }
     }
 }

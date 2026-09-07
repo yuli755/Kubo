@@ -105,6 +105,12 @@ class OutputMapperRuntimeInterceptorTest {
             assertEquals(1L, stat.getPublishedTotal(), "当前租户两行中仅 id=1 已发布");
             assertEquals(1L, outputMapper.selectPageByPermission(null, 2, null, 0, 20)
                     .get(0).getId());
+
+            // service 层走同一 shadow 提交/路由，与 Mapper 直取同值
+            assertEquals(2L, outputService.getMapperCount(null));
+            var serviceStat = outputService.getMapperStat(null);
+            assertEquals(2L, serviceStat.getTotal());
+            assertEquals(1L, serviceStat.getPublishedTotal());
         }
     }
 
@@ -128,6 +134,8 @@ class OutputMapperRuntimeInterceptorTest {
             assertNull(outputMapper.selectDetailByPermission(1L));
             assertEquals(0, outputMapper.selectForExport(null, null, null).size());
             assertEquals(0L, outputMapper.statByPermission(null, null, null).getTotal());
+            assertEquals(0L, outputService.getMapperCount(null));
+            assertEquals(0L, outputService.getMapperStat(null).getTotal());
         }
     }
 }

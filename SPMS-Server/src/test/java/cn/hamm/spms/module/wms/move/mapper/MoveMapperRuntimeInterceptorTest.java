@@ -105,6 +105,12 @@ class MoveMapperRuntimeInterceptorTest {
             assertEquals(1L, stat.getPublishedTotal(), "当前租户两行中仅 id=1 已发布");
             assertEquals(2L, moveMapper.selectPageByPermission(null, 3, 0, 20)
 .get(0).getId());
+
+            // service 层走同一 shadow 提交/路由，与 Mapper 直取同值
+            assertEquals(2L, moveService.getMapperCount(null));
+            var serviceStat = moveService.getMapperStat(null);
+            assertEquals(2L, serviceStat.getTotal());
+            assertEquals(1L, serviceStat.getPublishedTotal());
         }
     }
 
@@ -128,6 +134,8 @@ class MoveMapperRuntimeInterceptorTest {
             assertNull(moveMapper.selectDetailByPermission(1L));
             assertEquals(0, moveMapper.selectForExport(null, null).size());
             assertEquals(0L, moveMapper.statByPermission(null, null).getTotal());
+            assertEquals(0L, moveService.getMapperCount(null));
+            assertEquals(0L, moveService.getMapperStat(null).getTotal());
         }
     }
 }
