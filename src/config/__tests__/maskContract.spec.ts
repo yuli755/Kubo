@@ -1679,7 +1679,7 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
 
     const implementors = collect(SERVER, '.java').filter(file => /implements[^;]*RowParityCounter|extends[^;]*RowParityCounter/.test(readJavaCode(file)))
     expect(implementors, '没有任何探针实现：这张表与整套对账判据就成了没人消费的机器，要么接上第一个资源，要么删掉')
-      .toHaveLength(1)
+      .toHaveLength(8)
     for (const file of implementors) {
       expect(readJavaCode(file), `${file.split('/').pop()} 的 parityResourceKey 必须是 default 方法`)
         .toMatch(/default\s+String\s+parityResourceKey\s*\(\)/)

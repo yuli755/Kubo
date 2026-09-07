@@ -215,9 +215,9 @@ class OrmParityEvidenceTest {
         List<PermissionRule> rules = List.of(SubjectDimensionRules
                 .forPolicy(resource(null), policy("TENANT", null), context).rule());
 
-        shadowDiffService.doCompare("wms.inventory", DataPermissionAction.QUERY, MaterialEntity.class,
+        shadowDiffService.doCompare("demo.unregistered", DataPermissionAction.QUERY, MaterialEntity.class,
                 guarded(rules, context), 1L, TENANT_A,
-                new ShadowDiffService.OrmParityProbe("wms_inventory", rules, context));
+                new ShadowDiffService.OrmParityProbe("demo_unregistered", rules, context));
 
         assertEquals(0L, countRows(),
                 "探针没登记的资源必须什么都不写：写一条 CONSISTENT 就是把「没比过」伪装成「比过且一致」");
