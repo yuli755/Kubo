@@ -141,6 +141,46 @@ public record OwnerColumnRegistration(String dimension, String path) {
         return paths;
     }
 
+    /**
+     * 某一档实际要绑的列：有该维度前缀项就用它们，一个都没有才回退到既有取值
+     *
+     * <p><b>这一句回退是全模块唯一的一份</b>：读侧拼谓词、盘点面板、（将来）保存期校验都只能走这里。
+     * 回退是硬要求 —— 现网 24 个资源的 {@code owner_columns} 全是裸写法，一旦"必须带前缀才生效"，
+     * 升完版本所有人的 SELF / DEPT 策略当场查空。前缀是给新场景开的一条路，不是把老路堵上。</p>
+     *
+     * @param items     解析结果
+     * @param dimension 档位名（{@code DataPermissionSubjectType#name()}）
+     * @param fallback  无该维度显式登记时的既有候选
+     * @return 列登记（可能是关联路径）
+     */
+    public static List<String> candidatesFor(List<OwnerColumnRegistration> items, String dimension,
+                                             List<String> fallback) {
+        List<String> scoped = pathsFor(items, dimension);
+        return scoped.isEmpty() ? fallback : scoped;
+    }
+
+    /**
+     * {@link #candidatesFor(List, String, List)} 的登记串入口（调用方不必自己先 parse）
+     *
+     * @param csv      {@code owner_columns} 原始登记值
+     * @param dimension 档位名
+     * @param fallback 无该维度显式登记时的既有候选
+     * @return 列登记（可能是关联路径）
+     */
+    public static List<String> candidatesFor(String csv, String dimension, List<String> fallback) {
+        return candidatesFor(parse(csv), dimension, fallback);
+    }
+
+    /**
+     * 裸写法（无维度前缀）的登记项，按登记顺序
+     *
+     * @param csv {@code owner_columns} 原始登记值
+     * @return 路径列表；没有裸写法项时为空列表
+     */
+    public static List<String> untagged(String csv) {
+        return untaggedPaths(parse(csv));
+    }
+
     private static boolean isKnownDimension(String dimension) {
         for (DataPermissionSubjectType type : DataPermissionSubjectType.values()) {
             if (type.name().equals(dimension)) {

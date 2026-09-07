@@ -12,6 +12,7 @@ import cn.hamm.spms.module.system.datapermission.service.DataPermissionRuntime;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionResourceResolver;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import cn.hamm.spms.module.system.datapermission.service.MaskedInputRegistry;
+import cn.hamm.spms.module.system.datapermission.service.RowWriteGuard;
 import cn.hamm.spms.module.system.datapermission.service.SensitiveWriteProtection;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -47,7 +48,28 @@ public class BaseService<
     protected final @NotNull E beforeSaveToDatabase(@NotNull E entity) {
         CodeRuleService codeRuleService = SystemServices.getCodeRuleService();
         codeRuleService.fillFieldAutoCode(entity);
+        // 行级写保护挂在这里而不是 beforeUpdate：beforeSaveToDatabase 是所有落库路径的必经点
+        // （BaseService.publish 直接调 updateToDatabase，不经过 beforeUpdate —— 挂在那里等于给发布动作留了缺口）
+        enforceRowPermission(entity, entity.getId() == null ? DataPermissionAction.CREATE : DataPermissionAction.UPDATE);
         return beforeAppSaveToDatabase(entity);
+    }
+
+    /**
+     * 写侧行级校验：既存行必须在当前主体的数据范围内
+     *
+     * <p>与 {@link #enforceDataPermission} 是两层不同的事实：那边问"这个动作配了策略没有"，
+     * 这边问"<b>这一行</b>归不归你管"。缺了后者，"只能改本仓单据"这类规则在写侧是空的。</p>
+     *
+     * @param entity 待写入实体
+     * @param action 写入动作
+     */
+    private void enforceRowPermission(@NotNull E entity, @NotNull DataPermissionAction action) {
+        RowWriteGuard guard = SystemServices.getRowWriteGuard();
+        if (guard == null) {
+            // 容器未就绪（@Profile("!test")）或本资源不纳管：与 DataPermissionGuard 同口径直接返回
+            return;
+        }
+        guard.enforce(entity, DataPermissionResourceResolver.resolve(getClass()), action);
     }
 
     @Override
@@ -119,6 +141,7 @@ public class BaseService<
     protected void beforeDelete(@NotNull E entity) {
         super.beforeDelete(entity);
         enforceDataPermission(DataPermissionAction.DELETE);
+        enforceRowPermission(entity, DataPermissionAction.DELETE);
     }
 
     /**

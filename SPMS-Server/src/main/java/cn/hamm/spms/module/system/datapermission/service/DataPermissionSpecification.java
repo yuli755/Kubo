@@ -343,7 +343,8 @@ public class DataPermissionSpecification {
         // 登记的是列名（tenant_id）还是属性名（tenantId）都要能绑上；TENANT:xxx 能把它改绑到别的列。
         // 实体上没有该列时返回 null，由调用方按策略计数暴露为 binding 异常
         return compareAny(root, builder,
-                scopedOr(resource, DataPermissionSubjectType.TENANT.name(), single(resource.getTenantColumn())),
+                OwnerColumnRegistration.candidatesFor(resource.getOwnerColumns(),
+                        DataPermissionSubjectType.TENANT.name(), single(resource.getTenantColumn())),
                 context.tenantId());
     }
 
@@ -358,8 +359,9 @@ public class DataPermissionSpecification {
     ) {
         // 带 USER: 前缀的项专属于本档；一个都没有时沿用旧语义（全部登记项都当"我的记录"列）——
         // 现网登记全是裸写法，不能因为引入前缀就当它们没登记
-        List<String> ownerPaths = scopedOr(resource, DataPermissionSubjectType.USER.name(),
-                OwnerColumnRegistration.untaggedPaths(OwnerColumnRegistration.parse(resource.getOwnerColumns())));
+        List<String> ownerPaths = OwnerColumnRegistration.candidatesFor(resource.getOwnerColumns(),
+                DataPermissionSubjectType.USER.name(),
+                OwnerColumnRegistration.untagged(resource.getOwnerColumns()));
         if (ownerPaths.isEmpty()) {
             return null;
         }
@@ -418,7 +420,8 @@ public class DataPermissionSpecification {
         // 实体侧目前没有工厂归属（见施工图 D13）：取不到路径时返回 null，调用方按
         // 「本该产生条件却没绑上」计入绑定失败，enforce 下拒绝
         return compareAny(root, builder,
-                scopedOr(resource, DataPermissionSubjectType.FACTORY.name(), List.of(FACTORY_ATTRIBUTE)),
+                OwnerColumnRegistration.candidatesFor(resource.getOwnerColumns(),
+                        DataPermissionSubjectType.FACTORY.name(), List.of(FACTORY_ATTRIBUTE)),
                 policy.getSubjectId());
     }
 
@@ -438,7 +441,8 @@ public class DataPermissionSpecification {
         // 同上：仓库归属在实体上是 @ManyToOne storage（关联路径），没有 warehouseId 标量属性。
         // 现在登记 WAREHOUSE:storage.id 就能真绑上；登记不出来依然是 null ⇒ 被数出来，别用 catch 抹平
         return compareAny(root, builder,
-                scopedOr(resource, DataPermissionSubjectType.WAREHOUSE.name(), List.of(WAREHOUSE_ATTRIBUTE)),
+                OwnerColumnRegistration.candidatesFor(resource.getOwnerColumns(),
+                        DataPermissionSubjectType.WAREHOUSE.name(), List.of(WAREHOUSE_ATTRIBUTE)),
                 policy.getSubjectId());
     }
 
@@ -446,30 +450,14 @@ public class DataPermissionSpecification {
      * 从资源定义中解析部门字段名
      */
     private List<String> departmentPaths(DataResourceEntity resource) {
-        List<String> registered = scopedOr(resource, DataPermissionSubjectType.DEPARTMENT.name(),
-                OwnerColumnRegistration.untaggedPaths(OwnerColumnRegistration.parse(resource.getOwnerColumns())));
+        List<String> registered = OwnerColumnRegistration.candidatesFor(resource.getOwnerColumns(),
+                DataPermissionSubjectType.DEPARTMENT.name(),
+                OwnerColumnRegistration.untagged(resource.getOwnerColumns()));
         if (registered.isEmpty()) {
             // 兜底沿用历史约定，保证存量登记不因为新维度而突然失配
             return List.of(DEPARTMENT_ATTRIBUTE);
         }
         return registered;
-    }
-
-    /**
-     * 某一档实际要绑的列：有 DIMENSION: 前缀项就用它们，一个都没有才回退到旧语义
-     *
-     * <p>回退是硬要求：现网 24 个资源的 owner_columns 全是裸写法，一旦"必须带前缀才生效"，
-     * 升完版本所有人的 SELF / DEPT 策略当场查空。前缀是给新场景开的一条路，不是把老路堵上。</p>
-     *
-     * @param resource 资源
-     * @param dimension 档位名
-     * @param fallback 无显式登记时的既有候选
-     * @return 列登记（可能是关联路径）
-     */
-    private List<String> scopedOr(DataResourceEntity resource, String dimension, List<String> fallback) {
-        List<String> scoped = OwnerColumnRegistration.pathsFor(
-                OwnerColumnRegistration.parse(resource.getOwnerColumns()), dimension);
-        return scoped.isEmpty() ? fallback : scoped;
     }
 
     private List<String> single(String value) {

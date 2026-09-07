@@ -201,32 +201,23 @@ public final class DimensionBindingAnalyzer {
             List<String> untagged = OwnerColumnRegistration.untaggedPaths(items);
 
             check(risks, row, shape, DataPermissionSubjectType.TENANT.name(), counts, KIND_TENANT_UNBOUNDABLE,
-                    "租户列", scopedOr(items, DataPermissionSubjectType.TENANT.name(), csv(row.tenantColumn())),
-                    true);
+                    "租户列", OwnerColumnRegistration.candidatesFor(items,
+                            DataPermissionSubjectType.TENANT.name(), csv(row.tenantColumn())), true);
             check(risks, row, shape, DataPermissionSubjectType.USER.name(), counts, KIND_OWNER_UNBOUNDABLE,
-                    "负责人列", scopedOr(items, DataPermissionSubjectType.USER.name(), untagged), false);
+                    "负责人列",
+                    OwnerColumnRegistration.candidatesFor(items, DataPermissionSubjectType.USER.name(), untagged),
+                    false);
             department(risks, row, shape, counts, items, untagged);
             check(risks, row, shape, DataPermissionSubjectType.WAREHOUSE.name(), counts, KIND_WAREHOUSE_UNBOUNDABLE,
                     "仓库列（缺省按写死的 warehouseId 找，登记 WAREHOUSE:xxx 可改绑）",
-                    scopedOr(items, DataPermissionSubjectType.WAREHOUSE.name(), List.of(WAREHOUSE_ATTRIBUTE)), false);
+                    OwnerColumnRegistration.candidatesFor(items, DataPermissionSubjectType.WAREHOUSE.name(),
+                            List.of(WAREHOUSE_ATTRIBUTE)), false);
             check(risks, row, shape, DataPermissionSubjectType.FACTORY.name(), counts, KIND_FACTORY_UNBOUNDABLE,
                     "工厂列（缺省按写死的 factoryId 找，登记 FACTORY:xxx 可改绑）",
-                    scopedOr(items, DataPermissionSubjectType.FACTORY.name(), List.of(FACTORY_ATTRIBUTE)), false);
+                    OwnerColumnRegistration.candidatesFor(items, DataPermissionSubjectType.FACTORY.name(),
+                            List.of(FACTORY_ATTRIBUTE)), false);
         }
         return risks;
-    }
-
-    /**
-     * 某一档实际看哪些列：有 DIMENSION: 前缀项就用它们，一个都没有才沿用该档既有取值
-     *
-     * <p>这里的回退必须与 {@code DataPermissionSpecification} 一模一样，否则面板要么报一个运行期
-     * 其实绑得上的资源（假警报），要么放过一个绑不上的（漏报）——两种都比不报更糟。
-     * 两处各写一遍正是风险本身，因此这条对应关系由 DimensionBindingAnalyzerTest 钉住。</p>
-     */
-    private static List<String> scopedOr(List<OwnerColumnRegistration> items, String dimension,
-                                         List<String> fallback) {
-        List<String> scoped = OwnerColumnRegistration.pathsFor(items, dimension);
-        return scoped.isEmpty() ? fallback : scoped;
     }
 
     /**

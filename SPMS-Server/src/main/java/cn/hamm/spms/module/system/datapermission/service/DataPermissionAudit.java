@@ -42,6 +42,11 @@ public class DataPermissionAudit {
     public static final String REASON_BINDING_INVALID = "attribution-column-missing";
     public static final String REASON_PARSE_FAILED = "condition-parse-failed";
     public static final String REASON_WRITE_DENIED = "write-without-policy";
+
+    /**
+     * 写侧行级：既存行不在当前主体的数据范围内（改/删被拒）
+     */
+    public static final String REASON_ROW_NOT_WRITABLE = "row-not-writable";
     public static final String REASON_MASKED = "field-masked";
     public static final String REASON_PLAINTEXT_ACCESSED = "plaintext-accessed";
 

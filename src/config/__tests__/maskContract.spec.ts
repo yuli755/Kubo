@@ -838,11 +838,69 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
     const FALLBACK = 'scoped.isEmpty() ? fallback : scoped'
     for (const cls of ['DataPermissionSpecification', 'DimensionBindingAnalyzer']) {
       const code = readJavaCode(join(SERVER, `module/system/datapermission/service/${cls}.java`))
-      expect(code, `${cls} 不再走 OwnerColumnRegistration.pathsFor：登记语法出现了第二份解释`)
-        .toContain('OwnerColumnRegistration.pathsFor')
-      expect(code, `${cls} 的回退顺序与另一处不同源（见 §19.26）：两边必须同一条`).toContain(FALLBACK)
+      expect(code, `${cls} 不再走 OwnerColumnRegistration.candidatesFor：回退顺序又变成两份`)
+        .toContain('OwnerColumnRegistration.candidatesFor')
+      expect(code, `${cls} 自己写了一份回退式（这一句现在只许住在 OwnerColumnRegistration 里）`)
+        .not
+        .toContain(FALLBACK)
       expect(code, `${cls} 又自己拆 owner_columns 了`).not.toMatch(/getOwnerColumns\(\)\s*\.split\(/)
     }
+    const registration = readJavaCode(join(SERVER, 'module/system/datapermission/rule/OwnerColumnRegistration.java'))
+    expect(registration, `回退式没了（${FALLBACK}）：读侧与盘点会各自回退成两套语义`).toContain(FALLBACK)
+    /**
+     * 写侧行级保护：判定与接线各钉一处
+     *
+     * 这类"挂在框架钩子上的守卫"最容易变成摆设 —— 判定逻辑写得再对，没接进 BaseService 的落库路径
+     * 就等于没做（本仓已有先例：脱敏写回一开始也只接了 beforeUpdate，publish 走的是另一条路）。
+     * 所以这里断言的是"接在哪、用谁的谓词"，而不是"有这个类"。
+     */
+    /**
+     * 取某个方法的方法体（按大括号配对），用来判"接线到底在不在这个方法里"。
+     * 只看"文件里出现过方法名"是不够的：守卫被从钩子里挪走（比如只剩一个私有方法）照样绿，
+     * 而那时它已经不再拦截任何东西了。
+     */
+    function bodyOf(code: string, signature: string): string {
+      const at = code.indexOf(signature)
+      expect(at, `找不到方法 ${signature}：接线点被改名或移除，本用例要跟着重写`).toBeGreaterThan(-1)
+      let depth = 0
+      for (let i = code.indexOf('{', at); i < code.length; i++) {
+        if (code[i] === '{') {
+          depth++
+        }
+        if (code[i] === '}') {
+          depth--
+          if (!depth) {
+            return code.slice(at, i + 1)
+          }
+        }
+      }
+      return ''
+    }
+
+    const base = readJavaCode(join(SERVER, 'base/BaseService.java'))
+    for (const hook of ['E beforeSaveToDatabase(', 'void beforeDelete(']) {
+      expect(bodyOf(base, hook), `BaseService.${hook} 没接写侧行级守卫：那条路径上"这行归谁"没人判`)
+        .toContain('enforceRowPermission(')
+    }
+    const probe = readJavaCode(join(SERVER, 'module/system/datapermission/service/JpaRowVisibilityProbe.java'))
+    expect(probe, '可见性探针不复用读侧条件生成：读写判定会分家').toContain('buildPredicates')
+    expect(probe, '探针没用 MANUAL flush：改完再判等于给绕过留门').toContain('FlushModeType.MANUAL')
+    expect(probe).not.toMatch(/getOwnerColumns\(\)/)
+    const props = readJavaCode(join(SERVER, 'module/system/datapermission/config/DataPermissionProperties.java'))
+    expect(props, '写侧行级保护必须默认关（开了会直接打断业务，见 §19.27）')
+      .toMatch(/class RowWrite[\s\S]{0,400}private boolean enabled = false/)
+    const appYml = read(join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'application.yml'))
+    const rowWriteSwitch = /row-write:[ \t]*\n[ \t]+enabled:[ \t]+(\w+)/.exec(appYml)
+    expect(rowWriteSwitch, 'application.yml 里没有 row-write.enabled：没人看见的开关等于没有开关').not.toBeNull()
+    expect(rowWriteSwitch![1], '写侧行级保护默认必须关（打开的代价是"保存被拒"，见 §19.27）').toBe('false')
+
+    // 资源登记的保存期拦截：语法判据只有一份，这里只钉"接上了"
+    const resourceService = readJavaCode(join(SERVER, 'module/system/datapermission/service/DataResourceService.java'))
+    for (const hook of ['DataResourceEntity beforeAdd(@NotNull', 'DataResourceEntity beforeUpdate(@NotNull']) {
+      expect(bodyOf(resourceService, hook), `DataResourceService.${hook} 没接登记校验：配错只能等运行期猜`)
+        .toContain('validateRegistrations(entity)')
+    }
+    expect(resourceService, '保存期校验要复用后端那份语法判据').toContain('OwnerColumnRegistration.validate(')
     // 写侧校验不许退回自己那份 addCsv（两份白名单迟早一边多一边少）
     const writeSide = readJavaCode(join(SERVER, 'module/system/datapermission/service/DataPolicyService.java'))
     expect(writeSide, '写侧白名单要复用 FieldAllowList.ofRegistrations').toContain('ofRegistrations')

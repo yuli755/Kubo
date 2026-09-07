@@ -6,8 +6,11 @@ import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
+import cn.hamm.spms.module.system.datapermission.rule.OwnerColumnRegistration;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleSupport;
 import jakarta.persistence.EntityManagerFactory;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -15,6 +18,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
 
 /**
  * <h1>数据资源管理服务</h1>
@@ -287,6 +292,46 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
         if (entity != null) {
             eventPublisher.publishResourceChanged(entity.getResourceKey());
             log.info("发布资源删除事件: {}", entity.getResourceKey());
+        }
+    }
+
+    @Override
+    protected DataResourceEntity beforeAdd(@NotNull DataResourceEntity entity) {
+        validateRegistrations(entity);
+        return super.beforeAdd(entity);
+    }
+
+    @Override
+    protected DataResourceEntity beforeUpdate(@NotNull DataResourceEntity entity) {
+        validateRegistrations(entity);
+        return super.beforeUpdate(entity);
+    }
+
+    /**
+     * 保存期把登记串拦下来：配错的代价是"策略看着生效了、其实一行也查不到"
+     *
+     * <p>语法判据只有后端那一份（{@link OwnerColumnRegistration}），本方法不重述规则、只做拦截；
+     * 前端编辑器里的说明文字是给人看的，不能当校验器（{@code maskContract.spec.ts} 里有一条门禁
+     * 盯着"前端不许自己解析登记串"）。</p>
+     *
+     * @param entity 待保存的资源
+     */
+    static void validateRegistrations(DataResourceEntity entity) {
+        if (entity == null) {
+            return;
+        }
+        String malformed = OwnerColumnRegistration.validate(entity.getOwnerColumns());
+        if (malformed != null) {
+            PARAM_INVALID.show("归属列登记不合法：" + malformed);
+        }
+        String tenantColumn = entity.getTenantColumn();
+        if (tenantColumn != null && !tenantColumn.isBlank() && !PermissionRuleSupport.isPath(tenantColumn.trim())) {
+            PARAM_INVALID.show("租户列不是合法的属性名或关联路径：" + tenantColumn);
+        }
+        if (entity.getTableName() == null || entity.getTableName().isBlank()) {
+            // 表名是"表名 → 实体形状"的唯一索引键：为空时所有维度的判定都会退化成「实体未映射」，
+            // 而运行期的表现是"条件绑不上"——一个空字段能伪装成六种不同的问题，宁可在保存时就报错
+            PARAM_INVALID.show("表名不能为空：维度可绑定性盘点与运行期都按表名找实体");
         }
     }
 }

@@ -25,6 +25,8 @@ import java.util.Set;
  *     tenant-required: false       # 用户无租户归属时是否直接拒绝（回填完成后改 true）
  *     default-tenant-id: 1         # tenant-required=false 时的兜底租户（平台默认租户）
  *     shadow-diff-log: true        # 观察模式是否输出「本应被过滤」的明细日志
+ *     row-write:
+ *       enabled: false             # 写侧行级保护（改/删既存行必须在自己的数据范围内）
  *     shadow:
  *       sample-rate: 0.02          # 影子双跑采样率
  *       persist: true              # 差异是否落 data_permission_diff_log
@@ -104,6 +106,26 @@ public class DataPermissionProperties {
      * 影子双跑（shadow 模式下用 COUNT 比对"加条件/不加条件"的行数差）
      */
     private Shadow shadow = new Shadow();
+
+    /**
+     * 写侧行级保护（见 {@code RowWriteGuard}）
+     */
+    private RowWrite rowWrite = new RowWrite();
+
+    /**
+     * 写侧行级保护配置
+     */
+    @Data
+    public static class RowWrite {
+
+        /**
+         * 是否启用。默认 <b>false</b>，且这个默认值是有原因的：
+         * 读侧条件绑不上是"查不到数据"，写侧条件绑不上是"<b>保存被拒</b>"——
+         * 后者直接打断业务。而盘点显示不少资源的维度列目前根本绑不上（§19.25/§19.26），
+         * 一开就是全员改不了单。灰度顺序固定：维度面板清零 → 开本开关看 shadow 指标 → 再进 enforce 名单。
+         */
+        private boolean enabled = false;
+    }
 
     /**
      * 影子双跑配置

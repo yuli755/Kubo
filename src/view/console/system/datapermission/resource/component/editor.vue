@@ -44,8 +44,8 @@ const {
         `creatorId` 是负责人列（裸写法＝今天的语义，存量登记不用改）；`DEPARTMENT:departmentId` 给部门
         单独立一项，负责人档与部门档就不再抢同一列；`WAREHOUSE:storage.id` 沿 @ManyToOne 关联取列，
         最多一跳，更深请把中间列冗余出来。多项用逗号分隔。
-        整串写错时后端不会拒（注册表没有可用的写前钩子），但会退回写死的默认列并在「维度绑定风险」面板
-        报一条格式问题 —— 别把这里当校验器用。
+        保存时后端会校验这一串（非法写法直接被拒），改完仍需在「维度绑定风险」面板确认这一档绑得上；
+        校验规则只有一份，别把这里当校验器用。
       </div>
       <AFormField field="resourceKey" />
       <AFormField field="tableName" />
