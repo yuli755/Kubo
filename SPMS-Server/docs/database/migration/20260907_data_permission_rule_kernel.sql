@@ -34,7 +34,8 @@ DROP PROCEDURE kubo_rk_add_column;
 -- ---------------------------------------------------------------------------
 -- 2) data_permission_diff_log：影子双跑差异
 --    回答"enforce 后会少返回多少行"。只在 shadow 模式采样写入，默认 2%。
---    审计留存建议 ≥ 30 天（enforce 决策要看趋势），到期按 create_time 归档删除。
+--    审计留存默认 30 天（enforce 决策要看趋势），由 DataPermissionEvidenceRetention 按 create_time
+--    滚动清理；长期归档必须在数据库备份/归档层先完成，应用不把历史证据复制到第三张业务表。
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `data_permission_diff_log` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -54,7 +55,8 @@ CREATE TABLE IF NOT EXISTS `data_permission_diff_log` (
     `detail` TEXT NULL COMMENT '明细/异常',
     PRIMARY KEY (`id`),
     KEY `idx_dp_diff_resource_time` (`resource_key`, `create_time`),
-    KEY `idx_dp_diff_verdict` (`verdict`, `create_time`)
+    KEY `idx_dp_diff_verdict` (`verdict`, `create_time`),
+    KEY `idx_dp_diff_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据权限影子双跑差异';
 
 -- ---------------------------------------------------------------------------

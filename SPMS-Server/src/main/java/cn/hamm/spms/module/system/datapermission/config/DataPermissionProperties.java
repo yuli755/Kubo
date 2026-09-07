@@ -35,10 +35,13 @@ import java.util.Set;
  *       department-enabled: false  # DEPARTMENT 策略是否展开到子部门（放宽可见范围，默认关）
  *       ttl-seconds: 300           # 部门树快照有效期
  *       max-depth: 32              # 展开层数上限（脏数据成环时的兜底）
- *     shadow:
- *       sample-rate: 0.02          # 影子双跑采样率
- *       persist: true              # 差异是否落 data_permission_diff_log
- * }</pre>
+     *     shadow:
+     *       sample-rate: 0.02          # 影子双跑采样率
+     *       persist: true              # 差异是否落 data_permission_diff_log
+     *       retention-cleanup-enabled: false # 是否自动清理到期证据（默认关闭，归档后显式开启）
+     *       retention-days: 30          # 两张证据表至少保留天数
+     *       retention-cleanup-cron: 0 15 3 * * * # 每日清理时间
+     * }</pre>
  *
  * @author Hamm.cn
  */
@@ -190,6 +193,25 @@ public class DataPermissionProperties {
          * 单次比对允许记录的最大明细行数（超过则只记行数不记主键）
          */
         private int maxDetailRows = 200;
+
+        /**
+         * 是否自动清理到期的影子与 ORM 对账证据。
+         *
+         * <p>清理不是"把审计关掉"：任务只删除超过 {@link #retentionDays} 的记录，
+         * 并且默认保留至少 30 天。需要更长留存时调大天数；需要长期归档时应在数据库备份/归档层
+         * 先复制两张证据表，再打开清理，应用本身不把大表搬到业务库里。</p>
+         */
+        private boolean retentionCleanupEnabled = false;
+
+        /**
+         * 影子证据保留天数，必须为正数
+         */
+        private int retentionDays = 30;
+
+        /**
+         * 到期证据清理 cron；由 {@code DataPermissionEvidenceRetention} 消费
+         */
+        private String retentionCleanupCron = "0 15 3 * * *";
     }
 
     /**

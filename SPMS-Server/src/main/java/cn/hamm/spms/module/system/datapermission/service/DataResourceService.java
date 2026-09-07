@@ -145,10 +145,16 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      * @param rowWriteGuarded  写侧行级保护此刻是否会真的去问探针（{@code row-write.enabled} 且该资源参与计算）
      * @param queryPolicyCount 启用中的 QUERY 行级策略数
      * @param writePolicyCount 启用中的 UPDATE + DELETE 行级策略数
-     * @param exportPolicyCount 启用中的 EXPORT 行级策略数
-     * @param fieldPolicyCount 启用中的列级策略数
-     * @param bindingRiskCount 维度可绑定性风险条数（与 {@link #dimensionBindingRisks()} 同一份实现）
-     * @param notes            后端算好的人话提示；<b>前端不许自己再判一遍</b>（判据只该有一份）
+     * @param exportPolicyCount      启用中的 EXPORT 行级策略数
+     * @param fieldPolicyCount       启用中的列级策略数
+     * @param bindingRiskCount       维度可绑定性风险条数（与 {@link #dimensionBindingRisks()} 同一份实现）
+     * @param ormParityRequired      是否已登记 Mapper 探针（false = 本资源尚未进入换轨范围）
+     * @param ormParityTableAvailable 对账表是否可读；false 时不能把"没有样本"显示成"没有差异"
+     * @param ormParityConsistentCount 两套 ORM 行数一致的样本数
+     * @param ormParityStricterCount  Mapper 少放行的样本数（不泄露，但需留痕）
+     * @param ormParityLooserCount    Mapper 多放行的样本数（泄露方向，放开前置会阻塞）
+     * @param ormParityErrorCount     无法完成对账的样本数
+     * @param notes                   后端算好的人话提示；<b>前端不许自己再判一遍</b>（判据只该有一份）
      */
     public record ResourceRuntimeStatus(Long resourceId,
                                        String resourceKey,
@@ -161,6 +167,12 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
                                        long exportPolicyCount,
                                        long fieldPolicyCount,
                                        long bindingRiskCount,
+                                       boolean ormParityRequired,
+                                       boolean ormParityTableAvailable,
+                                       long ormParityConsistentCount,
+                                       long ormParityStricterCount,
+                                       long ormParityLooserCount,
+                                       long ormParityErrorCount,
                                        List<String> notes) {
 
         /**
@@ -189,6 +201,37 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
                                 boolean hierarchyDepartmentEnabled,
                                 List<String> unmanagedServiceKeys,
                                 List<ResourceRuntimeStatus> resources) {
+    }
+
+    /**
+     * ORM 对账分布的内部快照。
+     *
+     * <p>它不是 HTTP 契约：面板对外只把这些计数放进 {@link ResourceRuntimeStatus}，
+     * 放开前置检查则消费同一份快照的聚合结果。这样"不适用 / 表不可读 / 有样本"三态不会在
+     * 灰度面板与 readiness 之间各算一遍。</p>
+     */
+    private record OrmParityCounts(boolean required,
+                                   boolean tableAvailable,
+                                   long consistent,
+                                   long stricter,
+                                   long looser,
+                                   long error) {
+
+        private static OrmParityCounts notApplicable() {
+            return new OrmParityCounts(false, false, 0L, 0L, 0L, 0L);
+        }
+
+        private static OrmParityCounts unavailable() {
+            return new OrmParityCounts(true, false, 0L, 0L, 0L, 0L);
+        }
+
+        private long samples() {
+            return consistent + stricter;
+        }
+
+        private long blockers() {
+            return looser + error;
+        }
     }
 
     /**
@@ -294,6 +337,41 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
     }
 
     /**
+     * 取一个资源的 ORM 对账分布。
+     *
+     * <p>这是低频的管理端面板调用，按 verdict 计数比把整张证据表搬进内存更稳；
+     * 同时把"注册表不存在 / 没有该资源探针 / 表不可读"保留成不同状态，不能把三者都折成零。</p>
+     */
+    private OrmParityCounts ormParityCounts(String resourceKey) {
+        RowParityRegistry registry = parityRegistry();
+        if (registry == null || resourceKey == null || registry.counterFor(resourceKey) == null) {
+            return OrmParityCounts.notApplicable();
+        }
+        DataPermissionOrmParityRepository parityRepository = parityRepositoryProvider == null
+                ? null : parityRepositoryProvider.getIfAvailable();
+        if (parityRepository == null) {
+            return OrmParityCounts.unavailable();
+        }
+        try {
+            return new OrmParityCounts(
+                    true,
+                    true,
+                    parityRepository.countByResourceKeyAndVerdict(resourceKey,
+                            DataPermissionOrmParityEntity.VERDICT_CONSISTENT),
+                    parityRepository.countByResourceKeyAndVerdict(resourceKey,
+                            DataPermissionOrmParityEntity.VERDICT_MAPPER_STRICTER),
+                    parityRepository.countByResourceKeyAndVerdict(resourceKey,
+                            DataPermissionOrmParityEntity.VERDICT_MAPPER_LOOSER),
+                    parityRepository.countByResourceKeyAndVerdict(resourceKey,
+                            DataPermissionOrmParityEntity.VERDICT_ERROR));
+        }
+        catch (RuntimeException e) {
+            log.warn("灰度状态面板读不到 ORM 对账表，按「无证据」显示 resource={}: {}", resourceKey, e.getMessage());
+            return OrmParityCounts.unavailable();
+        }
+    }
+
+    /**
      * 单个资源的状态行（策略计数与提示都在这里算完，前端只负责显示）
      */
     private ResourceRuntimeStatus statusOf(DataResourceEntity resource, long bindingRiskCount) {
@@ -306,6 +384,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
         long write = counts.write();
         long export = counts.export();
         long fieldCount = fieldPolicyProvider.getEnabledPoliciesByResource(resourceKey).size();
+        OrmParityCounts parity = ormParityCounts(resourceKey);
 
         List<String> notes = runtimeNotes(resource, mode, query, write, bindingRiskCount, properties);
         return new ResourceRuntimeStatus(
@@ -320,6 +399,12 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
                 export,
                 fieldCount,
                 bindingRiskCount,
+                parity.required(),
+                parity.tableAvailable(),
+                parity.consistent(),
+                parity.stricter(),
+                parity.looser(),
+                parity.error(),
                 notes
         );
     }
@@ -661,37 +746,11 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
                 log.warn("放开前置检查读不到影子差异表，按「无证据」处理: {}", e.getMessage());
             }
         }
-        boolean parityRequired = false;
-        boolean parityTableAvailable = false;
-        long parityLooseOrError = 0L;
-        long paritySamples = 0L;
-        RowParityRegistry registry = parityRegistry();
-        if (registry != null && resourceKey != null && registry.counterFor(resourceKey) != null) {
-            parityRequired = true;
-            DataPermissionOrmParityRepository parityRepository = parityRepositoryProvider == null
-                    ? null : parityRepositoryProvider.getIfAvailable();
-            if (parityRepository != null) {
-                try {
-                    // 四个数分档，不用 verdict <> 'CONSISTENT' 一把捞：捞出来的"异常"里混着可解释的
-                    // MAPPER_STRICT，那样放开检查就会长期红着一个不必修的东西，而大家学会忽略红
-                    parityLooseOrError = parityRepository.countByResourceKeyAndVerdict(resourceKey,
-                                    DataPermissionOrmParityEntity.VERDICT_MAPPER_LOOSER)
-                            + parityRepository.countByResourceKeyAndVerdict(resourceKey,
-                                    DataPermissionOrmParityEntity.VERDICT_ERROR);
-                    paritySamples = parityRepository.countByResourceKeyAndVerdict(resourceKey,
-                                    DataPermissionOrmParityEntity.VERDICT_CONSISTENT)
-                            + parityRepository.countByResourceKeyAndVerdict(resourceKey,
-                                    DataPermissionOrmParityEntity.VERDICT_MAPPER_STRICTER);
-                    parityTableAvailable = true;
-                }
-                catch (RuntimeException e) {
-                    log.warn("放开前置检查读不到 ORM 对账表，按「无证据」处理: {}", e.getMessage());
-                }
-            }
-        }
+        // 灰度面板与放开前置检查共用同一个四档分布快照：不能一处把缺表读成零，另一处又报无证据。
+        OrmParityCounts parity = ormParityCounts(resourceKey);
         List<ReadinessCheck> checks = readinessChecks(new ReadinessInput(resource, properties.effectiveMode(resourceKey),
                 query, write, bindingRiskCount, exportGap, tableAvailable, anomalies, filtered,
-                parityRequired, parityTableAvailable, parityLooseOrError, paritySamples), properties);
+                parity.required(), parity.tableAvailable(), parity.blockers(), parity.samples()), properties);
         return new Readiness(resourceKey, properties.effectiveMode(resourceKey).name(), readyOf(checks),
                 blockersOf(checks), checks);
     }

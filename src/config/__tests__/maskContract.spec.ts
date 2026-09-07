@@ -1134,6 +1134,50 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
     }
   })
 
+  it('灰度页逐资源回显 ORM_PARITY 四档分布，不把缺证据显示成零', () => {
+    const service = readJavaCode(join(DPM, 'service', 'DataResourceService.java'))
+    const status = methodBody(service, 'ResourceRuntimeStatus statusOf(')
+    for (const field of ['ormParityRequired', 'ormParityTableAvailable', 'ormParityConsistentCount', 'ormParityStricterCount', 'ormParityLooserCount', 'ormParityErrorCount']) {
+      const suffix = field.slice('ormParity'.length).replace(/Count$/, '')
+      const accessor = suffix.charAt(0).toLowerCase() + suffix.slice(1)
+      expect(status, `状态面板缺少 ${field}：灰度页会把 ORM 对账结论丢掉`).toContain(`parity.${accessor}()`)
+    }
+    const composable = read(join(ROOT, 'src', 'composables', 'useDataPermissionRuntimeStatus.ts'))
+    expect(composable).toContain('resources: ResourceRuntimeStatus[]')
+    expect(composable).toContain('state.resources = state.status?.resources ?? []')
+    const list = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'resource', 'list.vue'))
+    expect(list, '资源列表页没有逐资源渲染 ORM 对账分布').toContain('v-for="item in runtimeResources"')
+    for (const field of ['ormParityRequired', 'ormParityTableAvailable', 'ormParityConsistentCount', 'ormParityStricterCount', 'ormParityLooserCount', 'ormParityErrorCount']) {
+      expect(list, `资源列表页没有显示 ${field}`).toContain(`item.${field}`)
+    }
+  })
+
+  it('证据留存有正数天数、独立定时清理与 create_time 索引', () => {
+    const properties = readJavaCode(join(DPM, 'config', 'DataPermissionProperties.java'))
+    const retention = readJavaCode(join(DPM, 'service', 'DataPermissionEvidenceRetention.java'))
+    const diffRepository = readJavaCode(join(DPM, 'repository', 'DataPermissionDiffRepository.java'))
+    const parityRepository = readJavaCode(join(DPM, 'repository', 'DataPermissionOrmParityRepository.java'))
+    const yml = read(join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'application.yml'))
+    expect(properties).toContain('retentionCleanupEnabled = false')
+    expect(properties).toContain('retentionDays = 30')
+    expect(properties).toContain('retentionCleanupCron')
+    expect(yml).toMatch(/retention-cleanup-enabled:\s*false/)
+    expect(yml).toMatch(/retention-days:\s*30/)
+    const property = '$' + '{kubo.data-permission.shadow.retention-cleanup-cron:0 15 3 * * *}'
+    const schedule = `@Scheduled(cron = "${property}")`
+    expect(retention).toContain(schedule)
+    expect(retention).toContain('cutoffEpochMillis')
+    expect(diffRepository).toContain('delete from data_permission_diff_log where create_time < :cutoff')
+    expect(parityRepository).toContain('delete from data_permission_orm_parity_log where create_time < :cutoff')
+    expect(read(join(ROOT, 'SPMS-Server', 'docs', 'database', 'migration', '20260907_data_permission_rule_kernel.sql')))
+      .toContain('idx_dp_diff_create_time')
+    expect(read(join(ROOT, 'SPMS-Server', 'docs', 'database', 'migration', '20260908_data_permission_orm_parity.sql')))
+      .toContain('idx_dp_parity_create_time')
+    const retentionMigration = read(join(ROOT, 'SPMS-Server', 'docs', 'database', 'migration', '20260909_data_permission_evidence_retention.sql'))
+    expect(retentionMigration).toContain('kubo_dp_add_evidence_time_index')
+    expect(retentionMigration).toContain('information_schema.STATISTICS')
+  })
+
   it('写侧动作级守卫必须认得 mode 与「资源是否纳管」', () => {
     const guard = readJavaCode(join(DPM, 'service', 'DataPermissionGuard.java'))
     const body = methodBody(guard, 'void enforce(String resourceKey, DataPermissionAction action)')
@@ -1209,13 +1253,18 @@ describe('mask contract · 逐资源放开的前置检查', () => {
     // 两处判据必须共用一份 runtimeNotes，否则面板说「先补策略」、检查说「可以放开」
     expect(methodBody(service, 'List<ReadinessCheck> readinessChecks('), '放开前置检查另抄了一份配置判据：面板与检查会说法不一')
       .toContain('runtimeNotes(')
-    // 影子证据读的是 verdict 常量，不是字符串（表里改枚举时这里要一起红）
+    // 影子证据读的是 verdict 常量，不是字符串（表里改枚举时这里要一起红）。
+    // ORM_PARITY 的四档计数现在由面板与 readiness 共用的快照集中读取，不能只盯 readinessOf 的装配体。
     const assembly = methodBody(service, 'Readiness readinessOf(DataResourceEntity resource, long bindingRiskCount')
+    const parity = methodBody(service, 'OrmParityCounts ormParityCounts(String resourceKey)')
     for (const constant of ['VERDICT_ANOMALY', 'VERDICT_ERROR', 'VERDICT_EXPECTED_FILTER']) {
       expect(assembly, `影子证据不再认 ${constant}：判据与表里的枚举定义开始分叉`).toContain(constant)
     }
+    for (const constant of ['VERDICT_CONSISTENT', 'VERDICT_MAPPER_STRICTER', 'VERDICT_MAPPER_LOOSER', 'VERDICT_ERROR']) {
+      expect(parity, `ORM 对账分布不再认 ${constant}：面板与 readiness 会丢掉一档`).toContain(constant)
+    }
     expect(service, '用字符串比较 verdict：枚举改名时会静默失效').not.toMatch(/equals\("(?:ANOMALY|ERROR|EXPECTED_FILTER)"\)/)
-    expect(assembly, '读不到差异表时不得当成「没有差异」').toContain('getIfAvailable()')
+    expect(parity, '读不到 ORM 对账表时不得当成「没有差异」').toContain('getIfAvailable()')
   })
 
   it('行级策略计数只有一份数法（面板与放开检查共用）', () => {
@@ -1544,7 +1593,7 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
   const PARITY_TABLE = 'data_permission_orm_parity_log'
 
   it('对账表名三处同源：迁移脚本 / 实体 / H2 测试 schema', () => {
-    const migration = collect(MIGRATION_DIR, '.sql').filter(file => read(file).includes(PARITY_TABLE))
+    const migration = collect(MIGRATION_DIR, '.sql').filter(file => read(file).includes(`CREATE TABLE IF NOT EXISTS \`${PARITY_TABLE}\``))
     expect(migration, `迁移脚本里没有 ${PARITY_TABLE}：生产上是"实体在、表不在"，`
     + '启动期 ddl-auto=validate 直接崩，而 H2 那边因为另有手抄 schema 完全不会红')
       .toHaveLength(1)

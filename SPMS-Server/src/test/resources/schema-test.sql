@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS data_permission_orm_parity_log (
     cost_ms BIGINT,
     detail TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_dp_parity_create_time ON data_permission_orm_parity_log (create_time);
 
 -- data_permission_diff_log（影子双跑差异；与 docs/database/migration/20260907_*.sql 对齐）
 CREATE TABLE IF NOT EXISTS data_permission_diff_log (
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS data_permission_diff_log (
     cost_ms BIGINT,
     detail TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_dp_diff_create_time ON data_permission_diff_log (create_time);
 
 -- data_policy
 CREATE TABLE IF NOT EXISTS data_policy (

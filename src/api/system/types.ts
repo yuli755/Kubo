@@ -299,6 +299,18 @@ export interface ResourceRuntimeStatus {
   fieldPolicyCount: number
   /** 维度可绑定性风险条数 */
   bindingRiskCount: number
+  /** 是否已登记 Mapper 探针；false 表示本资源尚未进入换轨范围 */
+  ormParityRequired: boolean
+  /** 对账表是否可读；false 时不能把「没有样本」显示成「没有差异」 */
+  ormParityTableAvailable: boolean
+  /** 两套 ORM 行数一致的样本数 */
+  ormParityConsistentCount: number
+  /** Mapper 少放行的样本数（不泄露，但需留痕） */
+  ormParityStricterCount: number
+  /** Mapper 多放行的样本数（泄露方向） */
+  ormParityLooserCount: number
+  /** 无法完成对账的样本数 */
+  ormParityErrorCount: number
   /** 后端算好的人话提示（配置建议） */
   notes: string[]
 }

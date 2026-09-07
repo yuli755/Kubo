@@ -13,6 +13,8 @@
 --   （EXPECTED_FILTER）就会被另一种语义污染，而这两种一致谁也不能替谁作证。
 --   只在 shadow 采样且该资源登记了 Mapper 探针时写入（kubo.data-permission.mapper-read.enabled
 --   默认 false ⇒ 这张表在生产默认是空的，不是"没有差异"）。
+--   默认留存 30 天，由 DataPermissionEvidenceRetention 按 create_time 滚动清理；长期归档
+--   必须在数据库备份/归档层先行完成，应用不会把历史证据复制到第三张业务表。
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `data_permission_orm_parity_log` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -33,7 +35,8 @@ CREATE TABLE IF NOT EXISTS `data_permission_orm_parity_log` (
     `detail` TEXT NULL COMMENT '明细/异常',
     PRIMARY KEY (`id`),
     KEY `idx_dp_parity_resource_time` (`resource_key`, `create_time`),
-    KEY `idx_dp_parity_verdict` (`verdict`, `create_time`)
+    KEY `idx_dp_parity_verdict` (`verdict`, `create_time`),
+    KEY `idx_dp_parity_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据权限 ORM 行数对账';
 
 -- ---------------------------------------------------------------------------

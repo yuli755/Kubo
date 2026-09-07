@@ -2,7 +2,11 @@ package cn.hamm.spms.module.system.datapermission.repository;
 
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionOrmParityEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -33,4 +37,15 @@ public interface DataPermissionOrmParityRepository extends JpaRepository<DataPer
      * @return 条数
      */
     long countByResourceKeyAndVerdict(String resourceKey, String verdict);
+
+    /**
+     * 删除指定时间点之前的 ORM 对账证据；长期归档由数据库备份/归档层负责。
+     *
+     * @param cutoffEpochMillis 截止时间（毫秒）
+     * @return 删除行数
+     */
+    @Modifying
+    @Transactional
+    @Query(value = "delete from data_permission_orm_parity_log where create_time < :cutoff", nativeQuery = true)
+    int deleteExpiredBefore(@Param("cutoff") long cutoffEpochMillis);
 }

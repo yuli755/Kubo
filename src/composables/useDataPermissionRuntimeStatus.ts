@@ -31,6 +31,8 @@ export interface DataPermissionRuntimeStatusState {
   pendingCount: number
   /** 前若干条提示预览（`key：第一条提示`） */
   notePreview: string[]
+  /** 后端按资源给出的灰度状态，页面只负责回显（含 ORM 对账分布） */
+  resources: ResourceRuntimeStatus[]
   /** 派生出了资源键、但库里没登记的服务键 */
   unmanaged: string[]
   refresh: () => Promise<void>
@@ -70,6 +72,7 @@ export function useDataPermissionRuntimeStatus(): DataPermissionRuntimeStatusSta
     summary: '',
     pendingCount: 0,
     notePreview: [],
+    resources: [],
     unmanaged: [],
     refresh: async () => undefined,
   })
@@ -80,7 +83,8 @@ export function useDataPermissionRuntimeStatus(): DataPermissionRuntimeStatusSta
       const data = await dataResourceApi.getRuntimeStatus()
       state.status = data ?? null
       state.summary = summarize(state.status)
-      const notes = notesOf(state.status?.resources ?? [])
+      state.resources = state.status?.resources ?? []
+      const notes = notesOf(state.resources)
       state.pendingCount = notes.count
       state.notePreview = notes.preview
       state.unmanaged = state.status?.unmanagedServiceKeys ?? []

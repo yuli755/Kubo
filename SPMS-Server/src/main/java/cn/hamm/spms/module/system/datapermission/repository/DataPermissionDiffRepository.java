@@ -2,7 +2,11 @@ package cn.hamm.spms.module.system.datapermission.repository;
 
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionDiffEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -36,4 +40,19 @@ public interface DataPermissionDiffRepository extends JpaRepository<DataPermissi
      * @return 条数
      */
     long countByResourceKeyAndVerdict(String resourceKey, String verdict);
+
+    /**
+     * 删除指定时间点之前的差异证据。
+     *
+     * <p>使用原生 SQL 是刻意的：{@code create_time} 来自 AirPower 的基类，应用 Java 属性名不是本模块
+     * 的契约；按物理列写可以让迁移脚本、归档任务与实体映射认同一件事。调用方只传截止毫秒数，
+     * 不接受资源键或排序片段。</p>
+     *
+     * @param cutoffEpochMillis 截止时间（该时刻之前的记录可删除）
+     * @return 删除行数
+     */
+    @Modifying
+    @Transactional
+    @Query(value = "delete from data_permission_diff_log where create_time < :cutoff", nativeQuery = true)
+    int deleteExpiredBefore(@Param("cutoff") long cutoffEpochMillis);
 }

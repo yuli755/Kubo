@@ -130,6 +130,10 @@ kubo:
       sample-rate: 0.02
       persist: true
       max-detail-rows: 200
+      # 证据留存：默认关闭且可审计；完成数据库备份/归档后，再显式打开滚动清理
+      retention-cleanup-enabled: false
+      retention-days: 30
+      retention-cleanup-cron: '0 15 3 * * *'
     # 写侧行级保护：改/删既存行之前，用读侧同一份条件判"这一行在不在你的数据范围内"
     # 默认 false 的理由：读侧条件绑不上只是查不到数据，写侧条件绑不上是"保存被拒"，直接打断业务。
     # 灰度顺序固定：维度绑定风险面板清零 → 打开本开关看 shadow 指标 → 再把资源加进 enforce-resources
