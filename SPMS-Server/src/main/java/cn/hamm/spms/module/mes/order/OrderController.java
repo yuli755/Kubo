@@ -5,7 +5,9 @@ import cn.hamm.airpower.core.Json;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.curd.annotation.Extends;
 import cn.hamm.airpower.curd.base.Curd;
+import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import cn.hamm.spms.base.bill.BaseBillController;
+import org.jetbrains.annotations.NotNull;
 import cn.hamm.spms.module.mes.order.detail.OrderDetailEntity;
 import cn.hamm.spms.module.mes.order.detail.OrderDetailRepository;
 import cn.hamm.spms.module.mes.order.detail.OrderDetailService;
@@ -17,6 +19,9 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import static cn.hamm.airpower.curd.base.Curd.GetDetail;
+import static cn.hamm.airpower.curd.base.Curd.GetPage;
+import static cn.hamm.airpower.exception.Errors.DATA_NOT_FOUND;
 import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
 
 /**
@@ -28,6 +33,28 @@ import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
 @Description("生产订单")
 @Extends(exclude = Curd.Delete)
 public class OrderController extends BaseBillController<OrderEntity, OrderService, OrderRepository, OrderDetailEntity, OrderDetailService, OrderDetailRepository> {
+
+    @Override
+    @PostMapping("getPage")
+    public Json getPage(@RequestBody QueryPageRequest<OrderEntity> request) {
+        if (!service.isMapperReadEnabled()) {
+            return super.getPage(request);
+        }
+        GetPage.checkApiAvailable(this);
+        return Json.data(service.getMapperPage(request));
+    }
+
+    @Override
+    @PostMapping("getDetail")
+    public Json getDetail(@RequestBody @Validated(WhenIdRequired.class) @NotNull OrderEntity source) {
+        if (!service.isMapperReadEnabled()) {
+            return super.getDetail(source);
+        }
+        GetDetail.checkApiAvailable(this);
+        OrderEntity entity = service.getMapperDetail(source.getId());
+        DATA_NOT_FOUND.whenNull(entity);
+        return Json.data(entity);
+    }
 
     @Description("开始生产")
     @PostMapping("start")

@@ -3,6 +3,10 @@ package cn.hamm.spms.module.mes.order;
 import cn.hamm.airpower.core.DictionaryUtil;
 import cn.hamm.airpower.core.NumberUtil;
 import cn.hamm.airpower.core.interfaces.IDictionary;
+import cn.hamm.airpower.curd.model.query.Page;
+import cn.hamm.airpower.curd.model.query.QueryPageRequest;
+import cn.hamm.airpower.curd.model.query.QueryPageResponse;
+import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.bill.AbstractBaseBillService;
 import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.mes.order.detail.OrderDetailEntity;
@@ -10,6 +14,10 @@ import cn.hamm.spms.module.mes.order.detail.OrderDetailRepository;
 import cn.hamm.spms.module.mes.order.detail.OrderDetailService;
 import cn.hamm.spms.module.mes.order.enums.OrderStatus;
 import cn.hamm.spms.module.mes.order.enums.OrderType;
+import cn.hamm.spms.module.mes.order.mapper.OrderMapper;
+import cn.hamm.spms.module.mes.order.mapper.OrderReadShadowService;
+import cn.hamm.spms.module.asset.material.MaterialService;
+import cn.hamm.spms.module.channel.ChannelServices;
 import cn.hamm.spms.module.system.SystemServices;
 import cn.hamm.spms.module.system.config.ConfigEntity;
 import cn.hamm.spms.module.system.config.ConfigService;
@@ -40,8 +48,89 @@ import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
  */
 @Service
 public class OrderService extends AbstractBaseBillService<OrderEntity, OrderRepository, OrderDetailEntity, OrderDetailService, OrderDetailRepository> {
+    private static final int DEFAULT_READ_PAGE_SIZE = 20;
+    private static final int MAX_READ_PAGE_SIZE = 200;
+
+    @Autowired(required = false)
+    private OrderMapper orderMapper;
+
+    @Autowired
+    private OrderReadShadowService orderReadShadowService;
+
+    @Autowired
+    private MaterialService materialService;
+
     @Autowired
     private DataPermissionSpecification dataPermissionSpecification;
+
+    public boolean isMapperReadEnabled() {
+        return orderMapper != null;
+    }
+
+    /**
+     * 生产订单分页读出口；Mapper 关闭时回退 JPA。
+     */
+    public @NotNull QueryPageResponse<OrderEntity> getMapperPage(QueryPageRequest<OrderEntity> request) {
+        QueryPageRequest<OrderEntity> normalized = request == null ? new QueryPageRequest<>() : request;
+        if (!isMapperReadEnabled()) {
+            return getPage(normalized);
+        }
+        OrderEntity filter = normalized.getFilter() == null ? new OrderEntity() : normalized.getFilter();
+        Page requestedPage = normalized.getPage() == null ? new Page() : normalized.getPage();
+        int pageNum = requestedPage.getPageNum() == null ? 1 : requestedPage.getPageNum();
+        int pageSize = requestedPage.getPageSize() == null
+                ? DEFAULT_READ_PAGE_SIZE : requestedPage.getPageSize();
+        if (pageNum < 1 || pageSize < 1) {
+            throw new IllegalArgumentException("分页页码和分页大小必须为正数");
+        }
+        pageSize = Math.min(pageSize, MAX_READ_PAGE_SIZE);
+        long offset = ((long) pageNum - 1L) * pageSize;
+        if (offset > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("分页页码超出可查询范围");
+        }
+        orderReadShadowService.submit(filter);
+        List<OrderEntity> rows = orderMapper.selectPageByPermission(filter.getBillCode(), filter.getStatus(),
+                filter.getType(), (int) offset, pageSize);
+        long total = orderMapper.countByPermission(filter.getBillCode(), filter.getStatus(), filter.getType());
+        int totalAsInt = Math.toIntExact(total);
+        int pageCount = total == 0 ? 0 : Math.toIntExact((total + pageSize - 1L) / pageSize);
+        QueryPageResponse<OrderEntity> response = new QueryPageResponse<>();
+        response.setList(rows);
+        response.setTotal(totalAsInt);
+        response.setPageCount(pageCount);
+        response.setPage(new Page().setPageNum(pageNum).setPageSize(pageSize));
+        response.setSort(normalized.getSort() == null ? new Sort() : normalized.getSort());
+        return response;
+    }
+
+    /**
+     * 生产订单详情读出口；主表通过权限链后再读取明细和关联对象。
+     */
+    public OrderEntity getMapperDetail(long id) {
+        if (!isMapperReadEnabled()) {
+            return get(id);
+        }
+        orderReadShadowService.submit(new OrderEntity());
+        OrderEntity bill = orderMapper.selectDetailByPermission(id);
+        if (bill == null) {
+            return null;
+        }
+        if (detailService != null) {
+            bill.setDetails(detailService.getAllByBillId(id));
+        }
+        if (bill.getMaterial() != null && bill.getMaterial().getId() != null) {
+            bill.setMaterial(materialService.isMapperReadEnabled()
+                    ? materialService.getMapperDetail(bill.getMaterial().getId())
+                    : materialService.get(bill.getMaterial().getId()));
+        }
+        if (bill.getPlan() != null && bill.getPlan().getId() != null) {
+            bill.setPlan(MesServices.getPlanService().get(bill.getPlan().getId()));
+        }
+        if (bill.getCustomer() != null && bill.getCustomer().getId() != null) {
+            bill.setCustomer(ChannelServices.getCustomerService().get(bill.getCustomer().getId()));
+        }
+        return bill;
+    }
 
     @Override
     protected @NotNull List<Predicate> addSearchPredicate(

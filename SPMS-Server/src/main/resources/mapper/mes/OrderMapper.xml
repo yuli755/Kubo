@@ -1,13 +1,108 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- 权限片段只来自 SqlPermissionRuleRenderer；${fragment} 后仍由 #{} 参数化。 -->
+<!-- 生产订单主表读 SQL；权限条件由 MyBatis-Plus 追加，关联对象只投影 ID。 -->
 <mapper namespace="cn.hamm.spms.module.mes.order.mapper.OrderMapper">
+    <resultMap id="orderReadMap" type="cn.hamm.spms.module.mes.order.OrderEntity">
+        <id column="id" property="id"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_disabled" property="isDisabled"/>
+        <result column="is_published" property="isPublished"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="creator_id" property="creatorId"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="bill_code" property="billCode"/>
+        <result column="status" property="status"/>
+        <result column="type" property="type"/>
+        <result column="start_time" property="startTime"/>
+        <result column="finish_time" property="finishTime"/>
+        <result column="deliver_time" property="deliverTime"/>
+        <result column="quantity" property="quantity"/>
+        <result column="finish_quantity" property="finishQuantity"/>
+        <result column="ng_quantity" property="ngQuantity"/>
+        <association property="material" javaType="cn.hamm.spms.module.asset.material.MaterialEntity">
+            <id column="material_id" property="id"/>
+        </association>
+        <association property="plan" javaType="cn.hamm.spms.module.mes.plan.PlanEntity">
+            <id column="plan_id" property="id"/>
+        </association>
+        <association property="customer" javaType="cn.hamm.spms.module.channel.customer.CustomerEntity">
+            <id column="customer_id" property="id"/>
+        </association>
+    </resultMap>
+
+    <sql id="orderColumns">
+        o.id,
+        o.create_time,
+        o.update_time,
+        o.is_disabled,
+        o.is_published,
+        o.tenant_id,
+        o.creator_id,
+        o.reject_reason,
+        o.bill_code,
+        o.status,
+        o.type,
+        o.start_time,
+        o.finish_time,
+        o.deliver_time,
+        o.quantity,
+        o.finish_quantity,
+        o.ng_quantity,
+        o.material_id,
+        o.plan_id,
+        o.customer_id
+    </sql>
+
+    <sql id="orderFilter">
+        <if test="billCode != null and billCode != ''">
+            AND o.bill_code LIKE CONCAT('%', #{billCode}, '%')
+        </if>
+        <if test="status != null">
+            AND o.status = #{status}
+        </if>
+        <if test="type != null">
+            AND o.type = #{type}
+        </if>
+    </sql>
+
+    <sql id="orderParityFilter">
+        <if test="billCode != null and billCode != ''">
+            AND bill_code LIKE CONCAT('%', #{billCode}, '%')
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        <if test="type != null">
+            AND type = #{type}
+        </if>
+    </sql>
+
+    <select id="selectPageByPermission" resultMap="orderReadMap">
+        SELECT <include refid="orderColumns"/>
+        FROM orders o
+        <where><include refid="orderFilter"/></where>
+        ORDER BY o.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectDetailByPermission" resultMap="orderReadMap">
+        SELECT <include refid="orderColumns"/>
+        FROM orders o
+        WHERE o.id = #{id}
+    </select>
+
+    <select id="countByPermission" resultType="long">
+        SELECT COUNT(1)
+        FROM orders o
+        <where><include refid="orderFilter"/></where>
+    </select>
+
     <select id="countByPermissionFragment" resultType="long">
         SELECT COUNT(1) FROM orders
         <where>
-            <if test="fragment != null and fragment != ''">
-                ${fragment}
-            </if>
+            <include refid="orderParityFilter"/>
+            <if test="fragment != null and fragment != ''">AND ${fragment}</if>
         </where>
     </select>
 </mapper>
