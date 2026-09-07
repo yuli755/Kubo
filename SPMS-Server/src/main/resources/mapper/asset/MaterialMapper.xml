@@ -96,6 +96,16 @@
         WHERE m.id = #{id}
     </select>
 
+    <select id="selectForExport" resultMap="materialReadMap">
+        SELECT
+        <include refid="materialColumns"/>
+        FROM material m
+        <where>
+            <include refid="materialFilter"/>
+        </where>
+        ORDER BY m.id DESC
+    </select>
+
     <select id="countByPermission" resultType="long">
         SELECT COUNT(1)
         FROM material m

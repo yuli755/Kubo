@@ -160,7 +160,7 @@ jobs:
           # 本轮要验证的假设很具体：导出的"行"到底是 Jackson 序列化出来的（那 @SensitiveField
           # 已经天然把导出遮住了，界面与文件一致），还是 CurdUtil 反射字段拼出来的（那必须另做一层）。
           node ../infra/scripts/framework-intel.mjs --cp /tmp/cp.txt --chunks 8 \
-            --classes cn.hamm.airpower.curd.helper.ExportHelper,cn.hamm.airpower.core.TaskUtil,cn.hamm.airpower.curd.base.CurdController
+            --classes cn.hamm.airpower.curd.helper.ExportHelper,cn.hamm.airpower.core.CollectionUtil,cn.hamm.airpower.core.TaskUtil,cn.hamm.airpower.curd.base.CurdController,cn.hamm.airpower.curd.base.CurdService
 
       - name: Reject forbidden dependencies
         run: |

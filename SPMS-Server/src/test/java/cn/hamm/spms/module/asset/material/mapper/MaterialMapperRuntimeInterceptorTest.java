@@ -133,6 +133,18 @@ class MaterialMapperRuntimeInterceptorTest {
     }
 
     @Test
+    @DisplayName("导出取数走同一权限链：只返回当前租户可见行且固定 id 倒序")
+    void exportSelectSharesPermissionPredicate() {
+        try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(
+                new PermissionContext(7L, 10L, Set.of(), Set.of(), Set.of(), Set.of(), false))) {
+            var rows = materialMapper.selectForExport(new MaterialEntity());
+            assertEquals(2, rows.size());
+            assertEquals(2L, rows.get(0).getId());
+            assertEquals(1L, rows.get(1).getId());
+        }
+    }
+
+    @Test
     @DisplayName("租户条件由运行时拦截器注入，受限主体只数到自己的两行")
     void interceptorFiltersRealMapperSql() {
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(
@@ -157,6 +169,7 @@ class MaterialMapperRuntimeInterceptorTest {
             assertNull(materialService.getMapperDetail(1L));
             assertEquals(0L, materialService.getMapperCount(new MaterialEntity()));
             assertEquals(0L, materialService.getMapperStat(new MaterialEntity()).getTotal());
+            assertEquals(0, materialMapper.selectForExport(new MaterialEntity()).size());
         }
     }
 

@@ -2,6 +2,7 @@ package cn.hamm.spms.module.asset.material;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Dictionary;
+import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.airpower.core.annotation.Meta;
 import cn.hamm.airpower.curd.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
@@ -46,6 +47,7 @@ import org.hibernate.annotations.DynamicUpdate;
 public class MaterialEntity extends TenantAwareEntity<MaterialEntity> {
     @Description("物料名称")
     @Search
+    @Export
     @Column(columnDefinition = "varchar(255) default '' comment '物料名称'", unique = true)
     @NotBlank(groups = {WhenAdd.class, WhenUpdate.class}, message = "物料名称不能为空")
     @Meta
@@ -55,22 +57,26 @@ public class MaterialEntity extends TenantAwareEntity<MaterialEntity> {
     @Column(columnDefinition = "varchar(255) default '' comment '物料编码'", unique = true)
     @Search
     @AutoGenerateCode(CodeRuleField.MaterialCode)
+    @Export
     @Meta
     private String code;
 
     @Description("规格型号")
     @Search
+    @Export
     @Column(columnDefinition = "varchar(255) default '' comment '规格型号'")
     private String spc;
 
     @Description("物料类型")
     @Column(columnDefinition = "bigint UNSIGNED default 1 comment '物料类型'")
     @Dictionary(value = MaterialType.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer materialType;
 
     @Description("使用方式")
     @Column(columnDefinition = "bigint UNSIGNED default 1 comment '使用方式'")
     @Dictionary(value = MaterialUseType.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer useType;
 
     @Description("默认单位")
@@ -80,11 +86,13 @@ public class MaterialEntity extends TenantAwareEntity<MaterialEntity> {
 
     @Description("采购标准价")
     @SensitiveField(resourceKey = "asset.material")
+    @Export(Export.Type.NUMBER)
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '采购标准价'")
     private Double purchasePrice;
 
     @Description("销售标准价")
     @SensitiveField(resourceKey = "asset.material")
+    @Export(Export.Type.NUMBER)
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '销售标准价'")
     private Double salePrice;
 }

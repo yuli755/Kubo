@@ -89,4 +89,22 @@ public class MaterialController extends BaseController<MaterialEntity, MaterialS
         MaterialEntity filter = request == null ? null : request.getFilter();
         return Json.data(service.getMapperStat(filter));
     }
+
+    /**
+     * 物料导出出口：Mapper 读链路开启时走受权限拦截的取数 + 请求线程列级遮蔽；
+     * 关闭时回退框架 JPA 导出。返回 fileCode 契约与框架一致，前端 queryExport 不变。
+     *
+     * @param request 导出请求
+     * @return 导出任务文件编码
+     */
+    @Override
+    @Description("创建导出任务")
+    @PostMapping("export")
+    public Json export(@RequestBody QueryListRequest<MaterialEntity> request) {
+        if (!service.isMapperReadEnabled()) {
+            return super.export(request);
+        }
+        Curd.Export.checkApiAvailable(this);
+        return Json.data(service.createMapperExportTask(request), "导出任务创建成功");
+    }
 }

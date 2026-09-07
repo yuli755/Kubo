@@ -1,6 +1,9 @@
 package cn.hamm.spms.module.asset.material;
 
+import cn.hamm.airpower.core.CollectionUtil;
+import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
+import cn.hamm.airpower.curd.model.query.QueryListRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.airpower.curd.model.query.QueryPageResponse;
@@ -10,6 +13,7 @@ import cn.hamm.spms.module.asset.material.mapper.MaterialReadShadowService;
 import cn.hamm.spms.module.asset.material.mapper.MaterialReadStat;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
+import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import cn.hamm.spms.module.system.unit.UnitService;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
@@ -18,6 +22,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -40,6 +45,9 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
 
     @Autowired
     private MaterialReadShadowService materialReadShadowService;
+
+    @Autowired
+    private ExportHelper exportHelper;
 
     /**
      * @return 是否已启用 Material 的 Mapper 读路径
@@ -139,6 +147,34 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
         stat.setTotal(rows.size());
         stat.setPublishedTotal(rows.stream().filter(row -> Boolean.TRUE.equals(row.getIsPublished())).count());
         return stat;
+    }
+
+    /**
+     * 物料真实导出出口（Mapper）。
+     *
+     * <p>与框架默认导出的差异在<b>数据源与遮蔽时点</b>：行集经 {@link MaterialMapper#selectForExport}
+     * 走同一条权限/租户拦截链（与 page/detail/count/stat 一致，而非 JPA 读链路），列级遮蔽在
+     * <b>请求线程</b>完成（此时 {@code PermissionContext} 尚在），再把已遮蔽的 CSV 交给框架的
+     * {@link ExportHelper#createExportTask} 落盘 —— 保留 {@code fileCode → queryExport} 的异步下载契约。</p>
+     *
+     * <p>遮蔽用 {@link ExportColumnMasker#maskForExport}（只改副本、QUERY 口径、EXPORT 明文授权列保留原值），
+     * 与 {@code afterExportQuery} 同一实现，不另写一套遮蔽。</p>
+     *
+     * @param request 导出请求（含业务筛选）
+     * @return 导出任务文件编码，供前端 {@code queryExport} 轮询下载
+     */
+    public String createMapperExportTask(QueryListRequest<MaterialEntity> request) {
+        MaterialEntity filter = request == null || request.getFilter() == null
+                ? new MaterialEntity() : request.getFilter();
+        materialReadShadowService.submit(filter);
+        List<MaterialEntity> rows = materialMapper.selectForExport(filter).stream()
+                .map(this::hydrateRelations).toList();
+        List<MaterialEntity> masked = ExportColumnMasker.maskForExport(rows);
+        // 遮蔽已在请求线程完成；异步线程只做“已遮蔽字节 → 文件落盘”，不再依赖权限上下文。
+        return exportHelper.createExportTask(() -> {
+            InputStream stream = CollectionUtil.toCsvInputStream(masked, MaterialEntity.class);
+            return exportHelper.saveExportFileStream(stream);
+        });
     }
 
     @Override

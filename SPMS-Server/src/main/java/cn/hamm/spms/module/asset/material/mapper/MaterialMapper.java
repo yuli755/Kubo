@@ -59,6 +59,17 @@ public interface MaterialMapper extends KuboBaseMapper<MaterialEntity>, RowParit
     MaterialEntity selectDetailByPermission(@Param("id") Long id);
 
     /**
+     * 真实导出取数出口；权限条件由运行时拦截器按 statement ID 注入，业务筛选与列表一致。
+     *
+     * <p>导出不需要分页：拦截器已经把行集收窄到当前主体的可见范围，这里只保证顺序稳定
+     * （固定 {@code id} 倒序）并返回全部可见行。CSV 组装与列级遮蔽在 Service 的请求线程完成。</p>
+     *
+     * @param filter 物料筛选条件
+     * @return 当前主体可见、且满足筛选条件的全部行（按 id 倒序）
+     */
+    java.util.List<MaterialEntity> selectForExport(@Param("filter") MaterialEntity filter);
+
+    /**
      * 与列表筛选条件一致的总数出口。
      *
      * @param filter 物料筛选条件
