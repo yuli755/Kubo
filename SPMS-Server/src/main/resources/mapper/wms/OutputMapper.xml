@@ -1,13 +1,96 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- 权限片段只来自 SqlPermissionRuleRenderer；${fragment} 后仍由 #{} 参数化。 -->
+<!-- 出库单主表读 SQL；权限条件由 MyBatis-Plus 追加，关联单据不在这里 JOIN。 -->
 <mapper namespace="cn.hamm.spms.module.wms.output.mapper.OutputMapper">
+    <resultMap id="outputReadMap" type="cn.hamm.spms.module.wms.output.OutputEntity">
+        <id column="id" property="id"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_disabled" property="isDisabled"/>
+        <result column="is_published" property="isPublished"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="creator_id" property="creatorId"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="bill_code" property="billCode"/>
+        <result column="status" property="status"/>
+        <result column="type" property="type"/>
+        <association property="sale" javaType="cn.hamm.spms.module.channel.sale.SaleEntity">
+            <id column="sale_id" property="id"/>
+        </association>
+        <association property="move" javaType="cn.hamm.spms.module.wms.move.MoveEntity">
+            <id column="move_id" property="id"/>
+        </association>
+        <association property="picking" javaType="cn.hamm.spms.module.mes.picking.PickingEntity">
+            <id column="picking_id" property="id"/>
+        </association>
+    </resultMap>
+
+    <sql id="outputColumns">
+        o.id,
+        o.create_time,
+        o.update_time,
+        o.is_disabled,
+        o.is_published,
+        o.tenant_id,
+        o.creator_id,
+        o.reject_reason,
+        o.bill_code,
+        o.status,
+        o.type,
+        o.sale_id,
+        o.move_id,
+        o.picking_id
+    </sql>
+
+    <sql id="outputFilter">
+        <if test="billCode != null and billCode != ''">
+            AND o.bill_code LIKE CONCAT('%', #{billCode}, '%')
+        </if>
+        <if test="status != null">
+            AND o.status = #{status}
+        </if>
+        <if test="type != null">
+            AND o.type = #{type}
+        </if>
+    </sql>
+
+    <sql id="outputParityFilter">
+        <if test="billCode != null and billCode != ''">
+            AND bill_code LIKE CONCAT('%', #{billCode}, '%')
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        <if test="type != null">
+            AND type = #{type}
+        </if>
+    </sql>
+
+    <select id="selectPageByPermission" resultMap="outputReadMap">
+        SELECT <include refid="outputColumns"/>
+        FROM output o
+        <where><include refid="outputFilter"/></where>
+        ORDER BY o.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectDetailByPermission" resultMap="outputReadMap">
+        SELECT <include refid="outputColumns"/>
+        FROM output o
+        WHERE o.id = #{id}
+    </select>
+
+    <select id="countByPermission" resultType="long">
+        SELECT COUNT(1)
+        FROM output o
+        <where><include refid="outputFilter"/></where>
+    </select>
+
     <select id="countByPermissionFragment" resultType="long">
         SELECT COUNT(1) FROM output
         <where>
-            <if test="fragment != null and fragment != ''">
-                ${fragment}
-            </if>
+            <include refid="outputParityFilter"/>
+            <if test="fragment != null and fragment != ''">AND ${fragment}</if>
         </where>
     </select>
 </mapper>

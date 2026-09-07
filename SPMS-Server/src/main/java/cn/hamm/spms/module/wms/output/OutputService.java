@@ -2,6 +2,10 @@ package cn.hamm.spms.module.wms.output;
 
 import cn.hamm.airpower.core.DictionaryUtil;
 import cn.hamm.airpower.core.interfaces.IDictionary;
+import cn.hamm.airpower.curd.model.query.Page;
+import cn.hamm.airpower.curd.model.query.QueryPageRequest;
+import cn.hamm.airpower.curd.model.query.QueryPageResponse;
+import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.bill.AbstractBaseBillService;
 import cn.hamm.spms.module.channel.ChannelServices;
 import cn.hamm.spms.module.mes.MesServices;
@@ -16,6 +20,8 @@ import cn.hamm.spms.module.wms.output.detail.OutputDetailRepository;
 import cn.hamm.spms.module.wms.output.detail.OutputDetailService;
 import cn.hamm.spms.module.wms.output.enums.OutputStatus;
 import cn.hamm.spms.module.wms.output.enums.OutputType;
+import cn.hamm.spms.module.wms.output.mapper.OutputMapper;
+import cn.hamm.spms.module.wms.output.mapper.OutputReadShadowService;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -36,8 +42,84 @@ import static cn.hamm.spms.module.system.config.enums.ConfigFlag.OUTPUT_BILL_AUT
  */
 @Service
 public class OutputService extends AbstractBaseBillService<OutputEntity, OutputRepository, OutputDetailEntity, OutputDetailService, OutputDetailRepository> {
+    private static final int DEFAULT_READ_PAGE_SIZE = 20;
+    private static final int MAX_READ_PAGE_SIZE = 200;
+
+    @Autowired(required = false)
+    private OutputMapper outputMapper;
+
+    @Autowired
+    private OutputReadShadowService outputReadShadowService;
+
     @Autowired
     private DataPermissionSpecification dataPermissionSpecification;
+
+    public boolean isMapperReadEnabled() {
+        return outputMapper != null;
+    }
+
+    /**
+     * 出库单分页读出口；Mapper 关闭时回退原 JPA 分页。
+     */
+    public @NotNull QueryPageResponse<OutputEntity> getMapperPage(QueryPageRequest<OutputEntity> request) {
+        QueryPageRequest<OutputEntity> normalized = request == null ? new QueryPageRequest<>() : request;
+        if (!isMapperReadEnabled()) {
+            return getPage(normalized);
+        }
+        OutputEntity filter = normalized.getFilter() == null ? new OutputEntity() : normalized.getFilter();
+        Page requestedPage = normalized.getPage() == null ? new Page() : normalized.getPage();
+        int pageNum = requestedPage.getPageNum() == null ? 1 : requestedPage.getPageNum();
+        int pageSize = requestedPage.getPageSize() == null
+                ? DEFAULT_READ_PAGE_SIZE : requestedPage.getPageSize();
+        if (pageNum < 1 || pageSize < 1) {
+            throw new IllegalArgumentException("分页页码和分页大小必须为正数");
+        }
+        pageSize = Math.min(pageSize, MAX_READ_PAGE_SIZE);
+        long offset = ((long) pageNum - 1L) * pageSize;
+        if (offset > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("分页页码超出可查询范围");
+        }
+        outputReadShadowService.submit(filter);
+        List<OutputEntity> rows = outputMapper.selectPageByPermission(filter.getBillCode(), filter.getStatus(),
+                filter.getType(), (int) offset, pageSize);
+        long total = outputMapper.countByPermission(filter.getBillCode(), filter.getStatus(), filter.getType());
+        int totalAsInt = Math.toIntExact(total);
+        int pageCount = total == 0 ? 0 : Math.toIntExact((total + pageSize - 1L) / pageSize);
+        QueryPageResponse<OutputEntity> response = new QueryPageResponse<>();
+        response.setList(rows);
+        response.setTotal(totalAsInt);
+        response.setPageCount(pageCount);
+        response.setPage(new Page().setPageNum(pageNum).setPageSize(pageSize));
+        response.setSort(normalized.getSort() == null ? new Sort() : normalized.getSort());
+        return response;
+    }
+
+    /**
+     * 出库单详情读出口；主表先过 Mapper 权限，再加载明细和关联对象。
+     */
+    public OutputEntity getMapperDetail(long id) {
+        if (!isMapperReadEnabled()) {
+            return get(id);
+        }
+        outputReadShadowService.submit(new OutputEntity());
+        OutputEntity bill = outputMapper.selectDetailByPermission(id);
+        if (bill == null) {
+            return null;
+        }
+        if (detailService != null) {
+            bill.setDetails(detailService.getAllByBillId(id));
+        }
+        if (bill.getSale() != null && bill.getSale().getId() != null) {
+            bill.setSale(ChannelServices.getSaleService().get(bill.getSale().getId()));
+        }
+        if (bill.getMove() != null && bill.getMove().getId() != null) {
+            bill.setMove(WmsServices.getMoveService().get(bill.getMove().getId()));
+        }
+        if (bill.getPicking() != null && bill.getPicking().getId() != null) {
+            bill.setPicking(MesServices.getPickingService().get(bill.getPicking().getId()));
+        }
+        return bill;
+    }
 
     @Override
     protected @NotNull List<Predicate> addSearchPredicate(
