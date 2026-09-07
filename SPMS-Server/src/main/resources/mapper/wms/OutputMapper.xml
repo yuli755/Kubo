@@ -71,7 +71,7 @@
 
     <select id="selectPageByPermission" resultMap="outputReadMap">
         SELECT <include refid="outputColumns"/>
-        FROM `output` o
+        FROM "output" o
         <where><include refid="outputFilter"/></where>
         ORDER BY o.id DESC
         LIMIT #{limit} OFFSET #{offset}
@@ -79,18 +79,18 @@
 
     <select id="selectDetailByPermission" resultMap="outputReadMap">
         SELECT <include refid="outputColumns"/>
-        FROM `output` o
+        FROM "output" o
         WHERE o.id = #{id}
     </select>
 
     <select id="countByPermission" resultType="long">
         SELECT COUNT(1)
-        FROM `output` o
+        FROM "output" o
         <where><include refid="outputFilter"/></where>
     </select>
 
     <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM `output`
+        SELECT COUNT(1) FROM "output"
         <where>
             <include refid="outputParityFilter"/>
             <if test="fragment != null and fragment != ''">AND ${fragment}</if>
