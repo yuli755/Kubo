@@ -98,7 +98,7 @@
     </select>
 
     <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM material
+        SELECT COUNT(1) FROM material m
         <where>
             <include refid="materialFilter"/>
             <if test="fragment != null and fragment != ''">
