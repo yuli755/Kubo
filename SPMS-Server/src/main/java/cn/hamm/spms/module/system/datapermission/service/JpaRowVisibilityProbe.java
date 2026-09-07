@@ -2,7 +2,7 @@ package cn.hamm.spms.module.system.datapermission.service;
 
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Query;
+import jakarta.persistence.TypedQuery;
 import jakarta.persistence.FlushModeType;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -64,9 +64,12 @@ public class JpaRowVisibilityProbe implements RowWriteGuard.VisibilityProbe {
         predicates.add(builder.equal(root.get(ID_ATTRIBUTE), id));
         query.select(builder.count(root));
         query.where(predicates.toArray(new Predicate[0]));
-        // 分两步写：setFlushMode 的返回类型是 Query（不是 TypedQuery<Long>），
-        // 串在一条链上会把 getSingleResult 的推断留给读者猜 —— 这段代码判的是"能不能改"，不值得省一行
-        Query countQuery = entityManager.createQuery(query).setFlushMode(FlushModeType.COMMIT);
+        // 必须先拿到 TypedQuery<Long> 再单独设 flush 模式：Query#setFlushMode 的返回类型是 Query，
+        // 而 Query#getSingleResult 返回 Object（泛型只存在于 TypedQuery 上）—— 串成一条链就编译不过。
+        // 这一格踩过两次（第一次是凭印象写 FlushModeType.MANUAL），都由 CI 编译抓出：
+        // 本地无 JDK 时，"我记得这个 API 长这样"只能当作待验证假设，不能当作事实写进代码。
+        TypedQuery<Long> countQuery = entityManager.createQuery(query);
+        countQuery.setFlushMode(FlushModeType.COMMIT);
         Long count = countQuery.getSingleResult();
         return count != null && count > 0L;
     }
