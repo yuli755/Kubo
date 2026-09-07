@@ -232,7 +232,7 @@ export const dataResourceApi = {
    * @returns 单资源时是一条记录，全部时是数组
    */
   getEnforceReadiness(resourceKey?: string): Promise<EnforceReadiness | EnforceReadiness[]> {
-    return request.get('/dataResource/enforce-readiness', resourceKey ? { resourceKey } : undefined)
+    return request.get('/dataResource/enforce-readiness', resourceKey ? { params: { resourceKey } } : undefined)
   },
 
   /**
