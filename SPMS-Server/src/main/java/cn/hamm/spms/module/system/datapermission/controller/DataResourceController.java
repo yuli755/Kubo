@@ -61,6 +61,21 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
     }
 
     /**
+     * 列出"启用着、但引用的资源不存在或未启用"的行级策略
+     *
+     * <p>这类行的特征是：策略列表里显示已启用，运行期却<em>永远轮不到它</em> —— 资源已删除则
+     * 没有任何资源行会映射到它引用的 id，资源未启用则 {@code findResource} 返回 null 按未登记处理。
+     * 与 {@code row-policy-risks} 同一权限面（返回的同样是跨角色的策略元数据）。</p>
+     *
+     * @return 风险条目列表（策略 ID、编码、引用的资源 ID、类别、原因）
+     */
+    @GetMapping("policy-resource-risks")
+    @Description("策略指向缺失/未启用资源盘点")
+    public Json getPolicyResourceRisks() {
+        return Json.data(service.policyResourceRisks());
+    }
+
+    /**
      * 列出"这一档维度在该资源上没有列可绑"的项
      *
      * <p>这一类问题的运行期表现和"策略写错"一样安静：本该产生的条件绑不上列，enforce 下退化成恒假

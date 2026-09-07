@@ -906,6 +906,54 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
     }
 
     /**
+     * 一条「策略指向缺失 / 未启用资源」的结论
+     *
+     * @param policyId   策略行主键
+     * @param policyCode 策略编码（人认这个）
+     * @param resourceId 策略引用的资源 ID（孤儿时为失效 ID；空引用为 null）
+     * @param kind       类别（{@link PolicyResourceReferenceAnalyzer} 的常量）
+     * @param detail     人话说明
+     */
+    public record PolicyResourceRiskItem(Long policyId,
+                                         String policyCode,
+                                         Long resourceId,
+                                         String kind,
+                                         String detail) {
+    }
+
+    /**
+     * 盘点「启用着、但引用的资源不存在或未启用」的行级策略
+     *
+     * <p>与 {@link #rowPolicyRisks()} 互补：那份按<em>资源</em>遍历、查「策略自身写错」；这份必须反过来
+     * 按<em>策略</em>遍历 —— 资源已经不在了 / 未启用，按资源遍历会把它们整类漏掉。这类行的运行期表现
+     * 与「策略写错」一样安静：不命中、界面却显示「已启用」，而修法完全不同（删策略 / 补登记 / 启用资源）。</p>
+     *
+     * @return 风险条目列表；无问题时为空列表
+     */
+    public List<PolicyResourceRiskItem> policyResourceRisks() {
+        List<DataPolicyEntity> policies = rowPolicyService.getEnabledPolicies();
+        if (policies == null || policies.isEmpty()) {
+            return List.of();
+        }
+        List<DataResourceEntity> resources = repository.findAll();
+        Map<Long, DataResourceEntity> byId = new LinkedHashMap<>();
+        if (resources != null) {
+            for (DataResourceEntity resource : resources) {
+                if (resource.getId() != null) {
+                    byId.put(resource.getId(), resource);
+                }
+            }
+        }
+        List<PolicyResourceRiskItem> items = new ArrayList<>();
+        for (PolicyResourceReferenceAnalyzer.Risk risk
+                : PolicyResourceReferenceAnalyzer.risks(policies, byId)) {
+            items.add(new PolicyResourceRiskItem(risk.policyId(), risk.policyCode(),
+                    risk.resourceId(), risk.kind(), risk.detail()));
+        }
+        return items;
+    }
+
+    /**
      * 一条导出缺口（带"它属于哪个资源"）
      *
      * <p>为什么把资源标识摊平进每条缺口而不是返回 {@code Map<resourceKey, List<Gap>>}：

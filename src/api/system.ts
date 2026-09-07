@@ -18,6 +18,7 @@ import type {
   MenuQuery,
   PermissionEntity,
   PermissionQuery,
+  PolicyResourceRiskItem,
   RowPolicyRiskItem,
   UnitEntity,
   UnitQuery,
@@ -258,6 +259,18 @@ export const dataResourceApi = {
    */
   getRowPolicyRisks(): Promise<RowPolicyRiskItem[]> {
     return request.get('/dataResource/row-policy-risks')
+  },
+
+  /**
+   * 「策略指向缺失 / 未启用资源」盘点（安全侧：这类行显示\"已启用\"，实际运行期永远轮不到它）
+   *
+   * 与 `getRowPolicyRisks` 互补：那份按资源遍历查「策略自身写错」，这份反过来按策略遍历
+   * 查「资源引用坏掉」（资源已删 / 未启用）。同挂 `dataResource` 管理端点。
+   *
+   * @returns 风险条目列表；无问题时为空数组
+   */
+  getPolicyResourceRisks(): Promise<PolicyResourceRiskItem[]> {
+    return request.get('/dataResource/policy-resource-risks')
   },
 
   /**

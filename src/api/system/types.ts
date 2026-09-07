@@ -271,6 +271,26 @@ export interface RowPolicyRiskItem {
 }
 
 /**
+ * 一条「策略指向缺失 / 未启用资源」的结论。
+ *
+ * 与 `RowPolicyRiskItem` 互补：那份是「策略自身写错」，这份是「资源引用坏掉」。
+ * `resourceId` 是策略引用的（可能失效的）资源 ID，孤儿 / 空引用时它不指向任何现存的资源行，
+ * 因此这里**没有** `resourceKey`（资源已删除时拿不到），前端不要拿它去 join 资源列表。
+ */
+export interface PolicyResourceRiskItem {
+  /** 策略行主键 */
+  policyId: number
+  /** 策略编码（人认这个，不认 ID） */
+  policyCode: string
+  /** 策略引用的资源 ID；空引用时为 null */
+  resourceId: number | null
+  /** 风险类别（DANGLING_RESOURCE / RESOURCE_NOT_ENABLED），原样回显 */
+  kind: string
+  /** 人话说明（含删除 / 补登记 / 启用资源的建议） */
+  detail: string
+}
+
+/**
  * 一个资源「此刻实际是什么档」
  *
  * `effectiveMode` 是后端 `DataPermissionProperties#effectiveMode` 的结果，

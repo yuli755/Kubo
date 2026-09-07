@@ -118,6 +118,19 @@ public class DataPolicyService extends BaseService<DataPolicyEntity, DataPolicyR
         return policies != null ? policies : List.of();
     }
 
+    /**
+     * 全部启用中的行级策略（跨资源），管理端「策略指向缺失资源」盘点用
+     *
+     * <p>同样刻意不走 {@code JpaPermissionRuleProvider} 缓存：它的键是 {@code resourceId + action}，
+     * 而这里要看的正是「资源引用坏掉」的行 —— 反过来从策略出发，按资源遍历会漏掉它们。</p>
+     *
+     * @return 启用中的策略，按 priority 降序；无则空列表
+     */
+    public List<DataPolicyEntity> getEnabledPolicies() {
+        List<DataPolicyEntity> policies = repository.findByEnabledTrueOrderByPriorityDesc();
+        return policies != null ? policies : List.of();
+    }
+
     private PermissionRuleValidator.FieldAllowList allowListOf(DataResourceEntity resource) {
         // 与读侧同一份合成规则（见 DataPermissionSpecification#allowListOf）：两把尺子必须同刻度，
         // 于是这里只留一行委托 —— 以前各自 addCsv + 各自展开，改一处忘一处就是「能查不能改」

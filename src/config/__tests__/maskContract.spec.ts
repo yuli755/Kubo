@@ -1794,3 +1794,46 @@ describe('mask contract · 拒绝事件落库（B4）', () => {
       .toMatch(/<ElAlert[^>]*v-else-if="denyLogFailed"/)
   })
 })
+
+describe('mask contract · 策略指向缺失/未启用资源盘点', () => {
+  const DPM = join(SERVER, 'module', 'system', 'datapermission')
+  const ANALYZER = join(DPM, 'service', 'PolicyResourceReferenceAnalyzer.java')
+
+  it('policy-resource-risks 路径前后端对得上，且只挂在管理端点上', () => {
+    const API = join(ROOT, 'src', 'api', 'system.ts')
+    expect(read(API)).toContain('request.get(\'/dataResource/policy-resource-risks\'')
+    const controller = join(DPM, 'controller', 'DataResourceController.java')
+    expect(readJavaCode(controller)).toContain('@GetMapping("policy-resource-risks")')
+    for (const file of collect(join(DPM, 'controller'), '.java')) {
+      if (file.endsWith('DataResourceController.java')) {
+        continue
+      }
+      expect(read(file), `策略资源引用盘点出现在 ${file.split('/').pop()}：这份跨角色策略地图会从 dataResource 权限面漂走`)
+        .not
+        .toContain('policy-resource-risks')
+    }
+  })
+
+  it('判据与运行期同源：ENABLED 是 findResource 的唯一放行状态', () => {
+    const analyzer = readJavaCode(ANALYZER)
+    expect(analyzer, '分析器不再以 ENABLED 判定资源可用：与 DataPermissionService#findResource 分叉，面板会把「能用」的资源报成风险')
+      .toContain('ENABLED')
+    // 运行期判据：resource == null || !"ENABLED".equals(status) ? null : resource
+    const findResource = methodBody(
+      readJavaCode(join(DPM, 'service', 'DataPermissionService.java')),
+      'DataResourceEntity findResource(String resourceKey)',
+    )
+    expect(findResource, 'findResource 改了放行状态却没同步分析器').toContain('ENABLED')
+  })
+
+  it('前端只回显结论，不自己判 kind / 资源是否可用', () => {
+    const report = read(join(ROOT, 'src', 'composables', 'usePolicyResourceRiskReport.ts'))
+    expect(report, '前端开始判 kind / resourceId 语义：孤儿与未启用的判据在 findResource 里只有一份，抄第二遍就是第二套真相')
+      .not
+      .toMatch(/kind\s*===|kind\s*!==|resourceId\s*===|ENABLED/)
+    const list = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'policy', 'list.vue'))
+    expect(list).toContain('usePolicyResourceRiskReport')
+    expect(list, '取数失败必须能被看见（这里显示「没有风险」等于把取不到表读成盘点干净）')
+      .toMatch(/<ElAlert[^>]*v-else-if="refRiskFailed"/)
+  })
+})
