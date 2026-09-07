@@ -9,10 +9,7 @@ import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRule;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleContext;
-import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleOp;
-import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser;
-import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleValidator;
-import cn.hamm.spms.module.system.datapermission.rule.SubjectDimensionRules;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleTreeBuilder;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -57,8 +54,8 @@ public class DataPermissionSpecification {
 
     private final DataPermissionProperties properties;
     private final DataPermissionAudit audit;
-    private final PermissionRuleParser ruleParser;
     private final JpaPermissionRuleCompiler ruleCompiler;
+    private final PermissionRuleTreeBuilder ruleTreeBuilder;
 
     /**
      * 影子双跑（只观测，不参与判定）。
@@ -70,17 +67,34 @@ public class DataPermissionSpecification {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ShadowDiffService shadowDiffService;
 
+    /**
+     * Spring 装配构造器；JPA 与 MyBatis 读侧共用同一个策略建树器。
+     */
+    @org.springframework.beans.factory.annotation.Autowired
     public DataPermissionSpecification(
             DataPermissionService dataPermissionService,
             DataPermissionProperties properties,
             DataPermissionAudit audit,
-            PermissionRuleParser ruleParser,
-            JpaPermissionRuleCompiler ruleCompiler) {
+            JpaPermissionRuleCompiler ruleCompiler,
+            PermissionRuleTreeBuilder ruleTreeBuilder) {
         this.dataPermissionService = dataPermissionService;
         this.properties = properties;
         this.audit = audit;
-        this.ruleParser = ruleParser;
         this.ruleCompiler = ruleCompiler;
+        this.ruleTreeBuilder = ruleTreeBuilder;
+    }
+
+    /**
+     * 保留给纯 JPA 单测的最小构造器；生产装配必须走上面的共享建树器。
+     */
+    public DataPermissionSpecification(
+            DataPermissionService dataPermissionService,
+            DataPermissionProperties properties,
+            DataPermissionAudit audit,
+            cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser ruleParser,
+            JpaPermissionRuleCompiler ruleCompiler) {
+        this(dataPermissionService, properties, audit, ruleCompiler,
+                new PermissionRuleTreeBuilder(ruleParser));
     }
 
     /**
@@ -279,18 +293,19 @@ public class DataPermissionSpecification {
         List<PermissionRule> ruleTrees = new ArrayList<>(policies.size());
         int expected = 0;
 
-        for (DataPolicyEntity policy : policies) {
-            PolicyBuild build = buildPolicyBuild(root, builder, resource, policy, context);
-            if (build.tree() != null) {
-                ruleTrees.add(build.tree());
+        for (PermissionRuleTreeBuilder.PolicyRule policyRule : ruleTreeBuilder.build(resource, policies, context)) {
+            PermissionRule tree = policyRule.rule();
+            if (tree != null) {
+                ruleTrees.add(tree);
+                Predicate predicate = ruleCompiler.compile(tree, root, builder, new PermissionRuleContext(context));
+                if (predicate != null) {
+                    predicates.add(predicate);
+                }
+                else if (policyRule.shouldBind()) {
+                    expected++;
+                }
             }
-            if (build.predicate() != null) {
-                predicates.add(build.predicate());
-            }
-            else if (build.shouldBind()) {
-                // 「本该拼出条件却没拼出来」——计数口径没变，变的只是判据住在哪：
-                // 以前由本类的 isFilteringSubject 判断，现在由规则侧在生成条件的那一刻一并给出，
-                // 于是"哪些主体类型参与行级过滤"这句话不会在这里和归属工厂里各说一遍
+            else if (policyRule.shouldBind()) {
                 expected++;
             }
         }
@@ -298,84 +313,4 @@ public class DataPermissionSpecification {
         return new BuildResult(predicates, expected, List.copyOf(ruleTrees));
     }
 
-    /**
-     * 一条策略 = 「主体维度条件」AND「condition_json 条件树」，两半先合成<em>一棵树</em>再编译
-     *
-     * <p>合一之前，这里是 {@code switch (subjectType)} 加五个 {@code buildXxxPredicate} 直接拼
-     * Criteria，而 SQL 侧另有一份 {@code RowPermissionPredicate} 工厂写着同一件事。两份实现各改一次
-     * 就分家，而分家的表现不是报错：JPA 少滤一点或多滤一点，Mapper 侧另一个数，谁都不响。
-     * 现在主体维度只由 {@link SubjectDimensionRules} 回答一次，
-     * {@link JpaPermissionRuleCompiler} 与 {@code SqlPermissionRuleRenderer} 各自渲染同一棵树
-     * （§19.35）。</p>
-     *
-     * <p>白名单校验只覆盖 {@code condition_json} 那棵树：归属候选来自 {@code data_resource} 登记，
-     * 它们<em>允许</em>指向实体上没有的列 —— 那正是"该列没映射"这个缺陷被数出来的方式，
-     * 拿白名单去校验它，缺陷就变成一句"非法字段"，面板从此看不见。</p>
-     */
-    private <T> PolicyBuild buildPolicyBuild(
-            Root<T> root,
-            CriteriaBuilder builder,
-            DataResourceEntity resource,
-            DataPolicyEntity policy,
-            PermissionContext context
-    ) {
-        SubjectDimensionRules.SubjectRule subject = SubjectDimensionRules.forPolicy(resource, policy, context);
-        PermissionRule condition = parseConditionRule(resource, policy);
-
-        List<PermissionRule> parts = new ArrayList<>(2);
-        if (subject.rule() != null && subject.rule().contributes()) {
-            parts.add(subject.rule());
-        }
-        if (condition != null) {
-            parts.add(condition);
-        }
-        if (parts.isEmpty()) {
-            return new PolicyBuild(null, subject.shouldBind(), null);
-        }
-        PermissionRule combined = parts.size() == 1
-                ? parts.get(0)
-                : PermissionRule.group(PermissionRuleOp.ALL_OF, parts);
-        Predicate predicate = ruleCompiler.compile(combined, root, builder, new PermissionRuleContext(context));
-        return new PolicyBuild(predicate, subject.shouldBind(), combined);
-    }
-
-    /**
-     * 解析并校验 condition_json，产出条件树（不做编译：编译发生在与主体条件合并之后）
-     *
-     * <p>历史上 {@code condition_json} 从来没被读过（列一直存在、值恒为 {@code {}}），
-     * 于是"配了条件也不生效"。这里把它接上，并且<b>不静默跳过</b>非法条件：
-     * 解析/校验异常会冒到 {@link #apply} 的统一兜底，enforce 下变成拒绝 + binding 指标。</p>
-     */
-    private PermissionRule parseConditionRule(DataResourceEntity resource, DataPolicyEntity policy) {
-        String json = policy.getConditionJson();
-        if (json == null || json.isBlank() || "{}".equals(json.trim())) {
-            return null;
-        }
-        PermissionRule rule = ruleParser.parse(resource.getResourceKey(), json);
-        if (!rule.contributes()) {
-            return null;
-        }
-        new PermissionRuleValidator(allowListOf(resource)).validate(resource.getResourceKey(), rule);
-        return rule;
-    }
-
-    /**
-     * 条件树可引用的列：归属列 + 显式登记的可过滤列（白名单为空时任何 field 都会被拒）
-     */
-    private PermissionRuleValidator.FieldAllowList allowListOf(DataResourceEntity resource) {
-        // 合成规则只有一份（见 FieldAllowList.ofRegistrations）：读侧与写侧校验必须认同一批列，
-        // 否则会出现「策略在查询里能过、在 update/delete 上被判非法字段」这种查得见却改不动的资源
-        return PermissionRuleValidator.FieldAllowList.ofRegistrations(
-                resource.getTenantColumn(), resource.getOwnerColumns(), resource.getFilterableColumns());
-    }
-
-    /**
-     * 单条策略的构建结果
-     *
-     * @param predicate  编译出的 JPA 谓词；{@code null} 表示这一条不贡献条件
-     * @param shouldBind 该主体类型本该拼出条件（用来把"结构性空转"数出来）
-     * @param tree       编译前的条件树；给 Mapper 侧渲染同一棵树用（不重新按策略建一遍树）
-     */
-    private record PolicyBuild(Predicate predicate, boolean shouldBind, PermissionRule tree) {
-    }
 }

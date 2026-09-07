@@ -3,6 +3,7 @@ package cn.hamm.spms.module.system.datapermission.config;
 import cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleEvaluator;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleTreeBuilder;
 import cn.hamm.spms.module.system.datapermission.rule.SqlPermissionRuleRenderer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +29,14 @@ public class DataPermissionAutoConfiguration {
     @Bean
     public JpaPermissionRuleCompiler jpaPermissionRuleCompiler() {
         return new JpaPermissionRuleCompiler();
+    }
+
+    /**
+     * JPA 与 MyBatis 共享的策略建树器；主体维度与 condition_json 只合成一次。
+     */
+    @Bean
+    public PermissionRuleTreeBuilder permissionRuleTreeBuilder(PermissionRuleParser parser) {
+        return new PermissionRuleTreeBuilder(parser);
     }
 
     /**

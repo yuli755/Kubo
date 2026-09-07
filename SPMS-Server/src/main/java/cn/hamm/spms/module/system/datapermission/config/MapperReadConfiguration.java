@@ -1,9 +1,16 @@
 package cn.hamm.spms.module.system.datapermission.config;
 
 import cn.hamm.spms.base.mapper.KuboBaseMapper;
+import cn.hamm.spms.module.system.datapermission.mybatis.KuboDataPermissionHandler;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleTreeBuilder;
+import cn.hamm.spms.module.system.datapermission.rule.SqlPermissionRuleRenderer;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionAudit;
+import cn.hamm.spms.module.system.datapermission.service.DataPermissionService;
 import cn.hamm.spms.module.system.datapermission.service.DataResourceBindingRegistry;
 import cn.hamm.spms.module.system.datapermission.service.RowParityCounter;
 import cn.hamm.spms.module.system.datapermission.service.RowParityRegistry;
+import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
+import com.baomidou.mybatisplus.extension.plugins.inner.DataPermissionInterceptor;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.beans.factory.ObjectProvider;
@@ -28,6 +35,32 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnProperty(prefix = "kubo.data-permission.mapper-read", name = "enabled", havingValue = "true")
 @MapperScan(basePackages = "cn.hamm.spms", markerInterface = KuboBaseMapper.class)
 public class MapperReadConfiguration {
+
+    /**
+     * statement 到资源的运行时权限决策器。它与读侧 Mapper 同挂在一个开关下，避免出现
+     * "Mapper 已注册但权限插件没有注册"的半开状态。
+     */
+    @Bean
+    KuboDataPermissionHandler kuboDataPermissionHandler(
+            ObjectProvider<DataResourceBindingRegistry> bindings,
+            DataPermissionService dataPermissionService,
+            cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties properties,
+            DataPermissionAudit audit,
+            PermissionRuleTreeBuilder ruleTreeBuilder,
+            SqlPermissionRuleRenderer renderer) {
+        return new KuboDataPermissionHandler(bindings::getObject, dataPermissionService, properties, audit,
+                ruleTreeBuilder, renderer);
+    }
+
+    /**
+     * MyBatis-Plus 的唯一插件入口：数据权限拦截器只处理已绑定的读侧 statement。
+     */
+    @Bean
+    MybatisPlusInterceptor kuboMybatisPlusInterceptor(KuboDataPermissionHandler handler) {
+        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
+        interceptor.addInnerInterceptor(new DataPermissionInterceptor(handler));
+        return interceptor;
+    }
 
     /**
      * 对账探针的索引：从容器里的 {@link RowParityCounter} 汇总，不在这里逐个点名资源
