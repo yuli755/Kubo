@@ -223,11 +223,32 @@ public final class KuboDataPermissionHandler implements MultiDataPermissionHandl
         if (table == null || !StringUtils.hasText(resource.getTableName())) {
             throw new IllegalStateException("权限资源缺少可验证的主表绑定：" + binding.resourceKey());
         }
-        String actualTable = table.getName();
+        String actualTable = normalizeIdentifier(table.getName());
         if (!resource.getTableName().equalsIgnoreCase(actualTable)) {
             throw new IllegalStateException("mappedStatement " + binding.resourceKey() + " 的 SQL 主表 "
                     + actualTable + " 与资源登记表 " + resource.getTableName() + " 不一致");
         }
+    }
+
+    /**
+     * JSqlParser 对带引号的物理表可能保留标识符定界符；资源登记保存的是裸表名。
+     * 这里只规范化解析器返回的表标识符，不放宽资源绑定，也不处理任意 SQL 文本。
+     */
+    private String normalizeIdentifier(String identifier) {
+        if (identifier == null) {
+            return null;
+        }
+        String value = identifier.trim();
+        if (value.length() >= 2) {
+            char first = value.charAt(0);
+            char last = value.charAt(value.length() - 1);
+            if ((first == '`' && last == '`')
+                    || (first == '"' && last == '"')
+                    || (first == '[' && last == ']')) {
+                return value.substring(1, value.length() - 1);
+            }
+        }
+        return value;
     }
 
     private String tableQualifier(Table table,
