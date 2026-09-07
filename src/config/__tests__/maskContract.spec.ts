@@ -1063,7 +1063,8 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
         continue
       }
       expect(read(file), `状态端点不该出现在 ${file.split('/').pop()}（会把权限面从 dataResource 漂走）`)
-        .not.toContain('runtime-status')
+        .not
+        .toContain('runtime-status')
     }
   })
 
@@ -1092,8 +1093,7 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
 
   it('状态面板的档位取自 properties，不重算三态规则', () => {
     const service = readJavaCode(join(DPM, 'service', 'DataResourceService.java'))
-    expect(methodBody(service, 'ResourceRuntimeStatus statusOf('),
-      '面板自己算档位：名单的"例外清单 / 提前放开清单"两套语义必然会被抄错')
+    expect(methodBody(service, 'ResourceRuntimeStatus statusOf('), '面板自己算档位：名单的"例外清单 / 提前放开清单"两套语义必然会被抄错')
       .toContain('properties.effectiveMode(')
     // 未纳管服务清单要来自真实的资源键解析器，而不是前端传进来的一份名字表
     expect(service, '未纳管清单绕开了 DataPermissionResourceResolver').toContain('DataPermissionResourceResolver.resolve(')
@@ -1108,7 +1108,7 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
       expect(at, `后端找不到 record ${name}：状态面板的契约变了`).toBeGreaterThan(-1)
       // 含收尾括号：最后一个组件后面就是它，不含会漏判一个字段（record 少一个分量、前端多一个，正是要抓的形状）
       const params = java.slice(at, java.indexOf(')', at) + 1)
-      const javaFields = [...params.matchAll(/([A-Za-z]\w*)\s*[,)]/g)].map(m => m[1]).filter(f => f !== name)
+      const javaFields = [...params.matchAll(/([A-Z]\w*)\s*[,)]/gi)].map(m => m[1]).filter(f => f !== name)
       // 前端：TS 侧名字可能不同（RuntimeStatus ↔ DataPermissionRuntimeStatus），按候选名找
       const tsNames = name === 'RuntimeStatus' ? ['DataPermissionRuntimeStatus', 'RuntimeStatus'] : [name]
       let tsFields: string[] = []

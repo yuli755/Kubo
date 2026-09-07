@@ -94,7 +94,7 @@ public class DataPermissionGuard {
             throw new IllegalStateException(
                     "数据权限不足：当前用户无 " + resourceKey + " 的 " + action.name() + " 权限。"
                             + "若刚把该资源加进 enforce 名单，说明只配了查询侧策略 —— "
-                            "请到「数据策略」为更新 / 删除动作补策略，或先把该资源移出名单。");
+                            + "请到「数据策略」为更新 / 删除动作补策略，或先把该资源移出名单。");
         }
     }
 }
