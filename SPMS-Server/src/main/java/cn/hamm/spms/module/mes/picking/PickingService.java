@@ -2,11 +2,18 @@ package cn.hamm.spms.module.mes.picking;
 
 import cn.hamm.airpower.core.NumberUtil;
 import cn.hamm.airpower.core.interfaces.IDictionary;
+import cn.hamm.airpower.curd.model.query.Page;
+import cn.hamm.airpower.curd.model.query.QueryPageRequest;
+import cn.hamm.airpower.curd.model.query.QueryPageResponse;
+import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.bill.AbstractBaseBillService;
 import cn.hamm.spms.module.mes.picking.detail.PickingDetailEntity;
 import cn.hamm.spms.module.mes.picking.detail.PickingDetailRepository;
 import cn.hamm.spms.module.mes.picking.detail.PickingDetailService;
 import cn.hamm.spms.module.mes.picking.enums.PickingStatus;
+import cn.hamm.spms.module.mes.picking.mapper.PickingMapper;
+import cn.hamm.spms.module.mes.picking.mapper.PickingReadShadowService;
+import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
@@ -39,8 +46,82 @@ import static cn.hamm.spms.module.system.config.enums.ConfigFlag.PICKING_BILL_AU
 @Slf4j
 @Service
 public class PickingService extends AbstractBaseBillService<PickingEntity, PickingRepository, PickingDetailEntity, PickingDetailService, PickingDetailRepository> {
+    private static final int DEFAULT_READ_PAGE_SIZE = 20;
+    private static final int MAX_READ_PAGE_SIZE = 200;
+
+    @Autowired(required = false)
+    private PickingMapper pickingMapper;
+
+    @Autowired
+    private PickingReadShadowService pickingReadShadowService;
+
     @Autowired
     private DataPermissionSpecification dataPermissionSpecification;
+
+    public boolean isMapperReadEnabled() {
+        return pickingMapper != null;
+    }
+
+    /**
+     * 领料单分页读出口；Mapper 关闭时回退 JPA。
+     */
+    public @NotNull QueryPageResponse<PickingEntity> getMapperPage(QueryPageRequest<PickingEntity> request) {
+        QueryPageRequest<PickingEntity> normalized = request == null ? new QueryPageRequest<>() : request;
+        if (!isMapperReadEnabled()) {
+            return getPage(normalized);
+        }
+        PickingEntity filter = normalized.getFilter() == null ? new PickingEntity() : normalized.getFilter();
+        Page requestedPage = normalized.getPage() == null ? new Page() : normalized.getPage();
+        int pageNum = requestedPage.getPageNum() == null ? 1 : requestedPage.getPageNum();
+        int pageSize = requestedPage.getPageSize() == null
+                ? DEFAULT_READ_PAGE_SIZE : requestedPage.getPageSize();
+        if (pageNum < 1 || pageSize < 1) {
+            throw new IllegalArgumentException("分页页码和分页大小必须为正数");
+        }
+        pageSize = Math.min(pageSize, MAX_READ_PAGE_SIZE);
+        long offset = ((long) pageNum - 1L) * pageSize;
+        if (offset > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("分页页码超出可查询范围");
+        }
+        pickingReadShadowService.submit(filter);
+        List<PickingEntity> rows = pickingMapper.selectPageByPermission(filter.getBillCode(), filter.getStatus(),
+                filter.getType(), (int) offset, pageSize);
+        long total = pickingMapper.countByPermission(filter.getBillCode(), filter.getStatus(), filter.getType());
+        int totalAsInt = Math.toIntExact(total);
+        int pageCount = total == 0 ? 0 : Math.toIntExact((total + pageSize - 1L) / pageSize);
+        QueryPageResponse<PickingEntity> response = new QueryPageResponse<>();
+        response.setList(rows);
+        response.setTotal(totalAsInt);
+        response.setPageCount(pageCount);
+        response.setPage(new Page().setPageNum(pageNum).setPageSize(pageSize));
+        response.setSort(normalized.getSort() == null ? new Sort() : normalized.getSort());
+        return response;
+    }
+
+    /**
+     * 领料单详情读出口；主表通过权限链后再读取明细和关联对象。
+     */
+    public PickingEntity getMapperDetail(long id) {
+        if (!isMapperReadEnabled()) {
+            return get(id);
+        }
+        pickingReadShadowService.submit(new PickingEntity());
+        PickingEntity bill = pickingMapper.selectDetailByPermission(id);
+        if (bill == null) {
+            return null;
+        }
+        if (detailService != null) {
+            bill.setDetails(detailService.getAllByBillId(id));
+        }
+        if (bill.getStructure() != null && bill.getStructure().getId() != null) {
+            bill.setStructure(cn.hamm.spms.module.factory.FactoryServices.getStructureService()
+                    .get(bill.getStructure().getId()));
+        }
+        if (bill.getOrder() != null && bill.getOrder().getId() != null) {
+            bill.setOrder(MesServices.getOrderService().get(bill.getOrder().getId()));
+        }
+        return bill;
+    }
 
     @Override
     protected @NotNull List<Predicate> addSearchPredicate(
