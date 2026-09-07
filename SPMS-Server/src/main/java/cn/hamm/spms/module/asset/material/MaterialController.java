@@ -39,6 +39,9 @@ public class MaterialController extends BaseController<MaterialEntity, MaterialS
     @Override
     @PostMapping("getPage")
     public Json getPage(@RequestBody QueryPageRequest<MaterialEntity> request) {
+        if (!service.isMapperReadEnabled()) {
+            return super.getPage(request);
+        }
         GetPage.checkApiAvailable(this);
         return Json.data(service.getMapperPage(request));
     }
@@ -52,6 +55,9 @@ public class MaterialController extends BaseController<MaterialEntity, MaterialS
     @Override
     @PostMapping("getDetail")
     public Json getDetail(@RequestBody @Validated(WhenIdRequired.class) @NotNull MaterialEntity source) {
+        if (!service.isMapperReadEnabled()) {
+            return super.getDetail(source);
+        }
         GetDetail.checkApiAvailable(this);
         MaterialEntity entity = service.getMapperDetail(source.getId());
         DATA_NOT_FOUND.whenNull(entity);
