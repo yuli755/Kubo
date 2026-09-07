@@ -1287,6 +1287,15 @@ describe('mask contract · 逐资源放开的前置检查', () => {
     expect(guard, '守卫开始依赖 readiness：判据一处抛错就会把所有保存变成 500').not.toContain('readiness(')
   })
 
+  it('enforce 名单不是软提示：启动期必须复用 readiness 并拒绝红灯配置', () => {
+    const gate = readJavaCode(join(DPM, 'service', 'DataPermissionEnforceReadiness.java'))
+    expect(gate).toContain('@EventListener(ApplicationReadyEvent.class)')
+    expect(methodBody(gate, 'public void verifyOnStartup()')).toContain('readinessAll()')
+    expect(methodBody(gate, 'public void verifyOnStartup()')).toContain('throw new IllegalStateException')
+    expect(gate).toContain('static List<String> validate(')
+    expect(gate).toContain('enforce-resources')
+  })
+
   it('契约字段前后端一一对得上（Readiness ↔ TS）', () => {
     const java = stripComments(read(SERVICE))
     const ts = stripComments(read(TYPES))

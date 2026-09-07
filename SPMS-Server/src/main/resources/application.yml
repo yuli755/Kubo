@@ -111,6 +111,8 @@ kubo:
     deny-unregistered: false
     shadow-diff-log: true
     audit-plaintext-access: true
+    # mode=shadow 且名单为空 / mode=off 时不触发 readiness 查询；一旦名单或全局档位实际进入 enforce，
+    # ApplicationReadyEvent 会复用 /dataResource/enforce-readiness，任何阻塞项未通过都拒绝启动，不设 bypass 开关。
     enforce-resources: []
     # 读侧 Mapper（P2 · A2「读走 Mapper，写留 JPA」）：默认 false = 容器里一个 Mapper Bean 都没有，
     # 而不是"注册了但不用"，所以"关掉 = 与换轨前逐字节相同"这句话是可验的（MybatisJpaCoexistenceTest 钉住）。
