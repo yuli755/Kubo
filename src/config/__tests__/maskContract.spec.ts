@@ -67,6 +67,28 @@ function readJavaCode(path: string): string {
     .join('\n')
 }
 
+/**
+ * 取方法体（按大括号配对）：只看"文件里出现过方法名"不够 —— 接线从钩子里挪走（比如只剩一个私有方法）
+ * 照样绿，而那时它已经不再拦任何东西了。
+ */
+function methodBody(code: string, signature: string): string {
+  const at = code.indexOf(signature)
+  expect(at, `找不到方法 ${signature}：接线点被改名或移除，本用例要跟着重写`).toBeGreaterThan(-1)
+  let depth = 0
+  for (let i = code.indexOf('{', at); i < code.length; i++) {
+    if (code[i] === '{') {
+      depth++
+    }
+    if (code[i] === '}') {
+      depth--
+      if (!depth) {
+        return code.slice(at, i + 1)
+      }
+    }
+  }
+  return ''
+}
+
 describe('mask contract · 前后端脱敏口径', () => {
   it('前端 MaskType 覆盖后端 applyMask 的全部分支', () => {
     const java = readJavaCode(join(SERVER, 'module', 'system', 'datapermission', 'service', 'ColumnMaskingService.java'))
@@ -859,23 +881,7 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
      * 只看"文件里出现过方法名"是不够的：守卫被从钩子里挪走（比如只剩一个私有方法）照样绿，
      * 而那时它已经不再拦截任何东西了。
      */
-    function bodyOf(code: string, signature: string): string {
-      const at = code.indexOf(signature)
-      expect(at, `找不到方法 ${signature}：接线点被改名或移除，本用例要跟着重写`).toBeGreaterThan(-1)
-      let depth = 0
-      for (let i = code.indexOf('{', at); i < code.length; i++) {
-        if (code[i] === '{') {
-          depth++
-        }
-        if (code[i] === '}') {
-          depth--
-          if (!depth) {
-            return code.slice(at, i + 1)
-          }
-        }
-      }
-      return ''
-    }
+    const bodyOf = methodBody
 
     const base = readJavaCode(join(SERVER, 'base/BaseService.java'))
     for (const hook of ['E beforeSaveToDatabase(', 'void beforeDelete(']) {
@@ -922,5 +928,109 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
         .some(file => file.endsWith(`/${cls}.java`))
       expect(hit, `字典注释引用的 ${cls} 在后端找不到`).toBe(true)
     }
+  })
+})
+
+/**
+ * # 部门层级闭包 / 策略主体判定（B2① 的卡点）
+ *
+ * 这一组钉的都是"同一件事被抄第二遍"的形态，而不是某个方法的签名：
+ *
+ * 1. **subjectType 的 switch 只许有一份**。曾经它有三份副本（管理端服务、带缓存的运行时提供者、
+ *    测试替身），三份对 null 的写法都不一样 —— 后果是"预览说策略可达、运行时判它不可达"，
+ *    而且加一个维度必然漏一处。测试替身也必须走同一份：替身自己发明规则，
+ *    所有走 fixture 的用例就都在测一个生产里不存在的判定。
+ * 2. **"某部门在不在我的范围内"只许问 context**。判据散在调用点，就会出现
+ *    "可达性按 A 判、谓词按 B 拼"的自相矛盾，而这种不一致在单元测试里看不出来。
+ * 3. **展开是放宽，开关默认必须关且必须写进 application.yml**（没人看见的开关等于没有开关）。
+ * 4. **树遍历只许在 HierarchyClosure 里**。{@code DepartmentService} 那份旧递归一边查库一边递归（N+1），
+ *    而且递归体丢掉返回值 ⇒ 恒返回空集；`parentId` 是业务可编辑列，自己写递归迟早 StackOverflow。
+ */
+describe('mask contract · 部门层级闭包与主体判定只有一份', () => {
+  const DPM = join(SERVER, 'module', 'system', 'datapermission')
+  const TEST_SRC = join(ROOT, 'SPMS-Server', 'src', 'test', 'java', 'cn', 'hamm', 'spms')
+
+  it('策略主体可达性判定只存在一处，测试替身也走同一份', () => {
+    const matcher = readJavaCode(join(DPM, 'service', 'DataPermissionSubjectMatcher.java'))
+    expect(matcher, 'matcher 里 DEPARTMENT 没走 coversDepartment：范围判据会重新分叉')
+      .toContain('case "DEPARTMENT" -> context.coversDepartment(')
+    expect(matcher, '未知的 subjectType 必须 fail-closed，不能默认放行')
+      .toContain('default -> false;')
+
+    const copies = [
+      [join(DPM, 'service', 'DataPermissionService.java'), '管理端'],
+      [join(DPM, 'service', 'JpaPermissionRuleProvider.java'), '运行时（带缓存）'],
+      [join(TEST_SRC, 'module/system/datapermission/service/TestPermissionRuleProvider.java'), '测试替身'],
+    ] as const
+    for (const [file, label] of copies) {
+      const code = readJavaCode(file)
+      expect(code, `${label}又自己写了一遍 subjectType 判定：三份副本必然漂移`).not.toMatch(/case "DEPARTMENT"/)
+      expect(code, `${label}没接统一的 matcher：改了 matcher 它不会跟着变`)
+        .toContain('DataPermissionSubjectMatcher.matches(')
+    }
+  })
+
+  it('部门范围只许问 PermissionContext#coversDepartment', () => {
+    for (const file of ['DataPermissionService.java', 'DataPermissionSpecification.java']) {
+      expect(readJavaCode(join(DPM, 'service', file)), `${file} 直接查直属部门集合：绕过了"含子部门"的范围，父部门策略会莫名不生效`)
+        .not
+        .toMatch(/context\.departmentIds\(\)\.contains\(/)
+    }
+    const ctx = readJavaCode(join(DPM, 'context', 'PermissionContext.java'))
+    expect(ctx, 'coversDepartment 的判据被改写：范围（含子部门）才是权限口径')
+      .toMatch(/public boolean coversDepartment\(Long departmentId\) \{\s*return departmentId != null && departmentScopeIds\.contains\(departmentId\);/)
+    expect(ctx, '兼容构造没了：全仓三十多处 7 参构造（含测试）会一起编译失败')
+      .toMatch(/public PermissionContext\(\s*Long userId,\s*Long tenantId,\s*Set<Long> departmentIds,\s*Set<Long> factoryIds,/)
+    expect(ctx, '范围为空时必须回落成直属（漏传只能少看数据，不能退化成放开）')
+      .toMatch(/departmentScopeIds == null \|\| departmentScopeIds\.isEmpty\(\)/)
+  })
+
+  it('展开开关默认关、写进 application.yml，且只在开关打开时才碰索引', () => {
+    const props = readJavaCode(join(DPM, 'config', 'DataPermissionProperties.java'))
+    expect(props, 'hierarchy.department-enabled 默认必须是 false：打开意味着父部门策略盖住整棵子树')
+      .toMatch(/class Hierarchy[\s\S]{0,900}?private boolean departmentEnabled = false/)
+
+    const yml = read(join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'application.yml'))
+    const sw = /hierarchy:[ \t]*\n[ \t]+department-enabled:[ \t]+(\w+)/.exec(yml)
+    expect(sw, 'application.yml 里没有 hierarchy.department-enabled：没人看见的开关等于没有开关').not.toBeNull()
+    expect(sw![1], '层级展开默认必须关（见 §19.28）').toBe('false')
+
+    const interceptor = readJavaCode(join(SERVER, 'common', 'interceptor', 'RequestInterceptor.java'))
+    expect(interceptor, '没判开关就展开：默认关闭时代价必须为零').toMatch(/isDepartmentEnabled\(\)/)
+    expect(interceptor, '展开结果没进 context 的部门范围：等于白算')
+      .toMatch(/departmentIds,[ \t]*\n[ \t]*departmentScopeIds,/)
+    expect(interceptor, '截断没打 WARN：脏数据导致的"少看数据"会变成查不出的悬案')
+      .toMatch(/if \(closure\.truncated\(\)\) \{/)
+  })
+
+  it('树遍历只允许 HierarchyClosure 一处，部门改动必须打掉快照', () => {
+    const deptService = readJavaCode(join(SERVER, 'module/personnel/department/DepartmentService.java'))
+    expect(deptService, 'DepartmentService 又自己写了一遍递归（旧实现连结果集都没收）')
+      .not
+      .toMatch(/private Set<Long> getListByParentId\(/)
+    expect(deptService, 'getListByParentId 没走索引：N+1 与环保护会一起回来')
+      .toContain('hierarchyIndex.descendantsOf(')
+    for (const hook of ['protected void beforeDelete(', 'protected void afterAppAdd(', 'protected void afterUpdate(']) {
+      expect(methodBody(deptService, hook), `部门树的 ${hook} 没打掉快照：改完树还按旧范围放行，那是越权方向`)
+        .toContain('afterTreeChanged()')
+    }
+
+    const index = readJavaCode(join(SERVER, 'module/personnel/department/DepartmentHierarchyIndex.java'))
+    expect(index, '索引绕开 HierarchyClosure 自己遍历：环保护与深度上限会丢')
+      .toContain('HierarchyClosure.expand(')
+    expect(index, '失效改成"把时间戳推成很久以前"会在 nanoTime 减法上溢出成永不过期')
+      .toMatch(/public void invalidate\(\) \{\s*snapshot = Snapshot\.unusable\(\);/)
+    expect(index, '重建没做 double-check：TTL 到点时每个请求都会去读全表')
+      .toMatch(/if \(latest != previous\) \{/)
+
+    const closure = readJavaCode(join(SERVER, 'common/tree', 'HierarchyClosure.java'))
+    expect(closure, 'visited 没了：parentId 可编辑，成环时递归会 StackOverflow 把整条链路打挂')
+      .toContain('visited')
+    expect(closure, '闭包结果被做成可变集合：它是多请求共享的快照')
+      .toMatch(/Collections\.unmodifiableSet\(new LinkedHashSet<>\(ids\)\)/)
+
+    const listener = readJavaCode(join(DPM, 'event', 'DataPermissionEventListener.java'))
+    expect(listener, '跨节点广播没接上：Redis 在跑但快照不失效，等于只在本节点生效')
+      .toContain('case DEPARTMENT_TREE_CHANGED ->')
   })
 })

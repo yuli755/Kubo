@@ -393,7 +393,9 @@ public class DataPermissionSpecification {
             DataPolicyEntity policy,
             PermissionContext context
     ) {
-        if (policy.getSubjectId() == null || !context.departmentIds().contains(policy.getSubjectId())) {
+        // 门槛判据与 DataPermissionService#matchesSubject 是同一个方法（收在 PermissionContext 上）：
+        // 两处各写一遍就会出现"策略被判定可达、谓词却拼不出来"，而那种不一致查起来极痛
+        if (!context.coversDepartment(policy.getSubjectId())) {
             return null;
         }
         // DEPARTMENT:xxx 让部门列与"我的记录"分家；没有显式登记时仍走旧约定（owner_columns 第一项）

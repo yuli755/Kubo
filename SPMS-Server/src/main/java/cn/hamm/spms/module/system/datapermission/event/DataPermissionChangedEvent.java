@@ -36,7 +36,11 @@ public class DataPermissionChangedEvent implements Serializable {
         /**
          * 全量刷新
          */
-        FULL_REFRESH
+        FULL_REFRESH,
+        /**
+         * 部门树结构变更（增删改 parentId 时发出，各节点据此打掉层级闭包快照）
+         */
+        DEPARTMENT_TREE_CHANGED
     }
 
     /**
@@ -104,5 +108,13 @@ public class DataPermissionChangedEvent implements Serializable {
     public static DataPermissionChangedEvent fullRefresh() {
         return new DataPermissionChangedEvent()
                 .setEventType(EventType.FULL_REFRESH);
+    }
+
+    /**
+     * 创建部门树变更事件
+     */
+    public static DataPermissionChangedEvent departmentTreeChanged() {
+        return new DataPermissionChangedEvent()
+                .setEventType(EventType.DEPARTMENT_TREE_CHANGED);
     }
 }

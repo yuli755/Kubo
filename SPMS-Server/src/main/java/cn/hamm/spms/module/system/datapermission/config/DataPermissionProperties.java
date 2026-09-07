@@ -13,6 +13,10 @@ import java.util.Set;
  * <p>对应《供应链权限治理二次改造审计与实施计划》阶段 7「观察模式 → 强制模式」的灰度要求。
  * 之前代码是「编译期硬编码 fail-open」，既不能灰度也不能回滚；本配置把三态开关做实。</p>
  *
+ * <p>新增开关的规矩（本模块欠过一次教训）：<b>凡是放宽可见范围的开关，默认必须 false</b>，
+ * 且必须同时写进 {@code application.yml}（没人看见的开关等于没有开关）。目前有两个：
+ * {@code row-write.enabled}、{@code hierarchy.department-enabled}。</p>
+ *
  * <pre>{@code
  * kubo:
  *   data-permission:
@@ -27,6 +31,10 @@ import java.util.Set;
  *     shadow-diff-log: true        # 观察模式是否输出「本应被过滤」的明细日志
  *     row-write:
  *       enabled: false             # 写侧行级保护（改/删既存行必须在自己的数据范围内）
+ *     hierarchy:
+ *       department-enabled: false  # DEPARTMENT 策略是否展开到子部门（放宽可见范围，默认关）
+ *       ttl-seconds: 300           # 部门树快照有效期
+ *       max-depth: 32              # 展开层数上限（脏数据成环时的兜底）
  *     shadow:
  *       sample-rate: 0.02          # 影子双跑采样率
  *       persist: true              # 差异是否落 data_permission_diff_log
@@ -111,6 +119,40 @@ public class DataPermissionProperties {
      * 写侧行级保护（见 {@code RowWriteGuard}）
      */
     private RowWrite rowWrite = new RowWrite();
+
+    /**
+     * 层级（部门树）配置
+     */
+    private Hierarchy hierarchy = new Hierarchy();
+
+    /**
+     * 部门树闭包展开配置
+     */
+    @Data
+    public static class Hierarchy {
+
+        /**
+         * 是否把 {@code DEPARTMENT} 策略的主体展开到子部门。
+         *
+         * <p>默认 <b>false</b>，因为它是一次<b>放宽</b>：开着时配在父部门的策略会连带覆盖所有子部门的
+         * 数据，而现网已经存在的 DEPARTMENT 策略大概都是按"只影响直属部门"配的。
+         * 灰度顺序与写侧守卫相同：先在影子环境比对"多放行多少行"，再逐资源进 enforce 名单。</p>
+         */
+        private boolean departmentEnabled = false;
+
+        /**
+         * 部门树快照有效期（秒）。
+         *
+         * <p>只在<b>本进程</b>缓存：权限范围的缓存放 Redis 的话，"改了部门树但某个节点还没过期"
+         * 直接等于可见范围不一致，而 30 分钟的默认 TTL 对权限来说太长。部门改动会显式失效本地快照。</p>
+         */
+        private long ttlSeconds = 300L;
+
+        /**
+         * 展开层数上限：超出即停止并标记 truncated（宁可少给权限，也不让脏数据把请求打挂）
+         */
+        private int maxDepth = 32;
+    }
 
     /**
      * 写侧行级保护配置

@@ -32,6 +32,7 @@ public class DataPermissionEventListener implements ApplicationRunner, MessageLi
     private final RedisHelper redisHelper;
     private final JpaPermissionRuleProvider ruleProvider;
     private final DataFieldPolicyService dataFieldPolicyService;
+    private final cn.hamm.spms.module.personnel.department.DepartmentHierarchyIndex departmentHierarchyIndex;
 
     private static final String CHANNEL = "spms:datapermission:changes";
 
@@ -82,6 +83,12 @@ public class DataPermissionEventListener implements ApplicationRunner, MessageLi
             case FULL_REFRESH -> {
                 ruleProvider.clearAllCache();
                 dataFieldPolicyService.clearAllCache();
+                departmentHierarchyIndex.invalidate();
+            }
+            case DEPARTMENT_TREE_CHANGED -> {
+                // 这是权限链路里唯一带跨节点缓存的一段。不失效就会出现"部门被挪走了，某个节点还按旧树
+                // 多放行一片数据"—— 越权方向不能只靠 TTL 兜，所以显式广播
+                departmentHierarchyIndex.invalidate();
             }
         }
     }

@@ -51,23 +51,12 @@ public class DataPermissionService {
     }
 
     /**
-     * 兜底实现的主体匹配（与 {@link JpaPermissionRuleProvider} 语义保持一致）
+     * 兜底实现的主体匹配：直接复用 {@link DataPermissionSubjectMatcher}，与运行时提供者同一份判据
      */
     private boolean matchesSubject(DataPolicyEntity policy, PermissionContext context) {
-        String subjectType = policy.getSubjectType();
-        if (subjectType == null) {
-            return false;
-        }
-        return switch (subjectType) {
-            case "SYSTEM" -> true;
-            case "USER" -> context.userId() != null && context.userId().equals(policy.getSubjectId());
-            case "TENANT" -> context.tenantId() != null && context.tenantId().equals(policy.getSubjectId());
-            case "ROLE" -> policy.getRoleCode() != null && context.roleCodes().contains(policy.getRoleCode());
-            case "DEPARTMENT" -> policy.getSubjectId() != null && context.departmentIds().contains(policy.getSubjectId());
-            case "FACTORY" -> policy.getSubjectId() != null && context.factoryIds().contains(policy.getSubjectId());
-            case "WAREHOUSE" -> policy.getSubjectId() != null && context.warehouseIds().contains(policy.getSubjectId());
-            default -> false;
-        };
+        // 判定本体在 DataPermissionSubjectMatcher：带缓存的 JpaPermissionRuleProvider 走的是同一份。
+        // 这里原来抄了一份，两处的 null 处理还不一致 —— "预览说策略可达、运行时判它不可达"就是这么来的
+        return DataPermissionSubjectMatcher.matches(policy, context);
     }
 
     public boolean shouldDenyByDefault(String resourceKey, PermissionContext context) {

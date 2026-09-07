@@ -3,8 +3,10 @@ package cn.hamm.spms.common.interceptor;
 import cn.hamm.airpower.core.AccessTokenUtil;
 import cn.hamm.airpower.core.DictionaryUtil;
 import cn.hamm.airpower.curd.interceptor.CurdRequestInterceptor;
+import cn.hamm.spms.common.tree.HierarchyClosure;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;
+import cn.hamm.spms.module.personnel.department.DepartmentHierarchyIndex;
 import cn.hamm.spms.module.personnel.role.RoleEntity;
 import cn.hamm.spms.module.personnel.user.UserEntity;
 import cn.hamm.spms.module.personnel.user.UserService;
@@ -12,6 +14,7 @@ import cn.hamm.spms.module.personnel.user.enums.UserTokenType;
 import cn.hamm.spms.module.personnel.user.token.PersonalTokenEntity;
 import cn.hamm.spms.module.personnel.user.token.PersonalTokenService;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
+import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.service.MaskedInputRegistry;
 import cn.hamm.spms.module.system.datapermission.service.SystemPermissionService;
@@ -20,6 +23,7 @@ import cn.hamm.spms.module.system.permission.PermissionEntity;
 import cn.hamm.spms.module.system.permission.PermissionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -37,6 +41,7 @@ import static cn.hamm.airpower.exception.Errors.UNAUTHORIZED;
  *
  * @author Hamm.cn
  */
+@Slf4j
 @Component
 public class RequestInterceptor extends CurdRequestInterceptor {
     @Autowired
@@ -56,6 +61,12 @@ public class RequestInterceptor extends CurdRequestInterceptor {
 
     @Autowired
     private cn.hamm.spms.module.system.datapermission.service.ExportBypassGuard exportBypassGuard;
+
+    @Autowired
+    private DataPermissionProperties dataPermissionProperties;
+
+    @Autowired
+    private DepartmentHierarchyIndex departmentHierarchyIndex;
 
     /**
      * 验证指定的用户是否有指定权限标识的权限
@@ -140,6 +151,20 @@ public class RequestInterceptor extends CurdRequestInterceptor {
                     .collect(Collectors.toSet());
         }
 
+        // DEPARTMENT 策略是否连带子部门，取决于开关：展开是**放宽**可见范围（配在父部门的策略会盖住整棵子树），
+        // 而现网既有策略大概都是按"只影响直属部门"配的 ⇒ 默认关，先影子比对再逐资源放开。
+        Set<Long> departmentScopeIds = departmentIds;
+        if (dataPermissionProperties != null && departmentHierarchyIndex != null
+                && dataPermissionProperties.getHierarchy().isDepartmentEnabled()) {
+            HierarchyClosure.Closure closure = departmentHierarchyIndex.expandFrom(departmentIds);
+            departmentScopeIds = closure.ids();
+            if (closure.truncated()) {
+                // 只在脏数据（环）或树深得离谱时发生；此时可见范围会偏小（安全侧），但必须留下痕迹，
+                // 否则排错的人只会看到"某人莫名其妙少看了两个部门"
+                log.warn("部门层级闭包被深度上限截断，本次可见范围可能不完整：seeds={}", departmentIds);
+            }
+        }
+
         Set<Long> warehouseIds = Set.of();
         if (user.getStorageList() != null) {
             warehouseIds = user.getStorageList().stream()
@@ -159,6 +184,7 @@ public class RequestInterceptor extends CurdRequestInterceptor {
                 user.getId(),
                 tenantId,
                 departmentIds,
+                departmentScopeIds,
                 Set.of(),
                 warehouseIds,
                 roleCodes,

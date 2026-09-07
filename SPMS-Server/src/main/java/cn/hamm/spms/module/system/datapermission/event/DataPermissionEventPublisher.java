@@ -46,6 +46,13 @@ public class DataPermissionEventPublisher {
     }
 
     /**
+     * 发布部门树结构变更事件
+     */
+    public void publishDepartmentTreeChanged() {
+        publish(DataPermissionChangedEvent.departmentTreeChanged());
+    }
+
+    /**
      * 发布全量刷新事件
      */
     public void publishFullRefresh() {

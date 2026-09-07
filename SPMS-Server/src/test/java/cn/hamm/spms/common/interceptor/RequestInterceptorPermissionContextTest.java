@@ -1,6 +1,9 @@
 package cn.hamm.spms.common.interceptor;
 
 import cn.hamm.airpower.core.AccessTokenUtil;
+import cn.hamm.spms.common.tree.HierarchyClosure;
+import cn.hamm.spms.module.personnel.department.DepartmentHierarchyIndex;
+import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;
 import cn.hamm.spms.module.personnel.role.RoleEntity;
 import cn.hamm.spms.module.personnel.user.UserEntity;
@@ -196,6 +199,85 @@ class RequestInterceptorPermissionContextTest {
             interceptor.afterCompletion(request, response, new Object(), null);
 
             assertTrue(PermissionContextHolder.current().isEmpty(), "请求完成后应清理上下文");
+        }
+    }
+
+    @Nested
+    @org.junit.jupiter.api.DisplayName("部门层级闭包（开关控制）")
+    class DepartmentHierarchyExpansion {
+
+        /**
+         * 开关关着时必须<b>一次都不碰索引</b>：展开是放宽可见范围的能力，
+         * 默认关闭不能只是"结果上等价"，还得是"代价上为零"（否则灰度开关就成了摆设）
+         */
+        @Test
+        void doesNotTouchIndexWhenDisabled() throws Exception {
+            UserEntity user = createUser(1L, "张三", false);
+            given(verifiedToken.getPayloadId()).willReturn(1L);
+            given(userService.getWithEnable(1L)).willReturn(user);
+            given(permissionService.getPermissionByIdentity(anyString()))
+                    .willReturn(new PermissionEntity().setIdentity("test:permission").setName("测试权限"));
+            given(systemPermissionService.has(any(UserEntity.class), eq("test:permission"))).willReturn(true);
+            DepartmentHierarchyIndex index = org.mockito.Mockito.mock(DepartmentHierarchyIndex.class);
+            injectField(interceptor, "dataPermissionProperties", new DataPermissionProperties());
+            injectField(interceptor, "departmentHierarchyIndex", index);
+
+            interceptor.checkUserPermission(verifiedToken, "test:permission", request);
+
+            PermissionContext context = PermissionContextHolder.require();
+            assertEquals(Set.of(10L), context.departmentScopeIds());
+            org.mockito.Mockito.verifyNoInteractions(index);
+        }
+
+        @Test
+        void widensScopeWithDescendantsWhenEnabled() throws Exception {
+            UserEntity user = createUser(1L, "张三", false);
+            given(verifiedToken.getPayloadId()).willReturn(1L);
+            given(userService.getWithEnable(1L)).willReturn(user);
+            given(permissionService.getPermissionByIdentity(anyString()))
+                    .willReturn(new PermissionEntity().setIdentity("test:permission").setName("测试权限"));
+            given(systemPermissionService.has(any(UserEntity.class), eq("test:permission"))).willReturn(true);
+
+            DataPermissionProperties properties = new DataPermissionProperties();
+            properties.getHierarchy().setDepartmentEnabled(true);
+            DepartmentHierarchyIndex index = org.mockito.Mockito.mock(DepartmentHierarchyIndex.class);
+            given(index.expandFrom(any())).willReturn(
+                    new HierarchyClosure.Closure(Set.of(10L, 20L, 21L), false));
+            injectField(interceptor, "dataPermissionProperties", properties);
+            injectField(interceptor, "departmentHierarchyIndex", index);
+
+            interceptor.checkUserPermission(verifiedToken, "test:permission", request);
+
+            PermissionContext context = PermissionContextHolder.require();
+            assertEquals(Set.of(10L), context.departmentIds(), "直属集合保持原样，供审计与前端对比");
+            assertEquals(Set.of(10L, 20L, 21L), context.departmentScopeIds());
+            assertTrue(context.coversDepartment(21L), "配在父部门的策略应当覆盖到子部门");
+            then(index).should().expandFrom(Set.of(10L));
+        }
+
+        /**
+         * 脏数据（成环/超深）导致截断时：照常填充范围并把 WARN 打出去，绝不抛异常 ——
+         * 这段代码在拦截器里，抛出异常等于全站接口 500
+         */
+        @Test
+        void truncatedClosureStillPopulatesWithoutThrowing() throws Exception {
+            UserEntity user = createUser(1L, "张三", false);
+            given(verifiedToken.getPayloadId()).willReturn(1L);
+            given(userService.getWithEnable(1L)).willReturn(user);
+            given(permissionService.getPermissionByIdentity(anyString()))
+                    .willReturn(new PermissionEntity().setIdentity("test:permission").setName("测试权限"));
+            given(systemPermissionService.has(any(UserEntity.class), eq("test:permission"))).willReturn(true);
+
+            DataPermissionProperties properties = new DataPermissionProperties();
+            properties.getHierarchy().setDepartmentEnabled(true);
+            DepartmentHierarchyIndex index = org.mockito.Mockito.mock(DepartmentHierarchyIndex.class);
+            given(index.expandFrom(any())).willReturn(new HierarchyClosure.Closure(Set.of(10L, 20L), true));
+            injectField(interceptor, "dataPermissionProperties", properties);
+            injectField(interceptor, "departmentHierarchyIndex", index);
+
+            interceptor.checkUserPermission(verifiedToken, "test:permission", request);
+
+            assertEquals(Set.of(10L, 20L), PermissionContextHolder.require().departmentScopeIds());
         }
     }
 

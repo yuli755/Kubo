@@ -119,3 +119,12 @@ kubo:
     # 灰度顺序固定：维度绑定风险面板清零 → 打开本开关看 shadow 指标 → 再把资源加进 enforce-resources
     row-write:
       enabled: false
+    # 部门层级闭包：打开后 DEPARTMENT 维度的策略主体自动展开到全部后代部门
+    # 默认 false 的理由：展开是**放宽**可见范围（配在父部门的策略会盖住整棵子树），
+    # 而现网既有策略都是按"只影响直属部门"配的。放开前先影子比对"多放行多少行"
+    hierarchy:
+      department-enabled: false
+      # 部门树快照有效期（秒）：进程内缓存，部门增删改会显式失效；Redis 不可用时靠它自愈
+      ttl-seconds: 300
+      # 展开层数上限：脏数据成环时的兜底，超出即停止并打 WARN（少看数据可接受，把请求打挂不行）
+      max-depth: 32

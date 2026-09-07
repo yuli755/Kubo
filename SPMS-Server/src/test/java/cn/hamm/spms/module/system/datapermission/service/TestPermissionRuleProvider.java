@@ -65,15 +65,8 @@ public class TestPermissionRuleProvider implements PermissionRuleProvider {
     }
 
     private boolean matchesSubject(DataPolicyEntity policy, PermissionContext context) {
-        return switch (policy.getSubjectType()) {
-            case "SYSTEM" -> true;
-            case "USER" -> context.userId().equals(policy.getSubjectId());
-            case "TENANT" -> context.tenantId().equals(policy.getSubjectId());
-            case "ROLE" -> policy.getRoleCode() != null && context.roleCodes().contains(policy.getRoleCode());
-            case "DEPARTMENT" -> policy.getSubjectId() != null && context.departmentIds().contains(policy.getSubjectId());
-            case "FACTORY" -> policy.getSubjectId() != null && context.factoryIds().contains(policy.getSubjectId());
-            case "WAREHOUSE" -> policy.getSubjectId() != null && context.warehouseIds().contains(policy.getSubjectId());
-            default -> false;
-        };
+        // 复用同一份判定：本类是"缓存里的真相"，自己抄一遍就意味着"运行时与预览各判一次"，
+        // 而那种不一致在测试里看不出来（测试走的也是副本）
+        return DataPermissionSubjectMatcher.matches(policy, context);
     }
 }
