@@ -34,12 +34,23 @@ class DataPermissionGuardTest {
     @Mock
     private DataPermissionService dataPermissionService;
 
+    @Mock
+    private DataPermissionAudit audit;
+
+    private cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties properties;
+
     private DataPermissionGuard guard;
 
     @BeforeEach
     void setUp() {
-        guard = new DataPermissionGuard(dataPermissionService);
+        properties = new cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties();
+        guard = new DataPermissionGuard(dataPermissionService, properties, audit);
         lenient().when(dataPermissionService.getPolicies(any(), any(), any())).thenReturn(List.of());
+        // 守卫现在会先问「这资源纳管了吗」：不 stub 就等于所有用例都跑在「未登记」分支上，
+        // 看着绿，其实测的是另一条路径（本轮改动的全部风险都在这条分支上）
+        lenient().when(dataPermissionService.findResource(any()))
+                .thenReturn(new cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity()
+                        .setId(1L).setResourceKey("wms.input").setStatus("ENABLED"));
         PermissionContextHolder.clear();
     }
 

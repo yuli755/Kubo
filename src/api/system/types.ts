@@ -269,3 +269,56 @@ export interface RowPolicyRiskItem {
   /** 人话说明 */
   detail: string
 }
+
+/**
+ * 一个资源「此刻实际是什么档」
+ *
+ * `effectiveMode` 是后端 `DataPermissionProperties#effectiveMode` 的结果，
+ * 前端<em>不参与</em>判定（名单规则被抄第二遍，面板就会开始骗人）。
+ */
+export interface ResourceRuntimeStatus {
+  /** 资源 ID */
+  resourceId: number
+  /** 资源标识（人认这个；资源表没有「名称」列） */
+  resourceKey: string
+  /** 资源启用状态（ENABLED / DRAFT / ...） */
+  resourceStatus: string
+  /** OFF | SHADOW | ENFORCE，原样回显 */
+  effectiveMode: string
+  /** 是否出现在 enforce-resources 名单里（只解释原因） */
+  inEnforceList: boolean
+  /** 写侧行级保护此刻是否会真的去问探针 */
+  rowWriteGuarded: boolean
+  /** 启用中的 QUERY 行级策略数 */
+  queryPolicyCount: number
+  /** 启用中的 UPDATE + DELETE 行级策略数 */
+  writePolicyCount: number
+  /** 启用中的 EXPORT 行级策略数 */
+  exportPolicyCount: number
+  /** 启用中的列级策略数 */
+  fieldPolicyCount: number
+  /** 维度可绑定性风险条数 */
+  bindingRiskCount: number
+  /** 后端算好的人话提示（配置建议） */
+  notes: string[]
+}
+
+/**
+ * 数据权限灰度状态总览（只读面板用）
+ */
+export interface DataPermissionRuntimeStatus {
+  /** 全局模式：off | shadow | enforce */
+  globalMode: string
+  /** enforce-resources 名单（顺序与配置一致） */
+  enforceResources: string[]
+  /** 未登记资源是否默认拒绝 */
+  denyUnregistered: boolean
+  /** 写侧行级保护总开关 */
+  rowWriteEnabled: boolean
+  /** 部门层级闭包是否展开 */
+  hierarchyDepartmentEnabled: boolean
+  /** 派生出了资源键、但库里没有登记的服务键 */
+  unmanagedServiceKeys: string[]
+  /** 各资源状态 */
+  resources: ResourceRuntimeStatus[]
+}

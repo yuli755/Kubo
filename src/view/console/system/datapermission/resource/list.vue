@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { APanel, ATable } from '@airpower/web'
 import { ElAlert } from 'element-plus'
+import { useDataPermissionRuntimeStatus } from '@/composables/useDataPermissionRuntimeStatus'
 import { useDimensionBindingRiskReport } from '@/composables/useDimensionBindingRiskReport'
 import { useExportGapReport } from '@/composables/useExportGapReport'
 import { useInertPolicyReport } from '@/composables/useInertPolicyReport'
@@ -17,6 +18,16 @@ const { summary: gapSummary, failed: gapFailed } = useExportGapReport()
 
 // 维度可绑定性：列级/行级的判据都不在这里，页面只负责把后端数出来的条数与摘要摆出来
 const { count: bindingCount, preview: bindingPreview, failed: bindingFailed } = useDimensionBindingRiskReport()
+
+// 灰度状态：档位与"名单里有没有它"都由后端算（effectiveMode 只有一份），这里只负责显示
+const {
+  ready: runtimeReady,
+  failed: runtimeFailed,
+  summary: runtimeSummary,
+  pendingCount: runtimePendingCount,
+  notePreview: runtimeNotePreview,
+  unmanaged: runtimeUnmanaged,
+} = useDataPermissionRuntimeStatus()
 
 const hook = useTanStackTable(DataResourceService, {
   queryKey: ['system:datapermission:resource'],
@@ -70,6 +81,42 @@ const hook = useTanStackTable(DataResourceService, {
       show-icon
       title="未能取得维度可绑定性盘点结果"
       description="刷新本页或检查 /dataResource/dimension-binding-risks 是否可用；取不到结果时不会显示为「没有风险」。"
+    />
+    <ElAlert
+      v-if="runtimeReady"
+      class="gap-warning"
+      type="info"
+      :closable="false"
+      show-icon
+      title="数据权限灰度状态（档位由后端给出，本页不参与判定）"
+      :description="runtimeSummary"
+    />
+    <ElAlert
+      v-if="runtimeReady && runtimePendingCount"
+      class="gap-warning"
+      type="warning"
+      :closable="false"
+      show-icon
+      title="有资源的灰度档位与策略数量不匹配"
+      :description="`${runtimePendingCount} 个资源有待处理提示（${runtimeNotePreview.join('；')}）。提示是后端算好的，放开前按它走完那一步。`"
+    />
+    <ElAlert
+      v-if="runtimeReady && runtimeUnmanaged.length"
+      class="gap-warning"
+      type="warning"
+      :closable="false"
+      show-icon
+      title="有服务能解析出资源键、但「数据资源」里没有登记"
+      :description="`${runtimeUnmanaged.join('、')}。未登记时写侧是否放行取决于后端 deny-unregistered，本页不重复判；先把资源登记出来，再谈放开灰度。`"
+    />
+    <ElAlert
+      v-if="runtimeFailed"
+      class="gap-warning"
+      type="info"
+      :closable="false"
+      show-icon
+      title="未能取得灰度状态总览"
+      description="刷新本页或检查 /dataResource/runtime-status 是否可用；取不到结果时不会显示为「一切正常」。"
     />
     <ATable
       :use-hook="hook"

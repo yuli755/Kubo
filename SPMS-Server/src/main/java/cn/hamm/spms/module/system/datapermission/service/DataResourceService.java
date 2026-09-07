@@ -4,6 +4,8 @@ import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
+import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
 import cn.hamm.spms.module.system.datapermission.rule.OwnerColumnRegistration;
@@ -11,13 +13,17 @@ import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleSupport;
 import jakarta.persistence.EntityManagerFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
 
@@ -47,14 +53,29 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      */
     private final EntityManagerFactory entityManagerFactory;
 
+    /**
+     * 灰度配置的<em>唯一</em>读取口：状态面板不许自己算"名单里有没有它"，
+     * 必须问同一份 effectiveMode —— 否则面板报的档位与真实生效的档位会各自漂移
+     */
+    private final DataPermissionProperties properties;
+
+    /**
+     * 只为枚举 {@link BaseService} 的 Bean（找出"还没纳管的服务"），不参与任何业务调用
+     */
+    private final ApplicationContext applicationContext;
+
     public DataResourceService(DataPermissionEventPublisher eventPublisher,
                                DataFieldPolicyProvider fieldPolicyProvider,
                                DataPolicyService rowPolicyService,
-                               EntityManagerFactory entityManagerFactory) {
+                               EntityManagerFactory entityManagerFactory,
+                               DataPermissionProperties properties,
+                               ApplicationContext applicationContext) {
         this.eventPublisher = eventPublisher;
         this.fieldPolicyProvider = fieldPolicyProvider;
         this.rowPolicyService = rowPolicyService;
         this.entityManagerFactory = entityManagerFactory;
+        this.properties = properties;
+        this.applicationContext = applicationContext;
     }
 
     /**
@@ -71,6 +92,243 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
                                           String subjectType,
                                           String kind,
                                           String detail) {
+    }
+
+    /**
+     * 一个资源「此刻实际是什么档」的只读快照
+     *
+     * @param resourceId       资源 ID
+     * @param resourceKey      资源标识（人认这个；资源表没有"名称"列，别在这里造一个）
+     * @param resourceStatus   资源启用状态（ENABLED / 其它）
+     * @param effectiveMode    生效模式，取自 {@link DataPermissionProperties#effectiveMode(String)}
+     * @param inEnforceList    是否出现在 {@code enforce-resources} 名单里（只解释原因，不参与判定）
+     * @param rowWriteGuarded  写侧行级保护此刻是否会真的去问探针（{@code row-write.enabled} 且该资源参与计算）
+     * @param queryPolicyCount 启用中的 QUERY 行级策略数
+     * @param writePolicyCount 启用中的 UPDATE + DELETE 行级策略数
+     * @param exportPolicyCount 启用中的 EXPORT 行级策略数
+     * @param fieldPolicyCount 启用中的列级策略数
+     * @param bindingRiskCount 维度可绑定性风险条数（与 {@link #dimensionBindingRisks()} 同一份实现）
+     * @param notes            后端算好的人话提示；<b>前端不许自己再判一遍</b>（判据只该有一份）
+     */
+    public record ResourceRuntimeStatus(Long resourceId,
+                                       String resourceKey,
+                                       String resourceStatus,
+                                       String effectiveMode,
+                                       boolean inEnforceList,
+                                       boolean rowWriteGuarded,
+                                       long queryPolicyCount,
+                                       long writePolicyCount,
+                                       long exportPolicyCount,
+                                       long fieldPolicyCount,
+                                       long bindingRiskCount,
+                                       List<String> notes) {
+
+        /**
+         * 列表渲染友好：没有提示时返回空列表而不是 null
+         */
+        public ResourceRuntimeStatus {
+            notes = notes == null ? List.of() : List.copyOf(notes);
+        }
+    }
+
+    /**
+     * 灰度状态总览
+     *
+     * @param globalMode                   配置里的全局模式
+     * @param enforceResources             逐资源灰度名单（顺序保持配置里的写法）
+     * @param denyUnregistered             未登记资源是否默认拒绝
+     * @param rowWriteEnabled              写侧行级保护总开关
+     * @param hierarchyDepartmentEnabled   部门层级闭包是否展开
+     * @param unmanagedServiceKeys         {@code BaseService} 派生出了资源键、但库里没有的服务键清单
+     * @param resources                    各资源状态
+     */
+    public record RuntimeStatus(String globalMode,
+                                Set<String> enforceResources,
+                                boolean denyUnregistered,
+                                boolean rowWriteEnabled,
+                                boolean hierarchyDepartmentEnabled,
+                                List<String> unmanagedServiceKeys,
+                                List<ResourceRuntimeStatus> resources) {
+    }
+
+    /**
+     * 汇总"当前配置 + 各资源实际生效档位"，供管理端灰度面板使用
+     *
+     * <p>为什么需要它：模式与灰度名单在配置文件里，策略在数据库里，而页面上<em>哪一头都看不到</em>
+     * "这个资源此刻到底是 shadow 还是 enforce"。灰度推进最怕的就是看不清自己站在哪一格 ——
+     * 于是"逐资源放开"这一步只能靠翻 yml + 猜名单交集，猜错的代价直接落在生产。</p>
+     *
+     * <p>档位一律取 {@link DataPermissionProperties#effectiveMode(String)}，<b>不在这里重算名单逻辑</b>：
+     * {@code mode=ENFORCE} 时名单是"例外清单"（名单外的降回 shadow），{@code mode=SHADOW} 时才是
+     * "提前放开清单"。这段规则一旦被抄第二遍，面板就会开始骗人，而骗人的面板比没有面板更糟
+     * （管理员会照着它做决策）。</p>
+     *
+     * <p>代价：每个资源各一次策略取数 + 一次列级策略取数（当前 24 个资源，约 50 条查询），
+     * 只在管理端打开面板时发生；{@code dimensionBindingRisks()} 也重算一遍以保证两处口径同源。
+     * 这个端点因此是<em>只读、低频、不参与任何判定</em>的 —— 它不能变成第二把尺子。</p>
+     *
+     * @return 总览
+     */
+    public RuntimeStatus runtimeStatus() {
+        List<DataResourceEntity> all = repository.findAll();
+        Set<String> registeredKeys = new LinkedHashSet<>();
+        if (all != null) {
+            for (DataResourceEntity resource : all) {
+                if (resource != null && resource.getResourceKey() != null) {
+                    registeredKeys.add(resource.getResourceKey());
+                }
+            }
+        }
+        Map<String, Long> riskCounts = new LinkedHashMap<>();
+        for (DimensionBindingRiskItem risk : dimensionBindingRisks()) {
+            riskCounts.merge(risk.resourceKey(), 1L, Long::sum);
+        }
+
+        List<ResourceRuntimeStatus> items = new ArrayList<>();
+        if (all != null) {
+            for (DataResourceEntity resource : all) {
+                if (resource == null || resource.getResourceKey() == null) {
+                    continue;
+                }
+                items.add(statusOf(resource, riskCounts.getOrDefault(resource.getResourceKey(), 0L)));
+            }
+        }
+        return new RuntimeStatus(
+                String.valueOf(properties.getMode()),
+                new LinkedHashSet<>(properties.getEnforceResources()),
+                properties.isDenyUnregistered(),
+                properties.getRowWrite().isEnabled(),
+                properties.getHierarchy().isDepartmentEnabled(),
+                unmanagedServiceKeys(registeredKeys),
+                items
+        );
+    }
+
+    /**
+     * 「这个资源此刻该注意什么」——提示的判据（静态，可脱离 Spring 单测）
+     *
+     * <p>为什么由后端算：这些句子讲的是配置与策略数量之间的<em>关系</em>（名单语义、未登记怎么处理、
+     * 绑不上列会退化成恒假）。前端算一遍就是抄第二份判据，而面板一旦开始骗人，管理员会照着它
+     * 决定要不要放开下一个资源 —— 比没有面板更糟。与 {@link #validateRegistrations} 同样做成静态方法：
+     * 判据必须能在不起容器的情況下测。</p>
+     *
+     * @param resource         资源行
+     * @param mode             该资源此刻的生效模式（已由 effectiveMode 算好）
+     * @param queryPolicyCount 启用中的 QUERY 行级策略数
+     * @param writePolicyCount 启用中的 UPDATE + DELETE 行级策略数
+     * @param bindingRiskCount 维度可绑定性风险条数
+     * @param properties       灰度配置
+     * @return 提示列表；没有问题时为空（不制造噪音，否则面板会被整屏忽略）
+     */
+    static List<String> runtimeNotes(DataResourceEntity resource,
+                                     DataPermissionProperties.Mode mode,
+                                     long queryPolicyCount,
+                                     long writePolicyCount,
+                                     long bindingRiskCount,
+                                     DataPermissionProperties properties) {
+        List<String> notes = new ArrayList<>();
+        boolean enabled = "ENABLED".equals(resource.getStatus());
+        boolean inList = resource.getResourceKey() != null
+                && properties.getEnforceResources().contains(resource.getResourceKey());
+        if (!enabled) {
+            notes.add("资源未启用：读写两侧都按未登记处理，当前 deny-unregistered="
+                    + properties.isDenyUnregistered() + "（" + (properties.isDenyUnregistered() ? "会拒" : "会放行") + "）");
+        }
+        if (writePolicyCount == 0L && mode == DataPermissionProperties.Mode.ENFORCE) {
+            notes.add("已进 enforce 名单但没有任何 UPDATE/DELETE 策略：DataPermissionGuard 会把该资源的保存与删除直接拒掉，先补策略");
+        }
+        if (writePolicyCount == 0L && mode == DataPermissionProperties.Mode.SHADOW) {
+            notes.add("尚无 UPDATE/DELETE 策略：放开前必须先补，否则一进名单保存就报错");
+        }
+        if (queryPolicyCount == 0L && properties.isDenyUnregistered()) {
+            notes.add("deny-unregistered=true 且没有 QUERY 策略：该资源的查询会被恒假条件挡住（查空）");
+        }
+        if (inList && properties.getMode() == DataPermissionProperties.Mode.ENFORCE
+                && !properties.getEnforceResources().isEmpty()) {
+            notes.add("全局已是 enforce：名单在这里是「例外清单」，出现在名单里并不代表变化");
+        }
+        if (bindingRiskCount > 0L) {
+            notes.add("有 " + bindingRiskCount + " 条维度绑不上列：enforce 下这些条件会退化成恒假（查空），先在「维度可绑定性」面板清零");
+        }
+        return notes;
+    }
+
+    /**
+     * 单个资源的状态行（策略计数与提示都在这里算完，前端只负责显示）
+     */
+    private ResourceRuntimeStatus statusOf(DataResourceEntity resource, long bindingRiskCount) {
+        String resourceKey = resource.getResourceKey();
+        DataPermissionProperties.Mode mode = properties.effectiveMode(resourceKey);
+        boolean inList = properties.getEnforceResources().contains(resourceKey);
+
+        long query = 0L;
+        long write = 0L;
+        long export = 0L;
+        List<DataPolicyEntity> policies = resource.getId() == null
+                ? List.of() : rowPolicyService.getEnabledPoliciesByResource(resource.getId());
+        for (DataPolicyEntity policy : policies) {
+            String action = policy.getActionName();
+            if (DataPermissionAction.QUERY.name().equals(action)) {
+                query++;
+            } else if (DataPermissionAction.UPDATE.name().equals(action)
+                    || DataPermissionAction.DELETE.name().equals(action)) {
+                write++;
+            } else if (DataPermissionAction.EXPORT.name().equals(action)) {
+                export++;
+            }
+        }
+        long fieldCount = fieldPolicyProvider.getEnabledPoliciesByResource(resourceKey).size();
+
+        List<String> notes = runtimeNotes(resource, mode, query, write, bindingRiskCount, properties);
+        return new ResourceRuntimeStatus(
+                resource.getId(),
+                resourceKey,
+                resource.getStatus(),
+                mode.name(),
+                inList,
+                properties.getRowWrite().isEnabled() && properties.computes(resourceKey),
+                query,
+                write,
+                export,
+                fieldCount,
+                bindingRiskCount,
+                notes
+        );
+    }
+
+    /**
+     * 找出「派生出了资源键、但库里没有这条 data_resource」的服务
+     *
+     * <p>{@code BaseService} 的三个写钩子会按类名推出资源键（{@code wms/InputService} → {@code wms.input}）：
+     * 库里没有这一行时，写侧按 {@code deny-unregistered} 处理。<b>不加这个清单，"这个模块其实还没纳管"
+     * 这件事在系统里没有任何地方能看见</b> —— 直到有人改配置把 {@code deny-unregistered} 打开，
+     * 才突然一片 500。资源键推不出来的服务（不在 {@code module.*} 下、名字不以 Service 结尾）不参与统计。</p>
+     *
+     * @param registeredKeys 库里已登记的资源键
+     * @return 未纳管的资源键，按字典序
+     */
+    private List<String> unmanagedServiceKeys(Set<String> registeredKeys) {
+        Set<String> missing = new TreeSet<>();
+        String[] beanNames;
+        try {
+            beanNames = applicationContext.getBeanNamesForType(BaseService.class);
+        } catch (RuntimeException e) {
+            log.warn("灰度状态面板跳过未纳管服务枚举：{}", e.getMessage());
+            return List.of();
+        }
+        for (String beanName : beanNames) {
+            Class<?> type;
+            try {
+                type = applicationContext.getType(beanName);
+            } catch (RuntimeException e) {
+                continue;
+            }
+            String key = DataPermissionResourceResolver.resolve(type);
+            if (key != null && !registeredKeys.contains(key)) {
+                missing.add(key);
+            }
+        }
+        return new ArrayList<>(missing);
     }
 
     /**

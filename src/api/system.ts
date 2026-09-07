@@ -7,6 +7,7 @@ import type {
   ConfigQuery,
   DataFieldPolicyEntity,
   DataFieldPolicyQuery,
+  DataPermissionRuntimeStatus,
   DimensionBindingRiskItem,
   ExportGapItem,
   InertPolicyItem,
@@ -246,6 +247,19 @@ export const dataResourceApi = {
    */
   getDimensionBindingRisks(): Promise<DimensionBindingRiskItem[]> {
     return request.get('/dataResource/dimension-binding-risks')
+  },
+
+  /**
+   * 数据权限灰度状态总览：当前配置 + 每个资源此刻实际生效的档位
+   *
+   * 档位（OFF / SHADOW / ENFORCE）由后端 `DataPermissionProperties#effectiveMode` 给出，
+   * 前端只原样显示 —— 名单的三态规则（enforce 时名单是「例外清单」、shadow 时是「提前放开清单」）
+   * 只能有一份，抄第二遍就会让面板开始骗人，而放开决策正是照着它做的。
+   *
+   * @returns 总览；取不到时由 composable 标记 failed，不显示成「一切正常」
+   */
+  getRuntimeStatus(): Promise<DataPermissionRuntimeStatus> {
+    return request.get('/dataResource/runtime-status')
   },
 }
 

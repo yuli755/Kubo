@@ -80,4 +80,23 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
     public Json getExportGaps() {
         return Json.data(service.exportGaps());
     }
+
+    /**
+     * 灰度状态总览：当前配置 + 每个资源此刻实际生效的档位
+     *
+     * <p>模式与 {@code enforce-resources} 名单在配置文件里、策略在数据库里，页面上原先哪一头都看不出
+     * "这个资源现在是 shadow 还是 enforce"，而"逐资源放开"这一步必须看清自己站在哪一格。
+     * 档位取自 {@code DataPermissionProperties#effectiveMode} —— <b>面板报的与实际走的是同一份判定</b>，
+     * 前端不参与计算（名单规则被抄第二遍，面板就会开始骗人）。</p>
+     *
+     * <p>只读、不参与任何权限判定；返回的是跨资源的配置与策略计数，因此与其余盘点接口
+     * 同一权限面（挂在 {@code dataResource} 下）。</p>
+     *
+     * @return 总览（全局配置 + 各资源状态 + 未纳管服务清单）
+     */
+    @GetMapping("runtime-status")
+    @Description("灰度状态总览")
+    public Json getRuntimeStatus() {
+        return Json.data(service.runtimeStatus());
+    }
 }

@@ -24,11 +24,29 @@ public class DataPermissionService {
     }
 
     public DataResourceEntity requireResource(String resourceKey) {
-        DataResourceEntity resource = ruleProvider.getResource(resourceKey);
-        if (resource == null || !"ENABLED".equals(resource.getStatus())) {
+        DataResourceEntity resource = findResource(resourceKey);
+        if (resource == null) {
             throw new IllegalStateException("数据权限资源未注册或未启用: " + resourceKey);
         }
         return resource;
+    }
+
+    /**
+     * 该资源是否已登记且启用；<b>不抛异常</b>
+     *
+     * <p>存在这个方法是必要的：{@link #requireResource} 的抛异常语义对读侧/管理端预览是对的
+     * （调用方本就该只处理纳管资源），但对写侧守卫是错的 —— 拿它判"要不要管"等于
+     * "没登记 = 500"，见 {@link DataPermissionGuard#enforce}。判据只留一份，两边各取所需。</p>
+     *
+     * @param resourceKey 资源标识
+     * @return 已登记且启用返回该资源；否则 null
+     */
+    public DataResourceEntity findResource(String resourceKey) {
+        if (resourceKey == null) {
+            return null;
+        }
+        DataResourceEntity resource = ruleProvider.getResource(resourceKey);
+        return resource == null || !"ENABLED".equals(resource.getStatus()) ? null : resource;
     }
 
     public List<DataPolicyEntity> getPolicies(String resourceKey, DataPermissionAction action, PermissionContext context) {

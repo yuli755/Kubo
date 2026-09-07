@@ -1034,3 +1034,121 @@ describe('mask contract · 部门层级闭包与主体判定只有一份', () =>
       .toContain('case DEPARTMENT_TREE_CHANGED ->')
   })
 })
+
+/**
+ * # 灰度状态面板 + 写侧 OFF 档（B2② 的卡点）
+ *
+ * 1. **面板报的档位必须与运行期走的是同一份判定**。`mode` 与 `enforce-resources` 的三态规则
+ *    （enforce 时名单是"例外清单"、shadow 时是"提前放开清单"）只有一份；前端或面板服务里再算一遍，
+ *    就会出现"面板说 enforce、实际是 shadow"，而管理员是照着面板决定放不放开下一个资源的。
+ * 2. **取数失败不能显示成"一切正常"**：composable 的 catch 只置 `failed`（一个自查面板不该打断列表页），
+ *    代价是路径写错在运行期毫无痕迹 —— 每加一个盘点端点就必须加一条路径对账。
+ * 3. **record 字段名前后端一致**：状态面板是纯展示契约，后端改字段名而前端不动，TS 不会报
+ *    （`any` 一路传下去），表现是那一格永远空着 —— 所以字段清单要机器对账。
+ * 4. **写侧动作级守卫必须看 mode**：`mode: off` 是本模块唯一的回滚手段，而它原先只被读侧认；
+ *    写侧不看 mode 时，"把配置改回去"救不了保存路径（这条以前就是无条件抛异常）。
+ */
+describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
+  const DPM = join(SERVER, 'module', 'system', 'datapermission')
+  const TYPES = join(ROOT, 'src', 'api', 'system', 'types.ts')
+  const API = join(ROOT, 'src', 'api', 'system.ts')
+
+  it('runtime-status 端点前后端路径对得上，且只挂在管理端点上', () => {
+    expect(read(API)).toContain('request.get(\'/dataResource/runtime-status\')')
+    const controller = join(DPM, 'controller', 'DataResourceController.java')
+    expect(readJavaCode(controller)).toContain('@GetMapping("runtime-status")')
+    expect(readJavaCode(controller)).toContain('@Api("dataResource")')
+    for (const file of collect(join(DPM, 'controller'), '.java')) {
+      if (file.endsWith('DataResourceController.java')) {
+        continue
+      }
+      expect(read(file), `状态端点不该出现在 ${file.split('/').pop()}（会把权限面从 dataResource 漂走）`)
+        .not.toContain('runtime-status')
+    }
+  })
+
+  it('前端只显示档位，不自己算名单', () => {
+    // 命中写法：拿名单或字符串比较去反推档位；显示 `{{ item.effectiveMode }}` 不算
+    const SELF_CALC = /(?:effectiveMode|globalMode)\s*(?:===|!==|==|!=)\s*['"]|enforceResources\s*\.\s*(?:includes|indexOf|some|find)\s*\(/
+    const offenders: string[] = []
+    for (const file of [...collect(join(ROOT, 'src', 'composables'), '.ts'), ...collect(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission'), '.vue')]) {
+      stripComments(read(file)).split('\n').forEach((line, index) => {
+        if (SELF_CALC.test(line)) {
+          offenders.push(`${relative(ROOT, file)}:${index + 1}`)
+        }
+      })
+    }
+    expect(offenders, 'composable/视图在自行反推生效档位：名单规则只该有一份（后端 effectiveMode）').toEqual([])
+    // 自检：认得违规，也不误伤"把档位原样显示出来"
+    expect(SELF_CALC.test('if (item.effectiveMode === \'ENFORCE\') {')).toBe(true)
+    expect(SELF_CALC.test('status.enforceResources.includes(key)')).toBe(true)
+    expect(SELF_CALC.test('<span>{{ row.effectiveMode }}</span>')).toBe(false)
+
+    const list = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'resource', 'list.vue'))
+    expect(list, '资源列表页没渲染灰度状态').toMatch(/<ElAlert[^>]*v-if="runtimeReady"/)
+    expect(list, '取数失败必须能被看见（不能安静地显示成一切正常）').toContain('runtimeFailed')
+    expect(list).toContain('useDataPermissionRuntimeStatus')
+  })
+
+  it('状态面板的档位取自 properties，不重算三态规则', () => {
+    const service = readJavaCode(join(DPM, 'service', 'DataResourceService.java'))
+    expect(methodBody(service, 'ResourceRuntimeStatus statusOf('),
+      '面板自己算档位：名单的"例外清单 / 提前放开清单"两套语义必然会被抄错')
+      .toContain('properties.effectiveMode(')
+    // 未纳管服务清单要来自真实的资源键解析器，而不是前端传进来的一份名字表
+    expect(service, '未纳管清单绕开了 DataPermissionResourceResolver').toContain('DataPermissionResourceResolver.resolve(')
+  })
+
+  it('record 字段名与前端 interface 一一对得上', () => {
+    const java = stripComments(read(join(DPM, 'service', 'DataResourceService.java')))
+    const ts = stripComments(read(TYPES))
+    for (const name of ['ResourceRuntimeStatus', 'RuntimeStatus']) {
+      // 后端：public record X(...){ 里的组件名
+      const at = java.indexOf(`public record ${name}(`)
+      expect(at, `后端找不到 record ${name}：状态面板的契约变了`).toBeGreaterThan(-1)
+      // 含收尾括号：最后一个组件后面就是它，不含会漏判一个字段（record 少一个分量、前端多一个，正是要抓的形状）
+      const params = java.slice(at, java.indexOf(')', at) + 1)
+      const javaFields = [...params.matchAll(/([A-Za-z]\w*)\s*[,)]/g)].map(m => m[1]).filter(f => f !== name)
+      // 前端：TS 侧名字可能不同（RuntimeStatus ↔ DataPermissionRuntimeStatus），按候选名找
+      const tsNames = name === 'RuntimeStatus' ? ['DataPermissionRuntimeStatus', 'RuntimeStatus'] : [name]
+      let tsFields: string[] = []
+      for (const tsName of tsNames) {
+        const start = ts.indexOf(`export interface ${tsName} {`)
+        if (start < 0) {
+          continue
+        }
+        const block = ts.slice(start, ts.indexOf('\n}', start))
+        tsFields = [...block.matchAll(/^\s{2}(\w+)[:?]/gm)].map(m => m[1])
+        break
+      }
+      expect(tsFields.length, `前端找不到 interface ${tsNameHint(tsNames)}`).toBeGreaterThan(0)
+      expect(new Set(tsFields), `${name}：前端有后端没有的字段（会一直是 undefined）`)
+        .toEqual(new Set(javaFields.filter(f => tsFields.includes(f))))
+      for (const field of javaFields) {
+        expect(tsFields, `${name}.${field} 在前端 interface 里缺失：那一格会永远空着`).toContain(field)
+      }
+    }
+  })
+
+  it('写侧动作级守卫必须认得 mode 与「资源是否纳管」', () => {
+    const guard = readJavaCode(join(DPM, 'service', 'DataPermissionGuard.java'))
+    const body = methodBody(guard, 'void enforce(String resourceKey, DataPermissionAction action)')
+    expect(body, 'OFF 档写侧仍在拦：那"把 mode 改回 off"就不是回滚手段')
+      .toContain('properties.computes(resourceKey)')
+    expect(body, '未登记资源变成无条件抛异常：新模块没登记时所有保存/删除都 500，而页面上看不出原因')
+      .toContain('findResource(resourceKey)')
+    expect(body).toContain('isDenyUnregistered()')
+    // 读侧用的是同一个 properties 入口（两边都短路才算同一个三态语义）
+    const spec = readJavaCode(join(DPM, 'service', 'DataPermissionSpecification.java'))
+    expect(spec, '读侧不再走 effectiveMode：写侧刚接上的判据又分叉了')
+      .toContain('properties.effectiveMode(resourceKey)')
+    // 未抛异常的资源查找只有一份定义，requireResource 必须复用它
+    const service = readJavaCode(join(DPM, 'service', 'DataPermissionService.java'))
+    expect(methodBody(service, 'DataResourceEntity requireResource(String resourceKey)'))
+      .toContain('findResource(resourceKey)')
+  })
+})
+
+function tsNameHint(names: string[]): string {
+  return names.join(' / ')
+}
