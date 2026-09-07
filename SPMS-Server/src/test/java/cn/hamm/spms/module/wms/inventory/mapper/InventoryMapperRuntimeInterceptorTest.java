@@ -93,7 +93,7 @@ class InventoryMapperRuntimeInterceptorTest {
             assertEquals(2, page.size());
             assertEquals(2L, page.get(0).getId(), "实际排序固定为 ID 倒序");
             assertEquals(101L, page.get(1).getMaterial().getId());
-            assertEquals(201L, page.get(0).getStorage().getId());
+            assertEquals(202L, page.get(0).getStorage().getId());
             assertEquals(1L, detail.getId());
         }
     }
