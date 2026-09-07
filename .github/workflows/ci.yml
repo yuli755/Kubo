@@ -185,8 +185,16 @@ jobs:
           echo "MyBatis-Plus 依赖成对性检查通过（starter=${mp_starter:-未引入}）"
           # §19.33 的已知缺口：mybatis-plus-jsqlparser 不传递 jsqlparser 本体，接插件前必须补齐。
           # 版本以这里打出来的为准（别照记忆写），空手补依赖是本项目反复付过学费的地方。
-          echo "== jsqlparser 就绪性 =="
-          echo "$tree" | grep -i "jsqlparser" || echo "（依赖树里没有 jsqlparser：任何 InnerInterceptor 还不能接）"
+          parser_lines=$(echo "$tree" | grep -i "jsqlparser" | tr '\n' ' ' | sed 's/%/%25/g' || true)
+          echo "::notice title=jsqlparser 就绪性（§19.33）::${parser_lines:-依赖树里没有 jsqlparser 本体：任何 InnerInterceptor 还不能接}"
+          # 配对版本不在这里猜：直接把中央仓库上那个模块的 POM 里声明的版本打出来，
+          # 下一格照这一行补依赖即可（CI 有网络，本地没有 —— 这就是把它放这儿的原因）。
+          if [ -n "$mp_starter" ]; then
+            pom=$(curl -fsS --max-time 20 \
+              "https://repo1.maven.org/maven2/com/baomidou/mybatis-plus-jsqlparser/${mp_starter}/mybatis-plus-jsqlparser-${mp_starter}.pom" || true)
+            want=$(echo "$pom" | grep -i -A 3 "jsqlparser</artifactId>" | grep -oE "<version>[^<]+" | head -1 | sed 's/<version>//' || true)
+            echo "::notice title=jsqlparser 应配版本::${want:-中央仓库没读到，接插件前需人工确认}"
+          fi
   # ============================================================================
   # 迁移脚本的真实方言门禁（§19.11 第 2 项里"今天就能自动化"的那一半）
   # 为什么不用 Testcontainers：那要往 pom 里加 testcontainers + mysql-connector 依赖，
