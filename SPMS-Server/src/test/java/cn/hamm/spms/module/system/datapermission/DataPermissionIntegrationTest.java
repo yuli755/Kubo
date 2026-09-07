@@ -42,7 +42,11 @@ import static org.junit.jupiter.api.Assertions.*;
         properties = {
                 "spring.cache.type=none",
                 "airpower.redis.enabled=false",
-                "airpower.mqtt.enabled=false"
+                "airpower.mqtt.enabled=false",
+                // 必须显式声明档位：application.yml 出厂是 mode: off（回滚档），本类原先继承它，
+                // 于是「无 UPDATE 策略应被拦」那条断言其实是**假绿** —— 它绿是因为守卫当年不看 mode，
+                // 而不是因为策略真的缺。现在守卫认 mode 了，本类就得站在它想测的那一档上。
+                "kubo.data-permission.mode=shadow"
         },
         webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
@@ -223,9 +227,13 @@ class DataPermissionIntegrationTest {
             // 应该通过 CREATE 权限检查
             assertDoesNotThrow(() -> dataPermissionGuard.enforce("wms.input", DataPermissionAction.CREATE));
 
-            // 没有 UPDATE 策略，应该拦截
-            assertThrows(IllegalStateException.class,
+            // 没有 UPDATE 策略，应该拦截。<b>连消息一起断言</b>：本类曾经只判"抛了 IllegalStateException"，
+            // 而那时抛的是「数据权限资源未注册或未启用」——与"缺 UPDATE 策略"是两件完全不同的事，
+            // 断言却分不出来（这就是"绿着绿着就失真"）。
+            IllegalStateException denied = assertThrows(IllegalStateException.class,
                     () -> dataPermissionGuard.enforce("wms.input", DataPermissionAction.UPDATE));
+            assertTrue(denied.getMessage().contains("数据权限不足"),
+                    "拦下的原因必须是「该动作没有策略」，实际是：" + denied.getMessage());
         }
     }
 
