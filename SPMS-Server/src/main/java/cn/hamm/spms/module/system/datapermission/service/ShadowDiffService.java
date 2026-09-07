@@ -121,6 +121,9 @@ public class ShadowDiffService {
         }
         Long userId = context == null ? null : context.userId();
         Long tenantId = context == null ? null : context.tenantId();
+        // 身份与条件都在<em>业务线程</em>上取好再带进异步任务：PermissionContext 挂在 ThreadLocal 上，
+        // 后台线程去读只会读到"上一个占用该线程的请求"的身份，或者什么都没有。
+        // 所以这里传的是值（userId/tenantId）与已经绑定 context 的 Specification，而不是 context 本身。
         try {
             executor.execute(() -> doCompare(resourceKey, action, entityClass, guardedFilter, userId, tenantId));
         }

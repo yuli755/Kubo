@@ -17,6 +17,7 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -67,6 +68,16 @@ public class DataPermissionSpecification {
     private final DataPermissionAudit audit;
     private final PermissionRuleParser ruleParser;
     private final JpaPermissionRuleCompiler ruleCompiler;
+
+    /**
+     * 影子双跑（只观测，不参与判定）。
+     *
+     * <p>用字段注入 + {@code required = false} 而不是塞进构造器：本类已有 3 个单测直接 new 出来，
+     * 加一个"永远只是观测"的依赖去逼它们各改一行不划算；而它缺 Bean 时的正确行为恰好就是"不跑"。
+     * 判定链路上任何<em>会影响结果</em>的东西都不许按这个形状接 —— 这条区别见 {@code DataPermissionDenial}。</p>
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ShadowDiffService shadowDiffService;
 
     public DataPermissionSpecification(
             DataPermissionService dataPermissionService,
@@ -175,9 +186,54 @@ public class DataPermissionSpecification {
 
         if (!enforced(mode)) {
             audit.shadow(resourceKey, "would-filter", describe(predicates));
+            submitShadowDiff(root, resourceKey, action, resource, policies, context);
             return List.of();
         }
         return predicates;
+    }
+
+    /**
+     * 把「enforce 下本应注入的条件」交给影子比对（采样、异步、异常只记账都在 {@link ShadowDiffService} 里）
+     *
+     * <p>这一步的意义不在"多看一眼日志"：{@code enforce-readiness} 的放开前置要求差异表里有
+     * {@code EXPECTED_FILTER} 正向样本（证明"加条件确实会少行"），而<em>全仓只有这里能产生那些行</em>。
+     * 接线断着的后果不是日志少几行，是"逐资源放开"这条流程永远停在"无证据"上 ——
+     * 一个只读面板把自己的判据建在了一张没有生产者的表上（§19.30 欠的那条就是这里）。</p>
+     *
+     * <p>条件不在这儿重写一遍：直接把 {@link #buildPredicatesFromPolicies} 包成一个
+     * {@link Specification}，比对侧拿到的就是 enforce 会注入的同一份条件。</p>
+     */
+    private <T> void submitShadowDiff(Root<T> root,
+                                      String resourceKey,
+                                      DataPermissionAction action,
+                                      DataResourceEntity resource,
+                                      List<DataPolicyEntity> policies,
+                                      PermissionContext context) {
+        if (shadowDiffService == null) {
+            return;
+        }
+        // 投影查询 / tuple root 没有可 COUNT 的实体，拿不到实体类就跳过：
+        // 让异步任务去 NPE，等于把一次观测变成一条没人认领的错误日志
+        Class<?> entityClass = root.getJavaType();
+        if (entityClass == null || Object.class.equals(entityClass)) {
+            return;
+        }
+        Specification<T> guardedFilter = (filterRoot, filterQuery, filterBuilder) -> {
+            List<Predicate> inner = buildPredicatesFromPolicies(filterRoot, filterBuilder, resource, policies,
+                    context).predicates();
+            return inner.isEmpty() ? filterBuilder.conjunction()
+                    : filterBuilder.and(inner.toArray(new Predicate[0]));
+        };
+        shadowDiffService.compare(resourceKey, action, entityClass, guardedFilter, context);
+    }
+
+    /**
+     * 便于单测注入（生产由容器装配；缺 Bean 就是不跑比对）
+     *
+     * @param shadowDiffService 影子双跑服务
+     */
+    void setShadowDiffService(ShadowDiffService shadowDiffService) {
+        this.shadowDiffService = shadowDiffService;
     }
 
     /**

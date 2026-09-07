@@ -1324,3 +1324,41 @@ describe('mask contract · 拒答语义与留痕口径', () => {
     }
   })
 })
+
+describe('mask contract · 影子双跑的调用点', () => {
+  const DPM = join(SERVER, 'module', 'system', 'datapermission')
+  const SPEC = join(DPM, 'service', 'DataPermissionSpecification.java')
+  const DIFF = join(DPM, 'service', 'ShadowDiffService.java')
+
+  it('sHADOW 分支必须把比对叫起来（否则差异表永远空，放开前置永远「无证据」）', () => {
+    const code = readJavaCode(SPEC)
+    const shadow = methodBody(code, 'private <T> void submitShadowDiff(')
+    expect(shadow, '读侧不再交给比对：那 data_permission_diff_log 没有生产者，'
+    + 'enforce-readiness 的 SHADOW_EVIDENCE 判据在任何环境都会永远红')
+      .toContain('shadowDiffService.compare(')
+    // 条件必须是"读侧算出来的那份"，不能是比对侧另拼一份
+    expect(shadow, '比对用的是另拼的条件：那比的是两份实现，不是「加条件会不会少行」')
+      .toContain('buildPredicatesFromPolicies(')
+    // 只在影子档跑：enforce 下条件已注入，再双跑是多打一次全表 COUNT
+    const apply = methodBody(code, 'private <T> List<Predicate> apply(')
+    expect(apply.indexOf('submitShadowDiff('), '调用点不在 shadow 分支里').toBeGreaterThan(apply.indexOf('audit.shadow(resourceKey, "would-filter"'))
+    expect(apply.indexOf('return predicates;'), '调用点跑到 enforce 分支去了').toBeLessThan(apply.length)
+  })
+
+  it('观测件坏了不能影响判定，也绝不读 ThreadLocal', () => {
+    const code = readJavaCode(SPEC)
+    const submit = methodBody(code, 'private <T> void submitShadowDiff(')
+    expect(submit, '缺 Bean 时改成抛异常：一个观测件把查询打挂，这是灰度工具最典型的自伤')
+      .toContain('if (shadowDiffService == null)')
+    const diff = readJavaCode(DIFF)
+    expect(diff, '后台线程读 ThreadLocal：拿到的是"上一个占用该线程的请求"的身份')
+      .not
+      .toContain('PermissionContextHolder')
+    const compare = methodBody(diff, 'public void compare(String resourceKey,')
+    expect(compare, '比对改回同步跑：影子双跑是额外一次 COUNT，占用业务线程就是在拿生产 QPS 换观测')
+      .toContain('executor.execute(')
+    expect(compare, '采样判定被抄第二份').toContain('sampled(resourceKey)')
+    expect(diff.match(/nextDouble\(\)/g)?.length ?? 0, '出现第二处随机采样：两处采样率会互相掩盖')
+      .toBe(1)
+  })
+})
