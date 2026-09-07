@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -85,7 +86,6 @@ class ShadowDiffWiringTest {
         lenient().when(builder.disjunction()).thenReturn(filterPredicate);
         lenient().when(builder.equal(any(Expression.class), any(Object.class))).thenReturn(filterPredicate);
         lenient().when(root.get(anyString())).thenReturn(path);
-        lenient().when(root.getJavaType()).willReturn((Class) DataResourceEntity.class);
         PermissionContextHolder.open(new PermissionContext(1L, 100L, Set.of(1L), Set.of(), Set.of(),
                 Set.of("planner"), false));
     }
@@ -122,6 +122,9 @@ class ShadowDiffWiringTest {
     @DisplayName("SHADOW：算出了条件就把同一份条件交给比对（不是重新拼一遍）")
     void handsTheSameConditionsToTheDiffService() {
         standOnShadow();
+        // 只能写成 doReturn 形状：getJavaType() 声明的是 Class<? extends X>，
+        // when(...).thenReturn(Class) 在通配符捕获上过不了 javac（CI 抓过一次）
+        doReturn(DataResourceEntity.class).when(root).getJavaType();
 
         assertTrue(build().isEmpty(), "shadow 模式绝不能改变查询结果");
         then(shadowDiffService).should().compare(eq(RESOURCE), eq(DataPermissionAction.QUERY),
@@ -155,7 +158,7 @@ class ShadowDiffWiringTest {
     @DisplayName("拿不到可 COUNT 的实体类（投影/tuple root）：跳过，不把 NPE 丢进异步队列")
     void projectionRootIsSkipped() {
         standOnShadow();
-        given(root.getJavaType()).willReturn((Class) Object.class);
+        doReturn(Object.class).when(root).getJavaType();
 
         build();
 
