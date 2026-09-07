@@ -884,7 +884,10 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
     }
     const probe = readJavaCode(join(SERVER, 'module/system/datapermission/service/JpaRowVisibilityProbe.java'))
     expect(probe, '可见性探针不复用读侧条件生成：读写判定会分家').toContain('buildPredicates')
-    expect(probe, '探针没用 MANUAL flush：改完再判等于给绕过留门').toContain('FlushModeType.MANUAL')
+    expect(probe, '探针没用 COMMIT flush：改完再判等于给绕过留门').toContain('FlushModeType.COMMIT')
+    expect(probe, 'JPA 的 FlushModeType 没有 MANUAL：别退回 Hibernate 专有枚举，那会多绑一层实现依赖')
+      .not
+      .toContain('FlushModeType.MANUAL')
     expect(probe).not.toMatch(/getOwnerColumns\(\)/)
     const props = readJavaCode(join(SERVER, 'module/system/datapermission/config/DataPermissionProperties.java'))
     expect(props, '写侧行级保护必须默认关（开了会直接打断业务，见 §19.27）')

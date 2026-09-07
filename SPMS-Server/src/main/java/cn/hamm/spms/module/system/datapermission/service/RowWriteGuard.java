@@ -33,8 +33,8 @@ import org.springframework.stereotype.Component;
  *   <li>无上下文 / bypass（ROOT、定时任务）放行，与 {@link DataPermissionGuard} 同口径。</li>
  *   <li>条件生成异常按<b>不可见</b>处理（fail-closed），但 shadow 模式下只记审计不拒 ——
  *       与读侧"enforce 拒、shadow 记账"完全一致。</li>
- *   <li>校验的是<b>库里既存行</b>（探针用 MANUAL flush），不是"改完之后"：否则把
- *       {@code creatorId} 改成别人就能让自己从视野里消失再随便改，等于给绕过留了门。</li>
+ *   <li>校验的是<b>库里既存行</b>（探针把 flush 设为 {@code COMMIT}，即查询前不 flush），不是"改完之后"：
+ *       否则把 {@code creatorId} 改成别人就能让自己从视野里消失再随便改，等于给绕过留了门。</li>
  * </ul>
  *
  * @author Hamm.cn
