@@ -10,7 +10,7 @@ import java.util.Locale;
  * <h1>{@code data_resource.owner_columns} 的登记语法</h1>
  *
  * <p>这个字段历史上只是一串逗号分隔的列名，于是同一串被两处按<b>不同语义</b>读走：
- * {@code buildOwnerPredicate} 拿它比"用户 ID"，部门档又拿它的<b>第一项</b>比"部门 ID"。
+ * {@code SubjectDimensionRules} 拿它比"用户 ID"，部门档在没有显式登记时也拿它的<b>第一项</b>。
  * 一串名字不可能同时是两种东西 —— 而因为它"绑得上"，运行期连绑定失败都不会记（见 §19.25）。
  * 另一头，仓库/工厂两档的属性名写死在代码里，资源登记完全管不到，实体上用 {@code @ManyToOne storage}
  * 表达归属时根本没有入口。</p>

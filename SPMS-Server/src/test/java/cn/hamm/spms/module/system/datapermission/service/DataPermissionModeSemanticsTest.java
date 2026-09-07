@@ -202,8 +202,9 @@ class DataPermissionModeSemanticsTest {
             /**
              * 这条用例存在的理由是 D13 的开关语义：把 {@code factory-dimension-enabled} 打开后，
              * {@code DimensionGuard} 不再拒 FACTORY 策略，于是"策略能存下来"与"策略能生效"第一次
-             * 变成两件事。工厂归属列在业务实体上目前并不存在（{@code buildFactoryPredicate} 反射
-             * {@code factoryId} 会抛 IllegalArgumentException），若规格把"绑不上"当成"不约束"，
+             * 变成两件事。工厂归属列在业务实体上目前并不存在：{@code SubjectDimensionRules} 给的候选列名
+             * （兜底 {@code factoryId}）在 {@code root.get} 上取不到路径（真实 Hibernate 抛
+             * {@code IllegalArgumentException}，被 JpaPathResolver 归一成"这个候选绑不上"），若规格把"绑不上"当成"不约束"，
              * 结果就是<b>所有人都能看到全部行</b> —— 那比没开开关更糟。
              * 所以这里钉住：绑不上列 ⇒ 恒假 + binding 记账（与 tenant 那条同一条安全网）。
              */

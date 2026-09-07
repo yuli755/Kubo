@@ -74,6 +74,47 @@ public sealed interface PermissionRule {
     }
 
     /**
+     * 主体维度节点（<b>归属判定合一的载体</b>）
+     *
+     * <p>它取代的是原先散在 {@code DataPermissionSpecification} 里的一个 switch 加五个
+     * {@code buildXxxPredicate}。那份逻辑回答的问题是"这条策略的主体维度该拿哪些候选列、
+     * 用什么值去比、多个候选怎么组合"，而它<em>只活在 JPA 侧</em>；SQL 侧另有
+     * {@code RowPermissionPredicate.tenant/owner/...} 一份同义实现（生产零调用，已删）。
+     * 两套读语义要并存，判据必须先只有一份 —— 于是把"判据"做成节点，把"怎么绑到各自的列"
+     * 留给各渲染器：</p>
+     * <ul>
+     *   <li>JPA：{@link JpaPathResolver#resolve} 逐个候选试绑，绑不上的跳过（跳过导致整棵无贡献时，
+     *       由 {@code DataPermissionSpecification} 计入绑定失败，enforce 下恒假）；</li>
+     *   <li>SQL：没有实体元模型可问，只能按登记的顺序取（见 {@link SqlPermissionRuleRenderer} 里
+     *       {@code candidateFields} 的处理）；登记成关联路径（{@code storage.id}）时 JPA 侧能沿一跳绑上，
+     *       SQL 侧要显式 JOIN，因此那里是<b>明确拒绝</b>而不是猜一个列名 —— 猜出来的列名一旦与别的列同名，
+     *       表现是"多放行一些行"，查不出来。</li>
+     * </ul>
+     *
+     * @param op              比较算子（归属判定只有 {@code EQ}）
+     * @param candidateFields 候选列/属性名，来自 {@code data_resource} 登记；<b>顺序即优先级</b>
+     * @param value           要比的值（主体 ID 或策略主体 ID）；为 {@code null} 表示"这一维没取到值"，
+     *                        两个渲染器各自落成语义上的"不给看"（JPA：与 null 比；SQL：恒假）
+     * @param orAllCandidates {@code true} = 所有能绑上的候选列 OR 起来（负责人档的多归属列语义）；
+     *                        {@code false} = 只取第一个能绑上的（租户/部门/工厂/仓库档）
+     */
+    record Dimension(PermissionRuleOp op, List<String> candidateFields, Object value, boolean orAllCandidates)
+            implements PermissionRule {
+
+        public Dimension {
+            candidateFields = List.copyOf(candidateFields);
+        }
+
+        /**
+         * 资源根本没登记这一维（候选列表为空）—— 与"登记了但实体上绑不上"是两件事：
+         * 前者不贡献条件，后者要被判据那边数出来
+         */
+        public boolean hasCandidates() {
+            return !candidateFields.isEmpty();
+        }
+    }
+
+    /**
      * 叶子节点
      *
      * @param op         比较算子

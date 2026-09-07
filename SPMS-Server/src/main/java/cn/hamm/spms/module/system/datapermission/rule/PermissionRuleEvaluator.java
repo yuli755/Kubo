@@ -49,8 +49,43 @@ public final class PermissionRuleEvaluator {
             }
             return true;
         }
+        if (rule instanceof PermissionRule.Dimension dimension) {
+            return matchesDimension(dimension, row);
+        }
         if (rule instanceof PermissionRule.Leaf leaf) {
             return matchesLeaf(leaf, row, context);
+        }
+        return false;
+    }
+
+    /**
+     * 主体维度按行求值
+     *
+     * <p>本求值器是"语义裁判"，它没有实体元模型，因此这里的"取不到值"同时混着两种情况：
+     * 行里该列为 null，以及这一列根本不在样本里。两者都按保守处理（不成立）——
+     * 而 JPA 侧"全都绑不上"的取向是<b>不拼条件 + 计入绑定失败</b>，那属于配置缺陷，
+     * 由 {@code DimensionBindingAnalyzer} 与 binding 指标负责，不该在这里对齐。</p>
+     */
+    private boolean matchesDimension(PermissionRule.Dimension dimension, Map<String, Object> row) {
+        if (!dimension.hasCandidates()) {
+            return true;
+        }
+        List<String> candidates = dimension.orAllCandidates()
+                ? dimension.candidateFields()
+                : List.of(dimension.candidateFields().get(0));
+        for (String candidate : candidates) {
+            Object actual = resolveField(row, candidate);
+            if (actual == null) {
+                continue;
+            }
+            boolean matched = dimension.value() != null && equal(actual, dimension.value());
+            if (dimension.orAllCandidates()) {
+                if (matched) {
+                    return true;
+                }
+                continue;
+            }
+            return matched;
         }
         return false;
     }

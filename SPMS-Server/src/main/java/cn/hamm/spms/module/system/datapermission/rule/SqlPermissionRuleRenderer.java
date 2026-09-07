@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.system.datapermission.rule;
 
 import cn.hamm.spms.module.system.datapermission.service.RowPermissionPredicate;
+import java.util.ArrayList;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -60,7 +61,7 @@ public final class SqlPermissionRuleRenderer {
     private boolean renderNode(PermissionRule rule, String tableAlias, PermissionRuleContext context,
                                StringBuilder sql, Map<String, Object> parameters, int[] counter) {
         if (rule instanceof PermissionRule.Deny) {
-            appendGroup(sql, "1 = 0");
+            appendGroup(sql, RowPermissionPredicate.DENY_SQL);
             return true;
         }
         if (rule instanceof PermissionRule.AllowAll) {
@@ -91,10 +92,52 @@ public final class SqlPermissionRuleRenderer {
             appendGroup(sql, inner.toString());
             return true;
         }
+        if (rule instanceof PermissionRule.Dimension dimension) {
+            return renderDimension(dimension, tableAlias, sql, parameters, counter);
+        }
         if (rule instanceof PermissionRule.Leaf leaf) {
             return renderLeaf(leaf, tableAlias, context, sql, parameters, counter);
         }
         return false;
+    }
+
+    /**
+     * 主体维度 → SQL 片段（与 {@link JpaPermissionRuleCompiler} 读同一棵树）
+     *
+     * <p>SQL 侧没有实体元模型可问，所以"挑第一个绑得上的候选"在这里退化成"取登记的第一个"。
+     * 两者不一致的情形只有一种：登记的第一个候选在数据库里有列、在这个实体的 JPA 映射里却没有
+     * —— 那时 JPA 侧会跳到第二个候选去过滤，SQL 侧仍按第一个过滤，行数因此不同。这个差异
+     * <b>正是要暴露的东西</b>（它就是"实体没映射归属列"），而 JPA 侧那条 binding 计数已经先响了；
+     * 不要在这里加"两边对齐"的补丁去把它抹平。</p>
+     */
+    private boolean renderDimension(PermissionRule.Dimension dimension, String tableAlias, StringBuilder sql,
+                                    Map<String, Object> parameters, int[] counter) {
+        if (!dimension.hasCandidates()) {
+            return false;
+        }
+        List<String> candidates = dimension.orAllCandidates()
+                ? dimension.candidateFields()
+                : List.of(dimension.candidateFields().get(0));
+        for (String candidate : candidates) {
+            if (candidate.indexOf('.') >= 0) {
+                throw new PermissionRuleException(null, "SQL 侧不支持归属列走关联路径 " + candidate
+                        + "：需要显式 JOIN（施工图 D1(b)），JPA 读侧已支持该写法");
+            }
+        }
+        if (dimension.value() == null) {
+            // 与 Leaf 同口径：这一维没取到值就恒假。JPA 侧对应"与该列比 null"，同样一行不给看
+            appendGroup(sql, RowPermissionPredicate.DENY_SQL);
+            return true;
+        }
+        List<String> parts = new ArrayList<>();
+        for (String candidate : candidates) {
+            String column = column(tableAlias, candidate);
+            String name = nextParameter(counter);
+            parameters.put(name, dimension.value());
+            parts.add(column + " " + operator(dimension.op()) + " :" + name);
+        }
+        appendGroup(sql, String.join(" OR ", parts));
+        return true;
     }
 
     private boolean renderLeaf(PermissionRule.Leaf leaf, String tableAlias, PermissionRuleContext context,
@@ -128,7 +171,7 @@ public final class SqlPermissionRuleRenderer {
                 if (leaf.op() == PermissionRuleOp.NOT_IN) {
                     return false;
                 }
-                appendGroup(sql, "1 = 0");
+                appendGroup(sql, RowPermissionPredicate.DENY_SQL);
                 return true;
             }
             // 逐项命名参数，而不是 "IN (:list)" 的单参数集合展开：
@@ -153,7 +196,7 @@ public final class SqlPermissionRuleRenderer {
 
         if (value == null) {
             // 上下文维度缺失：宁可恒假
-            appendGroup(sql, "1 = 0");
+            appendGroup(sql, RowPermissionPredicate.DENY_SQL);
             return true;
         }
 

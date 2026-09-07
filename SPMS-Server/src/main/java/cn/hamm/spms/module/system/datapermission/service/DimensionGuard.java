@@ -13,8 +13,8 @@ import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties
  *       <b>任何人配的 FACTORY 策略对任何人都不会命中</b>；</li>
  *   <li>若某资源只配了 FACTORY 策略，读链路的结果是"等价于没配策略"（除非资源开了默认拒绝）
  *       —— 管理员看到"保存成功"，实际防护为零；</li>
- *   <li>反过来，{@code condition_json} 里引用 {@code factoryIds} 时
- *       {@code RowPermissionPredicate.factory(...)} 对空集合返回 {@code deny()}
+ *   <li>反过来，{@code condition_json} 里引用 {@code factoryIds} 时，空集合被两个渲染器都判成恒假
+ *       （JPA 的 {@code IN ()} 编译成 {@code disjunction()}，SQL 渲染器落 {@code 1 = 0}）
  *       —— 同一个恒空字段，在另一条链路上是<b>全员空结果</b>的自锁。</li>
  * </ul>
  *

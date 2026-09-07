@@ -1,5 +1,7 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
+import cn.hamm.spms.module.system.datapermission.rule.SubjectDimensionRules;
+
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionSubjectType;
 import cn.hamm.spms.module.system.datapermission.rule.OwnerColumnRegistration;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleSupport;
@@ -94,20 +96,14 @@ public final class DimensionBindingAnalyzer {
      */
     public static final String KIND_OWNER_COLUMN_MALFORMED = "OWNER_COLUMN_MALFORMED";
 
-    /**
-     * 仓库档没有 {@code WAREHOUSE:} 登记时用的缺省属性名（与 {@code DataPermissionSpecification} 同值）
-     */
-    static final String WAREHOUSE_ATTRIBUTE = "warehouseId";
+    // 三个兜底属性名以前在这里和 DataPermissionSpecification 各写一遍、靠注释约定"两处必须同值"。
+    // §19.35 之后判据收进 SubjectDimensionRules，面板只能引用它 —— 提示语与真实兜底名同源，
+    // 否则改名之后面板会继续建议一个已经不用的列名，而那看起来像"你登记错了"。
+    static final String WAREHOUSE_ATTRIBUTE = SubjectDimensionRules.WAREHOUSE_ATTRIBUTE;
 
-    /**
-     * 工厂档没有 {@code FACTORY:} 登记时用的缺省属性名（与 {@code DataPermissionSpecification} 同值）
-     */
-    static final String FACTORY_ATTRIBUTE = "factoryId";
+    static final String FACTORY_ATTRIBUTE = SubjectDimensionRules.FACTORY_ATTRIBUTE;
 
-    /**
-     * 部门档在既无 {@code DEPARTMENT:} 登记、也无裸写法项时的缺省属性名
-     */
-    static final String DEPARTMENT_DEFAULT_ATTRIBUTE = "departmentId";
+    static final String DEPARTMENT_DEFAULT_ATTRIBUTE = SubjectDimensionRules.DEPARTMENT_ATTRIBUTE;
 
     /**
      * 各维度在实体上"可能的关联名"
@@ -318,7 +314,7 @@ public final class DimensionBindingAnalyzer {
     }
 
     /**
-     * 逗号分隔的登记值 → 逐项（与 {@code buildOwnerPredicate} 的解析方式一致）
+     * 逗号分隔的登记值 → 逐项（与 {@code SubjectDimensionRules} 取候选列的方式一致）
      */
     private static List<String> csv(String raw) {
         List<String> parts = new ArrayList<>();

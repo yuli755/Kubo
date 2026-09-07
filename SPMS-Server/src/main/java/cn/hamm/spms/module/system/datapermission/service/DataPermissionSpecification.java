@@ -5,16 +5,15 @@ import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionSubjectType;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
-import cn.hamm.spms.module.system.datapermission.rule.JpaPathResolver;
 import cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRule;
-import cn.hamm.spms.module.system.datapermission.rule.OwnerColumnRegistration;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleContext;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleOp;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleValidator;
+import cn.hamm.spms.module.system.datapermission.rule.SubjectDimensionRules;
 import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import org.springframework.data.jpa.domain.Specification;
@@ -53,16 +52,8 @@ import java.util.stream.Collectors;
 public class DataPermissionSpecification {
 
     private final DataPermissionService dataPermissionService;
-    /**
-     * 兜底属性名：既是这里的绑定候选，也是 DimensionBindingAnalyzer 的提示语，两处必须同值。
-     * 写死是有意的（没有工厂/仓库列的实体确实只能落到默认名），但"两处写死"这件事本身要被
-     * 测试钉住，否则改名就把面板变哑。
-     */
-    private static final String DEPARTMENT_ATTRIBUTE = "departmentId";
-
-    private static final String WAREHOUSE_ATTRIBUTE = "warehouseId";
-
-    private static final String FACTORY_ATTRIBUTE = "factoryId";
+    // 兜底属性名（departmentId / warehouseId / factoryId）以前在这里和 DimensionBindingAnalyzer
+    // 各写一遍、靠注释约定同值；§19.35 起统一收在 SubjectDimensionRules，本类不再有副本。
 
     private final DataPermissionProperties properties;
     private final DataPermissionAudit audit;
@@ -275,12 +266,14 @@ public class DataPermissionSpecification {
         int expected = 0;
 
         for (DataPolicyEntity policy : policies) {
-            boolean filtering = isFilteringSubject(policy.getSubjectType());
-            Predicate predicate = buildPolicyPredicate(root, builder, resource, policy, context);
-            if (predicate != null) {
-                predicates.add(predicate);
+            PolicyBuild build = buildPolicyBuild(root, builder, resource, policy, context);
+            if (build.predicate() != null) {
+                predicates.add(build.predicate());
             }
-            else if (filtering) {
+            else if (build.shouldBind()) {
+                // 「本该拼出条件却没拼出来」——计数口径没变，变的只是判据住在哪：
+                // 以前由本类的 isFilteringSubject 判断，现在由规则侧在生成条件的那一刻一并给出，
+                // 于是"哪些主体类型参与行级过滤"这句话不会在这里和归属工厂里各说一遍
                 expected++;
             }
         }
@@ -289,55 +282,54 @@ public class DataPermissionSpecification {
     }
 
     /**
-     * 该主体类型是否本该产生 SQL 过滤条件
+     * 一条策略 = 「主体维度条件」AND「condition_json 条件树」，两半先合成<em>一棵树</em>再编译
+     *
+     * <p>合一之前，这里是 {@code switch (subjectType)} 加五个 {@code buildXxxPredicate} 直接拼
+     * Criteria，而 SQL 侧另有一份 {@code RowPermissionPredicate} 工厂写着同一件事。两份实现各改一次
+     * 就分家，而分家的表现不是报错：JPA 少滤一点或多滤一点，Mapper 侧另一个数，谁都不响。
+     * 现在主体维度只由 {@link SubjectDimensionRules} 回答一次，
+     * {@link JpaPermissionRuleCompiler} 与 {@code SqlPermissionRuleRenderer} 各自渲染同一棵树
+     * （§19.35）。</p>
+     *
+     * <p>白名单校验只覆盖 {@code condition_json} 那棵树：归属候选来自 {@code data_resource} 登记，
+     * 它们<em>允许</em>指向实体上没有的列 —— 那正是"该列没映射"这个缺陷被数出来的方式，
+     * 拿白名单去校验它，缺陷就变成一句"非法字段"，面板从此看不见。</p>
      */
-    private boolean isFilteringSubject(String subjectType) {
-        if (subjectType == null) {
-            return false;
+    private <T> PolicyBuild buildPolicyBuild(
+            Root<T> root,
+            CriteriaBuilder builder,
+            DataResourceEntity resource,
+            DataPolicyEntity policy,
+            PermissionContext context
+    ) {
+        SubjectDimensionRules.SubjectRule subject = SubjectDimensionRules.forPolicy(resource, policy, context);
+        PermissionRule condition = parseConditionRule(resource, policy);
+
+        List<PermissionRule> parts = new ArrayList<>(2);
+        if (subject.rule() != null && subject.rule().contributes()) {
+            parts.add(subject.rule());
         }
-        return switch (subjectType) {
-            case "TENANT", "USER", "DEPARTMENT", "FACTORY", "WAREHOUSE" -> true;
-            // ROLE 由 getPolicies 侧过滤、SYSTEM 表示放行，都不该拼 SQL
-            case "ROLE", "SYSTEM" -> false;
-            default -> false;
-        };
+        if (condition != null) {
+            parts.add(condition);
+        }
+        if (parts.isEmpty()) {
+            return new PolicyBuild(null, subject.shouldBind());
+        }
+        PermissionRule combined = parts.size() == 1
+                ? parts.get(0)
+                : PermissionRule.group(PermissionRuleOp.ALL_OF, parts);
+        Predicate predicate = ruleCompiler.compile(combined, root, builder, new PermissionRuleContext(context));
+        return new PolicyBuild(predicate, subject.shouldBind());
     }
 
     /**
-     * 单条策略 = 「主体匹配条件」AND「condition_json 条件树」
+     * 解析并校验 condition_json，产出条件树（不做编译：编译发生在与主体条件合并之后）
      *
      * <p>历史上 {@code condition_json} 从来没被读过（列一直存在、值恒为 {@code {}}），
      * 于是"配了条件也不生效"。这里把它接上，并且<b>不静默跳过</b>非法条件：
      * 解析/校验异常会冒到 {@link #apply} 的统一兜底，enforce 下变成拒绝 + binding 指标。</p>
      */
-    private <T> Predicate buildPolicyPredicate(
-            Root<T> root,
-            CriteriaBuilder builder,
-            DataResourceEntity resource,
-            DataPolicyEntity policy,
-            PermissionContext context
-    ) {
-        Predicate subjectPredicate = buildSinglePredicate(root, builder, resource, policy, context);
-        Predicate conditionPredicate = buildConditionPredicate(resource, policy, root, builder, context);
-        if (subjectPredicate == null) {
-            return conditionPredicate;
-        }
-        if (conditionPredicate == null) {
-            return subjectPredicate;
-        }
-        return builder.and(subjectPredicate, conditionPredicate);
-    }
-
-    /**
-     * 编译 condition_json 条件树
-     */
-    private <T> Predicate buildConditionPredicate(
-            DataResourceEntity resource,
-            DataPolicyEntity policy,
-            Root<T> root,
-            CriteriaBuilder builder,
-            PermissionContext context
-    ) {
+    private PermissionRule parseConditionRule(DataResourceEntity resource, DataPolicyEntity policy) {
         String json = policy.getConditionJson();
         if (json == null || json.isBlank() || "{}".equals(json.trim())) {
             return null;
@@ -347,7 +339,7 @@ public class DataPermissionSpecification {
             return null;
         }
         new PermissionRuleValidator(allowListOf(resource)).validate(resource.getResourceKey(), rule);
-        return ruleCompiler.compile(rule, root, builder, new cn.hamm.spms.module.system.datapermission.rule.PermissionRuleContext(context));
+        return rule;
     }
 
     /**
@@ -361,188 +353,11 @@ public class DataPermissionSpecification {
     }
 
     /**
-     * 根据单个策略构建 JPA 谓词
+     * 单条策略的构建结果
+     *
+     * @param predicate  编译出的 JPA 谓词；{@code null} 表示这一条不贡献条件
+     * @param shouldBind 该主体类型本该拼出条件（用来把"结构性空转"数出来）
      */
-    private <T> Predicate buildSinglePredicate(
-            Root<T> root,
-            CriteriaBuilder builder,
-            DataResourceEntity resource,
-            DataPolicyEntity policy,
-            PermissionContext context
-    ) {
-        String subjectType = policy.getSubjectType();
-        if (subjectType == null) {
-            return null;
-        }
-
-        return switch (subjectType) {
-            case "TENANT" -> buildTenantPredicate(root, builder, resource, context);
-            case "USER" -> buildOwnerPredicate(root, builder, resource, context);
-            case "DEPARTMENT" -> buildDepartmentPredicate(root, builder, resource, policy, context);
-            case "FACTORY" -> buildFactoryPredicate(root, builder, resource, policy, context);
-            case "WAREHOUSE" -> buildWarehousePredicate(root, builder, resource, policy, context);
-            case "ROLE" -> null; // ROLE 策略通过 getPolicies 已过滤，无需额外 SQL 条件
-            case "SYSTEM" -> null; // SYSTEM 策略允许所有，无需额外 SQL 条件
-            default -> null;
-        };
-    }
-
-    /**
-     * 构建租户隔离谓词
-     */
-    private <T> Predicate buildTenantPredicate(
-            Root<T> root,
-            CriteriaBuilder builder,
-            DataResourceEntity resource,
-            PermissionContext context
-    ) {
-        // 登记的是列名（tenant_id）还是属性名（tenantId）都要能绑上；TENANT:xxx 能把它改绑到别的列。
-        // 实体上没有该列时返回 null，由调用方按策略计数暴露为 binding 异常
-        return compareAny(root, builder,
-                OwnerColumnRegistration.candidatesFor(resource.getOwnerColumns(),
-                        DataPermissionSubjectType.TENANT.name(), single(resource.getTenantColumn())),
-                context.tenantId());
-    }
-
-    /**
-     * 构建用户归属谓词
-     */
-    private <T> Predicate buildOwnerPredicate(
-            Root<T> root,
-            CriteriaBuilder builder,
-            DataResourceEntity resource,
-            PermissionContext context
-    ) {
-        // 带 USER: 前缀的项专属于本档；一个都没有时沿用旧语义（全部登记项都当"我的记录"列）——
-        // 现网登记全是裸写法，不能因为引入前缀就当它们没登记
-        List<String> ownerPaths = OwnerColumnRegistration.candidatesFor(resource.getOwnerColumns(),
-                DataPermissionSubjectType.USER.name(),
-                OwnerColumnRegistration.untagged(resource.getOwnerColumns()));
-        if (ownerPaths.isEmpty()) {
-            return null;
-        }
-        List<Predicate> ownerPredicates = new ArrayList<>();
-        for (String column : ownerPaths) {
-            Path<?> path = JpaPathResolver.resolve(root, column);
-            if (path == null) {
-                // 实体没有该字段时跳过
-                continue;
-            }
-            ownerPredicates.add(builder.equal(path, context.userId()));
-        }
-        if (ownerPredicates.isEmpty()) {
-            return null;
-        }
-        if (ownerPredicates.size() == 1) {
-            return ownerPredicates.get(0);
-        }
-        return builder.or(ownerPredicates.toArray(new Predicate[0]));
-    }
-
-    /**
-     * 构建部门过滤谓词
-     */
-    private <T> Predicate buildDepartmentPredicate(
-            Root<T> root,
-            CriteriaBuilder builder,
-            DataResourceEntity resource,
-            DataPolicyEntity policy,
-            PermissionContext context
-    ) {
-        // 门槛判据与 DataPermissionService#matchesSubject 是同一个方法（收在 PermissionContext 上）：
-        // 两处各写一遍就会出现"策略被判定可达、谓词却拼不出来"，而那种不一致查起来极痛
-        if (!context.coversDepartment(policy.getSubjectId())) {
-            return null;
-        }
-        // DEPARTMENT:xxx 让部门列与"我的记录"分家；没有显式登记时仍走旧约定（owner_columns 第一项）
-        List<String> departmentPaths = departmentPaths(resource);
-        if (departmentPaths.isEmpty()) {
-            return null;
-        }
-        return compareAny(root, builder, departmentPaths, policy.getSubjectId());
-    }
-
-    /**
-     * 构建工厂过滤谓词
-     */
-    private <T> Predicate buildFactoryPredicate(
-            Root<T> root,
-            CriteriaBuilder builder,
-            DataResourceEntity resource,
-            DataPolicyEntity policy,
-            PermissionContext context
-    ) {
-        if (policy.getSubjectId() == null || !context.factoryIds().contains(policy.getSubjectId())) {
-            return null;
-        }
-        // 实体侧目前没有工厂归属（见施工图 D13）：取不到路径时返回 null，调用方按
-        // 「本该产生条件却没绑上」计入绑定失败，enforce 下拒绝
-        return compareAny(root, builder,
-                OwnerColumnRegistration.candidatesFor(resource.getOwnerColumns(),
-                        DataPermissionSubjectType.FACTORY.name(), List.of(FACTORY_ATTRIBUTE)),
-                policy.getSubjectId());
-    }
-
-    /**
-     * 构建仓库过滤谓词
-     */
-    private <T> Predicate buildWarehousePredicate(
-            Root<T> root,
-            CriteriaBuilder builder,
-            DataResourceEntity resource,
-            DataPolicyEntity policy,
-            PermissionContext context
-    ) {
-        if (policy.getSubjectId() == null || !context.warehouseIds().contains(policy.getSubjectId())) {
-            return null;
-        }
-        // 同上：仓库归属在实体上是 @ManyToOne storage（关联路径），没有 warehouseId 标量属性。
-        // 现在登记 WAREHOUSE:storage.id 就能真绑上；登记不出来依然是 null ⇒ 被数出来，别用 catch 抹平
-        return compareAny(root, builder,
-                OwnerColumnRegistration.candidatesFor(resource.getOwnerColumns(),
-                        DataPermissionSubjectType.WAREHOUSE.name(), List.of(WAREHOUSE_ATTRIBUTE)),
-                policy.getSubjectId());
-    }
-
-    /**
-     * 从资源定义中解析部门字段名
-     */
-    private List<String> departmentPaths(DataResourceEntity resource) {
-        List<String> registered = OwnerColumnRegistration.candidatesFor(resource.getOwnerColumns(),
-                DataPermissionSubjectType.DEPARTMENT.name(),
-                OwnerColumnRegistration.untagged(resource.getOwnerColumns()));
-        if (registered.isEmpty()) {
-            // 兜底沿用历史约定，保证存量登记不因为新维度而突然失配
-            return List.of(DEPARTMENT_ATTRIBUTE);
-        }
-        return registered;
-    }
-
-    private List<String> single(String value) {
-        if (value == null || value.isBlank()) {
-            return List.of();
-        }
-        return List.of(value.trim());
-    }
-
-    /**
-     * 逐个候选试绑：绑上第一条即用，全都绑不上返回 null（由上层计入绑定失败）
-     */
-    private <T> Predicate compareAny(
-            Root<T> root,
-            CriteriaBuilder builder,
-            List<String> paths,
-            Object value
-    ) {
-        if (paths == null) {
-            return null;
-        }
-        for (String path : paths) {
-            Path<?> resolved = JpaPathResolver.resolve(root, path);
-            if (resolved != null) {
-                return builder.equal(resolved, value);
-            }
-        }
-        return null;
+    private record PolicyBuild(Predicate predicate, boolean shouldBind) {
     }
 }

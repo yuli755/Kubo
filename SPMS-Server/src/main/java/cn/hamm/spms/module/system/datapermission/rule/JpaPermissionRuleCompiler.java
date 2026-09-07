@@ -70,10 +70,44 @@ public final class JpaPermissionRuleCompiler {
                     ? builder.or(children.toArray(new Predicate[0]))
                     : builder.and(children.toArray(new Predicate[0]));
         }
+        if (rule instanceof PermissionRule.Dimension dimension) {
+            return compileDimension(dimension, root, builder);
+        }
         if (rule instanceof PermissionRule.Leaf leaf) {
             return compileLeaf(leaf, root, builder, context);
         }
         return null;
+    }
+
+    /**
+     * 主体维度：逐个候选试绑
+     *
+     * <p>与 {@code Leaf} 的关键区别是<b>绑不上不抛</b>。这不是放松：归属列候选本来就是按
+     * "这份登记在不同实体形状上都能落"设计的（{@code tenant_id} 与 {@code tenantId} 两种写法、
+     * 部门列可能与负责人列同名列），全绑不上时返回 {@code null}，由
+     * {@code DataPermissionSpecification} 按策略计数暴露成绑定失败，enforce 下恒假 ——
+     * 失败照样拦，只是拦在能看懂的地方。条件树里的显式 {@code field} 依然严格（{@link #resolvePath}），
+     * 那是用户手写的策略，写错就该响。</p>
+     */
+    private Predicate compileDimension(PermissionRule.Dimension dimension, Root<?> root, CriteriaBuilder builder) {
+        List<Predicate> bound = new ArrayList<>();
+        for (String candidate : dimension.candidateFields()) {
+            Path<?> path = JpaPathResolver.resolve(root, candidate);
+            if (path == null) {
+                continue;
+            }
+            // 不做 coerce：主体值恒为 Long（userId / tenantId / subjectId），
+            // 而这里要保持与合一前逐字相同的 builder.equal(path, value) —— 顺手"改进"类型收敛
+            // 会把 Integer 列上的比较语义一起改掉，那是另一件事，得单独一格去做。
+            bound.add(builder.equal(path, dimension.value()));
+            if (!dimension.orAllCandidates()) {
+                break;
+            }
+        }
+        if (bound.isEmpty()) {
+            return null;
+        }
+        return bound.size() == 1 ? bound.get(0) : builder.or(bound.toArray(new Predicate[0]));
     }
 
     private Predicate compileLeaf(PermissionRule.Leaf leaf, Root<?> root, CriteriaBuilder builder, PermissionRuleContext context) {

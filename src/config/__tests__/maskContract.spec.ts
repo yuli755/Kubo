@@ -442,12 +442,14 @@ describe('mask contract · 脱敏实现只允许存在一处', () => {
     expect(list, '资源列表页没渲染维度可绑定性结果').toMatch(/<ElAlert[^>]*v-if="bindingCount"/)
     expect(list).toContain('useDimensionBindingRiskReport')
 
-    // 分析器里那几个"代码写死的属性名"必须与运行期拼谓词的那处一致：
-    // 谁改了 Specification 而没改分析器，面板就开始按过时的列名报问题（这比不报更糟）
-    const spec = stripComments(read(join(SERVER, 'module/system/datapermission/service/DataPermissionSpecification.java')))
+    // 分析器里那几个"代码写死的属性名"必须与运行期拼条件的判据同源：
+    // 谁改了判据而没改分析器，面板就开始按过时的列名报问题（这比不报更糟）。
+    // §19.35 之前判据住在 DataPermissionSpecification 里，现在收进 SubjectDimensionRules，
+    // 这条门禁跟着搬走 —— 它守的是"同值"这件事，不是"住在哪个文件"这个旧形状。
+    const subjectRules = stripComments(read(join(SERVER, 'module/system/datapermission/rule/SubjectDimensionRules.java')))
     const analyzer = stripComments(read(join(SERVER, 'module/system/datapermission/service/DimensionBindingAnalyzer.java')))
     for (const name of ['warehouseId', 'factoryId', 'departmentId']) {
-      expect(spec, `运行期已不再使用 ${name}：分析器的判据需要跟着改`).toContain(name)
+      expect(subjectRules, `判据里已不再使用 ${name}：分析器的建议需要跟着改`).toContain(name)
       expect(analyzer).toContain(name)
     }
 
@@ -853,13 +855,15 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
     expect(tip).toContain('最多一跳')
 
     /**
-     * 回退顺序目前在读侧与分析器各写了一遍（§19.26 已记为已知风险），这里钉住那一句本体：
+     * 回退顺序目前在判据侧与分析器各写了一遍（§19.26 已记为已知风险），这里钉住那一句本体：
      * "有 DIMENSION: 前缀项就用它们，一个都没有才沿用既有取值"。谁把某一边的回退翻过来
      * （例如改成"没前缀就当没登记"），面板与运行期立刻分家 —— 那正是"升级即查空"的形状。
+     * §19.35 之后判据侧这一份住在 SubjectDimensionRules（以前在 DataPermissionSpecification 里
+     * 直接拼 Criteria），门禁跟着搬家，两处对账的语义不变。
      */
     const FALLBACK = 'scoped.isEmpty() ? fallback : scoped'
-    for (const cls of ['DataPermissionSpecification', 'DimensionBindingAnalyzer']) {
-      const code = readJavaCode(join(SERVER, `module/system/datapermission/service/${cls}.java`))
+    for (const cls of ['rule/SubjectDimensionRules', 'service/DimensionBindingAnalyzer']) {
+      const code = readJavaCode(join(SERVER, `module/system/datapermission/${cls}.java`))
       expect(code, `${cls} 不再走 OwnerColumnRegistration.candidatesFor：回退顺序又变成两份`)
         .toContain('OwnerColumnRegistration.candidatesFor')
       expect(code, `${cls} 自己写了一份回退式（这一句现在只许住在 OwnerColumnRegistration 里）`)
@@ -1465,5 +1469,62 @@ describe('mask contract · 读侧 Mapper（P2 换轨的注册面）', () => {
     + 'JPA 侧与 Mapper 侧各算一遍，迟早给出不同答案（判据合一见施工图 §19.34）')
       .toEqual([])
     expect(factories.test('return RowPermissionPredicate.tenant("material", "tenant_id", id);'), '这条判据本身失效了：正则不再能识别片段工厂').toBe(true)
+  })
+})
+
+describe('mask contract · 归属判据合一', () => {
+  const DPM = join(SERVER, 'module', 'system', 'datapermission')
+  const RULE = join(DPM, 'rule')
+  const SUBJECT = join(RULE, 'SubjectDimensionRules.java')
+  const SPEC = join(DPM, 'service', 'DataPermissionSpecification.java')
+  const PREDICATE = join(DPM, 'service', 'RowPermissionPredicate.java')
+  const RENDERERS = ['JpaPermissionRuleCompiler.java', 'SqlPermissionRuleRenderer.java', 'PermissionRuleEvaluator.java']
+
+  const dimensionSubjectSwitch = /case\s+"TENANT"\s*->/
+
+  it('主体维度只有一处判据：拼条件的 switch 不许长在 JPA 侧', () => {
+    const subject = readJavaCode(SUBJECT)
+    expect(subject, '归属判据工厂里已经没有租户档了：它被挪去哪了？合一的前提是只有一处')
+      .toMatch(dimensionSubjectSwitch)
+
+    const spec = readJavaCode(SPEC)
+    expect(spec, 'JPA 侧又开始自己 switch 主体类型：那 SQL 侧迟早要再抄一份（§19.35 就是删掉这个形状）')
+      .not
+      .toMatch(dimensionSubjectSwitch)
+    for (const name of ['buildTenantPredicate', 'buildOwnerPredicate', 'buildDepartmentPredicate', 'buildFactoryPredicate', 'buildWarehousePredicate', 'compareAny(']) {
+      expect(spec, `归属判定被抄回了 Specification（${name}）：判据两份实现各自绿，比一份都不写更危险`)
+        .not
+        .toContain(name)
+    }
+    expect(spec, 'Specification 直接碰实体元模型去试绑归属列：那是把"哪个列能绑"这个决定又搬回 JPA 侧')
+      .not
+      .toContain('JpaPathResolver')
+
+    // 分工必须还是两件事：判"适用"与判"拼什么条件"各自一处，且不许在第三个文件里出现第三种写法
+    const holders = collect(SERVER, '.java').filter(file => dimensionSubjectSwitch.test(readJavaCode(file))).map(file => file.split('/').pop() ?? file).sort()
+    expect(holders, '主体类型的 switch 出现在意料之外的文件里：合一之后它只该有两个住处（拼条件 = SubjectDimensionRules、判适用 = SubjectMatcher）')
+      .toEqual(['DataPermissionSubjectMatcher.java', 'SubjectDimensionRules.java'].sort())
+    // 反证：伪造一份"JPA 侧自己又 switch 了"的源码，判定必须为真
+    expect(dimensionSubjectSwitch.test('switch (t) { case "TENANT" -> x; }'), '这条判据本身失效了').toBe(true)
+  })
+
+  it('同一棵树的三个渲染方向都必须认 Dimension 节点（少一边就是静默不一致）', () => {
+    for (const file of RENDERERS) {
+      const code = readJavaCode(join(RULE, file))
+      expect(code, `${file} 不认 Dimension：主体维度到了它这里会被当成"没有条件"或"不成立"，`
+      + '而这种静默在行数上表现为多放行一些行，不会报错')
+        .toContain('Dimension')
+    }
+    const predicate = readJavaCode(PREDICATE)
+    expect(predicate, 'SQL 侧又出现了维度工厂（tenant/owner/...）：那是第二份"主体→列"的判定，必须走规则树')
+      .not
+      .toMatch(/public static RowPermissionPredicate (?:tenant|owner|department|factory|warehouse)\(/)
+  })
+
+  it('恒假只有一个写法：兜底出口不许各抄字面量', () => {
+    const files = collect(SERVER, '.java').filter(file => readJavaCode(file).includes('"1 = 0"'))
+    expect(files.map(file => file.split('/').pop()), '"1 = 0" 出现在多个文件里：哪一处写错成 "1 = 1"，'
+    + '那个分支就静默放开全表，而 grep 只会先找到那个写对的地方')
+      .toEqual(['RowPermissionPredicate.java'])
   })
 })

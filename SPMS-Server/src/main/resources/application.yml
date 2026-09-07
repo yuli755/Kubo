@@ -113,8 +113,9 @@ kubo:
     audit-plaintext-access: true
     enforce-resources: []
     # 读侧 Mapper（P2 · A2「读走 Mapper，写留 JPA」）：默认 false = 容器里一个 Mapper Bean 都没有，
-    # 而不是"注册了但不用"。打开的前提是判据合一（主体维度只能有一份实现，见 §19.34），
-    # 否则 XML 侧与 JPA 侧各算一遍"谁能看哪些行"，那种不一致不会报错，只会多放行一些行。
+    # 而不是"注册了但不用"，所以"关掉 = 与换轨前逐字节相同"这句话是可验的（MybatisJpaCoexistenceTest 钉住）。
+    # 打开的前置：判据合一已完成（§19.35，主体维度只由 SubjectDimensionRules 回答一次），
+    # 但 Mapper 侧的第三个 COUNT 与它的证据落点还没接（下一格）——现在打开只会多一条没人读的对账语句。
     mapper-read:
       enabled: false
     # 工厂维度落地开关：建 user_factory 表 + 真实解析 factoryIds 之前保持 false
