@@ -1,8 +1,10 @@
 package cn.hamm.spms.module.system.datapermission.config;
 
 import cn.hamm.spms.base.mapper.KuboBaseMapper;
+import cn.hamm.spms.module.system.datapermission.service.DataResourceBindingRegistry;
 import cn.hamm.spms.module.system.datapermission.service.RowParityCounter;
 import cn.hamm.spms.module.system.datapermission.service.RowParityRegistry;
+import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -44,5 +46,20 @@ public class MapperReadConfiguration {
     @Bean
     RowParityRegistry dataPermissionRowParityRegistry(ObjectProvider<RowParityCounter> counters) {
         return new RowParityRegistry(counters.orderedStream().toList());
+    }
+
+    /**
+     * 启动期把 MyBatis 的 statement ID 展开成数据资源绑定。
+     *
+     * <p>它与 {@link RowParityRegistry} 同挂在本配置块上：开关关着时既没有读 Mapper，
+     * 也没有一张看似存在但无人维护的绑定表；开关打开后缺 {@code @DataResource} 或缺 XML
+     * statement 直接启动失败，后续权限拦截器不需要在请求线程猜资源。</p>
+     *
+     * @param sqlSessionFactory 已完成 Mapper/XML 装配的工厂
+     * @return statement 到资源的绑定表
+     */
+    @Bean
+    DataResourceBindingRegistry dataResourceBindingRegistry(SqlSessionFactory sqlSessionFactory) {
+        return DataResourceBindingRegistry.from(sqlSessionFactory);
     }
 }

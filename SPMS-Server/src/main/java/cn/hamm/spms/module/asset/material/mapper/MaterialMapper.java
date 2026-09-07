@@ -2,6 +2,7 @@ package cn.hamm.spms.module.asset.material.mapper;
 
 import cn.hamm.spms.base.mapper.KuboBaseMapper;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
+import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
 import cn.hamm.spms.module.system.datapermission.service.RowParityCounter;
 
 import java.util.Map;
@@ -19,6 +20,7 @@ import java.util.Map;
  *
  * @author Hamm.cn
  */
+@DataResource(key = "asset.material", alias = "material")
 public interface MaterialMapper extends KuboBaseMapper<MaterialEntity>, RowParityCounter {
 
     /**
