@@ -99,6 +99,13 @@ public final class SqlPermissionRuleRenderer {
 
     private boolean renderLeaf(PermissionRule.Leaf leaf, String tableAlias, PermissionRuleContext context,
                                StringBuilder sql, Map<String, Object> parameters, int[] counter) {
+        if (leaf.field() != null && leaf.field().indexOf('.') >= 0) {
+            // 单条 SQL 片段拼不出 JOIN，所以关联路径必须在**这里**被明确拒掉。今天没有读路径走渲染器
+            // （JPA 侧编译，见 JpaPathResolver），但 P2 换轨会 —— 那时若让它落到下面的 toSnake，
+            // storage.id 会变成 storage_id：轻则 SQL 报"列不存在"，重则命中一个同名的别的列（静默放宽范围）。
+            throw new PermissionRuleException(null, "SQL 侧不支持关联路径 " + leaf.field()
+                    + "：需要显式 JOIN（施工图 D1(b)，P2 换轨时实现），JPA 读侧已支持该写法");
+        }
         if (!PermissionRuleSupport.isIdentifier(leaf.field())) {
             throw new PermissionRuleException(null, "非法列名：" + leaf.field());
         }
@@ -164,13 +171,6 @@ public final class SqlPermissionRuleRenderer {
     }
 
     private String column(String tableAlias, String field) {
-        if (field != null && field.indexOf('.') >= 0) {
-            // 单条 SQL 片段拼不出 JOIN。今天没有读路径走这里（JPA 侧编译，见 JpaPathResolver），
-            // 但 P2 换轨会 —— 那时必须显式补关联渲染，而不是把 storage.id 悄悄 snake 成 storage_id
-            // 去查一个不存在的列：那会让 SQL 直接报错，或更糟，命中同名的别的列。
-            throw new PermissionRuleException(null, "SQL 侧不支持关联路径 " + field
-                    + "：需要显式 JOIN（施工图 D1(b)，P2 换轨时实现），JPA 读侧已支持该写法");
-        }
         String physical = PermissionRuleSupport.toSnake(field);
         if (!PermissionRuleSupport.isIdentifier(physical)) {
             throw new PermissionRuleException(null, "非法列名：" + physical);
