@@ -4,7 +4,9 @@ import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Root;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * <h1>列名 / 属性名互转</h1>
@@ -116,6 +118,85 @@ public final class PermissionRuleSupport {
             }
         }
         return null;
+    }
+
+    /**
+     * 拆一条登记路径：{@code storage.id} 两段、{@code creatorId} 一段
+     *
+     * <p>刻意只认"合法标识符用点号连接"这一种形状，不认 {@code a.b.c.d}、不认引号与空格：
+     * 关联路径要变成 {@code root.join(...).get(...)}，形状必须能被静态盘点复现
+     * （见 {@code EntityShapeIndex}），宽松一点就会变成"运行期能跑、面板说没配"。</p>
+     *
+     * @param path 登记路径
+     * @return 段列表；非法或空时返回空列表
+     */
+    public static List<String> pathSegments(String path) {
+        if (path == null || path.isBlank()) {
+            return List.of();
+        }
+        // limit=-1：保留尾部空段，让 "a." / "a..b" 被下面的逐段校验拒掉。
+        // 用默认 split 会把尾部的点悄悄吞成 "a"，等于替配置兜了一个它自己看不见的底
+        String[] parts = path.trim().split("\\.", -1);
+        if (parts.length == 0 || parts.length > OwnerColumnRegistration.MAX_SEGMENTS) {
+            return List.of();
+        }
+        List<String> segments = new ArrayList<>(parts.length);
+        for (String part : parts) {
+            if (!isIdentifier(part)) {
+                return List.of();
+            }
+            segments.add(part);
+        }
+        return List.copyOf(segments);
+    }
+
+    /**
+     * 是否是合法的属性名或关联路径
+     *
+     * @param path 登记路径
+     * @return 合法返回 true
+     */
+    public static boolean isPath(String path) {
+        return !pathSegments(path).isEmpty();
+    }
+
+    /**
+     * 一条路径的所有等价写法：每一段各自按 camel / snake 展开后组合
+     *
+     * <p>白名单比对用这个，避免"运营按列名登记、条件树按属性名写"时两边对不上；
+     * 同时它也是 {@code FieldAllowList} 与分析器共用的展开表，只此一份。</p>
+     *
+     * @param path 登记路径
+     * @return 等价写法集合（含原样）；非法入参返回空集合
+     */
+    public static Set<String> pathVariants(String path) {
+        List<String> segments = pathSegments(path);
+        if (segments.isEmpty()) {
+            return Set.of();
+        }
+        List<List<String>> perSegment = new ArrayList<>(segments.size());
+        for (String segment : segments) {
+            Set<String> forms = new LinkedHashSet<>();
+            forms.add(segment);
+            forms.add(toCamel(segment));
+            forms.add(toSnake(segment));
+            perSegment.add(new ArrayList<>(forms));
+        }
+        Set<String> variants = new LinkedHashSet<>();
+        join(0, perSegment, new ArrayList<>(), variants);
+        return Set.copyOf(variants);
+    }
+
+    private static void join(int depth, List<List<String>> perSegment, List<String> current, Set<String> out) {
+        if (depth == perSegment.size()) {
+            out.add(String.join(".", current));
+            return;
+        }
+        for (String form : perSegment.get(depth)) {
+            current.add(form);
+            join(depth + 1, perSegment, current, out);
+            current.remove(current.size() - 1);
+        }
     }
 
     /**

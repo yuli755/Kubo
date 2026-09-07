@@ -5,11 +5,13 @@ import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
+import cn.hamm.spms.module.system.datapermission.enums.DataPermissionSubjectType;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.rule.JpaPathResolver;
 import cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRule;
+import cn.hamm.spms.module.system.datapermission.rule.OwnerColumnRegistration;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser;
-import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleSupport;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleValidator;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Path;
@@ -50,6 +52,17 @@ import java.util.stream.Collectors;
 public class DataPermissionSpecification {
 
     private final DataPermissionService dataPermissionService;
+    /**
+     * 兜底属性名：既是这里的绑定候选，也是 DimensionBindingAnalyzer 的提示语，两处必须同值。
+     * 写死是有意的（没有工厂/仓库列的实体确实只能落到默认名），但"两处写死"这件事本身要被
+     * 测试钉住，否则改名就把面板变哑。
+     */
+    private static final String DEPARTMENT_ATTRIBUTE = "departmentId";
+
+    private static final String WAREHOUSE_ATTRIBUTE = "warehouseId";
+
+    private static final String FACTORY_ATTRIBUTE = "factoryId";
+
     private final DataPermissionProperties properties;
     private final DataPermissionAudit audit;
     private final PermissionRuleParser ruleParser;
@@ -285,22 +298,10 @@ public class DataPermissionSpecification {
      * 条件树可引用的列：归属列 + 显式登记的可过滤列（白名单为空时任何 field 都会被拒）
      */
     private PermissionRuleValidator.FieldAllowList allowListOf(DataResourceEntity resource) {
-        java.util.Set<String> columns = new java.util.LinkedHashSet<>();
-        addCsv(columns, resource.getTenantColumn());
-        addCsv(columns, resource.getOwnerColumns());
-        addCsv(columns, resource.getFilterableColumns());
-        return new PermissionRuleValidator.FieldAllowList(columns);
-    }
-
-    private void addCsv(java.util.Collection<String> target, String csv) {
-        if (csv == null || csv.isBlank()) {
-            return;
-        }
-        for (String part : csv.split(",")) {
-            if (!part.isBlank()) {
-                target.add(part.trim());
-            }
-        }
+        // 合成规则只有一份（见 FieldAllowList.ofRegistrations）：读侧与写侧校验必须认同一批列，
+        // 否则会出现「策略在查询里能过、在 update/delete 上被判非法字段」这种查得见却改不动的资源
+        return PermissionRuleValidator.FieldAllowList.ofRegistrations(
+                resource.getTenantColumn(), resource.getOwnerColumns(), resource.getFilterableColumns());
     }
 
     /**
@@ -339,17 +340,11 @@ public class DataPermissionSpecification {
             DataResourceEntity resource,
             PermissionContext context
     ) {
-        String tenantColumn = resource.getTenantColumn();
-        if (tenantColumn == null || tenantColumn.isBlank()) {
-            return null;
-        }
-        // 登记的是列名（tenant_id）还是属性名（tenantId）都要能绑上：候选名规则与条件树编译器同源
-        Path<?> path = PermissionRuleSupport.findPath(root, tenantColumn);
-        if (path == null) {
-            // 实体没有该字段时跳过；由调用方按策略计数暴露为 binding 异常
-            return null;
-        }
-        return builder.equal(path, context.tenantId());
+        // 登记的是列名（tenant_id）还是属性名（tenantId）都要能绑上；TENANT:xxx 能把它改绑到别的列。
+        // 实体上没有该列时返回 null，由调用方按策略计数暴露为 binding 异常
+        return compareAny(root, builder,
+                scopedOr(resource, DataPermissionSubjectType.TENANT.name(), single(resource.getTenantColumn())),
+                context.tenantId());
     }
 
     /**
@@ -361,19 +356,16 @@ public class DataPermissionSpecification {
             DataResourceEntity resource,
             PermissionContext context
     ) {
-        String ownerColumns = resource.getOwnerColumns();
-        if (ownerColumns == null || ownerColumns.isBlank()) {
+        // 带 USER: 前缀的项专属于本档；一个都没有时沿用旧语义（全部登记项都当"我的记录"列）——
+        // 现网登记全是裸写法，不能因为引入前缀就当它们没登记
+        List<String> ownerPaths = scopedOr(resource, DataPermissionSubjectType.USER.name(),
+                OwnerColumnRegistration.untaggedPaths(OwnerColumnRegistration.parse(resource.getOwnerColumns())));
+        if (ownerPaths.isEmpty()) {
             return null;
         }
-        // ownerColumns 可以包含多个字段，用逗号分隔
-        String[] columns = ownerColumns.split(",");
         List<Predicate> ownerPredicates = new ArrayList<>();
-        for (String column : columns) {
-            String trimmed = column.trim();
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-            Path<?> path = PermissionRuleSupport.findPath(root, trimmed);
+        for (String column : ownerPaths) {
+            Path<?> path = JpaPathResolver.resolve(root, column);
             if (path == null) {
                 // 实体没有该字段时跳过
                 continue;
@@ -402,15 +394,12 @@ public class DataPermissionSpecification {
         if (policy.getSubjectId() == null || !context.departmentIds().contains(policy.getSubjectId())) {
             return null;
         }
-        String departmentColumn = resolveDepartmentColumn(resource);
-        if (departmentColumn == null) {
+        // DEPARTMENT:xxx 让部门列与"我的记录"分家；没有显式登记时仍走旧约定（owner_columns 第一项）
+        List<String> departmentPaths = departmentPaths(resource);
+        if (departmentPaths.isEmpty()) {
             return null;
         }
-        Path<?> path = PermissionRuleSupport.findPath(root, departmentColumn);
-        if (path == null) {
-            return null;
-        }
-        return builder.equal(path, policy.getSubjectId());
+        return compareAny(root, builder, departmentPaths, policy.getSubjectId());
     }
 
     /**
@@ -426,13 +415,11 @@ public class DataPermissionSpecification {
         if (policy.getSubjectId() == null || !context.factoryIds().contains(policy.getSubjectId())) {
             return null;
         }
-        // 实体侧目前没有 factoryId 这个属性（工厂归属尚未落地，见施工图 D13）：
-        // 取不到路径时返回 null，调用方按「本该产生条件却没绑上」计入绑定失败，enforce 下拒绝
-        Path<?> path = PermissionRuleSupport.findPath(root, "factoryId");
-        if (path == null) {
-            return null;
-        }
-        return builder.equal(path, policy.getSubjectId());
+        // 实体侧目前没有工厂归属（见施工图 D13）：取不到路径时返回 null，调用方按
+        // 「本该产生条件却没绑上」计入绑定失败，enforce 下拒绝
+        return compareAny(root, builder,
+                scopedOr(resource, DataPermissionSubjectType.FACTORY.name(), List.of(FACTORY_ATTRIBUTE)),
+                policy.getSubjectId());
     }
 
     /**
@@ -448,23 +435,68 @@ public class DataPermissionSpecification {
         if (policy.getSubjectId() == null || !context.warehouseIds().contains(policy.getSubjectId())) {
             return null;
         }
-        // 同上：仓库归属在实体上是 @ManyToOne storage（关联路径），没有 warehouseId 标量属性，
-        // 因此这一档今天必然绑不上条件。是空转就必须让它被数出来，别用 catch 把它抹平。
-        Path<?> path = PermissionRuleSupport.findPath(root, "warehouseId");
-        if (path == null) {
-            return null;
-        }
-        return builder.equal(path, policy.getSubjectId());
+        // 同上：仓库归属在实体上是 @ManyToOne storage（关联路径），没有 warehouseId 标量属性。
+        // 现在登记 WAREHOUSE:storage.id 就能真绑上；登记不出来依然是 null ⇒ 被数出来，别用 catch 抹平
+        return compareAny(root, builder,
+                scopedOr(resource, DataPermissionSubjectType.WAREHOUSE.name(), List.of(WAREHOUSE_ATTRIBUTE)),
+                policy.getSubjectId());
     }
 
     /**
      * 从资源定义中解析部门字段名
      */
-    private String resolveDepartmentColumn(DataResourceEntity resource) {
-        String ownerColumns = resource.getOwnerColumns();
-        if (ownerColumns == null || ownerColumns.isBlank()) {
-            return "departmentId";
+    private List<String> departmentPaths(DataResourceEntity resource) {
+        List<String> registered = scopedOr(resource, DataPermissionSubjectType.DEPARTMENT.name(),
+                OwnerColumnRegistration.untaggedPaths(OwnerColumnRegistration.parse(resource.getOwnerColumns())));
+        if (registered.isEmpty()) {
+            // 兜底沿用历史约定，保证存量登记不因为新维度而突然失配
+            return List.of(DEPARTMENT_ATTRIBUTE);
         }
-        return ownerColumns.split(",")[0].trim();
+        return registered;
+    }
+
+    /**
+     * 某一档实际要绑的列：有 DIMENSION: 前缀项就用它们，一个都没有才回退到旧语义
+     *
+     * <p>回退是硬要求：现网 24 个资源的 owner_columns 全是裸写法，一旦"必须带前缀才生效"，
+     * 升完版本所有人的 SELF / DEPT 策略当场查空。前缀是给新场景开的一条路，不是把老路堵上。</p>
+     *
+     * @param resource 资源
+     * @param dimension 档位名
+     * @param fallback 无显式登记时的既有候选
+     * @return 列登记（可能是关联路径）
+     */
+    private List<String> scopedOr(DataResourceEntity resource, String dimension, List<String> fallback) {
+        List<String> scoped = OwnerColumnRegistration.pathsFor(
+                OwnerColumnRegistration.parse(resource.getOwnerColumns()), dimension);
+        return scoped.isEmpty() ? fallback : scoped;
+    }
+
+    private List<String> single(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return List.of(value.trim());
+    }
+
+    /**
+     * 逐个候选试绑：绑上第一条即用，全都绑不上返回 null（由上层计入绑定失败）
+     */
+    private <T> Predicate compareAny(
+            Root<T> root,
+            CriteriaBuilder builder,
+            List<String> paths,
+            Object value
+    ) {
+        if (paths == null) {
+            return null;
+        }
+        for (String path : paths) {
+            Path<?> resolved = JpaPathResolver.resolve(root, path);
+            if (resolved != null) {
+                return builder.equal(resolved, value);
+            }
+        }
+        return null;
     }
 }

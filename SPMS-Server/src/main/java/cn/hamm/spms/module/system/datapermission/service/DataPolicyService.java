@@ -120,24 +120,11 @@ public class DataPolicyService extends BaseService<DataPolicyEntity, DataPolicyR
     }
 
     private PermissionRuleValidator.FieldAllowList allowListOf(DataResourceEntity resource) {
-        Set<String> columns = new LinkedHashSet<>();
-        if (resource != null) {
-            addCsv(columns, resource.getTenantColumn());
-            addCsv(columns, resource.getOwnerColumns());
-            addCsv(columns, resource.getFilterableColumns());
-        }
-        return new PermissionRuleValidator.FieldAllowList(columns);
-    }
-
-    private void addCsv(Set<String> target, String csv) {
-        if (csv == null || csv.isBlank()) {
-            return;
-        }
-        for (String part : csv.split(",")) {
-            if (!part.isBlank()) {
-                target.add(part.trim());
-            }
-        }
+        // 与读侧同一份合成规则（见 DataPermissionSpecification#allowListOf）：两把尺子必须同刻度，
+        // 于是这里只留一行委托 —— 以前各自 addCsv + 各自展开，改一处忘一处就是「能查不能改」
+        return resource == null ? PermissionRuleValidator.FieldAllowList.none()
+                : PermissionRuleValidator.FieldAllowList.ofRegistrations(
+                        resource.getTenantColumn(), resource.getOwnerColumns(), resource.getFilterableColumns());
     }
 
     @Override

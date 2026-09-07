@@ -60,7 +60,7 @@ const hook = useTanStackTable(DataResourceService, {
       :closable="false"
       show-icon
       title="有资源的行级策略找不到可绑的列"
-      :description="`${bindingCount} 处（${bindingPreview.join('、')}）：这一档在 enforce 下会变成「该主体查不到任何数据」，shadow 下则只记审计。请到本页编辑该资源的 tenantColumn / ownerColumns，让它对上实体上真实存在的属性名；报表名找不到的条目要先补资源登记。`"
+      :description="`${bindingCount} 处（${bindingPreview.join('、')}）：这一档在 enforce 下会变成「该主体查不到任何数据」，shadow 下则只记审计。请到本页编辑该资源的 tenantColumn / ownerColumns：裸写法照旧，要区分档位或沿关联取列时写成 DEPARTMENT:departmentId、WAREHOUSE:storage.id；报表名找不到的条目要先补资源登记。`"
     />
     <ElAlert
       v-else-if="bindingFailed"

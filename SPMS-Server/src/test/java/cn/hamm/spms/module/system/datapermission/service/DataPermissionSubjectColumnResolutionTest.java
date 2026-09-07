@@ -31,6 +31,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 /**
  * <h1>主体谓词的列名解析用例（租户 / 负责人 / 部门 / 工厂 / 仓库）</h1>
@@ -64,6 +66,12 @@ class DataPermissionSubjectColumnResolutionTest {
 
     @Mock
     private Path<Object> tenantPath;
+
+    @Mock
+    private Path<Object> storagePath;
+
+    @Mock
+    private Path<Object> storageIdPath;
 
     @Mock
     private Predicate equality;
@@ -150,6 +158,56 @@ class DataPermissionSubjectColumnResolutionTest {
 
         assertEquals(1, result.size());
         assertSame(equality, result.get(0));
+    }
+
+    @Test
+    @DisplayName("仓库档登记 WAREHOUSE:storage.id → 沿关联走一跳绑上条件（D1(b) 的闭环）")
+    void warehouseAssociationPathFilters() {
+        PermissionContext context = context();
+        DataResourceEntity resource = resource("tenant_id", "WAREHOUSE:storage.id");
+        DataPolicyEntity policy = policy("WAREHOUSE").setSubjectId(5L);
+        givenResourceAndPolicy(resource, policy, context);
+        given(root.get("storage")).willReturn(storagePath);
+        given(storagePath.get("id")).willReturn(storageIdPath);
+
+        List<Predicate> result = specification.buildPredicates(root, builder, KEY, DataPermissionAction.QUERY);
+
+        assertEquals(1, result.size(), "关联路径绑上了就必须真有一条条件");
+        assertSame(equality, result.get(0));
+        verify(root).get("storage");
+        // 关键反证：不能再拿写死的 warehouseId 去撞一次 —— 撞不上是"绑不上"，会被算进绑定失败，
+        // 于是这条已经配对的登记会被面板报成"实体形状不对"
+        verify(root, never()).get("warehouseId");
+    }
+
+    @Test
+    @DisplayName("没登记 WAREHOUSE: 时仍按写死的 warehouseId 找：回退语义没有被改动")
+    void warehouseFallsBackToHardCodedAttributeName() {
+        PermissionContext context = context();
+        DataPolicyEntity policy = policy("WAREHOUSE").setSubjectId(5L);
+        givenResourceAndPolicy(resource("tenant_id", "creatorId"), policy, context);
+        lenient().when(root.get(anyString())).thenThrow(new IllegalArgumentException("Unable to locate Attribute"));
+
+        List<Predicate> result = specification.buildPredicates(root, builder, KEY, DataPermissionAction.QUERY);
+
+        assertEquals(1, result.size(), "裸写法管不到仓库档，这一档仍是绑定失败 ⇒ 恒假");
+        assertSame(denial, result.get(0));
+        verify(root).get("warehouseId");
+    }
+
+    @Test
+    @DisplayName("部门档登记 DEPARTMENT:dept_id → 不再与负责人档抢 owner_columns 第一项")
+    void departmentUsesItsOwnEntry() {
+        PermissionContext context = context();
+        DataPolicyEntity policy = policy("DEPARTMENT").setSubjectId(7L);
+        givenResourceAndPolicy(resource("tenant_id", "creatorId,DEPARTMENT:dept_id"), policy, context);
+        given(root.get("dept_id")).willReturn(storageIdPath);
+
+        List<Predicate> result = specification.buildPredicates(root, builder, KEY, DataPermissionAction.QUERY);
+
+        assertEquals(1, result.size());
+        assertSame(equality, result.get(0));
+        verify(root, never()).get("creatorId");
     }
 
     @Test

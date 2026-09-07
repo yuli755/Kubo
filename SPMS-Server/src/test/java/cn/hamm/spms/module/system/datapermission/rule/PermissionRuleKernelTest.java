@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -245,6 +246,42 @@ class PermissionRuleKernelTest {
             RowPermissionPredicate rendered = renderer.render(rule, null, context);
             assertEquals("(tenant_id = :dpRule0)", rendered.sql());
             assertEquals(100L, rendered.parameters().get("dpRule0"));
+        }
+
+        @Test
+        @DisplayName("关联路径在 SQL 侧必须被明确拒掉：不许把 storage.id 悄悄 snake 成 storage_id")
+        void rendererRefusesAssociationPath() {
+            PermissionRule rule = parser.parse(RESOURCE, "{\"field\":\"storage.id\",\"value\":1}");
+
+            PermissionRuleException ex = assertThrows(PermissionRuleException.class,
+                    () -> renderer.render(rule, "t", context));
+            assertTrue(ex.getMessage().contains("D1(b)"), ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("白名单吃登记串：维度前缀要剥掉，否则「登记对了、校验说没这列」")
+        void allowListStripsDimensionPrefix() {
+            PermissionRuleValidator.FieldAllowList allowList = PermissionRuleValidator.FieldAllowList
+                    .ofRegistrations(null, "WAREHOUSE:storage.id,creatorId", null);
+
+            assertTrue(allowList.contains("storage.id"), allowList.toString());
+            assertTrue(allowList.contains("creatorId"), allowList.toString());
+            assertFalse(allowList.contains("WAREHOUSE:storage.id"), "前缀是登记用的，不是列名");
+        }
+
+        @Test
+        @DisplayName("关联路径的两种写法互为等价：登记列名、条件写属性名要放行")
+        void allowListMatchesAssociationPathVariants() {
+            PermissionRuleValidator validator = new PermissionRuleValidator(
+                    PermissionRuleValidator.FieldAllowList.ofRegistrations(null, "storage_detail.id", null));
+
+            assertDoesNotThrow(() -> validator.validate(RESOURCE,
+                    parser.parse(RESOURCE, "{\"field\":\"storageDetail.id\",\"value\":9}")));
+            // 而"看起来像路径"的其他形状仍要被拒：放开点号不等于放开自由文本
+            assertThrows(PermissionRuleException.class, () -> validator.validate(RESOURCE,
+                    parser.parse(RESOURCE, "{\"field\":\"storage.id\",\"value\":9}")));
+            assertThrows(PermissionRuleException.class, () -> validator.validate(RESOURCE,
+                    parser.parse(RESOURCE, "{\"field\":\"storage_detail.id.id\",\"value\":9}")));
         }
 
         @Test

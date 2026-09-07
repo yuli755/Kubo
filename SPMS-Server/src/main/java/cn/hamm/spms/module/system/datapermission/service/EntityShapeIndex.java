@@ -44,7 +44,17 @@ public final class EntityShapeIndex {
      * @param attributes   标量属性名（可与值直接比较）
      * @param associations 关系属性名（名字取得到，但不能与 id 直接比较）
      */
-    public record Shape(Class<?> type, Set<String> attributes, Set<String> associations) {
+    public record Shape(Class<?> type,
+                        Set<String> attributes,
+                        Set<String> associations,
+                        Map<String, Set<String>> associationAttributes) {
+
+        /**
+         * 不带关联展开的旧构造：只给"这里不可能出现关联路径"的场合用
+         */
+        public Shape(Class<?> type, Set<String> attributes, Set<String> associations) {
+            this(type, attributes, associations, Map.of());
+        }
 
         /**
          * 登记名（列名或属性名皆可）是否能绑到标量属性上
@@ -56,9 +66,26 @@ public final class EntityShapeIndex {
          * @return 能绑上返回 true
          */
         public boolean binds(String registeredName) {
-            for (String candidate : PermissionRuleSupport.pathCandidates(registeredName)) {
-                if (attributes.contains(candidate)) {
-                    return true;
+            List<String> segments = PermissionRuleSupport.pathSegments(registeredName);
+            if (segments.isEmpty()) {
+                // 形状不合法（含超过一跳的路径）一律算绑不上：绑不上会被数出来，假绿不会
+                return false;
+            }
+            if (segments.size() == 1) {
+                for (String candidate : PermissionRuleSupport.pathCandidates(segments.get(0))) {
+                    if (attributes.contains(candidate)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            // 关联路径：head 命中关联名、leaf 命中该关联目标上的标量属性，才算绑得上
+            for (String head : PermissionRuleSupport.pathCandidates(segments.get(0))) {
+                Set<String> targets = associationAttributes.getOrDefault(head, Set.of());
+                for (String leaf : PermissionRuleSupport.pathCandidates(segments.get(1))) {
+                    if (targets.contains(leaf)) {
+                        return true;
+                    }
                 }
             }
             return false;
@@ -148,8 +175,9 @@ public final class EntityShapeIndex {
     public static Shape shapeOf(Class<?> type) {
         Set<String> attributes = new LinkedHashSet<>();
         Set<String> associations = new LinkedHashSet<>();
+        Map<String, Set<String>> associationAttributes = new LinkedHashMap<>();
         if (type == null) {
-            return new Shape(null, attributes, associations);
+            return new Shape(null, attributes, associations, associationAttributes);
         }
         for (Field field : fieldsOf(type)) {
             if (Modifier.isStatic(field.getModifiers()) || field.isSynthetic()) {
@@ -157,9 +185,14 @@ public final class EntityShapeIndex {
             }
             if (isAssociation(field)) {
                 associations.add(field.getName());
+                // 只再展开这一层：owner_columns 允许登记 storage.id，盘点就必须能判断 storage 上有没有 id。
+                // 不做两层以上，与 JpaPathResolver 的一跳封顶保持一致 —— 多展开的那一层是假的能力，
+                // 而且自引用实体（父节点指向同表）会在这里绕成死循环
+                associationAttributes.put(field.getName(), attributesOf(field.getType()));
                 continue;
             }
             if (isMultiValued(field.getType())) {
+                // 一对多：join 会放大行数，权限条件走它没有意义，因此不给它登记可绑列
                 associations.add(field.getName());
                 continue;
             }
@@ -169,7 +202,33 @@ public final class EntityShapeIndex {
             }
             attributes.add(field.getName());
         }
-        return new Shape(type, attributes, associations);
+        return new Shape(type, attributes, associations, associationAttributes);
+    }
+
+    /**
+     * 一个类上可直接绑定的标量属性名（不再向下展开关联）
+     *
+     * @param type 目标类，可为 null 或内建类型
+     * @return 属性名集合；不可下钻时为空集合
+     */
+    private static Set<String> attributesOf(Class<?> type) {
+        Set<String> names = new LinkedHashSet<>();
+        if (type == null || type.isPrimitive() || type.isArray() || type.getName().startsWith("java.")) {
+            return names;
+        }
+        for (Field field : fieldsOf(type)) {
+            if (Modifier.isStatic(field.getModifiers()) || field.isSynthetic()) {
+                continue;
+            }
+            if (isAssociation(field) || isMultiValued(field.getType())) {
+                continue;
+            }
+            if (field.isAnnotationPresent(Transient.class)) {
+                continue;
+            }
+            names.add(field.getName());
+        }
+        return names;
     }
 
     private static boolean isAssociation(Field field) {

@@ -29,8 +29,28 @@ class DimensionBindingAnalyzerTest {
                                                     Set<String> attributes,
                                                     Set<String> associations,
                                                     Map<String, Long> counts) {
+        return row(tenantColumn, ownerColumns, shape(attributes, associations), counts);
+    }
+
+    private static DimensionBindingAnalyzer.Row row(String tenantColumn,
+                                                   String ownerColumns,
+                                                   EntityShapeIndex.Shape shape,
+                                                   Map<String, Long> counts) {
         return new DimensionBindingAnalyzer.Row(1L, "wms.inventory", "inventory",
-                tenantColumn, ownerColumns, attributes, associations, counts);
+                tenantColumn, ownerColumns, shape, counts);
+    }
+
+    private static EntityShapeIndex.Shape shape(Set<String> attributes, Set<String> associations) {
+        return new EntityShapeIndex.Shape(Object.class, attributes, associations);
+    }
+
+    /**
+     * 带关联目标可绑列的形状（{@code WAREHOUSE:storage.id} 这类登记要靠它判断）
+     */
+    private static EntityShapeIndex.Shape shape(Set<String> attributes,
+                                                Set<String> associations,
+                                                Map<String, Set<String>> associationAttributes) {
+        return new EntityShapeIndex.Shape(Object.class, attributes, associations, associationAttributes);
     }
 
     private static List<DimensionBindingAnalyzer.Risk> risks(DimensionBindingAnalyzer.Row row) {
@@ -136,6 +156,68 @@ class DimensionBindingAnalyzerTest {
         assertTrue(DimensionBindingAnalyzer.risks(null).isEmpty());
         assertTrue(DimensionBindingAnalyzer.risks(List.of()).isEmpty());
         assertTrue(DimensionBindingAnalyzer.risks(Arrays.asList((DimensionBindingAnalyzer.Row) null)).isEmpty());
+    }
+
+    @Test
+    @DisplayName("给部门单独立一项登记 → 「抢同一列」这条就闭嘴")
+    void explicitDepartmentEntryUnblocksSharing() {
+        // 旧实现下这条必报（owner_columns 只有一项且 USER 在用）；现在两档各看各的列
+        List<DimensionBindingAnalyzer.Risk> found = risks(row(null, "creatorId,DEPARTMENT:deptId",
+                Set.of("creatorId", "deptId"), Set.of(), Map.of("USER", 1L, "DEPARTMENT", 2L)));
+
+        assertTrue(found.isEmpty(), String.valueOf(found));
+    }
+
+    @Test
+    @DisplayName("仓库档登记成关联路径 storage.id → 绑得上就不报（D1(b) 的能力到此闭环）")
+    void warehouseAssociationPathIsBindable() {
+        EntityShapeIndex.Shape shape = shape(Set.of("id"), Set.of("storage"),
+                Map.of("storage", Set.of("id", "name")));
+
+        assertTrue(risks(row(null, "WAREHOUSE:storage.id", shape, Map.of("WAREHOUSE", 1L))).isEmpty());
+    }
+
+    @Test
+    @DisplayName("关联路径的写法：列名 storage_detail.id 与属性名 storageDetail.id 同等有效")
+    void associationPathAcceptsBothNamingStyles() {
+        EntityShapeIndex.Shape shape = shape(Set.of("id"), Set.of("storageDetail"),
+                Map.of("storageDetail", Set.of("id")));
+
+        assertTrue(risks(row(null, "WAREHOUSE:storage_detail.id", shape, Map.of("WAREHOUSE", 1L))).isEmpty());
+    }
+
+    @Test
+    @DisplayName("关联目标上没有那一列 → 仍然报（路径写法不是免检通道）")
+    void associationPathIsStillCheckedAgainstTargetShape() {
+        EntityShapeIndex.Shape shape = shape(Set.of("id"), Set.of("storage"),
+                Map.of("storage", Set.of("name")));
+
+        DimensionBindingAnalyzer.Risk risk = onlyOne(
+                risks(row(null, "WAREHOUSE:storage.whId", shape, Map.of("WAREHOUSE", 1L))),
+                DimensionBindingAnalyzer.KIND_WAREHOUSE_UNBOUNDABLE);
+        assertTrue(risk.detail().contains("storage.whId"), risk.detail());
+    }
+
+    @Test
+    @DisplayName("登记串解析不出来 → 只报一条「格式非法」，并给出合法写法")
+    void malformedRegistrationIsCalledOutOnce() {
+        // 格式错时所有维度都会退化到写死的默认列 —— 逐档报会让人以为有四个问题
+        List<DimensionBindingAnalyzer.Risk> found = risks(row("tenant_id", "BOGUS:creatorId",
+                Set.of("tenantId", "creatorId"), Set.of(), Map.of("TENANT", 1L, "USER", 1L)));
+
+        DimensionBindingAnalyzer.Risk risk = onlyOne(found, DimensionBindingAnalyzer.KIND_OWNER_COLUMN_MALFORMED);
+        assertNull(risk.subjectType(), "格式问题不属于任何一档维度");
+        assertTrue(risk.detail().contains("DEPARTMENT:departmentId"), risk.detail());
+    }
+
+    @Test
+    @DisplayName("超过一跳的路径属非法登记 → 不静默降级成 warehouseId")
+    void tooDeepPathIsRejectedAsMalformed() {
+        List<DimensionBindingAnalyzer.Risk> found = risks(row("tenant_id", "WAREHOUSE:storage.owner.id",
+                Set.of("tenantId"), Set.of(), Map.of("TENANT", 1L)));
+
+        DimensionBindingAnalyzer.Risk risk = onlyOne(found, DimensionBindingAnalyzer.KIND_OWNER_COLUMN_MALFORMED);
+        assertTrue(risk.detail().contains("一跳"), risk.detail());
     }
 
     @Test

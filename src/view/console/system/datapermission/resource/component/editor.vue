@@ -39,6 +39,14 @@ const {
         两者都不读这一列。目前只有开发期数据初始化（DevDataInitRunner）读它，用来决定要不要给这个资源
         生成示例策略 —— 所以从这里删掉某个动作既不会关闭能力、也不会让已有策略失效，只影响下次初始化。
       </div>
+      <div class="tip">
+        归属列可以按维度登记（语法只有一份，后端 OwnerColumnRegistration 解析，这里照抄不重述规则）：
+        `creatorId` 是负责人列（裸写法＝今天的语义，存量登记不用改）；`DEPARTMENT:departmentId` 给部门
+        单独立一项，负责人档与部门档就不再抢同一列；`WAREHOUSE:storage.id` 沿 @ManyToOne 关联取列，
+        最多一跳，更深请把中间列冗余出来。多项用逗号分隔。
+        整串写错时后端不会拒（注册表没有可用的写前钩子），但会退回写死的默认列并在「维度绑定风险」面板
+        报一条格式问题 —— 别把这里当校验器用。
+      </div>
       <AFormField field="resourceKey" />
       <AFormField field="tableName" />
       <AFormField field="tableAlias" />

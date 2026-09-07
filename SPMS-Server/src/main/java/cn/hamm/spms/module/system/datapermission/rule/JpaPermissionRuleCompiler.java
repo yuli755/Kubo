@@ -189,12 +189,14 @@ public final class JpaPermissionRuleCompiler {
      */
     private Path<?> resolvePath(Root<?> root, String field) {
         // 候选名列表来自 PermissionRuleSupport：与主体谓词构建同一份规则，两处不会一边修一边没修
-        Path<?> path = PermissionRuleSupport.findPath(root, field);
+        // 标量与关联路径都走同一个解析器：条件树里写 storage.id 与主体谓词里写 storage.id 必须是同一形状
+        Path<?> path = JpaPathResolver.resolve(root, field);
         if (path != null) {
             return path;
         }
         throw new PermissionRuleException(null, "条件列 " + field + " 在实体上不存在（试过 "
-                + PermissionRuleSupport.pathCandidates(field) + "）；请把该列登记进 data_resource 的可过滤列白名单，或在实体上补映射");
+                + PermissionRuleSupport.pathVariants(field) + "）；请把该列登记进 data_resource 的可过滤列白名单，"
+                + "或用关联路径写法（如 storage.id，沿 @ManyToOne 走一跳）");
     }
 
     /**

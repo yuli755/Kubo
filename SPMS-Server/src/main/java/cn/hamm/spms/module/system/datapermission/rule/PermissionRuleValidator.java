@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * <h1>条件树校验器</h1>
@@ -45,8 +44,6 @@ public final class PermissionRuleValidator {
     /**
      * 标识符：字母/数字/下划线，不能以数字开头，不允许点号（防止 {@code a.b} 跨表或注释技巧）
      */
-    private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]{0,63}");
-
     private final FieldAllowList allowList;
 
     public PermissionRuleValidator(FieldAllowList allowList) {
@@ -94,8 +91,10 @@ public final class PermissionRuleValidator {
 
     private void validateField(String resourceKey, PermissionRule.Leaf leaf, List<String> errors) {
         String field = leaf.field();
-        if (field == null || !PermissionRuleSupport.isIdentifier(field) || !IDENTIFIER.matcher(field).matches()) {
-            errors.add("field 不是合法标识符：" + field);
+        // 合法形态 = 「合法标识符」或「一跳关联路径」。isIdentifier 继续只认单段（注入形状仍被拒），
+        // 点号只在 isPath 这一层被允许，避免把 a;b / a--b 之类顺带放进条件树。
+        if (field == null || !PermissionRuleSupport.isPath(field)) {
+            errors.add("field 不是合法属性名或关联路径（形如 creatorId / storage.id）：" + field);
             return;
         }
         if (!allowList.contains(field)) {
@@ -151,12 +150,50 @@ public final class PermissionRuleValidator {
                         continue;
                     }
                     String trimmed = column.trim();
-                    expanded.add(trimmed);
-                    expanded.add(PermissionRuleSupport.toCamel(trimmed));
-                    expanded.add(PermissionRuleSupport.toSnake(trimmed));
+                    // 白名单直接吃资源登记串，于是也要认维度前缀（WAREHOUSE:storage.id）：
+                    // 这里剥掉前缀、只把路径留进白名单，否则"登记对了、校验说没这列"
+                    int at = trimmed.indexOf(OwnerColumnRegistration.SEPARATOR);
+                    if (at > 0) {
+                        trimmed = trimmed.substring(at + 1).trim();
+                    }
+                    if (PermissionRuleSupport.isPath(trimmed)) {
+                        // 与解析同一份展开表：列名/属性名/关联路径的等价写法一次算全，
+                        // 不再各调用点自己 camel+snake 拼一遍（那样迟早一边多一边少）
+                        expanded.addAll(PermissionRuleSupport.pathVariants(trimmed));
+                    }
+                    else {
+                        expanded.add(trimmed);
+                    }
                 }
             }
             columns = Set.copyOf(expanded);
+        }
+
+        /**
+         * 由资源的三份列登记合成白名单（读侧与写侧校验共用这一个入口）
+         *
+         * @param tenantColumn      租户列登记值
+         * @param ownerColumns      归属列登记串（可带维度前缀与点号路径）
+         * @param filterableColumns 其它可过滤列
+         * @return 白名单
+         */
+        public static FieldAllowList ofRegistrations(String tenantColumn, String ownerColumns, String filterableColumns) {
+            Set<String> tokens = new LinkedHashSet<>();
+            addCsv(tokens, tenantColumn);
+            addCsv(tokens, ownerColumns);
+            addCsv(tokens, filterableColumns);
+            return new FieldAllowList(tokens);
+        }
+
+        private static void addCsv(Set<String> target, String csv) {
+            if (csv == null || csv.isBlank()) {
+                return;
+            }
+            for (String part : csv.split(",")) {
+                if (!part.isBlank()) {
+                    target.add(part.trim());
+                }
+            }
         }
 
         public static FieldAllowList none() {
@@ -180,7 +217,17 @@ public final class PermissionRuleValidator {
         }
 
         public boolean contains(String field) {
-            return !columns.isEmpty() && columns.contains(field);
+            if (columns.isEmpty()) {
+                return false;
+            }
+            // 比对也走同一份展开表：条件树里写 storageDetail.id、资源上登记 storage_detail.id，
+            // 是同一条路径的两种写法，不该被判成「不在白名单里」
+            for (String variant : PermissionRuleSupport.pathVariants(field)) {
+                if (columns.contains(variant)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         public boolean isEmpty() {

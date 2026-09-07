@@ -108,7 +108,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
             // 交给分析器报「实体未映射」，而不是在这里当成"所有列都不存在"刷一堆假问题
             EntityShapeIndex.Shape shape = EntityShapeIndex.shapeOf(entity);
             rows.add(new DimensionBindingAnalyzer.Row(resourceId, resource.getResourceKey(), resource.getTableName(),
-                    resource.getTenantColumn(), resource.getOwnerColumns(), shape.attributes(), shape.associations(),
+                    resource.getTenantColumn(), resource.getOwnerColumns(), shape,
                     DimensionBindingAnalyzer.countBySubjectType(subjectTypes)));
         }
         List<DimensionBindingRiskItem> items = new ArrayList<>();

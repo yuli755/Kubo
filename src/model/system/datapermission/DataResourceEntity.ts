@@ -55,7 +55,7 @@ export class DataResourceEntity extends BaseEntity {
     width: 200,
   })
   @Field({
-    label: '归属列（所有者判定用）',
+    label: '归属列（可按维度登记）',
   })
   ownerColumns!: string
 

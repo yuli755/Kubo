@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionSubjectType;
+import cn.hamm.spms.module.system.datapermission.rule.OwnerColumnRegistration;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleSupport;
 
 import java.util.ArrayList;
@@ -20,17 +21,26 @@ import java.util.Set;
  * enforce 下退化成恒假（该主体一行也查不到）、shadow 下等价于没配。界面上既不报错也不变黄。</p>
  *
  * <h2>判据，全部锚在拼谓词那几行</h2>
+ *
+ * <p>共同前提：{@code owner_columns} 现在按 {@link OwnerColumnRegistration} 的语法解析 —— 项内可带
+ * {@code DIMENSION:} 前缀，也可写成 {@code storage.id} 这种一跳关联路径。<b>本类必须与
+ * {@code DataPermissionSpecification} 用同一套回退顺序</b>（有前缀项 → 用它们；没有 → 该档既有取值），
+ * 否则面板要么报一个运行期其实绑得上的资源，要么放过一个绑不上的；两种都比不报更糟。</p>
  * <ol>
- *   <li>{@code TENANT} —— {@code buildTenantPredicate} 用 {@code resource.tenantColumn}（缺省 {@code tenant_id}）；
+ *   <li>{@code TENANT} —— 优先 {@code TENANT:xxx}，否则 {@code resource.tenantColumn}（缺省 {@code tenant_id}）；
  *       登记名按 {@link PermissionRuleSupport#pathCandidates} 的候选写法都取不到 ⇒ 绑不上；</li>
- *   <li>{@code USER} —— {@code buildOwnerPredicate} 逐个试 {@code owner_columns}（逗号分隔），
- *       <b>任一项能绑就算能绑</b>，所以这里也必须按项判定，不能把整串当名字；</li>
- *   <li>{@code DEPARTMENT} —— {@code resolveDepartmentColumn} 取的是 {@code owner_columns} 的<b>第一项</b>；
- *       于是同一份登记同时被当"负责人列"和"部门列"用，两种语义不可能同时成立，单列一条报出来；</li>
- *   <li>{@code WAREHOUSE} / {@code FACTORY} —— 属性名在代码里写死（{@code warehouseId} / {@code factoryId}），
- *       资源登记管不到它们；实体上若只有 {@code @ManyToOne storage} 这类关联，那不是配置写错，而是缺关联路径
- *       支持（施工图 D1(b)），详情里分开说。</li>
+ *   <li>{@code USER} —— {@code USER:xxx}，否则全部裸写法项，<b>任一项能绑就算能绑</b>，
+ *       所以这里也必须按项判定，不能把整串当名字；</li>
+ *   <li>{@code DEPARTMENT} —— {@code DEPARTMENT:xxx}，否则裸写法的第一项，再否则 {@code departmentId}。
+ *       只有"部门没有自己的登记"时，同一列才会同时被当负责人列与部门列用（两种语义不可能同时成立），
+ *       那种形状单列一条报出来，并给出可抄的解法；</li>
+ *   <li>{@code WAREHOUSE} / {@code FACTORY} —— {@code WAREHOUSE:xxx} / {@code FACTORY:xxx}，否则代码里写死的
+ *       {@code warehouseId} / {@code factoryId}。实体上只有 {@code @ManyToOne storage} 时，登记
+ *       {@code WAREHOUSE:storage.id} 即可绑上（D1(b) 已支持），详情里给出这个写法。</li>
  * </ol>
+ *
+ * <p>{@code owner_columns} 整串解析不出来时只报一条 {@link #KIND_OWNER_COLUMN_MALFORMED} 并跳过逐档判定：
+ * 那种状态下各档只能拿写死的默认列去猜，报出来的是一串互相矛盾的猜测，真正的原因反倒被埋掉。</p>
  *
  * <p><b>只在"这一档确实有启用策略"时才报</b>：没配 FACTORY 策略的资源被报"工厂维度绑不上"是纯噪音，
  * 噪音会让整个面板失去可信度。启动期该拦的（D13 就绪度）也不在这里重复拦。</p>
@@ -77,17 +87,25 @@ public final class DimensionBindingAnalyzer {
     public static final String KIND_FACTORY_UNBOUNDABLE = "FACTORY_COLUMN_UNBOUNDABLE";
 
     /**
-     * 仓库档在 {@code DataPermissionSpecification} 里写死的属性名
+     * owner_columns 整串解析不出来（前缀不是维度、路径超过一跳等）
+     *
+     * <p>单独立一类，而不是混进"某档绑不上"：格式错会让六档一起退化到写死的默认列，
+     * 那时面板会刷六条互相矛盾的说法，唯独不说真正的原因。</p>
+     */
+    public static final String KIND_OWNER_COLUMN_MALFORMED = "OWNER_COLUMN_MALFORMED";
+
+    /**
+     * 仓库档没有 {@code WAREHOUSE:} 登记时用的缺省属性名（与 {@code DataPermissionSpecification} 同值）
      */
     static final String WAREHOUSE_ATTRIBUTE = "warehouseId";
 
     /**
-     * 工厂档写死的属性名
+     * 工厂档没有 {@code FACTORY:} 登记时用的缺省属性名（与 {@code DataPermissionSpecification} 同值）
      */
     static final String FACTORY_ATTRIBUTE = "factoryId";
 
     /**
-     * {@code resolveDepartmentColumn} 在 owner_columns 为空时用的缺省属性名
+     * 部门档在既无 {@code DEPARTMENT:} 登记、也无裸写法项时的缺省属性名
      */
     static final String DEPARTMENT_DEFAULT_ATTRIBUTE = "departmentId";
 
@@ -113,8 +131,8 @@ public final class DimensionBindingAnalyzer {
      * @param tableName     登记的物理表名（仅用于详情）
      * @param tenantColumn  登记的租户列
      * @param ownerColumns  登记的归属列（逗号分隔）
-     * @param attributes    实体上的标量属性名；空集合表示没有映射
-     * @param associations    实体上的关系属性名
+     * @param shape         实体形状：标量属性、关联、关联目标的可绑列（由 {@link EntityShapeIndex#shapeOf}
+     *                       给出）；attributes 为空表示没有映射
      * @param policyCounts  该资源上<b>启用中的</b>行级策略按主体类型的条数（决定"这档要不要报"）
      */
     public record Row(Long resourceId,
@@ -122,8 +140,7 @@ public final class DimensionBindingAnalyzer {
                       String tableName,
                       String tenantColumn,
                       String ownerColumns,
-                      Set<String> attributes,
-                      Set<String> associations,
+                      EntityShapeIndex.Shape shape,
                       Map<String, Long> policyCounts) {
     }
 
@@ -157,69 +174,110 @@ public final class DimensionBindingAnalyzer {
             if (row == null) {
                 continue;
             }
-            Set<String> attributes = row.attributes() == null ? Set.of() : row.attributes();
-            Set<String> associations = row.associations() == null ? Set.of() : row.associations();
+            // 形状整体从 EntityShapeIndex 拿，不在这里用两个 Set 重建：重建一次就等于承认
+            // "盘点看的和运行期用的可以不是同一份"，那正是本仓最贵的一类 bug
+            EntityShapeIndex.Shape shape = row.shape() == null
+                    ? new EntityShapeIndex.Shape(null, Set.of(), Set.of()) : row.shape();
             Map<String, Long> counts = row.policyCounts() == null ? Map.of() : row.policyCounts();
-            long total = counts.values().stream().mapToLong(Long::longValue).sum();
-            if (attributes.isEmpty()) {
+            if (shape.attributes().isEmpty()) {
+                long total = counts.values().stream().mapToLong(Long::longValue).sum();
                 risks.add(new Risk(row.resourceId(), row.resourceKey(), null, KIND_ENTITY_NOT_MAPPED,
                         "登记的表名「" + safe(row.tableName()) + "」在 JPA 元模型里找不到对应实体 ⇒ 该资源上 "
                                 + total + " 条启用策略都没有列可绑：enforce 下落到「绑定失败」恒假（查不到数据），"
                                 + "shadow 下只记审计。先确认表名是否写错、实体是否改了名，或该模块尚未接入。"));
                 continue;
             }
-            EntityShapeIndex.Shape shape = new EntityShapeIndex.Shape(null, attributes, associations);
+            List<OwnerColumnRegistration> items = OwnerColumnRegistration.parse(row.ownerColumns());
+            String malformed = OwnerColumnRegistration.validate(row.ownerColumns());
+            if (malformed != null) {
+                // 整串解析不出来时报这一条就够，后面的维度检查全部跳过（continue）：那些检查此时只能拿
+                // 写死的默认列去猜，会把一个格式问题播成五条互相矛盾的说法，真正的原因反倒被埋掉
+                risks.add(new Risk(row.resourceId(), row.resourceKey(), null, KIND_OWNER_COLUMN_MALFORMED,
+                        "owner_columns 解析不出来：" + malformed + " ⇒ 这一串现在等于没登记，各档会一起退化到"
+                                + "写死的默认列，看着配了其实没配。合法写法：creatorId、DEPARTMENT:departmentId、"
+                                + "WAREHOUSE:storage.id（维度前缀可省，关联路径最多一跳）。"));
+                continue;
+            }
+            List<String> untagged = OwnerColumnRegistration.untaggedPaths(items);
 
             check(risks, row, shape, DataPermissionSubjectType.TENANT.name(), counts, KIND_TENANT_UNBOUNDABLE,
-                    "租户列", row.tenantColumn(), true);
+                    "租户列", scopedOr(items, DataPermissionSubjectType.TENANT.name(), csv(row.tenantColumn())),
+                    true);
             check(risks, row, shape, DataPermissionSubjectType.USER.name(), counts, KIND_OWNER_UNBOUNDABLE,
-                    "负责人列", row.ownerColumns(), false);
-            department(risks, row, shape, counts);
+                    "负责人列", scopedOr(items, DataPermissionSubjectType.USER.name(), untagged), false);
+            department(risks, row, shape, counts, items, untagged);
             check(risks, row, shape, DataPermissionSubjectType.WAREHOUSE.name(), counts, KIND_WAREHOUSE_UNBOUNDABLE,
-                    "仓库列（属性名在代码里写死，资源登记管不到）", WAREHOUSE_ATTRIBUTE, false);
+                    "仓库列（缺省按写死的 warehouseId 找，登记 WAREHOUSE:xxx 可改绑）",
+                    scopedOr(items, DataPermissionSubjectType.WAREHOUSE.name(), List.of(WAREHOUSE_ATTRIBUTE)), false);
             check(risks, row, shape, DataPermissionSubjectType.FACTORY.name(), counts, KIND_FACTORY_UNBOUNDABLE,
-                    "工厂列（属性名在代码里写死，资源登记管不到）", FACTORY_ATTRIBUTE, false);
+                    "工厂列（缺省按写死的 factoryId 找，登记 FACTORY:xxx 可改绑）",
+                    scopedOr(items, DataPermissionSubjectType.FACTORY.name(), List.of(FACTORY_ATTRIBUTE)), false);
         }
         return risks;
     }
 
     /**
+     * 某一档实际看哪些列：有 DIMENSION: 前缀项就用它们，一个都没有才沿用该档既有取值
+     *
+     * <p>这里的回退必须与 {@code DataPermissionSpecification} 一模一样，否则面板要么报一个运行期
+     * 其实绑得上的资源（假警报），要么放过一个绑不上的（漏报）——两种都比不报更糟。
+     * 两处各写一遍正是风险本身，因此这条对应关系由 DimensionBindingAnalyzerTest 钉住。</p>
+     */
+    private static List<String> scopedOr(List<OwnerColumnRegistration> items, String dimension,
+                                         List<String> fallback) {
+        List<String> scoped = OwnerColumnRegistration.pathsFor(items, dimension);
+        return scoped.isEmpty() ? fallback : scoped;
+    }
+
+    /**
      * 部门档单独处理：它读的是 owner_columns 的第一项，因此可能与负责人档抢同一列
      */
-    private static void department(List<Risk> risks, Row row, EntityShapeIndex.Shape shape, Map<String, Long> counts) {
+    private static void department(List<Risk> risks,
+                                   Row row,
+                                   EntityShapeIndex.Shape shape,
+                                   Map<String, Long> counts,
+                                   List<OwnerColumnRegistration> items,
+                                   List<String> untagged) {
         long using = count(counts, DataPermissionSubjectType.DEPARTMENT.name());
         if (using <= 0) {
             return;
         }
-        String first = firstOwnerColumn(row.ownerColumns());
-        boolean usesDefault = first == null;
-        String column = usesDefault ? DEPARTMENT_DEFAULT_ATTRIBUTE : first;
-        // 与负责人档共用同一列：两个谓词拿同一列比不同的值，不可能同时对
-        if (!usesDefault && csv(row.ownerColumns()).size() == 1
+        List<String> explicit = OwnerColumnRegistration.pathsFor(items, DataPermissionSubjectType.DEPARTMENT.name());
+        // 「抢同一列」只在部门没有自己的登记时才成立：一旦写了 DEPARTMENT:xxx，两档各看各的列，
+        // 继续报就是纯粹骚扰运营
+        if (explicit.isEmpty() && untagged.size() == 1
                 && count(counts, DataPermissionSubjectType.USER.name()) > 0) {
             risks.add(new Risk(row.resourceId(), row.resourceKey(), DataPermissionSubjectType.DEPARTMENT.name(),
                     KIND_DEPARTMENT_COLUMN_SHARED,
-                    "owner_columns 只登记了「" + column + "」一项，而它同时被两档使用：负责人策略拿它比用户 ID、"
+                    "owner_columns 只登记了「" + untagged.get(0) + "」一项，而它同时被两档使用：负责人策略拿它比用户 ID、"
                             + "部门策略拿它比部门 ID ⇒ 两档里必有一档比出错值（绑得上，所以也不会进绑定失败分支，"
-                            + "连审计都不记）。要么给部门单独登记一列，要么别再对这类资源配 DEPARTMENT 策略；"
-                            + "根治办法是让部门列能独立登记（现在只能靠 owner_columns 的第一项）。"));
+                            + "连审计都不记）。就地解法：给部门单独立一项登记，写成 "
+                            + DataPermissionSubjectType.DEPARTMENT.name() + OwnerColumnRegistration.SEPARATOR
+                            + DEPARTMENT_DEFAULT_ATTRIBUTE + "（列名或关联路径都行），负责人档继续用裸写法；"
+                            + "或别再对这类资源配 DEPARTMENT 策略。"));
             return;
         }
+        List<String> columns = explicit.isEmpty()
+                ? (untagged.isEmpty() ? List.of(DEPARTMENT_DEFAULT_ATTRIBUTE) : List.of(untagged.get(0)))
+                : explicit;
         check(risks, row, shape, DataPermissionSubjectType.DEPARTMENT.name(), counts, KIND_DEPARTMENT_UNBOUNDABLE,
-                usesDefault ? "部门列（未登记 owner_columns 时按 departmentId 找）" : "部门列", column, false);
+                explicit.isEmpty() && untagged.isEmpty()
+                        ? "部门列（未登记 owner_columns 时按 departmentId 找）" : "部门列", columns, false);
     }
 
     /**
      * 一档判定的公共形状：没登记与"登记了但取不到"分开说，前者是漏配、后者是配错或形状不对
      */
     private static void check(List<Risk> risks, Row row, EntityShapeIndex.Shape shape, String subjectType,
-                              Map<String, Long> counts, String kind, String what, String registered,
+                              Map<String, Long> counts, String kind, String what, List<String> names,
                               boolean missingIsConfigError) {
         long using = count(counts, subjectType);
         if (using <= 0) {
             return;
         }
-        List<String> names = csv(registered);
+        if (names == null) {
+            names = List.of();
+        }
         if (names.isEmpty()) {
             risks.add(new Risk(row.resourceId(), row.resourceKey(), subjectType, kind,
                     "该资源上有 " + using + " 条 " + subjectType + " 策略，但" + what + "没有登记 ⇒ 这一档拼不出条件。"
@@ -240,9 +298,11 @@ public final class DimensionBindingAnalyzer {
                 .append(" 试一遍） ⇒ ").append(subjectType).append(" 那 ").append(using)
                 .append(" 条策略拼不出条件：enforce 下恒假（该主体查不到数据），shadow 下等于没配。");
         if (association != null) {
-            detail.append(" 注意 ").append(association).append(" 在实体上是关联而不是标量列：这不是登记写错，")
-                    .append("而是缺关联路径支持（施工图 D1(b)：需要 root.join(「").append(association)
-                    .append("」).get(「id」) 这种形状），补上之前这一档不可能生效。");
+            // 关联路径已经能走了（JpaPathResolver），所以这里给的是能直接抄进登记框的写法，
+            // 而不是"等内核补能力"——后者会把一个已经能解决的问题说成待建设项
+            detail.append(" 注意 ").append(association).append(" 在实体上是关联而不是标量列：不是名字写错，是登记方式要换 —— ")
+                    .append("写成 ").append(subjectType).append(OwnerColumnRegistration.SEPARATOR).append(association)
+                    .append(".id（沿关联走一跳即可，见施工图 D1(b)）。");
         }
         risks.add(new Risk(row.resourceId(), row.resourceKey(), subjectType, kind, detail.toString()));
     }
@@ -280,11 +340,6 @@ public final class DimensionBindingAnalyzer {
             }
         }
         return parts;
-    }
-
-    private static String firstOwnerColumn(String ownerColumns) {
-        List<String> parts = csv(ownerColumns);
-        return parts.isEmpty() ? null : parts.get(0);
     }
 
     private static long count(Map<String, Long> counts, String subjectType) {

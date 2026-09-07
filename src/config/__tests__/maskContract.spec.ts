@@ -797,6 +797,62 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
     expect(editor, '资源编辑器要如实说明这一列不影响判定').toContain('不参与权限判定')
   })
 
+  it('归属列登记语法：前端只展示，不许自己解析', () => {
+    /**
+     * 登记串的语法住在后端 OwnerColumnRegistration 里：维度前缀、点号关联路径、逗号分隔。
+     * 前端一旦也解析一遍（拆逗号、看前缀、比列名），下次改语法就会只改对一半 —— 而"配了但没生效"
+     * 恰好是这个模块最难查的那类问题，所以这里盯的是"只许有一份解析"，不是"提示写得好看"。
+     */
+    const VIEW = join(ROOT, 'src', 'view', 'console', 'system', 'datapermission')
+    const MODEL = join(ROOT, 'src', 'model', 'system', 'datapermission')
+    // 窗口式匹配而不是「名字后面紧跟点号」：String(form.ownerColumns).split(",") 与 ownerColumns?.split(",")
+    // 都是同一件事，前一种写法会绕过严格相邻的正则 —— 门禁漏一种写法，就等于允许那种写法存在
+    const PARSE = /(?:ownerColumns|tenantColumn|filterableColumns)\b[^;\n]{0,40}\.(?:split|includes|startsWith|slice|indexOf|replace|match)\(/
+    const files = [...collect(VIEW, '.vue'), ...collect(VIEW, '.ts'), ...collect(MODEL, '.ts')]
+    const offenders = files
+      .filter(file => [...stripComments(read(file)).split('\n')]
+        .some(line => PARSE.test(line) && !line.trim().startsWith('*')))
+      .map(file => relative(ROOT, file))
+    expect(offenders, `登记串在前端被自己解析了（${offenders.join(', ')}）：删掉它，判定只认后端`).toEqual([])
+    // 反证：这条不是在空转（本仓的门禁一律要先被证明能红）
+    expect(PARSE.test('if (form.ownerColumns.split(",").length > 1) {')).toBe(true)
+    expect(PARSE.test('const parts = String(form.ownerColumns).split(",")')).toBe(true)
+    expect(PARSE.test('form.ownerColumns?.includes("DEPARTMENT:")')).toBe(true)
+    expect(PARSE.test('label: \'归属列（可按维度登记）\',')).toBe(false)
+
+    // 编辑器与列表页告警都要带上语法：盘点把人指到编辑页，编辑页却不写怎么写，就等于没指
+    const tip = read(join(VIEW, 'resource', 'component', 'editor.vue'))
+    const riskList = read(join(VIEW, 'resource', 'list.vue'))
+    for (const shape of ['DEPARTMENT:', 'WAREHOUSE:storage.id']) {
+      expect(tip, `归属列提示里少了 ${shape}：后端支持的登记法，UI 不写就等于没有`).toContain(shape)
+      expect(riskList, `盘点告警的修法里少了 ${shape}`).toContain(shape)
+    }
+    // 「最多一跳」只在编辑器里写：告警那行已经够长了，深度上限是"怎么写"的细节，不是"往哪改"的指引
+    expect(tip).toContain('最多一跳')
+
+    /**
+     * 回退顺序目前在读侧与分析器各写了一遍（§19.26 已记为已知风险），这里钉住那一句本体：
+     * "有 DIMENSION: 前缀项就用它们，一个都没有才沿用既有取值"。谁把某一边的回退翻过来
+     * （例如改成"没前缀就当没登记"），面板与运行期立刻分家 —— 那正是"升级即查空"的形状。
+     */
+    const FALLBACK = 'scoped.isEmpty() ? fallback : scoped'
+    for (const cls of ['DataPermissionSpecification', 'DimensionBindingAnalyzer']) {
+      const code = readJavaCode(join(SERVER, `module/system/datapermission/service/${cls}.java`))
+      expect(code, `${cls} 不再走 OwnerColumnRegistration.pathsFor：登记语法出现了第二份解释`)
+        .toContain('OwnerColumnRegistration.pathsFor')
+      expect(code, `${cls} 的回退顺序与另一处不同源（见 §19.26）：两边必须同一条`).toContain(FALLBACK)
+      expect(code, `${cls} 又自己拆 owner_columns 了`).not.toMatch(/getOwnerColumns\(\)\s*\.split\(/)
+    }
+    // 写侧校验不许退回自己那份 addCsv（两份白名单迟早一边多一边少）
+    const writeSide = readJavaCode(join(SERVER, 'module/system/datapermission/service/DataPolicyService.java'))
+    expect(writeSide, '写侧白名单要复用 FieldAllowList.ofRegistrations').toContain('ofRegistrations')
+    expect(writeSide, '写侧又自己 addCsv 了').not.toMatch(/private void addCsv\(/)
+
+    // 提示与实现同改：后端把上限从一跳调开时，这条先红，逼着两边一起动
+    const reg = readJavaCode(join(SERVER, 'module/system/datapermission/rule/OwnerColumnRegistration.java'))
+    expect(reg, 'OwnerColumnRegistration 的 MAX_SEGMENTS 不再是 2：editor.vue 的「最多一跳」要跟着改').toMatch(/MAX_SEGMENTS\s*=\s*2/)
+  })
+
   it('字典 tip 引用的后端类必须真实存在', () => {
     // 与 fieldPolicy 编辑器 tip 同一条规矩：写一个不存在的类名，比不写更误导
     const doc = read(DICT)
