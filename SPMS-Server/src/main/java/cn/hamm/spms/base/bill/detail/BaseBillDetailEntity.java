@@ -2,7 +2,7 @@ package cn.hamm.spms.base.bill.detail;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.ReadOnly;
-import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.base.TenantAwareEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.MappedSuperclass;
 import jakarta.validation.constraints.NotNull;
@@ -20,7 +20,7 @@ import lombok.Getter;
 @Description("")
 public abstract class BaseBillDetailEntity<
         E extends BaseBillDetailEntity<E>
-        > extends BaseEntity<E> implements IBaseBillDetailAction {
+        > extends TenantAwareEntity<E> implements IBaseBillDetailAction {
     @Description("单据 ID")
     @Column(nullable = false, columnDefinition = "bigint UNSIGNED comment '单据ID'")
     private Long billId;
