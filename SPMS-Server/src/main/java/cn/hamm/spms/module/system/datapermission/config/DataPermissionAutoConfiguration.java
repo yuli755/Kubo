@@ -40,7 +40,7 @@ public class DataPermissionAutoConfiguration {
     }
 
     /**
-     * P2 换轨后由 MyBatis 拦截器使用；先注册好，避免届时出现"新链路另起一套解析"的诱惑
+     * 由 mapper-read 条件块中的 MyBatis 拦截器使用；与 JPA 编译器共享解析/建树内核
      */
     @Bean
     public SqlPermissionRuleRenderer sqlPermissionRuleRenderer() {

@@ -27,8 +27,8 @@ import java.util.Set;
  * 没有任何 statement 都是启动错误；这些是接线错误，不应等到第一条生产请求才暴露。</p>
  *
  * <p>本阶段不在这里执行 SQL，也不参与 JPA 写路径。它是后续
- * {@code KuboDataPermissionHandler} 的唯一资源解析输入，先把"绑定是否存在"从拦截器实现中抽出来，
- * 才能单独测试 fail-closed 语义。</p>
+ * {@code KuboDataPermissionHandler} 的唯一资源解析输入；把"绑定是否存在"从请求线程的
+ * SQL 解析中抽出来，才能单独测试并保证 fail-closed 语义。</p>
  *
  * @author Hamm.cn
  */

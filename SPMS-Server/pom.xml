@@ -129,10 +129,11 @@
         </dependency>
 
         <!--
-          MyBatis-Plus（P2 换轨用）。本轮<em>只加依赖，不接线</em>：没有 @MapperScan、没有
-          MybatisPlusInterceptor、没有任何 XML —— 它的全部作用是让 `MybatisJpaCoexistenceTest`
-          能真起一个"两套 ORM 并存"的上下文，把"依赖能不能与 airpower+JPA 共存"这件事
-          从猜测变成一次可回归的断言。业务读路径一条都没换（换在下一格）。
+          MyBatis-Plus（P2 读链路换轨用）。读侧接线由 `kubo.data-permission.mapper-read.enabled`
+          条件控制，默认仍关闭：默认上下文没有 @MapperScan、MybatisPlusInterceptor 或读侧 Mapper；
+          打开开关的接线与 XML 只服务后端 shadow COUNT/拦截器验证，业务 page/detail/stat/export
+          读端点仍按施工图逐资源收口。`MybatisJpaCoexistenceTest` 继续验证默认关闭时两套 ORM
+          能共存且回滚位有效。
         -->
         <dependency>
             <groupId>com.baomidou</groupId>

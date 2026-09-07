@@ -11,7 +11,8 @@ import java.util.List;
 /**
  * <h1>数据权限决策服务</h1>
  *
- * <p>首期负责资源注册和规则获取，行级 SQL 注入在试点 Mapper 迁移后接入。</p>
+ * <p>负责资源注册和主体策略获取；读侧 SQL 行级条件由 mapper-read 条件块中的
+ * {@code KuboDataPermissionHandler} 消费，JPA 与 MyBatis 共用同一棵条件树。</p>
  *
  * @author Hamm.cn
  */
