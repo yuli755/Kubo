@@ -1374,17 +1374,17 @@ describe('mask contract · 读侧 Mapper（P2 换轨的注册面）', () => {
   /**
    * main 里所有读侧 Mapper 接口（约定：extends KuboBaseMapper）
    */
-  function mapperInterfaces(): { name: string; file: string; source: string }[] {
+  function mapperInterfaces(): { name: string, file: string, source: string }[] {
     return collect(SERVER, '.java')
       .map(file => ({ file, source: readJavaCode(file), name: '' }))
-      .map(entry => {
+      .map((entry) => {
         const matched = MAPPER_INTERFACE.exec(entry.source)
         return matched ? { name: matched[1], file: entry.file, source: entry.source } : null
       })
-      .filter((entry): entry is { name: string; file: string; source: string } => entry !== null)
+      .filter((entry): entry is { name: string, file: string, source: string } => entry !== null)
   }
 
-  function xmlMappers(): { file: string; source: string }[] {
+  function xmlMappers(): { file: string, source: string }[] {
     return collect(MAPPER_XML_DIR, '.xml').map(file => ({ file, source: read(file) }))
   }
 
@@ -1401,8 +1401,9 @@ describe('mask contract · 读侧 Mapper（P2 换轨的注册面）', () => {
       .toBeGreaterThan(0)
     for (const mapper of found) {
       expect(mapper.source, `${mapper.name} 标了 @Mapper：MyBatis-Plus 的自动扫描器不认识 `
-        + 'kubo.data-permission.mapper-read 开关，application.yml 里那行 enabled: false 就成了装饰')
-        .not.toMatch(/@Mapper(?!\s*Scan)/)
+      + 'kubo.data-permission.mapper-read 开关，application.yml 里那行 enabled: false 就成了装饰')
+        .not
+        .toMatch(/@Mapper(?!\s*Scan)/)
     }
     const config = readJavaCode(CONFIG)
     expect(config, '注册脱离了 @ConditionalOnProperty：默认关就不再等于"容器里没有这条读路径"')
@@ -1413,8 +1414,7 @@ describe('mask contract · 读侧 Mapper（P2 换轨的注册面）', () => {
     expect(scans.length, '@MapperScan 出现多于一处 = 注册面散开，开关管不住全部')
       .toBe(1)
     // 反证：伪造一份带 @Mapper 的接口源码，判定必须为红（"它没红"不等于"它在防"）
-    expect(/@Mapper(?!\s*Scan)/.test('public interface X { } @Mapper\ninterface Y { }'),
-      '这条判据本身失效了：正则不再能识别 @Mapper').toBe(true)
+    expect(/@Mapper(?!\s*Scan)/.test('public interface X { } @Mapper\ninterface Y { }'), '这条判据本身失效了：正则不再能识别 @Mapper').toBe(true)
   })
 
   it('每个 KuboBaseMapper 子接口都有同名 XML，namespace 指向接口全限定名', () => {
@@ -1425,33 +1425,33 @@ describe('mask contract · 读侧 Mapper（P2 换轨的注册面）', () => {
       const expected = `${pkg}.${mapper.name}`
       const hit = xmls.filter(entry => stripXmlComments(entry.source).includes(`namespace="${expected}"`))
       expect(hit.length, `${mapper.name} 没有对应 XML（namespace="${expected}"）：接口能编译、启动不报错，`
-        + '第一次调用才抛 Invalid bound statement —— 这类错必须由门禁在提交前拦住')
+      + '第一次调用才抛 Invalid bound statement —— 这类错必须由门禁在提交前拦住')
         .toBe(1)
       expect(hit[0].source, `${mapper.name} 的 XML 用了 MP 推断的表名（没写 FROM 目标表）`)
         .toMatch(/FROM\s+\w+/)
     }
   })
 
-  it('XML 里没有手写归属条件：行级判据只许来自渲染器', () => {
+  it('行级判据只许来自渲染器：XML 里不得手写归属条件', () => {
     const xmls = xmlMappers()
     expect(xmls.length, 'resources/mapper 下没有 XML：这条门禁会空转').toBeGreaterThan(0)
     for (const entry of xmls) {
       const body = stripXmlComments(entry.source)
       expect(body, `${entry.file.split('/').pop()} 里手写了归属列条件：那"谁能看哪些行"就有两份实现，`
-        + '改策略时改一处漏一处，而漏的那处不报错、只多放行行')
-        .not.toMatch(/(tenant|creator|department|factory|warehouse)_id\s*(=|in)\s/i)
+      + '改策略时改一处漏一处，而漏的那处不报错、只多放行行')
+        .not
+        .toMatch(/(?:tenant|creator|department|factory|warehouse)_id\s*(?:=|in)\s/i)
     }
     const name = /FRAGMENT_KEY\s*=\s*"(\w+)"/.exec(readJavaCode(PREDICATE))?.[1] ?? ''
     expect(name, 'RowPermissionPredicate.FRAGMENT_KEY 必须是个简单标识符（它是 ${} 的键名）')
-      .toMatch(/^[A-Za-z_]\w*$/)
-    expect(xmls.some(entry => entry.source.includes('${' + name + '}')),
-      `没有任何 mapper XML 使用 \${${name}}：片段注入只是名义上接上了`)
+      .toMatch(/^[A-Z_]\w*$/i)
+    expect(xmls.some(entry => entry.source.includes(`\${${name}}`)), `没有任何 mapper XML 使用 \${${name}}：片段注入只是名义上接上了`)
       .toBe(true)
   })
 
   it('命名参数换写与片段工厂各只有一处（判据合一前不许出现第二份实现）', () => {
     const offenders: string[] = []
-    const factories = /RowPermissionPredicate\s*\.\s*(tenant|owner|department|factory|warehouse)\s*\(/
+    const factories = /RowPermissionPredicate\s*\.\s*(?:tenant|owner|department|factory|warehouse)\s*\(/
     for (const file of collect(SERVER, '.java')) {
       if (file === PREDICATE) {
         continue
@@ -1462,9 +1462,8 @@ describe('mask contract · 读侧 Mapper（P2 换轨的注册面）', () => {
       }
     }
     expect(offenders, '出现了第二处把片段写成 MyBatis 形式、或直接用 SQL 侧重建判据的地方：'
-      + 'JPA 侧与 Mapper 侧各算一遍，迟早给出不同答案（判据合一见施工图 §19.34）')
+    + 'JPA 侧与 Mapper 侧各算一遍，迟早给出不同答案（判据合一见施工图 §19.34）')
       .toEqual([])
-    expect(factories.test('return RowPermissionPredicate.tenant("material", "tenant_id", id);'),
-      '这条判据本身失效了：正则不再能识别片段工厂').toBe(true)
+    expect(factories.test('return RowPermissionPredicate.tenant("material", "tenant_id", id);'), '这条判据本身失效了：正则不再能识别片段工厂').toBe(true)
   })
 })
