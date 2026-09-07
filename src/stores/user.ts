@@ -1,3 +1,4 @@
+import type { TenantOption } from '@kubo/shared'
 import { WebConfig } from '@airpower/web'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
@@ -31,6 +32,13 @@ export const useUserStore = defineStore(
     const tenantId = ref<number | undefined>(undefined)
 
     /**
+     * ### 当前用户可切换租户
+     *
+     * 只接受后端返回的可选租户列表；前端不会自行拼接租户 ID。
+     */
+    const tenantList = ref<TenantOption[]>([])
+
+    /**
      * ### 当前用户信息
      */
     const userInfo = ref<{
@@ -47,6 +55,13 @@ export const useUserStore = defineStore(
 
     function setTenantId(val: number | undefined) {
       tenantId.value = val
+    }
+
+    function setTenantList(val: TenantOption[]) {
+      tenantList.value = val.filter(item => Number.isSafeInteger(item.id) && item.id > 0)
+      const selected = tenantList.value.find(item => item.id === tenantId.value)
+      const preferred = selected || tenantList.value.find(item => item.isDefault) || tenantList.value[0]
+      tenantId.value = preferred?.id
     }
 
     function setUserInfo(val: unknown) {
@@ -94,6 +109,7 @@ export const useUserStore = defineStore(
       // 清除本地状态
       token.value = ''
       tenantId.value = undefined
+      tenantList.value = []
       userInfo.value = null
       refreshTokenValue.value = ''
       WebConfig.removeAccessToken()
@@ -112,9 +128,11 @@ export const useUserStore = defineStore(
       token,
       refreshTokenValue,
       tenantId,
+      tenantList,
       userInfo,
       setToken,
       setTenantId,
+      setTenantList,
       setUserInfo,
       setRefreshToken,
       isLoggedIn,
@@ -126,7 +144,7 @@ export const useUserStore = defineStore(
     persist: {
       key: 'kubo:user',
       storage: 'local',
-      pick: ['token', 'refreshTokenValue', 'tenantId', 'userInfo'],
+      pick: ['token', 'refreshTokenValue', 'tenantId', 'tenantList', 'userInfo'],
     },
   },
 )

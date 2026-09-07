@@ -21,8 +21,8 @@ import type {
   UnitEntity,
   UnitQuery,
 } from './system/types'
-import type { ChangePasswordRequest, RefreshTokenRequest, RefreshTokenResponse, UserEntity } from './types'
-import { request } from './axios'
+import type { ChangePasswordRequest, RefreshTokenRequest, RefreshTokenResponse, TenantOption, UserEntity } from './types'
+import { api, request } from './axios'
 
 export const authApi = {
   login(data: { email: string, password: string }): Promise<string> {
@@ -48,6 +48,9 @@ export const authApi = {
   },
   getCurrentUser(): Promise<UserEntity> {
     return request.post('/user/getMyInfo')
+  },
+  getMyTenantList(): Promise<TenantOption[]> {
+    return api.post('/user/getMyTenantList', undefined, { tenantAware: false })
   },
   changePassword(data: ChangePasswordRequest): Promise<void> {
     return request.post('/user/updateMyPassword', data)

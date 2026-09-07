@@ -161,6 +161,7 @@ export interface PickingEntity {
   rejectReason: string
   details: PickingDetailEntity[]
   structure?: { id: number, name: string, code: string }
+  order?: { id: number, billCode: string }
 }
 
 export interface PickingQuery {

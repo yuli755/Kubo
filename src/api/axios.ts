@@ -11,6 +11,8 @@ export interface RequestConfig extends AxiosRequestConfig {
   idempotent?: boolean
   /** 自定义错误处理 */
   customErrorHandler?: (error: ApiError) => void
+  /** 是否附带当前租户意图；获取可选租户列表时应关闭 */
+  tenantAware?: boolean
 }
 
 // API 错误类型
@@ -51,8 +53,10 @@ function createAxiosInstance(): AxiosInstance {
         config.headers.Authorization = `Bearer ${userStore.token}`
       }
 
-      // 添加租户 ID
-      if (userStore.tenantId) {
+      // 添加租户切换意图；服务端仍会校验 user_tenant 成员关系。
+      // 获取可选租户列表必须跳过旧的持久化值，否则旧租户已解绑时会在列表接口之前被 403。
+      const tenantAware = (config as InternalAxiosRequestConfig & { tenantAware?: boolean }).tenantAware
+      if (tenantAware !== false && userStore.tenantId !== undefined) {
         config.headers['X-Tenant-Id'] = userStore.tenantId.toString()
       }
 

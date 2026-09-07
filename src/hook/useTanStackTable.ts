@@ -3,8 +3,9 @@ import type { Ref } from 'vue'
 import type { AbstractBaseService } from '@/base/AbstractBaseService'
 import type { BaseEntity } from '@/base/BaseEntity'
 import { DialogUtil, FeedbackUtil, QueryRequestPage, QueryResponsePage } from '@airpower/web'
-import { keepPreviousData, useQuery } from '@tanstack/vue-query'
+import { useQuery } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
+import { useUserStore } from '@/stores/user'
 
 /**
  * # TanStack Query → airpower ATable 适配器
@@ -39,6 +40,7 @@ export function useTanStackTable<E extends BaseEntity, S extends AbstractBaseSer
   const entity: E = new (serviceClass as unknown as { entityClass: new () => E }).entityClass()
   // eslint-disable-next-line new-cap
   const service = new serviceClass() as S
+  const userStore = useUserStore()
 
   // ── 查询状态 ──
   // QueryRequestPage 构造函数接受 ITransformerConstructor<E>，
@@ -49,11 +51,18 @@ export function useTanStackTable<E extends BaseEntity, S extends AbstractBaseSer
   const isLoading = ref(false)
 
   const resolvedRequest = computed(() => request.value)
+  // 租户是查询身份的一部分；不把它放进 key 会让切换租户复用旧缓存。
+  const tenantQueryKey = computed(() => [
+    ...option.queryKey,
+    'tenant',
+    userStore.tenantId ?? 'unresolved',
+    'list',
+    resolvedRequest.value,
+  ])
 
   const { data, isFetching, refetch } = useQuery<QueryResponsePage<E>>({
-    queryKey: [...option.queryKey, 'list', resolvedRequest],
+    queryKey: tenantQueryKey,
     queryFn: () => service.getPage(request.value as any),
-    placeholderData: keepPreviousData,
   })
 
   watch(isFetching, (val) => {
@@ -62,6 +71,12 @@ export function useTanStackTable<E extends BaseEntity, S extends AbstractBaseSer
   watch(data, (val) => {
     if (val) {
       response.value = val
+    }
+  })
+  watch(() => userStore.tenantId, (tenantId, previousTenantId) => {
+    if (tenantId !== previousTenantId) {
+      // 切换租户期间不得继续展示上一个租户的列表；新的 query key 会重新取真实数据。
+      response.value = new (QueryResponsePage as any)()
     }
   })
 

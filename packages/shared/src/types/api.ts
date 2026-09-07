@@ -105,6 +105,14 @@ export interface LoginResponse {
   user: UserEntity
 }
 
+// 当前用户可切换租户
+export interface TenantOption {
+  id: number
+  code: string
+  name: string
+  isDefault: boolean
+}
+
 // 刷新 Token 请求
 export interface RefreshTokenRequest {
   refreshToken: string

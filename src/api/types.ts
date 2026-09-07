@@ -22,6 +22,7 @@ export type {
   RefreshTokenRequest,
   RefreshTokenResponse,
   RoleEntity,
+  TenantOption,
   UserEntity,
   VoidResponse,
 } from '@kubo/shared'
