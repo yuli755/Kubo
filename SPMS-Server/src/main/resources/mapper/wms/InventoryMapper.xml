@@ -1,13 +1,119 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- 权限片段只来自 SqlPermissionRuleRenderer；${fragment} 后仍由 #{} 参数化。 -->
+<!--
+  库存读侧语句。权限条件只由 MyBatis-Plus 数据权限拦截器按 mappedStatementId 追加；
+  XML 只承载库存自己的业务筛选、固定排序和分页。
+  关联表不 JOIN：关系读取由 Service 调用受控详情出口完成，避免未登记 JOIN 表形成旁路。
+-->
 <mapper namespace="cn.hamm.spms.module.wms.inventory.mapper.InventoryMapper">
+
+    <resultMap id="inventoryReadMap" type="cn.hamm.spms.module.wms.inventory.InventoryEntity">
+        <id column="id" property="id"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_disabled" property="isDisabled"/>
+        <result column="is_published" property="isPublished"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="creator_id" property="creatorId"/>
+        <result column="quantity" property="quantity"/>
+        <result column="type" property="type"/>
+        <association property="material" javaType="cn.hamm.spms.module.asset.material.MaterialEntity">
+            <id column="material_id" property="id"/>
+        </association>
+        <association property="storage" javaType="cn.hamm.spms.module.factory.storage.StorageEntity">
+            <id column="storage_id" property="id"/>
+        </association>
+        <association property="structure" javaType="cn.hamm.spms.module.factory.structure.StructureEntity">
+            <id column="structure_id" property="id"/>
+        </association>
+    </resultMap>
+
+    <sql id="inventoryColumns">
+        i.id,
+        i.create_time,
+        i.update_time,
+        i.is_disabled,
+        i.is_published,
+        i.tenant_id,
+        i.creator_id,
+        i.material_id,
+        i.quantity,
+        i.type,
+        i.storage_id,
+        i.structure_id
+    </sql>
+
+    <sql id="inventoryFilter">
+        <if test="type != null">
+            AND i.type = #{type}
+        </if>
+        <if test="storageIds != null and storageIds.size() > 0">
+            AND i.storage_id IN
+            <foreach collection="storageIds" item="storageId" open="(" separator="," close=")">
+                #{storageId}
+            </foreach>
+        </if>
+        <if test="structureIds != null and structureIds.size() > 0">
+            AND i.structure_id IN
+            <foreach collection="structureIds" item="structureId" open="(" separator="," close=")">
+                #{structureId}
+            </foreach>
+        </if>
+    </sql>
+
+    <!-- parity statement 同样不使用 i 别名：权限渲染器的限定名是登记的物理表名 inventory。 -->
+    <sql id="inventoryParityFilter">
+        <if test="type != null">
+            AND type = #{type}
+        </if>
+        <if test="storageIds != null and storageIds.size() > 0">
+            AND storage_id IN
+            <foreach collection="storageIds" item="storageId" open="(" separator="," close=")">
+                #{storageId}
+            </foreach>
+        </if>
+        <if test="structureIds != null and structureIds.size() > 0">
+            AND structure_id IN
+            <foreach collection="structureIds" item="structureId" open="(" separator="," close=")">
+                #{structureId}
+            </foreach>
+        </if>
+    </sql>
+
+    <select id="selectPageByPermission" resultMap="inventoryReadMap">
+        SELECT
+        <include refid="inventoryColumns"/>
+        FROM inventory i
+        <where>
+            <include refid="inventoryFilter"/>
+        </where>
+        ORDER BY i.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectDetailByPermission" resultMap="inventoryReadMap">
+        SELECT
+        <include refid="inventoryColumns"/>
+        FROM inventory i
+        WHERE i.id = #{id}
+    </select>
+
+    <select id="countByPermission" resultType="long">
+        SELECT COUNT(1)
+        FROM inventory i
+        <where>
+            <include refid="inventoryFilter"/>
+        </where>
+    </select>
+
     <select id="countByPermissionFragment" resultType="long">
         SELECT COUNT(1) FROM inventory
         <where>
+            <include refid="inventoryParityFilter"/>
             <if test="fragment != null and fragment != ''">
-                ${fragment}
+                AND ${fragment}
             </if>
         </where>
     </select>
+
 </mapper>

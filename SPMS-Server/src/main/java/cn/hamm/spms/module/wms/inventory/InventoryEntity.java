@@ -2,7 +2,7 @@ package cn.hamm.spms.module.wms.inventory;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Dictionary;
-import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.factory.structure.StructureEntity;
@@ -32,7 +32,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @DynamicUpdate
 @Table(name = "inventory")
 @Description("库存")
-public class InventoryEntity extends BaseEntity<InventoryEntity> {
+public class InventoryEntity extends TenantAwareEntity<InventoryEntity> {
     @Description("物料信息")
     @ManyToOne(fetch = EAGER)
     private MaterialEntity material;
