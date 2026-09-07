@@ -1,13 +1,113 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- 权限片段只来自 SqlPermissionRuleRenderer；${fragment} 后仍由 #{} 参数化。 -->
+<!--
+  入库单主表读出口。权限条件由 MyBatis-Plus 按 statement ID 追加；明细和关联单据不在这里 JOIN。
+  parity statement 不使用别名，保证 renderer 使用的物理表限定名与 SQL 一致。
+-->
 <mapper namespace="cn.hamm.spms.module.wms.input.mapper.InputMapper">
+
+    <resultMap id="inputReadMap" type="cn.hamm.spms.module.wms.input.InputEntity">
+        <id column="id" property="id"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_disabled" property="isDisabled"/>
+        <result column="is_published" property="isPublished"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="creator_id" property="creatorId"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="bill_code" property="billCode"/>
+        <result column="status" property="status"/>
+        <result column="type" property="type"/>
+        <association property="purchase" javaType="cn.hamm.spms.module.channel.purchase.PurchaseEntity">
+            <id column="purchase_id" property="id"/>
+        </association>
+        <association property="structure" javaType="cn.hamm.spms.module.factory.structure.StructureEntity">
+            <id column="structure_id" property="id"/>
+        </association>
+        <association property="order" javaType="cn.hamm.spms.module.mes.order.OrderEntity">
+            <id column="order_id" property="id"/>
+        </association>
+        <association property="move" javaType="cn.hamm.spms.module.wms.move.MoveEntity">
+            <id column="move_id" property="id"/>
+        </association>
+    </resultMap>
+
+    <sql id="inputColumns">
+        i.id,
+        i.create_time,
+        i.update_time,
+        i.is_disabled,
+        i.is_published,
+        i.tenant_id,
+        i.creator_id,
+        i.reject_reason,
+        i.bill_code,
+        i.status,
+        i.type,
+        i.purchase_id,
+        i.structure_id,
+        i.order_id,
+        i.move_id
+    </sql>
+
+    <sql id="inputFilter">
+        <if test="billCode != null and billCode != ''">
+            AND i.bill_code LIKE CONCAT('%', #{billCode}, '%')
+        </if>
+        <if test="status != null">
+            AND i.status = #{status}
+        </if>
+        <if test="type != null">
+            AND i.type = #{type}
+        </if>
+    </sql>
+
+    <sql id="inputParityFilter">
+        <if test="billCode != null and billCode != ''">
+            AND bill_code LIKE CONCAT('%', #{billCode}, '%')
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        <if test="type != null">
+            AND type = #{type}
+        </if>
+    </sql>
+
+    <select id="selectPageByPermission" resultMap="inputReadMap">
+        SELECT
+        <include refid="inputColumns"/>
+        FROM input i
+        <where>
+            <include refid="inputFilter"/>
+        </where>
+        ORDER BY i.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectDetailByPermission" resultMap="inputReadMap">
+        SELECT
+        <include refid="inputColumns"/>
+        FROM input i
+        WHERE i.id = #{id}
+    </select>
+
+    <select id="countByPermission" resultType="long">
+        SELECT COUNT(1)
+        FROM input i
+        <where>
+            <include refid="inputFilter"/>
+        </where>
+    </select>
+
     <select id="countByPermissionFragment" resultType="long">
         SELECT COUNT(1) FROM input
         <where>
+            <include refid="inputParityFilter"/>
             <if test="fragment != null and fragment != ''">
-                ${fragment}
+                AND ${fragment}
             </if>
         </where>
     </select>
+
 </mapper>

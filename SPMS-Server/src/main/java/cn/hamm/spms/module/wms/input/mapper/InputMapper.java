@@ -4,11 +4,16 @@ import cn.hamm.spms.base.mapper.KuboBaseMapper;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
 import cn.hamm.spms.module.system.datapermission.service.RowParityCounter;
 import cn.hamm.spms.module.wms.input.InputEntity;
+import org.apache.ibatis.annotations.Param;
 
+import java.util.List;
 import java.util.Map;
 
 /**
- * 入库单读侧 Mapper；只承载 XML 读语句与 ORM parity 探针，写路径仍走 JPA。
+ * <h1>入库单读侧 Mapper</h1>
+ *
+ * <p>单据主表的列表、详情和总数使用显式 SQL；明细仍由原明细服务按单据 ID 加载。关联主表
+ * 只投影 ID，再由 Service 通过受控详情服务补齐，避免把多个资源 JOIN 到同一条权限 SQL。</p>
  *
  * @author Hamm.cn
  */
@@ -21,9 +26,41 @@ public interface InputMapper extends KuboBaseMapper<InputEntity>, RowParityCount
     }
 
     /**
-     * 按统一权限片段统计入库单行数。
-     *
-     * @param parameters fragment 与命名参数
+     * @param billCode 单号模糊筛选
+     * @param status   单据状态
+     * @param type     单据类型
+     * @param offset   分页偏移
+     * @param limit    分页大小
+     * @return 当前页
+     */
+    List<InputEntity> selectPageByPermission(
+            @Param("billCode") String billCode,
+            @Param("status") Integer status,
+            @Param("type") Integer type,
+            @Param("offset") int offset,
+            @Param("limit") int limit
+    );
+
+    /**
+     * @param id 主键
+     * @return 详情或 null
+     */
+    InputEntity selectDetailByPermission(@Param("id") Long id);
+
+    /**
+     * @param billCode 单号模糊筛选
+     * @param status   单据状态
+     * @param type     单据类型
+     * @return 行数
+     */
+    Long countByPermission(
+            @Param("billCode") String billCode,
+            @Param("status") Integer status,
+            @Param("type") Integer type
+    );
+
+    /**
+     * @param parameters fragment 与业务筛选参数
      * @return 行数
      */
     Long countByPermissionFragment(Map<String, Object> parameters);
