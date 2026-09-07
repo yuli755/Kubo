@@ -10,7 +10,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.module.asset.material.mapper.MaterialMapper;
 import cn.hamm.spms.module.asset.material.mapper.MaterialReadShadowService;
-import cn.hamm.spms.module.asset.material.mapper.MaterialReadStat;
+import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
@@ -136,14 +136,14 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
      * @param filter 业务筛选
      * @return 权限范围内统计
      */
-    public MaterialReadStat getMapperStat(MaterialEntity filter) {
+    public ReadStat getMapperStat(MaterialEntity filter) {
         MaterialEntity normalized = filter == null ? new MaterialEntity() : filter;
         if (isMapperReadEnabled()) {
             materialReadShadowService.submit(normalized);
             return materialMapper.statByPermission(normalized);
         }
         List<MaterialEntity> rows = filter(normalized);
-        MaterialReadStat stat = new MaterialReadStat();
+        ReadStat stat = new ReadStat();
         stat.setTotal(rows.size());
         stat.setPublishedTotal(rows.stream().filter(row -> Boolean.TRUE.equals(row.getIsPublished())).count());
         return stat;

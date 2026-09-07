@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.asset.material.mapper;
 
 import cn.hamm.spms.base.mapper.KuboBaseMapper;
+import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
 import cn.hamm.spms.module.system.datapermission.service.RowParityCounter;
@@ -83,7 +84,7 @@ public interface MaterialMapper extends KuboBaseMapper<MaterialEntity>, RowParit
      * @param filter 物料筛选条件
      * @return 权限范围内统计
      */
-    MaterialReadStat statByPermission(@Param("filter") MaterialEntity filter);
+    ReadStat statByPermission(@Param("filter") MaterialEntity filter);
 
     /**
      * 按权限片段数一遍 {@code material}，供 JPA/Mapper parity 对账使用。

@@ -114,7 +114,7 @@
         </where>
     </select>
 
-    <select id="statByPermission" resultType="cn.hamm.spms.module.asset.material.mapper.MaterialReadStat">
+    <select id="statByPermission" resultType="cn.hamm.spms.base.mapper.ReadStat">
         SELECT
             COUNT(1) AS total,
             COALESCE(SUM(CASE WHEN m.is_published THEN 1 ELSE 0 END), 0) AS published_total
