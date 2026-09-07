@@ -11,6 +11,7 @@ import {
   QueryResponsePage,
 } from '@airpower/web'
 import { ref, watch } from 'vue'
+import { Permissions } from '@/config/permissions'
 import { StorageEntity } from '@/model/factory/storage/StorageEntity'
 import { StorageService } from '@/model/factory/storage/StorageService'
 import { StructureEntity } from '@/model/factory/structure/StructureEntity'
@@ -121,10 +122,12 @@ inventoryTypeChanged()
         :data-list="response.list"
         :entity="InventoryEntity"
         :service="InventoryService"
+        :export-permission="Permissions.Wms.Inventory.export"
         ctrl-width="60"
         hide-add
         hide-delete
         hide-edit
+        show-export
       >
         <template #afterButton>
           <el-radio-group

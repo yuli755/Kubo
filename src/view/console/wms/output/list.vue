@@ -42,9 +42,11 @@ async function onReject(bill: { id: number; rejectReason?: string }) {
       :add-permission="Permissions.Wms.Output.add"
       :detail-permission="Permissions.Wms.Output.getDetail"
       :edit-permission="Permissions.Wms.Output.update"
+      :export-permission="Permissions.Wms.Output.export"
       ctrl-width="160"
       hide-delete
       show-detail
+      show-export
     >
       <template #customRow="{ data }">
         <BillAuditOrReject

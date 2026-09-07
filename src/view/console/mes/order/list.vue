@@ -86,9 +86,11 @@ async function onStartOrPause(order: OrderEntity) {
       :add-permission="Permissions.Mes.Order.add"
       :detail-permission="Permissions.Mes.Order.getDetail"
       :edit-permission="Permissions.Mes.Order.update"
+      :export-permission="Permissions.Mes.Order.export"
       ctrl-width="260"
       hide-delete
       show-detail
+      show-export
     >
       <template #customer="{ data }">
         <el-link

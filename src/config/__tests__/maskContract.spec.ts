@@ -14,8 +14,10 @@ import { describe, expect, it } from 'vitest'
  * 2. **前端写的 `resourceKey` 必须是后端注册过的数据资源**。写错一个字母，
  *    `my-mask` 永远返回 `null` = "该字段无需脱敏"，脱敏静默失效（fail-open）。
  * 3. **只有后端真的提供 export 端点的实体才允许开 `showExport`**。`BaseController`
- *    全局 `@Extends(exclude = {Curd.Export, Curd.QueryExport})`，目前只有 `Material`
- *    加回来；导出走文件流不经过 Jackson，是脱敏的已知旁路，前端别随手开。
+ *    全局 `@Extends(exclude = {Curd.Export, Curd.QueryExport})`，八个读侧换轨资源
+ *    （material / inventory / input / output / move / order / plan / picking）都已把
+ *    `Curd.Export` 加回来并覆写了 `export(QueryListRequest)`；导出走文件流不经过 Jackson，
+ *    是脱敏的已知旁路，前端别在没加回来的实体上随手开。
  * 4. **模型里的敏感字段必须显式表态**：`@Table({ desensitize })` 或 `mask-exempt: 理由`。
  *    框架在列表渲染层认这个元数据，一处声明全视图生效；漏了就是"某个页面的手机号裸奔"。
  * 5. **`useMaskPolicy(resourceKey, fields)` 里的字段名必须真的是后端那个实体上被
@@ -201,7 +203,12 @@ describe('mask contract · 前后端脱敏口径', () => {
     const exportCapable = new Set<string>()
     for (const file of collect(SERVER, '.java')) {
       const source = readJavaCode(file)
-      const extendsLine = source.match(/@Extends\(\{([^}]*)\}\)/)?.[1] ?? ''
+      // 两种 @Extends 写法都要认：@Extends({Curd.Export, ...}) 与
+      // @Extends(value = {Curd.Export, ...}, exclude = ...)（exclude 在 value 之外，不算排除 Export）
+      const extendsLine
+        = source.match(/@Extends\(\{([^}]*)\}\)/)?.[1]
+        ?? source.match(/@Extends\(\s*value\s*=\s*\{([^}]*)\}/)?.[1]
+        ?? ''
       if (!extendsLine.includes('Export') || extendsLine.includes('exclude')) {
         continue
       }
@@ -210,12 +217,22 @@ describe('mask contract · 前后端脱敏口径', () => {
       const modulePath = rel.slice(1, 3).join('/')
       exportCapable.add(modulePath)
     }
-    expect([...exportCapable]).toEqual(expect.arrayContaining(['asset/material']))
+    expect([...exportCapable]).toEqual(expect.arrayContaining([
+      'asset/material',
+      'wms/inventory',
+      'wms/input',
+      'wms/output',
+      'wms/move',
+      'mes/order',
+      'mes/plan',
+      'mes/picking',
+    ]))
 
     const offenders: string[] = []
     const viewRoot = join(ROOT, 'src', 'view', 'console')
     for (const file of collect(viewRoot, '.vue')) {
-      if (!/showExport|:show-export/.test(read(file))) {
+      // Vue 模板里规范写法是 kebab（show-export）；showExport 留给 JSX/对象写法
+      if (!/show-export|showExport/.test(read(file))) {
         continue
       }
       const rel = relative(viewRoot, file).split(/[\\/]/).slice(0, 2).join('/')

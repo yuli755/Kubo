@@ -44,6 +44,7 @@ const Mes = {
     getDetail: `Order_${Crud.getDetail}`,
     audit: `Order_${Crud.audit}`,
     reject: `Order_${Crud.reject}`,
+    export: `Order_${Crud.export}`,
     start: 'Order_start',
     pause: 'Order_pause',
     addOrderDetail: 'Order_addOrderDetail',
@@ -55,6 +56,7 @@ const Mes = {
     getDetail: `Plan_${Crud.getDetail}`,
     audit: `Plan_${Crud.audit}`,
     reject: `Plan_${Crud.reject}`,
+    export: `Plan_${Crud.export}`,
   },
   Picking: {
     add: `Picking_${Crud.add}`,
@@ -62,6 +64,7 @@ const Mes = {
     getDetail: `Picking_${Crud.getDetail}`,
     audit: `Picking_${Crud.audit}`,
     reject: `Picking_${Crud.reject}`,
+    export: `Picking_${Crud.export}`,
   },
   Bom: {
     add: `Bom_${Crud.add}`,
@@ -91,6 +94,7 @@ const Wms = {
     audit: `Input_${Crud.audit}`,
     reject: `Input_${Crud.reject}`,
     addFinish: 'Input_addFinish',
+    export: `Input_${Crud.export}`,
   },
   Output: {
     add: `Output_${Crud.add}`,
@@ -99,6 +103,7 @@ const Wms = {
     audit: `Output_${Crud.audit}`,
     reject: `Output_${Crud.reject}`,
     addFinish: 'Output_addFinish',
+    export: `Output_${Crud.export}`,
   },
   Move: {
     add: `Move_${Crud.add}`,
@@ -107,9 +112,11 @@ const Wms = {
     audit: `Move_${Crud.audit}`,
     reject: `Move_${Crud.reject}`,
     addFinish: 'Move_addFinish',
+    export: `Move_${Crud.export}`,
   },
   Inventory: {
-    /** 库存只读，无 CRUD 按钮 */
+    /** 库存只读：无增删改按钮，但可导出当前可见库存 */
+    export: `Inventory_${Crud.export}`,
   },
 } as const
 
