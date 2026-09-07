@@ -18,6 +18,7 @@ const isLoading = ref(true)
 const loadError = ref(false)
 const errorMessage = ref('')
 const errorTitle = ref('')
+const tenantReady = ref(false)
 const userStore = useUserStore()
 
 onErrorCaptured((error) => {
@@ -49,6 +50,8 @@ async function init() {
     // 先刷新服务端允许的租户集合，再请求任何业务列表；这样持久化的旧租户不会污染首个请求。
     const tenants = await authApi.getMyTenantList()
     userStore.setTenantList(tenants || [])
+    // 在服务端选项返回并校正持久化租户前，不渲染旧租户的 header 或页面状态。
+    tenantReady.value = true
     currentUserInfo.value = await UserService.create().getMyInfo()
     userStore.setUserInfo(currentUserInfo.value)
     const permissions = await UserService.create(isLoading).getMyPermissionList()
@@ -71,6 +74,7 @@ async function init() {
 
 async function retryInit() {
   loadError.value = false
+  tenantReady.value = false
   isLoading.value = true
   await init()
 }
@@ -105,6 +109,11 @@ init()
       </template>
     </el-result>
   </div>
+  <div
+    v-else-if="!tenantReady"
+    v-loading="true"
+    class="console-loading"
+  />
   <AFrame
     v-else
     v-loading="isLoading"
@@ -129,8 +138,12 @@ init()
 </template>
 
 <style lang="scss" scoped>
-.console-error {
+.console-error,
+.console-loading {
   min-height: 100vh;
+}
+
+.console-error {
   display: flex;
   align-items: center;
   justify-content: center;
