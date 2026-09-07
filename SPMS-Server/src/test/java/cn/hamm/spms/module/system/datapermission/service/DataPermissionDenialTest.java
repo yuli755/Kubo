@@ -31,7 +31,7 @@ class DataPermissionDenialTest {
         private final List<String> calls = new ArrayList<>();
 
         private RecordingAudit() {
-            super(null, null);
+            super(null, null, null);
         }
 
         @Override

@@ -52,6 +52,7 @@ public class DataPermissionAudit {
 
     private final ObjectProvider<MeterRegistry> registryProvider;
     private final DataPermissionProperties properties;
+    private final ObjectProvider<DataPermissionDenyLogRecorder> denyLogRecorderProvider;
 
     /**
      * 测试上下文可能没有 actuator；用一个进程内注册表兜底，保证打点逻辑本身不出错
@@ -64,17 +65,28 @@ public class DataPermissionAudit {
      */
     private static final long BINDING_WARN_INTERVAL_MS = 60_000L;
 
-    public DataPermissionAudit(ObjectProvider<MeterRegistry> registryProvider, DataPermissionProperties properties) {
+    public DataPermissionAudit(ObjectProvider<MeterRegistry> registryProvider,
+                               DataPermissionProperties properties,
+                               ObjectProvider<DataPermissionDenyLogRecorder> denyLogRecorderProvider) {
         this.registryProvider = registryProvider;
         this.properties = properties;
+        this.denyLogRecorderProvider = denyLogRecorderProvider;
     }
 
     /**
      * 记录 enforce 拒绝
+     *
+     * <p>除了计数与 WARN，还异步落一条 {@code data_permission_deny_log}（见 {@link DataPermissionDenyLogRecorder}）：
+     * 事后追认「谁在何时、因何、在哪个档位下被拒」。落库是尽力而为 —— 失败或缺 Bean 只影响证据，
+     * 绝不改变拒绝结果（这里先记后抛的顺序不变）。</p>
      */
     public void deny(String resourceKey, String reason, String detail) {
         counter("kubo.datapermission.deny", resourceKey, reason).increment();
         log.warn("[data-permission][deny] resource={} reason={} {}", resourceKey, reason, detail == null ? "" : detail);
+        DataPermissionDenyLogRecorder recorder = denyLogRecorderProvider.getIfAvailable();
+        if (recorder != null) {
+            recorder.record(resourceKey, reason, detail);
+        }
     }
 
     /**

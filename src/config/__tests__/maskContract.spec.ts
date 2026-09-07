@@ -1737,3 +1737,34 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
       .toEqual(['true/false', 'false/true', 'false/true', 'false/true', 'true/true'])
   })
 })
+
+describe('mask contract · 拒绝事件落库（B4）', () => {
+  const DPM = join(SERVER, 'module', 'system', 'datapermission')
+  const AUDIT = join(DPM, 'service', 'DataPermissionAudit.java')
+  const RECORDER = join(DPM, 'service', 'DataPermissionDenyLogRecorder.java')
+
+  it('deny 计数之外必须真的落下拒绝事件', () => {
+    const body = methodBody(readJavaCode(AUDIT), 'public void deny(')
+    expect(body, 'deny 不再调 recorder：事后追认「谁在何时、因何、在哪个档位下被拒」又回到只有计数+日志的旧口径')
+      .toContain('recorder.record(')
+  })
+
+  it('身份与档位在业务线程取成值，异步体不读 ThreadLocal', () => {
+    const code = readJavaCode(RECORDER)
+    const toEvent = methodBody(code, 'DenyEvent toEvent(')
+    const persist = methodBody(code, 'void persist(')
+    expect(toEvent, 'toEvent 不在业务线程取上下文：后台线程会读到「上一个占用该线程的请求」的身份，写进审计就是串号')
+      .toContain('PermissionContextHolder')
+    expect(persist, '异步体去读 PermissionContextHolder：ThreadLocal 在后台线程拿到的不是这次拒绝的身份')
+      .not
+      .toContain('PermissionContextHolder')
+  })
+
+  it('落库失败与缺 Bean 都不许改变拒绝结果', () => {
+    const persist = methodBody(readJavaCode(RECORDER), 'void persist(')
+    expect(persist, 'persist 不再判 getIfAvailable：缺 Bean（测试上下文/未建表）会把异步任务炸掉，证据失败不该有第二个出口')
+      .toContain('getIfAvailable()')
+    expect(persist, 'persist 吞不掉写库异常：拒绝路径会被落库失败改写（审计坏了不能变成 500 或放行）')
+      .toContain('catch (RuntimeException')
+  })
+})
