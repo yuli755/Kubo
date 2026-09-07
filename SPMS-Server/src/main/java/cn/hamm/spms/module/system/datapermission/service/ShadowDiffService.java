@@ -210,7 +210,20 @@ public class ShadowDiffService {
                         Specification<?> guardedFilter,
                         PermissionContext context,
                         OrmParityProbe probe) {
-        compare(resourceKey, action, entityClass, null, guardedFilter, context, probe);
+        if (guardedFilter == null || !sampled(resourceKey)) {
+            return;
+        }
+        Long userId = context == null ? null : context.userId();
+        Long tenantId = context == null ? null : context.tenantId();
+        // 身份与条件都在业务线程上取好再带进异步任务；后台线程不读取 PermissionContextHolder。
+        try {
+            executor.execute(() -> doCompare(resourceKey, action, entityClass, null, guardedFilter,
+                    userId, tenantId, probe));
+        }
+        catch (RejectedExecutionException ex) {
+            // 队列满：丢掉这次比对，但必须让人看见"观测有缺口"
+            audit.shadow(resourceKey, "diff-probe-saturated", "影子比对队列已满，本次未比对");
+        }
     }
 
     /**

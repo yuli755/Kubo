@@ -100,8 +100,9 @@
     <select id="countByPermissionFragment" resultType="long">
         SELECT COUNT(1) FROM material
         <where>
+            <include refid="materialFilter"/>
             <if test="fragment != null and fragment != ''">
-                ${fragment}
+                AND ${fragment}
             </if>
         </where>
     </select>
