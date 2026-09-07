@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
+import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDenyLogRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDiffRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionOrmParityRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -29,14 +30,17 @@ public class DataPermissionEvidenceRetention {
     private final DataPermissionProperties properties;
     private final ObjectProvider<DataPermissionDiffRepository> diffRepositoryProvider;
     private final ObjectProvider<DataPermissionOrmParityRepository> parityRepositoryProvider;
+    private final ObjectProvider<DataPermissionDenyLogRepository> denyLogRepositoryProvider;
 
     public DataPermissionEvidenceRetention(
             DataPermissionProperties properties,
             ObjectProvider<DataPermissionDiffRepository> diffRepositoryProvider,
-            ObjectProvider<DataPermissionOrmParityRepository> parityRepositoryProvider) {
+            ObjectProvider<DataPermissionOrmParityRepository> parityRepositoryProvider,
+            ObjectProvider<DataPermissionDenyLogRepository> denyLogRepositoryProvider) {
         this.properties = properties;
         this.diffRepositoryProvider = diffRepositoryProvider;
         this.parityRepositoryProvider = parityRepositoryProvider;
+        this.denyLogRepositoryProvider = denyLogRepositoryProvider;
     }
 
     /**
@@ -59,9 +63,10 @@ public class DataPermissionEvidenceRetention {
         long cutoff = cutoffEpochMillis(System.currentTimeMillis(), retentionDays);
         int diffRows = deleteDiff(cutoff);
         int parityRows = deleteParity(cutoff);
-        if (diffRows > 0 || parityRows > 0) {
-            log.info("[data-permission][retention] 清理到期证据：diff={}，orm-parity={}，cutoff={}（保留 {} 天）",
-                    diffRows, parityRows, cutoff, retentionDays);
+        int denyRows = deleteDeny(cutoff);
+        if (diffRows > 0 || parityRows > 0 || denyRows > 0) {
+            log.info("[data-permission][retention] 清理到期证据：diff={}，orm-parity={}，deny-log={}，cutoff={}（保留 {} 天）",
+                    diffRows, parityRows, denyRows, cutoff, retentionDays);
         }
     }
 
@@ -103,6 +108,20 @@ public class DataPermissionEvidenceRetention {
         }
         catch (RuntimeException ex) {
             log.warn("[data-permission][retention] 清理 ORM 对账表失败，下一轮重试：{}", ex.getMessage());
+            return 0;
+        }
+    }
+
+    private int deleteDeny(long cutoff) {
+        DataPermissionDenyLogRepository repository = denyLogRepositoryProvider.getIfAvailable();
+        if (repository == null) {
+            return 0;
+        }
+        try {
+            return repository.deleteExpiredBefore(cutoff);
+        }
+        catch (RuntimeException ex) {
+            log.warn("[data-permission][retention] 清理拒绝事件表失败，下一轮重试：{}", ex.getMessage());
             return 0;
         }
     }
