@@ -195,18 +195,15 @@ jobs:
             echo "mybatis-plus 与 jsqlparser 版本必须一致（starter=$mp_starter jsqlparser=$mp_parser）"; exit 1
           fi
           echo "MyBatis-Plus 依赖成对性检查通过（starter=${mp_starter:-未引入}）"
-          # §19.33 的已知缺口：mybatis-plus-jsqlparser 不传递 jsqlparser 本体，接插件前必须补齐。
-          # 版本以这里打出来的为准（别照记忆写），空手补依赖是本项目反复付过学费的地方。
+          # jsqlparser 本体在不在、什么版本，一律由依赖树给结论。这里原先写着"mybatis-plus-jsqlparser
+          # 不传递 jsqlparser 本体"——那是误判：它错在「依赖树被 -q 压成空串」+「一次 CNFE 被读成缺 jar」
+          # 两层叠加。实测结论（本体在场，jsqlparser:5.0）与教训见文档 §19.33。
           parser_lines=$(echo "$tree" | grep -i "jsqlparser" | tr '\n' ' ' | sed 's/%/%25/g' || true)
           echo "::notice title=jsqlparser 就绪性（§19.33）::${parser_lines:-依赖树里没有 jsqlparser 本体：任何 InnerInterceptor 还不能接}"
-          # 配对版本不在这里猜：直接把中央仓库上那个模块的 POM 里声明的版本打出来，
-          # 下一格照这一行补依赖即可（CI 有网络，本地没有 —— 这就是把它放这儿的原因）。
-          if [ -n "$mp_starter" ]; then
-            pom=$(curl -fsS --max-time 20 \
-              "https://repo1.maven.org/maven2/com/baomidou/mybatis-plus-jsqlparser/${mp_starter}/mybatis-plus-jsqlparser-${mp_starter}.pom" || true)
-            want=$(echo "$pom" | grep -i -A 3 "jsqlparser</artifactId>" | grep -oE "<version>[^<]+" | head -1 | sed 's/<version>//' || true)
-            echo "::notice title=jsqlparser 应配版本::${want:-中央仓库没读到，接插件前需人工确认}"
-          fi
+          # 版本不去中央仓库抓 POM（那抓到的是模块自身版本，本轮就这么打出过一条误导的"应配版本 3.5.9"），
+          # 只读依赖树里传递进来的实际版本；下一格核对版本族看这一行，不照记忆写。
+          jsql_ver=$(echo "$tree" | grep -oE "com\.github\.jsqlparser:jsqlparser:jar:[0-9][^:]*" | head -1 | awk -F: '{print $NF}')
+          echo "::notice title=jsqlparser 本体版本（依赖树实测）::${jsql_ver:-不在依赖树里 ⇒ 接任何 InnerInterceptor 前必须显式补}"
   # ============================================================================
   # 迁移脚本的真实方言门禁（§19.11 第 2 项里"今天就能自动化"的那一半）
   # 为什么不用 Testcontainers：那要往 pom 里加 testcontainers + mysql-connector 依赖，

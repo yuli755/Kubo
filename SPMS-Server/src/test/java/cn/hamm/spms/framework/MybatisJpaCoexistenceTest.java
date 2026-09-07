@@ -101,14 +101,23 @@ class MybatisJpaCoexistenceTest {
     }
 
     /**
-     * 本轮只验"并存"，不验"能改 SQL"。
+     * 本轮只验「并存」，不验「能改 SQL」。
      *
-     * <p><b>已实测到的缺口（CI 抓的）</b>：{@code com.github.jsqlparser} 本体<em>没有</em>随
-     * {@code mybatis-plus-jsqlparser:3.5.9} 传递到测试 classpath（{@code ClassNotFoundException:
-     * com.github.jsqlparser.parser.CCJSqlParserUtil}）。这不影响本轮结论 —— 本应用现在一个
-     * {@code InnerInterceptor} 都没注册，没有东西会去解析 SQL。但它是一条硬前置：
-     * <b>接分页或数据权限插件之前，必须先把 jsqlparser 补齐</b>（CI 的依赖树那一步会把
-     * {@code jsqlparser} 相关行打出来，定版本看它，别看记忆）。</p>
+     * <p><b>这段注释曾经记错了一次，记录如下，别把它当装饰。</b>最初这里写的是「{@code jsqlparser}
+     * 本体没有随 {@code mybatis-plus-jsqlparser:3.5.9} 传递进来」，依据是 CI 报的
+     * {@code ClassNotFoundException: com.github.jsqlparser.parser.CCJSqlParserUtil}。那是误判：
+     * 修好「依赖树被 {@code -q} 压成空串」之后，同一棵树上明明打着
+     * {@code com.github.jsqlparser:jsqlparser:jar:5.0} —— 本体一直在，红是因为 <b>5.0 里那个类
+     * 不叫 4.x 时代的那个名字</b>。两条教训：</p>
+     * <ul>
+     *   <li>{@code ClassNotFoundException} 只证明「我以为的那个类名不在」，不证明「那个 jar 不在」；
+     *       判「在不在」只能靠依赖树，而依赖树还得先证明它不是空的。</li>
+     *   <li>不对外部库的内部类名写断言。本类唯一红过的那条正是这种断言，红在它自己的假设计上，
+     *       与被测事实无关。解析面就绪与否，留给下一格注册第一个 {@code InnerInterceptor} 时
+     *       由编译与启动自然暴露。</li>
+     * </ul>
+     * <p>所以下面只钉我们自己的不变量：一个插件都没注册（将来谁接了插件，这条就红，红得有意义）。
+     * jsqlparser 的实际版本每次 CI 都会以 annotation 打出来，不需要人记。</p>
      */
     @Test
     @DisplayName("MyBatis-Plus 自己的类型可用，且当前一个插件都没注册（别把这一格读成「已经在改 SQL」）")
@@ -116,7 +125,7 @@ class MybatisJpaCoexistenceTest {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
         assertNotNull(interceptor, "MybatisPlusInterceptor 不可用：分页与数据权限插件都要挂在它上面");
         assertTrue(interceptor.getInterceptors().isEmpty(),
-                "这一格的前提是零接线：一旦这里出现插件，上面那段关于 jsqlparser 缺口的注释就成了待爆的雷");
+                "这一格的前提是零接线：一旦出现插件，上面那段关于「不对外部类名下断言」的注释就必须被反转成「插件与解析面已就绪」");
         assertNotNull(Class.forName("com.baomidou.mybatisplus.core.MybatisSqlSessionFactoryBuilder"),
                 "mybatis-plus-core 不在 classpath：starter 被 airpower 的依赖管理挤掉了");
     }
