@@ -167,7 +167,19 @@ jobs:
           set -e
           # 架构红线（见 docs/二次改造前后端推进路线与可行性建议.md）：
           # 不得引入 AMQP 之外的消息中间件客户端；MyBatis 必须与 MyBatis-Plus 同版本族。
-          tree=$(./mvnw -B -s settings.xml -q dependency:tree || true)
+          # 【2026-09-08 修的一处空转】原来是 `-q dependency:tree`：dependency:tree 是通过 INFO 日志
+          # 输出的，`-q` 把它整个压掉 ⇒ $tree 恒为空 ⇒ 下面两条红线 grep 的永远是空串，"通过"是假的。
+          # 正确姿势是 -DoutputFile（写文件，与 -q 无关），并且**必须验文件非空**：
+          # 任何 grep 型门禁都得能区分"没问题"和"没数据"，这和第 131 行那条
+          # "mvn test 零用例也 exit 0"防空转是同一个 bug 的另一副面孔。
+          tree_file="$RUNNER_TEMP/deptree.txt"
+          rm -f "$tree_file"
+          ./mvnw -B -s settings.xml dependency:tree -DoutputFile="$tree_file" -DappendOutput=true >/dev/null
+          if [ ! -s "$tree_file" ]; then
+            echo "依赖树是空的 —— 红线无法判定（这不是"没问题"）"; exit 1
+          fi
+          tree=$(cat "$tree_file")
+          echo "依赖树行数：$(wc -l < "$tree_file")（红线在此行数上判定）"
           if echo "$tree" | grep -Ei "kafka-clients|rocketmq-client|spring-boot-starter-artemis"; then
             echo "禁止引入上述 MQ 客户端"; exit 1
           fi
