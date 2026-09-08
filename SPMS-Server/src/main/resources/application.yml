@@ -146,7 +146,11 @@ kubo:
     # 而现网既有策略都是按"只影响直属部门"配的。放开前先影子比对"多放行多少行"
     hierarchy:
       department-enabled: false
-      # 部门树快照有效期（秒）：进程内缓存，部门增删改会显式失效；Redis 不可用时靠它自愈
+      # 工厂层级展开：FACTORY 策略的主体（工厂=仓库/工厂树顶层节点）是否向下闭包到整棵子树。
+      # 与 department-enabled 同理，默认关（展开是放宽可见范围）；且仅在 factory-dimension-enabled
+      # 落地后才有意义。仓库/工厂树快照复用下方 ttl-seconds / max-depth。
+      factory-enabled: false
+      # 部门/工厂树快照有效期（秒）：进程内缓存，树增删改会显式失效；Redis 不可用时靠它自愈
       ttl-seconds: 300
       # 展开层数上限：脏数据成环时的兜底，超出即停止并打 WARN（少看数据可接受，把请求打挂不行）
       max-depth: 32

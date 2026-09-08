@@ -63,6 +63,7 @@ public class PermissionChangeOutboxRecorder {
             case RESOURCE_CHANGED -> "resource:" + event.getResourceKey();
             case FIELD_POLICY_CHANGED -> "field-policy:" + event.getResourceKey();
             case DEPARTMENT_TREE_CHANGED -> "department-tree";
+            case STORAGE_TREE_CHANGED -> "storage-tree";
             case FULL_REFRESH -> "full-refresh";
         };
         return event.getEventType().name() + "|" + scope + "|" + event.getTimestamp() + "|" + System.nanoTime();
@@ -74,6 +75,7 @@ public class PermissionChangeOutboxRecorder {
             case POLICY_CHANGED -> "DATA_POLICY";
             case FIELD_POLICY_CHANGED -> "DATA_FIELD_POLICY";
             case DEPARTMENT_TREE_CHANGED -> "DEPARTMENT_TREE";
+            case STORAGE_TREE_CHANGED -> "STORAGE_TREE";
             case FULL_REFRESH -> "FULL_REFRESH";
         };
     }

@@ -40,7 +40,12 @@ public class DataPermissionChangedEvent implements Serializable {
         /**
          * 部门树结构变更（增删改 parentId 时发出，各节点据此打掉层级闭包快照）
          */
-        DEPARTMENT_TREE_CHANGED
+        DEPARTMENT_TREE_CHANGED,
+
+        /**
+         * 仓库/工厂树结构变更（D13：storage 增删改 parentId 时发出，各节点打掉工厂层级闭包快照）
+         */
+        STORAGE_TREE_CHANGED
     }
 
     /**
@@ -116,5 +121,13 @@ public class DataPermissionChangedEvent implements Serializable {
     public static DataPermissionChangedEvent departmentTreeChanged() {
         return new DataPermissionChangedEvent()
                 .setEventType(EventType.DEPARTMENT_TREE_CHANGED);
+    }
+
+    /**
+     * 创建仓库/工厂树变更事件（D13）
+     */
+    public static DataPermissionChangedEvent storageTreeChanged() {
+        return new DataPermissionChangedEvent()
+                .setEventType(EventType.STORAGE_TREE_CHANGED);
     }
 }

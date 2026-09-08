@@ -129,6 +129,15 @@ public class UserEntity extends BaseEntity<UserEntity> implements IUserAction {
     @ManyToMany(fetch = FetchType.LAZY)
     private Set<StorageEntity> storageList;
 
+    @Description("工厂授权列表（工厂 = 仓库/工厂树的顶层节点，D13）")
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "user_factory",
+            joinColumns = @JoinColumn(name = "user_entity_id", referencedColumnName = "id"),
+            inverseJoinColumns = @JoinColumn(name = "factory_id", referencedColumnName = "id")
+    )
+    private Set<StorageEntity> factoryList;
+
     /**
      * 获取是否超级管理员
      *

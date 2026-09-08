@@ -1097,6 +1097,41 @@ describe('mask contract · 部门层级闭包与主体判定只有一份', () =>
     expect(listener, '跨节点广播没接上：Redis 在跑但快照不失效，等于只在本节点生效')
       .toContain('case DEPARTMENT_TREE_CHANGED ->')
   })
+
+  it('工厂层级展开（D13）默认关、写进 yml，且 storage 树快照与失效接线齐全', () => {
+    const props = readJavaCode(join(DPM, 'config', 'DataPermissionProperties.java'))
+    expect(props, 'hierarchy.factory-enabled 默认必须是 false：打开意味着工厂策略盖住整棵子树')
+      .toMatch(/class Hierarchy[\s\S]*?private boolean factoryEnabled = false/)
+
+    const yml = read(join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'application.yml'))
+    const sw = /factory-enabled:[ \t]+(\w+)/.exec(yml)
+    expect(sw, 'application.yml 里没有 hierarchy.factory-enabled：没人看见的开关等于没有开关').not.toBeNull()
+    expect(sw![1], '工厂层级展开默认必须关（见 §19.28）').toBe('false')
+
+    const interceptor = readJavaCode(join(SERVER, 'common', 'interceptor', 'RequestInterceptor.java'))
+    expect(interceptor, '没判维度开关就解析 factoryIds：维度默认关闭时代价必须为零')
+      .toMatch(/isFactoryDimensionEnabled\(\)/)
+    expect(interceptor, '没判层级开关就展开：工厂闭包默认必须关').toMatch(/isFactoryEnabled\(\)/)
+
+    const index = readJavaCode(join(SERVER, 'module', 'factory', 'storage', 'StorageHierarchyIndex.java'))
+    expect(index, '工厂树索引绕开 HierarchyClosure 自己遍历：环保护与深度上限会丢')
+      .toContain('HierarchyClosure.expand(')
+    expect(index, '失效改成推时间戳会在 nanoTime 减法上溢出成永不过期')
+      .toMatch(/public void invalidate\(\) \{\s*snapshot = Snapshot\.unusable\(\);/)
+
+    const storageService = readJavaCode(join(SERVER, 'module', 'factory', 'storage', 'StorageService.java'))
+    for (const hook of ['protected void beforeDelete(', 'protected void afterAppAdd(', 'protected void afterUpdate(']) {
+      expect(methodBody(storageService, hook), `仓库/工厂树的 ${hook} 没打掉快照：改完树还按旧范围放行，那是越权方向`)
+        .toContain('afterTreeChanged()')
+    }
+
+    const listener = readJavaCode(join(DPM, 'event', 'DataPermissionEventListener.java'))
+    expect(listener, '仓库/工厂树的跨节点广播没接上：Redis 在跑但快照不失效')
+      .toContain('case STORAGE_TREE_CHANGED ->')
+    const publisher = readJavaCode(join(DPM, 'event', 'DataPermissionEventPublisher.java'))
+    expect(publisher, '发布器缺 publishStorageTreeChanged 入口：StorageService 广播会编译失败')
+      .toContain('publishStorageTreeChanged')
+  })
 })
 
 /**

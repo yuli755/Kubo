@@ -68,6 +68,9 @@ public class RequestInterceptor extends CurdRequestInterceptor {
     @Autowired
     private DepartmentHierarchyIndex departmentHierarchyIndex;
 
+    @Autowired
+    private cn.hamm.spms.module.factory.storage.StorageHierarchyIndex storageHierarchyIndex;
+
     /**
      * 验证指定的用户是否有指定权限标识的权限
      *
@@ -173,6 +176,25 @@ public class RequestInterceptor extends CurdRequestInterceptor {
                     .collect(Collectors.toSet());
         }
 
+        // 工厂（FACTORY）维度（D13）：factoryIds 只在维度落地（factory-dimension-enabled）后才解析，
+        // 否则保持恒空 —— 默认关闭的代价必须是零（多一次懒加载查询也算代价，不只是「结果上等价」）。
+        // 工厂 = 仓库/工厂树顶层节点；hierarchy.factory-enabled 打开时再向下闭包到整棵子树（放宽，默认关）。
+        Set<Long> factoryIds = Set.of();
+        if (dataPermissionProperties != null && dataPermissionProperties.isFactoryDimensionEnabled()
+                && user.getFactoryList() != null) {
+            factoryIds = user.getFactoryList().stream()
+                    .filter(Objects::nonNull)
+                    .map(StorageEntity::getId)
+                    .collect(Collectors.toSet());
+            if (dataPermissionProperties.getHierarchy().isFactoryEnabled() && storageHierarchyIndex != null) {
+                HierarchyClosure.Closure closure = storageHierarchyIndex.expandFrom(factoryIds);
+                factoryIds = closure.ids();
+                if (closure.truncated()) {
+                    log.warn("工厂树闭包被深度上限截断，本次可见范围可能不完整：seeds={}", factoryIds);
+                }
+            }
+        }
+
         boolean bypass = user.isRootUser() || systemPermissionService.has(
                 user, cn.hamm.spms.module.system.datapermission.SystemPermissionIdentities.DATA_PERMISSION_BYPASS
         );
@@ -185,7 +207,7 @@ public class RequestInterceptor extends CurdRequestInterceptor {
                 tenantId,
                 departmentIds,
                 departmentScopeIds,
-                Set.of(),
+                factoryIds,
                 warehouseIds,
                 roleCodes,
                 bypass

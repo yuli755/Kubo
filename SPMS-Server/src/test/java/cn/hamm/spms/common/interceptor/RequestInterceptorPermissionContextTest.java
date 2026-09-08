@@ -2,6 +2,8 @@ package cn.hamm.spms.common.interceptor;
 
 import cn.hamm.airpower.core.AccessTokenUtil;
 import cn.hamm.spms.common.tree.HierarchyClosure;
+import cn.hamm.spms.module.factory.storage.StorageEntity;
+import cn.hamm.spms.module.factory.storage.StorageHierarchyIndex;
 import cn.hamm.spms.module.personnel.department.DepartmentHierarchyIndex;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;
@@ -278,6 +280,84 @@ class RequestInterceptorPermissionContextTest {
             interceptor.checkUserPermission(verifiedToken, "test:permission", request);
 
             assertEquals(Set.of(10L, 20L), PermissionContextHolder.require().departmentScopeIds());
+        }
+    }
+
+    @Nested
+    @org.junit.jupiter.api.DisplayName("工厂维度（D13：开关控制）")
+    class FactoryResolution {
+
+        private UserEntity userWithFactories() {
+            UserEntity user = createUser(1L, "张三", false);
+            StorageEntity factory = new StorageEntity().setName("一号工厂");
+            factory.setId(30L);
+            setField(user, "factoryList", new LinkedHashSet<>(Set.of(factory)));
+            return user;
+        }
+
+        @Test
+        void keepsFactoryIdsEmptyWhenDimensionDisabled() throws Exception {
+            UserEntity user = userWithFactories();
+            given(verifiedToken.getPayloadId()).willReturn(1L);
+            given(userService.getWithEnable(1L)).willReturn(user);
+            given(permissionService.getPermissionByIdentity(anyString()))
+                    .willReturn(new PermissionEntity().setIdentity("test:permission").setName("测试权限"));
+            given(systemPermissionService.has(any(UserEntity.class), eq("test:permission"))).willReturn(true);
+
+            // 默认 DataPermissionProperties.factoryDimensionEnabled=false：不解析 factoryList，也不碰树索引
+            StorageHierarchyIndex index = org.mockito.Mockito.mock(StorageHierarchyIndex.class);
+            injectField(interceptor, "dataPermissionProperties", new DataPermissionProperties());
+            injectField(interceptor, "storageHierarchyIndex", index);
+
+            interceptor.checkUserPermission(verifiedToken, "test:permission", request);
+
+            assertEquals(Set.of(), PermissionContextHolder.require().factoryIds());
+            org.mockito.Mockito.verifyNoInteractions(index);
+        }
+
+        @Test
+        void resolvesFactoryIdsWhenDimensionEnabled() throws Exception {
+            UserEntity user = userWithFactories();
+            given(verifiedToken.getPayloadId()).willReturn(1L);
+            given(userService.getWithEnable(1L)).willReturn(user);
+            given(permissionService.getPermissionByIdentity(anyString()))
+                    .willReturn(new PermissionEntity().setIdentity("test:permission").setName("测试权限"));
+            given(systemPermissionService.has(any(UserEntity.class), eq("test:permission"))).willReturn(true);
+
+            DataPermissionProperties properties = new DataPermissionProperties();
+            properties.setFactoryDimensionEnabled(true);
+            StorageHierarchyIndex index = org.mockito.Mockito.mock(StorageHierarchyIndex.class);
+            injectField(interceptor, "dataPermissionProperties", properties);
+            injectField(interceptor, "storageHierarchyIndex", index);
+
+            interceptor.checkUserPermission(verifiedToken, "test:permission", request);
+
+            assertEquals(Set.of(30L), PermissionContextHolder.require().factoryIds());
+            // 层级展开默认关：不碰索引
+            org.mockito.Mockito.verifyNoInteractions(index);
+        }
+
+        @Test
+        void expandsFactoryScopeWhenHierarchyEnabled() throws Exception {
+            UserEntity user = userWithFactories();
+            given(verifiedToken.getPayloadId()).willReturn(1L);
+            given(userService.getWithEnable(1L)).willReturn(user);
+            given(permissionService.getPermissionByIdentity(anyString()))
+                    .willReturn(new PermissionEntity().setIdentity("test:permission").setName("测试权限"));
+            given(systemPermissionService.has(any(UserEntity.class), eq("test:permission"))).willReturn(true);
+
+            DataPermissionProperties properties = new DataPermissionProperties();
+            properties.setFactoryDimensionEnabled(true);
+            properties.getHierarchy().setFactoryEnabled(true);
+            StorageHierarchyIndex index = org.mockito.Mockito.mock(StorageHierarchyIndex.class);
+            given(index.expandFrom(any())).willReturn(new HierarchyClosure.Closure(Set.of(30L, 31L, 32L), false));
+            injectField(interceptor, "dataPermissionProperties", properties);
+            injectField(interceptor, "storageHierarchyIndex", index);
+
+            interceptor.checkUserPermission(verifiedToken, "test:permission", request);
+
+            assertEquals(Set.of(30L, 31L, 32L), PermissionContextHolder.require().factoryIds());
+            then(index).should().expandFrom(Set.of(30L));
         }
     }
 

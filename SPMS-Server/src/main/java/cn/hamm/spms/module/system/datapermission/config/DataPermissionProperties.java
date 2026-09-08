@@ -14,8 +14,8 @@ import java.util.Set;
  * 之前代码是「编译期硬编码 fail-open」，既不能灰度也不能回滚；本配置把三态开关做实。</p>
  *
  * <p>新增开关的规矩（本模块欠过一次教训）：<b>凡是放宽可见范围的开关，默认必须 false</b>，
- * 且必须同时写进 {@code application.yml}（没人看见的开关等于没有开关）。目前有两个：
- * {@code row-write.enabled}、{@code hierarchy.department-enabled}。</p>
+ * 且必须同时写进 {@code application.yml}（没人看见的开关等于没有开关）。目前有三个：
+ * {@code row-write.enabled}、{@code hierarchy.department-enabled}、{@code hierarchy.factory-enabled}。</p>
  *
  * <pre>{@code
  * kubo:
@@ -31,10 +31,11 @@ import java.util.Set;
  *     shadow-diff-log: true        # 观察模式是否输出「本应被过滤」的明细日志
  *     row-write:
  *       enabled: false             # 写侧行级保护（改/删既存行必须在自己的数据范围内）
- *     hierarchy:
- *       department-enabled: false  # DEPARTMENT 策略是否展开到子部门（放宽可见范围，默认关）
- *       ttl-seconds: 300           # 部门树快照有效期
- *       max-depth: 32              # 展开层数上限（脏数据成环时的兜底）
+     *     hierarchy:
+     *       department-enabled: false  # DEPARTMENT 策略是否展开到子部门（放宽可见范围，默认关）
+     *       factory-enabled: false     # FACTORY 策略是否展开到整棵子树（放宽可见范围，默认关）
+     *       ttl-seconds: 300           # 部门/工厂树快照有效期
+     *       max-depth: 32              # 展开层数上限（脏数据成环时的兜底）
      *     shadow:
      *       sample-rate: 0.02          # 影子双跑采样率
      *       persist: true              # 差异是否落 data_permission_diff_log
@@ -167,6 +168,17 @@ public class DataPermissionProperties {
          * 灰度顺序与写侧守卫相同：先在影子环境比对"多放行多少行"，再逐资源进 enforce 名单。</p>
          */
         private boolean departmentEnabled = false;
+
+        /**
+         * 是否把 {@code FACTORY} 策略的主体（工厂 = 仓库/工厂树顶层节点）展开到整棵子树。
+         *
+         * <p>默认 <b>false</b>：与 {@link #departmentEnabled} 同一条理由 —— 展开是<b>放宽</b>
+         * 可见范围（配在工厂上的策略会连带覆盖其下所有仓库），现网既有的 FACTORY 策略（若有）
+         * 大概率按「只影响工厂节点本身」理解，放开前必须先影子比对「多放行多少行」。
+         * 注意这是「层级展开」开关，与 {@code kubo.data-permission.factory-dimension-enabled}
+         * （维度是否落地）是两回事：本开关只管「已解析出的工厂集合要不要向下闭包」。</p>
+         */
+        private boolean factoryEnabled = false;
 
         /**
          * 部门树快照有效期（秒）。

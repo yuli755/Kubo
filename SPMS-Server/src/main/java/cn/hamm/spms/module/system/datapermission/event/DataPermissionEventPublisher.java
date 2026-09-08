@@ -62,6 +62,13 @@ public class DataPermissionEventPublisher {
     }
 
     /**
+     * 发布仓库/工厂树结构变更事件（D13）
+     */
+    public void publishStorageTreeChanged() {
+        publish(DataPermissionChangedEvent.storageTreeChanged());
+    }
+
+    /**
      * 发布全量刷新事件
      */
     public void publishFullRefresh() {
