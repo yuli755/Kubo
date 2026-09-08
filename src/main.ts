@@ -13,7 +13,6 @@ import { registerPWA } from '@/pwa/registerSW'
 import { queryClient } from '@/query/queryClient'
 import { createPersistPlugin } from '@/stores/persist'
 import '@airpower/web/dist/web.css'
-import '@/assets/css/main.scss'
 
 // element-plus 命令式 API 与指令的样式需显式引入（按需导入下 resolver 不会注入它们）：
 // ElMessage / ElMessageBox / ElNotification 函数式调用 + v-loading 指令

@@ -204,7 +204,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
 
@@ -216,7 +216,7 @@ jobs:
 
       - name: Generate Frontend Types
         run: |
-          cd SPMS-Web
+          # 前端即仓库根目录（非独立 SPMS-Web 目录）
           pnpm install
           API_DOC_URL=http://localhost:8080/v3/api-docs pnpm run api:generate
 

@@ -12,7 +12,8 @@ Kubo 有 53 个 @Entity，逐表手工盘点归属列一定会漏、一定会和
 2. 多租户地基迁移（幂等：建租户主表与用户租户关系、补 tenant_id / creator_id、建索引、唯一域降级、
    存量回填、校验清单、回滚说明）。2026-09-09 起该段已并入单文件
    `SPMS-Server/docs/database/migration/20260909_data_permission_migrations_consolidated.sql` 的
-   「阶段 2/9」；本脚本默认仍把这段单独写进 `--out` 指定路径（默认 `20260906_multitenant_foundation.sql`），
+   「阶段 2/9」；本脚本默认把这段单独写进 `--out` 指定路径（默认 `tools/scripts/multitenant_foundation.sql`，
+   位于迁移目录之外，避免重生成的文件被 CI 当作另一份迁移脚本重复执行），
    供改动实体后重生成、再并入合并文件时对照。
 
 关键判断（不是猜的）
@@ -366,7 +367,7 @@ def emit_matrix(entities: list[Entity], registered: set[str]) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description="生成真多租产地基迁移与归属矩阵")
     ap.add_argument("--root", default="SPMS-Server/src/main/java/cn/hamm/spms")
-    ap.add_argument("--out", default="SPMS-Server/docs/database/migration/20260906_multitenant_foundation.sql")
+    ap.add_argument("--out", default="tools/scripts/multitenant_foundation.sql")
     ap.add_argument("--matrix", default="SPMS-Server/docs/database/tenant_readiness_matrix.md")
     ap.add_argument("--default-tenant", type=int, default=1)
     ap.add_argument("--backfill-creator", type=int, default=1, help="存量数据 creator_id 回填值（默认超级管理员 id=1）")
