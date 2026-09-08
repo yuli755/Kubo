@@ -31,3 +31,11 @@ airpower:
 # 关闭开发模式，防止 DevDataInitRunner 运行
 app:
   isDevMode: false
+
+# 工厂维度在 H2 测试环境不落地：DevDataInitRunner 被上面关掉后，data_resource 没有
+# 工厂维度的种子/回填，FactoryDimensionReadiness 的启动闸（factory-dimension-enabled=true
+# 时核对「有资源具备工厂归属列」）会把 @SpringBootTest 的上下文加载打挂。测试环境按
+# 真实状态声明开关关掉，与生产（application.yml 默认 true + 迁移回填 + DevDataInitRunner 种子）分开。
+kubo:
+  data-permission:
+    factory-dimension-enabled: false
