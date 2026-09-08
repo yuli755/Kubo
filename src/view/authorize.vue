@@ -4,10 +4,10 @@ import { FeedbackUtil, RouterUtil } from '@airpower/web'
 import { ref } from 'vue'
 import Copyright from '@/component/login/Copyright.vue'
 import Logo from '@/component/login/Logo.vue'
+import { UserService } from '@/hook/personnel/useUser'
 import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
 import { OpenAppService } from '@/model/open/app/OpenAppService'
 import { UserEntity } from '@/model/personnel/user/UserEntity'
-import { UserService } from '@/model/personnel/user/UserService'
 
 const user = ref(new UserEntity())
 

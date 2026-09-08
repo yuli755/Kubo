@@ -1985,7 +1985,7 @@ describe('mask contract · Outbox 同事务写入（P5 第一刀）', () => {
   })
 })
 
-describe('mask contract · F3 数据层收敛（system 模块已迁，其余模块继续）', () => {
+describe('mask contract · F3 数据层收敛（system + personnel 模块已迁，其余模块继续）', () => {
   it('system 模块视图不再直接 import @/model/*Service（由 hook 转发）', () => {
     const offenders: string[] = []
     for (const file of [...collect(join(ROOT, 'src', 'view', 'console', 'system'), '.vue'), ...collect(join(ROOT, 'src', 'view', 'console', 'system'), '.ts')]) {
@@ -2000,14 +2000,28 @@ describe('mask contract · F3 数据层收敛（system 模块已迁，其余模�
     }
   })
 
-  it('视图直连 model Service 总数不反弹（当前基线 124，只许降不许升）', () => {
+  it('personnel 模块视图不再直接 import @/model/*Service（由 hook 转发）', () => {
+    const offenders: string[] = []
+    for (const file of [...collect(join(ROOT, 'src', 'view', 'console', 'personnel'), '.vue'), ...collect(join(ROOT, 'src', 'view', 'console', 'personnel'), '.ts')]) {
+      if (/from\s+['"]@\/model\/[^'"]*Service['"]/.test(read(file))) {
+        offenders.push(file)
+      }
+    }
+    expect(offenders, 'personnel 模块视图仍直接 import @/model/*Service：F3 已迁但被回退').toEqual([])
+    for (const hook of ['useDepartment', 'useRole', 'useUser']) {
+      expect(read(join(ROOT, 'src', 'hook', 'personnel', `${hook}.ts`)), `${hook} 没转发 Service 类：视图又得回头 import @/model`)
+        .toMatch(/export\s*\{[^}]*Service[^}]*\}\s*from\s*['"]@\/model\//)
+    }
+  })
+
+  it('视图直连 model Service 总数不反弹（当前基线 108，只许降不许升）', () => {
     const files = [...collect(join(ROOT, 'src', 'view'), '.vue'), ...collect(join(ROOT, 'src', 'view'), '.ts')]
     const total = files.reduce(
       (sum, file) => sum + (read(file).match(/from\s+['"]@\/model\/[^'"]*Service['"]/g)?.length ?? 0),
       0,
     )
-    expect(total, `视图直连 @/model/*Service 反弹到 ${total}：F3 基线（124）被突破，收敛只能前进不能后退`)
-      .toBeLessThanOrEqual(124)
+    expect(total, `视图直连 @/model/*Service 反弹到 ${total}：F3 基线（108）被突破，收敛只能前进不能后退`)
+      .toBeLessThanOrEqual(108)
   })
 })
 

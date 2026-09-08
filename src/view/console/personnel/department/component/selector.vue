@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { AButton, ADialog, ATable, DialogProps, useSelector } from '@airpower/web'
+import { DepartmentService } from '@/hook/personnel/useDepartment'
 import { DepartmentEntity } from '@/model/personnel/department/DepartmentEntity'
-import { DepartmentService } from '@/model/personnel/department/DepartmentService'
 
 const props = defineProps(DialogProps.withSelector<DepartmentEntity>())
 

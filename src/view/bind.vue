@@ -2,7 +2,7 @@
 import type { IJson } from '@airpower/web'
 import { DateTimeUtil, FeedbackUtil, RouterUtil } from '@airpower/web'
 import { ref } from 'vue'
-import { UserService } from '@/model/personnel/user/UserService'
+import { UserService } from '@/hook/personnel/useUser'
 
 const isLoading = ref(true)
 

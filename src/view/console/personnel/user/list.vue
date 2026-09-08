@@ -4,10 +4,10 @@ import type { Ref } from 'vue'
 import { APanel, ATable, ATreeBox, QueryRequest } from '@airpower/web'
 import { ref } from 'vue'
 import { Permissions } from '@/config/permissions'
+import { DepartmentService } from '@/hook/personnel/useDepartment'
+import { UserService } from '@/hook/personnel/useUser'
 import { useTanStackTable } from '@/hook/useTanStackTable'
 import { DepartmentEntity } from '@/model/personnel/department/DepartmentEntity'
-import { DepartmentService } from '@/model/personnel/department/DepartmentService'
-import { UserService } from '@/model/personnel/user/UserService'
 import { UserEditor } from './component'
 
 const hook = useTanStackTable(UserService, {
