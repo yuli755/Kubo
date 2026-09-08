@@ -5,9 +5,13 @@ import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.spms.base.BaseController;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
+import cn.hamm.spms.module.system.datapermission.service.DataOwnershipMigrationService;
 import cn.hamm.spms.module.system.datapermission.service.DataResourceService;
 import cn.hamm.airpower.core.Json;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 /**
  * <h1>数据资源管理控制器</h1>
@@ -151,5 +155,25 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
     @Description("数据权限拒绝事件")
     public Json getDenyLogs(String resourceKey) {
         return Json.data(service.denyLogs(resourceKey));
+    }
+
+    @Autowired
+    private DataOwnershipMigrationService ownershipMigrationService;
+
+    /**
+     * 归属迁移（B1：唯一豁免「归属列不可变」的特权接口）
+     *
+     * <p>仅持有 {@code system:data-permission:ownership} 权限的角色可调；每次迁移落审计
+     * （{@code data_permission_deny_log}，reason={@code ownership-migrated}）。挂在
+     * {@code dataResource} 权限面下：改的是业务数据的归属，属于最高敏感度管理动作。</p>
+     *
+     * @param request 迁移请求（resourceKey + entityId + 目标 tenantId/creatorId）
+     * @return 成功消息
+     */
+    @PostMapping("migrate-ownership")
+    @Description("归属迁移（需 data-permission:ownership）")
+    public Json migrateOwnership(@RequestBody DataOwnershipMigrationService.OwnershipMigrateRequest request) {
+        ownershipMigrationService.migrate(request);
+        return Json.success("归属已迁移");
     }
 }

@@ -50,6 +50,16 @@ public class DataPermissionAudit {
     public static final String REASON_MASKED = "field-masked";
     public static final String REASON_PLAINTEXT_ACCESSED = "plaintext-accessed";
 
+    /**
+     * 归属迁移被拒（无 {@code system:data-permission:ownership} 权限）
+     */
+    public static final String REASON_OWNERSHIP_DENIED = "ownership-denied";
+
+    /**
+     * 归属迁移已执行（特权操作，落库审计）
+     */
+    public static final String REASON_OWNERSHIP_MIGRATED = "ownership-migrated";
+
     private final ObjectProvider<MeterRegistry> registryProvider;
     private final DataPermissionProperties properties;
     private final ObjectProvider<DataPermissionDenyLogRecorder> denyLogRecorderProvider;

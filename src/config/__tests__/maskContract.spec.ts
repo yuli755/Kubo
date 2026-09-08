@@ -1951,3 +1951,24 @@ describe('mask contract · F3 数据层收敛（system 模块已迁，其余模�
       .toBeLessThanOrEqual(124)
   })
 })
+
+describe('mask contract · 归属迁移（B1 余半块）', () => {
+  it('唯一豁免挂在专用接口 + 独立权限身份，默认防篡改不变', () => {
+    const identities = readJavaCode(join(SERVER, 'module/system/datapermission/SystemPermissionIdentities.java'))
+    expect(identities, '缺 DATA_PERMISSION_OWNERSHIP 身份：改归属没有独立权限门').toContain('DATA_PERMISSION_OWNERSHIP')
+
+    const controller = readJavaCode(join(SERVER, 'module/system/datapermission/controller/DataResourceController.java'))
+    expect(controller, '缺 migrate-ownership 端点：改归属没有专用入口').toContain('@PostMapping("migrate-ownership")')
+
+    const service = readJavaCode(join(SERVER, 'module/system/datapermission/service/DataOwnershipMigrationService.java'))
+    const body = methodBody(service, 'public void migrate(')
+    expect(body, '迁移前不校验 ownership 权限：任何能调端点的人都能改归属').toContain('systemPermissionService.has(')
+    expect(body, '迁移不落审计：谁在何时把哪条数据改给谁无处可查').toContain('denyLogRecorder.record(')
+    expect(body, '审计 reason 不是 ownership-migrated：特权操作没进可查口径').toContain('REASON_OWNERSHIP_MIGRATED')
+    expect(body, '迁移走业务 update（会被 protectAttribution 恢复回去）：这条唯一豁免永远不生效').not.toMatch(/updateToDatabase\(|service\.update\(/)
+
+    // 默认防篡改仍不动：豁免是「显式持有权限走专用接口」，不是把默认改松
+    const protection = readJavaCode(join(SERVER, 'module/system/datapermission/service/AttributionWriteProtection.java'))
+    expect(protection, '归属防篡改的默认实现被删：唯一豁免反而把默认门拆了').toContain('restoreOnUpdate(')
+  })
+})
