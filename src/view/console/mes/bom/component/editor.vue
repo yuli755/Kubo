@@ -14,10 +14,10 @@ import {
 } from '@airpower/web'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
+import { BomService } from '@/hook/mes/useBom'
 
 import { BomDetailEntity } from '@/model/mes/bom/BomDetailEntity'
 import { BomEntity } from '@/model/mes/bom/BomEntity'
-import { BomService } from '@/model/mes/bom/BomService'
 import { BomTypeEnum } from '@/model/mes/bom/BomTypeEnum'
 import { InputEntity } from '@/model/wms/input/InputEntity'
 import { BomDetailEditor } from '.'

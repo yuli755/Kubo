@@ -2,8 +2,8 @@
 import type { FormInstance } from 'element-plus'
 import { ADialog, AInput, ASelect, DialogProps, getFieldLabel } from '@airpower/web'
 import { ref } from 'vue'
+import { PickingDetailService } from '@/hook/mes/usePicking'
 import { PickingDetailEntity } from '@/model/mes/picking/PickingDetailEntity'
-import { PickingDetailService } from '@/model/mes/picking/PickingDetailService'
 import { MaterialSelector } from '@/view/console/asset/material/component'
 
 const props = defineProps(DialogProps.withParam(new PickingDetailEntity()))

@@ -5,9 +5,8 @@ import { useQueryClient } from '@tanstack/vue-query'
 import PublishButton from '@/component/PublishButton.vue'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
-import { useRoutingPublish } from '@/hook/mes/useRouting'
+import { RoutingService, useRoutingPublish } from '@/hook/mes/useRouting'
 import { useTanStackTable } from '@/hook/useTanStackTable'
-import { RoutingService } from '@/model/mes/routing/RoutingService'
 import { RoutingEditor, RoutingProgress } from './component'
 
 const queryClient = useQueryClient()

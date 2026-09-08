@@ -4,6 +4,10 @@ import { keepPreviousData, useQuery } from '@tanstack/vue-query'
 import { computed, unref } from 'vue'
 import { operationApi } from '@/api/mes'
 
+// F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`。
+// 工序的 CRUD 走 airpower 的 Service 类，由本 hook 模块统一转发。
+export { OperationService } from '@/model/mes/operation/OperationService'
+
 /**
  * # MES 工序列表查询 Hook
  *

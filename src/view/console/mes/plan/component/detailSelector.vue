@@ -2,9 +2,9 @@
 import { AButton, ADialog, ATable, DialogProps } from '@airpower/web'
 import { ref } from 'vue'
 
+import { PlanService } from '@/hook/mes/usePlan'
 import { PlanDetailEntity } from '@/model/mes/plan/PlanDetailEntity'
 import { PlanEntity } from '@/model/mes/plan/PlanEntity'
-import { PlanService } from '@/model/mes/plan/PlanService'
 
 const props = defineProps(DialogProps.withSelector<PlanDetailEntity, PlanEntity>())
 

@@ -4,6 +4,10 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { computed, unref } from 'vue'
 import { routingApi } from '@/api/mes'
 
+// F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`。
+// 工艺路线的 CRUD 走 airpower 的 Service 类，由本 hook 模块统一转发。
+export { RoutingService } from '@/model/mes/routing/RoutingService'
+
 /**
  * # MES 生产工艺列表查询 Hook
  *

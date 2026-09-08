@@ -4,6 +4,11 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { computed, unref } from 'vue'
 import { orderApi } from '@/api/mes'
 
+// F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`。
+// 工单及其明细的 CRUD 走 airpower 的 Service 类，由本 hook 模块统一转发。
+export { OrderDetailService } from '@/model/mes/order/OrderDetailService'
+export { OrderService } from '@/model/mes/order/OrderService'
+
 /**
  * # MES 生产订单列表查询 Hook
  *

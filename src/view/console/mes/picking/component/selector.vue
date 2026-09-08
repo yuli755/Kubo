@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { ASelector, DialogProps } from '@airpower/web'
+import { PickingService } from '@/hook/mes/usePicking'
 import { PickingEntity } from '@/model/mes/picking/PickingEntity'
-import { PickingService } from '@/model/mes/picking/PickingService'
 import { PickingStatusEnum } from '@/model/mes/picking/PickingStatusEnum'
 import { PickingEditor } from '.'
 

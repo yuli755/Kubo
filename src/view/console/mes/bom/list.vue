@@ -3,9 +3,8 @@ import { APanel, ATable, FeedbackUtil } from '@airpower/web'
 import { useQueryClient } from '@tanstack/vue-query'
 import PublishButton from '@/component/PublishButton.vue'
 import { Permissions } from '@/config/permissions'
-import { useBomPublish } from '@/hook/mes/useBom'
+import { BomService, useBomPublish } from '@/hook/mes/useBom'
 import { useTanStackTable } from '@/hook/useTanStackTable'
-import { BomService } from '@/model/mes/bom/BomService'
 import { BomDetail, BomEditor } from './component'
 
 const queryClient = useQueryClient()

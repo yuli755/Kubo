@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { ADialog, AFormField, AGroup, DialogProps, useEditor } from '@airpower/web'
+import { OrderDetailService } from '@/hook/mes/useOrder'
 import { OrderDetailEntity } from '@/model/mes/order/OrderDetailEntity'
-import { OrderDetailService } from '@/model/mes/order/OrderDetailService'
 
 const props = defineProps(DialogProps.withParam(new OrderDetailEntity()))
 

@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { ADialog, AInput, DialogProps, getFieldLabel } from '@airpower/web'
 import { ref } from 'vue'
+import { OrderDetailService } from '@/hook/mes/useOrder'
 import { OrderDetailEntity } from '@/model/mes/order/OrderDetailEntity'
-import { OrderDetailService } from '@/model/mes/order/OrderDetailService'
 
 const props = defineProps(
   Object.assign(DialogProps.create(), {

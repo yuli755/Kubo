@@ -3,9 +3,9 @@ import { ADialog, AGroup, ASelect, ATable, DialogProps, getFieldLabel } from '@a
 import { BillFormCode, BillFormMoreDetail } from '@/component'
 
 import { useBillDetail } from '@/hook/billTable/useBillDetail'
+import { PickingService } from '@/hook/mes/usePicking'
 import { PickingDetailEntity } from '@/model/mes/picking/PickingDetailEntity'
 import { PickingEntity } from '@/model/mes/picking/PickingEntity'
-import { PickingService } from '@/model/mes/picking/PickingService'
 import { StructureSelector } from '@/view/console/factory/structure/component'
 
 const props = defineProps(DialogProps.withParam(new PickingEntity()))

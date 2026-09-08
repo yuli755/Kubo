@@ -1,10 +1,10 @@
 <script lang="ts" setup>
 import { ADateTime, ADialog, AFormField, AGroup, ASelect, ATable, DialogProps, useDetail } from '@airpower/web'
 import { BillFormCode, BillFormMoreDetail } from '@/component'
+import { PlanService } from '@/hook/mes/usePlan'
 import { PlanDetailEntity } from '@/model/mes/plan/PlanDetailEntity'
 
 import { PlanEntity } from '@/model/mes/plan/PlanEntity'
-import { PlanService } from '@/model/mes/plan/PlanService'
 import { CustomerSelector } from '@/view/console/channel/customer/component'
 
 const props = defineProps(DialogProps.withParam(new PlanEntity()))

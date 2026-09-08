@@ -16,10 +16,10 @@ import {
 } from '@airpower/web'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
+import { PickingService } from '@/hook/mes/usePicking'
 
 import { PickingDetailEntity } from '@/model/mes/picking/PickingDetailEntity'
 import { PickingEntity } from '@/model/mes/picking/PickingEntity'
-import { PickingService } from '@/model/mes/picking/PickingService'
 import { StructureSelector } from '@/view/console/factory/structure/component'
 import { PickingDetailEditor } from '.'
 

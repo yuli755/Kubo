@@ -15,10 +15,10 @@ import {
 } from '@airpower/web'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
+import { PlanService } from '@/hook/mes/usePlan'
 
 import { PlanDetailEntity } from '@/model/mes/plan/PlanDetailEntity'
 import { PlanEntity } from '@/model/mes/plan/PlanEntity'
-import { PlanService } from '@/model/mes/plan/PlanService'
 import { PlanTypeEnum } from '@/model/mes/plan/PlanTypeEnum'
 import { CustomerSelector } from '@/view/console/channel/customer/component'
 import { PlanDetailEditor } from '.'
