@@ -4,8 +4,8 @@ import { ElAlert } from 'element-plus'
 import { usePolicyResourceRiskReport } from '@/composables/usePolicyResourceRiskReport'
 import { useRowPolicyRiskReport } from '@/composables/useRowPolicyRiskReport'
 import { Permissions } from '@/config/permissions'
+import { DataPolicyService } from '@/hook/system/useDataPolicy'
 import { useTanStackTable } from '@/hook/useTanStackTable'
-import { DataPolicyService } from '@/model/system/datapermission/DataPolicyService'
 import { DataPolicyEditor } from './component'
 
 // 行级"永不命中"盘点：判定与原因都在后端，这里只列出来

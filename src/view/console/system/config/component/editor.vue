@@ -3,8 +3,8 @@ import { ADialog, AFormField, DialogProps, getFieldLabel, useEditor } from '@air
 import { computed } from 'vue'
 
 import { Constant } from '@/config/Constant'
+import { ConfigService } from '@/hook/system/useConfig'
 import { ConfigEntity } from '@/model/system/config/ConfigEntity'
-import { ConfigService } from '@/model/system/config/ConfigService'
 import { ConfigType } from '@/model/system/config/ConfigType'
 
 const props = defineProps(DialogProps.withParam(new ConfigEntity()))

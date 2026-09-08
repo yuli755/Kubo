@@ -3,10 +3,10 @@ import type { IJson } from '@airpower/web'
 import type { TreeInstance } from 'element-plus'
 import { ADialog, DialogProps, FeedbackUtil, getModelName, QueryRequest, useEditor, WebConfig } from '@airpower/web'
 import { ref } from 'vue'
+import { MenuService } from '@/hook/system/useMenu'
 import { RoleEntity } from '@/model/personnel/role/RoleEntity'
 import { RoleService } from '@/model/personnel/role/RoleService'
 import { MenuEntity } from '@/model/system/menu/MenuEntity'
-import { MenuService } from '@/model/system/menu/MenuService'
 
 const props = defineProps(DialogProps.withParam(new RoleEntity()))
 

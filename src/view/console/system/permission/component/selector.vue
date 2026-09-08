@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { ASelector, DialogProps } from '@airpower/web'
+import { PermissionService } from '@/hook/system/usePermission'
 import { PermissionEntity } from '@/model/system/permission/PermissionEntity'
-import { PermissionService } from '@/model/system/permission/PermissionService'
 
 const props = defineProps(DialogProps.withSelector<PermissionEntity>())
 </script>

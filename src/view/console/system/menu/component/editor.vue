@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { ADialog, AFormField, DialogProps, useEditor } from '@airpower/web'
+import { MenuService } from '@/hook/system/useMenu'
 import { MenuEntity } from '@/model/system/menu/MenuEntity'
-import { MenuService } from '@/model/system/menu/MenuService'
 
 const props = defineProps(DialogProps.withParam(new MenuEntity()))
 

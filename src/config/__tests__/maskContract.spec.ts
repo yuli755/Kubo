@@ -1911,28 +1911,43 @@ describe('mask contract · Outbox 同事务写入（P5 第一刀）', () => {
       expect(status, `状态机缺 ${s}`).toContain(s)
     }
   })
+
+  it('dispatcher 状态迁移只走 OutboxDispatchStep，且默认关（真实环境才开）', () => {
+    const dispatcher = readJavaCode(join(SERVER, 'module/system/datapermission/service/PermissionChangeOutboxDispatcher.java'))
+    const body = methodBody(dispatcher, 'private void dispatch(')
+    expect(body, 'Dispatcher 不再调 OutboxDispatchStep：状态迁移又抄了一份').toContain('OutboxDispatchStep.markDone(')
+    expect(body, 'Dispatcher 失败路径不再调 OutboxDispatchStep.markFailed：死信/退避判据分叉').toContain('OutboxDispatchStep.markFailed(')
+    expect(dispatcher, 'Dispatcher 没挂 @Scheduled：真实环境开了开关也不会轮询').toContain('@Scheduled(')
+    expect(dispatcher, 'Dispatcher 没复用实时发布同一频道：重投会丢到别的频道，消费端收不到').toContain('DataPermissionEventPublisher.CHANNEL')
+    const appYml = read(join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'application.yml'))
+    const outboxSwitch = /outbox:\n\s+enabled:\s+(\w+)/.exec(appYml)
+    expect(outboxSwitch, 'application.yml 里没有 outbox.enabled：没人看见的开关等于没有开关').not.toBeNull()
+    expect(outboxSwitch![1], 'Dispatcher 默认必须关（本地/测试环境不该启动轮询）').toBe('false')
+  })
 })
 
-describe('mask contract · F3 数据层收敛（unit 试点）', () => {
-  const VIEW = (p: string) => join(ROOT, 'src', 'view', 'console', 'system', 'unit', ...p.split('/'))
-
-  it('unit 模块视图不再直接 import @/model/*Service（由 hook 转发）', () => {
-    for (const f of ['list.vue', 'component/editor.vue', 'component/selector.vue']) {
-      const code = read(VIEW(f))
-      expect(code, `${f} 仍直接 import @/model/*Service：F3 试点没收敛`).not.toMatch(/from\s+['"]@\/model\/[^'"]*Service['"]/)
-      expect(code, `${f} 没改成从 hook 取 Service`).toContain('@/hook/system/useUnit')
+describe('mask contract · F3 数据层收敛（system 模块已迁，其余模块继续）', () => {
+  it('system 模块视图不再直接 import @/model/*Service（由 hook 转发）', () => {
+    const offenders: string[] = []
+    for (const file of [...collect(join(ROOT, 'src', 'view', 'console', 'system'), '.vue'), ...collect(join(ROOT, 'src', 'view', 'console', 'system'), '.ts')]) {
+      if (/from\s+['"]@\/model\/[^'"]*Service['"]/.test(read(file))) {
+        offenders.push(file)
+      }
     }
-    const hook = read(join(ROOT, 'src', 'hook', 'system', 'useUnit.ts'))
-    expect(hook, 'hook 模块没转发 UnitService：视图还是得回头 import @/model').toContain('UnitService')
+    expect(offenders, 'system 模块视图仍直接 import @/model/*Service：F3 已迁但被回退').toEqual([])
+    for (const hook of ['useUnit', 'useCodeRule', 'useConfig', 'useMenu', 'usePermission', 'useLog', 'useMcp', 'useDataResource', 'useDataPolicy', 'useDataFieldPolicy']) {
+      expect(read(join(ROOT, 'src', 'hook', 'system', `${hook}.ts`)), `${hook} 没转发 Service 类：视图又得回头 import @/model`)
+        .toMatch(/export\s*\{[^}]*Service[^}]*\}\s*from\s*['"]@\/model\//)
+    }
   })
 
-  it('视图直连 model Service 总数不反弹（当前基线 144，只许降不许升）', () => {
+  it('视图直连 model Service 总数不反弹（当前基线 124，只许降不许升）', () => {
     const files = [...collect(join(ROOT, 'src', 'view'), '.vue'), ...collect(join(ROOT, 'src', 'view'), '.ts')]
     const total = files.reduce(
       (sum, file) => sum + (read(file).match(/from\s+['"]@\/model\/[^'"]*Service['"]/g)?.length ?? 0),
       0,
     )
-    expect(total, `视图直连 @/model/*Service 反弹到 ${total}：F3 基线（144）被突破，收敛只能前进不能后退`)
-      .toBeLessThanOrEqual(144)
+    expect(total, `视图直连 @/model/*Service 反弹到 ${total}：F3 基线（124）被突破，收敛只能前进不能后退`)
+      .toBeLessThanOrEqual(124)
   })
 })

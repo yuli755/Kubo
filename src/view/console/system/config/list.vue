@@ -2,9 +2,9 @@
 import { AButton, APanel, ATable, FeedbackUtil } from '@airpower/web'
 import { Constant } from '@/config/Constant'
 import { Permissions } from '@/config/permissions'
-import { useTanStackTable } from '@/hook/useTanStackTable'
+import { ConfigService } from '@/hook/system/useConfig'
 
-import { ConfigService } from '@/model/system/config/ConfigService'
+import { useTanStackTable } from '@/hook/useTanStackTable'
 import { ConfigType } from '@/model/system/config/ConfigType'
 import { ConfigurationEditor } from '@/view/console/system/config/component'
 

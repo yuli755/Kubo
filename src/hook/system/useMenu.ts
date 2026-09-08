@@ -4,6 +4,9 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { computed, unref } from 'vue'
 import { menuApi } from '@/api/system'
 
+// F3 数据层收敛（D5）：CRUD 走 airpower 的 Service 类，由本 hook 模块统一转发。
+export { MenuService } from '@/model/system/menu/MenuService'
+
 /**
  * # System 菜单列表查询 Hook
  */

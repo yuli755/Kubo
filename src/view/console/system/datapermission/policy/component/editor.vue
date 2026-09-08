@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { ADialog, AFormField, DialogProps, useEditor } from '@airpower/web'
 
+import { DataPolicyService } from '@/hook/system/useDataPolicy'
 import { DataPolicyEntity } from '@/model/system/datapermission/DataPolicyEntity'
-import { DataPolicyService } from '@/model/system/datapermission/DataPolicyService'
 
 const props = defineProps(DialogProps.withParam(new DataPolicyEntity()))
 

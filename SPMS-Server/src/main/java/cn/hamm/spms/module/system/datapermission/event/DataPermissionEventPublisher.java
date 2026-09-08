@@ -28,7 +28,10 @@ import java.util.Set;
 public class DataPermissionEventPublisher {
     private final RedisHelper redisHelper;
     private final PermissionChangeOutboxRecorder outboxRecorder;
-    private static final String CHANNEL = "spms:datapermission:changes";
+    /**
+     * 数据权限变更的 Redis Pub/Sub 频道；实时发布与 Outbox Dispatcher 重投共用同一个频道
+     */
+    public static final String CHANNEL = "spms:datapermission:changes";
 
     /**
      * 发布资源变更事件

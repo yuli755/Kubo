@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { ADialog, AFormField, DialogProps, useEditor } from '@airpower/web'
+import { PermissionService } from '@/hook/system/usePermission'
 import { PermissionEntity } from '@/model/system/permission/PermissionEntity'
-import { PermissionService } from '@/model/system/permission/PermissionService'
 
 const props = defineProps(DialogProps.withParam(new PermissionEntity()))
 const {

@@ -5,8 +5,8 @@ import type { CodeRuleParam } from '@/model/system/coderule/CodeRuleParam'
 import { APanel, ATable, DateTimeUtil } from '@airpower/web'
 import { ref } from 'vue'
 import { Permissions } from '@/config/permissions'
+import { CodeRuleService } from '@/hook/system/useCodeRule'
 import { useTanStackTable } from '@/hook/useTanStackTable'
-import { CodeRuleService } from '@/model/system/coderule/CodeRuleService'
 
 import { CodeRuleEditor } from '@/view/console/system/coderule/component'
 

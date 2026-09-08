@@ -129,6 +129,31 @@ public class DataPermissionProperties {
     private Hierarchy hierarchy = new Hierarchy();
 
     /**
+     * 权限变更 Outbox 派发配置
+     */
+    private Outbox outbox = new Outbox();
+
+    /**
+     * 权限变更 Outbox 派发配置
+     */
+    @Data
+    public static class Outbox {
+
+        /**
+         * 是否启用 Outbox Dispatcher。默认 <b>false</b>：Dispatcher 依赖真实 Redis 与调度线程，
+         * 本地 / 测试环境不启动（避免集成测试启动即拉取），真实环境回填并核对 {@code permission_change_outbox}
+         * 表后再开。写侧落库（{@code PermissionChangeOutboxRecorder}）与 Dispatcher 解耦：关着 Dispatcher
+         * 时事件照样持久化，只是不会自动重投。
+         */
+        private boolean enabled = false;
+
+        /**
+         * Dispatcher 轮询间隔（毫秒）
+         */
+        private long pollMs = 5_000L;
+    }
+
+    /**
      * 部门树闭包展开配置
      */
     @Data

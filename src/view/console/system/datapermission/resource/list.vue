@@ -8,8 +8,8 @@ import { useEnforceReadiness } from '@/composables/useEnforceReadiness'
 import { useExportGapReport } from '@/composables/useExportGapReport'
 import { useInertPolicyReport } from '@/composables/useInertPolicyReport'
 import { Permissions } from '@/config/permissions'
+import { DataResourceService } from '@/hook/system/useDataResource'
 import { useTanStackTable } from '@/hook/useTanStackTable'
-import { DataResourceService } from '@/model/system/datapermission/DataResourceService'
 import { DataResourceEditor } from './component'
 
 // 两个独立自查：缺什么（要补）与有什么多余的（要清）。分开取数，一个失败不牵连另一个。

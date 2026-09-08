@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { ADialog, AFormField, DialogProps, useEditor } from '@airpower/web'
 
+import { DataResourceService } from '@/hook/system/useDataResource'
 import { DataResourceEntity } from '@/model/system/datapermission/DataResourceEntity'
-import { DataResourceService } from '@/model/system/datapermission/DataResourceService'
 
 const props = defineProps(DialogProps.withParam(new DataResourceEntity()))
 

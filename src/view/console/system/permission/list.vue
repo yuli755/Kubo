@@ -3,7 +3,7 @@ import type { PermissionEntity } from '@/model/system/permission/PermissionEntit
 
 import { APanel, ATable, useTableTree } from '@airpower/web'
 import { Permissions } from '@/config/permissions'
-import { PermissionService } from '@/model/system/permission/PermissionService'
+import { PermissionService } from '@/hook/system/usePermission'
 import { PermissionEditor } from './component'
 
 const hook = useTableTree(PermissionService, {

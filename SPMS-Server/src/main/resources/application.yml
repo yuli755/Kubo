@@ -150,3 +150,9 @@ kubo:
       ttl-seconds: 300
       # 展开层数上限：脏数据成环时的兜底，超出即停止并打 WARN（少看数据可接受，把请求打挂不行）
       max-depth: 32
+    # 权限变更 Outbox Dispatcher：写侧落库（PermissionChangeOutboxRecorder）与派发解耦。
+    # 默认 false = 不启动轮询（本地/测试环境），事件仍持久化但不会自动重投；真实环境核对
+    # permission_change_outbox 表 + Redis 后打开。轮询间隔 poll-ms 默认 5s。
+    outbox:
+      enabled: false
+      poll-ms: 5000

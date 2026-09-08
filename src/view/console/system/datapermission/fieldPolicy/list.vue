@@ -3,8 +3,8 @@ import { APanel, ATable } from '@airpower/web'
 import { ElAlert } from 'element-plus'
 import { useInertPolicyReport } from '@/composables/useInertPolicyReport'
 import { Permissions } from '@/config/permissions'
+import { DataFieldPolicyService } from '@/hook/system/useDataFieldPolicy'
 import { useTanStackTable } from '@/hook/useTanStackTable'
-import { DataFieldPolicyService } from '@/model/system/datapermission/DataFieldPolicyService'
 import { DataFieldPolicyEditor } from './component'
 
 // 存量盘点：哪些行是"配了但没人读"的动作。判定在后端，这里只负责列出来。

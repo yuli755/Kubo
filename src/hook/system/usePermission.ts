@@ -5,6 +5,9 @@ import { unref } from 'vue'
 import { request } from '@/api/axios'
 import { permissionApi } from '@/api/system'
 
+// F3 数据层收敛（D5）：CRUD 走 airpower 的 Service 类，由本 hook 模块统一转发。
+export { PermissionService } from '@/model/system/permission/PermissionService'
+
 /**
  * # System 权限树数据查询 Hook
  *

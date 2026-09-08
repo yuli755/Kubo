@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { AButton, APanel, ATable, ClipboardUtil, FeedbackUtil } from '@airpower/web'
 import { computed, ref } from 'vue'
+import { McpToolService } from '@/hook/system/useMcp'
 import { McpToolModel } from '@/model/system/mcp/McpToolModel'
-import { McpToolService } from '@/model/system/mcp/McpToolService'
 
 const isLoading = ref(false)
 const list = ref([] as McpToolModel[])

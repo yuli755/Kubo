@@ -14,8 +14,8 @@ import {
   WebValidator,
 } from '@airpower/web'
 import { computed, ref } from 'vue'
+import { CodeRuleService } from '@/hook/system/useCodeRule'
 import { CodeRuleEntity } from '@/model/system/coderule/CodeRuleEntity'
-import { CodeRuleService } from '@/model/system/coderule/CodeRuleService'
 
 const props = defineProps(DialogProps.withParam(new CodeRuleEntity()))
 
