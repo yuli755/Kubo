@@ -168,13 +168,13 @@ public class InventoryService {
     public void deduct(InventoryDeductCmd cmd, String idempotencyKey) {
         // 1. 幂等检查
         if (!idempotentCheck(idempotencyKey)) {
-            throw new BusinessException(ErrorCode.IDEMPOTENT_CONFLICT);
+            CustomError.IDEMPOTENT_CONFLICT.show(); // 业务错误码统一登记在 CustomError 枚举
         }
 
         // 2. Redis 预扣减 (Lua 脚本原子操作)
         boolean preDeducted = redisDeduct(cmd.getWarehouseId(), cmd.getMaterialId(), cmd.getQuantity());
         if (!preDeducted) {
-            throw new BusinessException(ErrorCode.INSUFFICIENT_STOCK);
+            CustomError.INSUFFICIENT_STOCK.show();
         }
 
         // 3. 数据库扣减 (乐观锁)
@@ -183,7 +183,7 @@ public class InventoryService {
         if (updated == 0) {
             // 回滚 Redis 预扣减
             redisRollback(cmd.getWarehouseId(), cmd.getMaterialId(), cmd.getQuantity());
-            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+            CustomError.VERSION_CONFLICT.show();
         }
 
         // 4. 发布领域事件

@@ -373,7 +373,9 @@ public class InventoryCreateCmd {
     private String remark;
 }
 
-// 全局异常处理
+// 参数校验失败 / 业务错误：不手写 GlobalExceptionHandler 与 Result.error(...)。
+// 框架层由 airpower Errors 统一处理（项目已 `import static cn.hamm.airpower.exception.Errors.PARAM_INVALID` 使用）；
+// 业务层统一登记在 CustomError 枚举并抛 `ServiceException`，由框架异常拦截器写回统一 code。
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -382,7 +384,7 @@ public class GlobalExceptionHandler {
         String msg = e.getBindingResult().getFieldErrors().stream()
             .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
             .collect(Collectors.joining("; "));
-        return Result.error(ErrorCode.PARAM_VALIDATION_FAILED.getCode(), msg);
+        throw new ServiceException(Errors.PARAM_INVALID.getCode(), msg);
     }
 }
 ```

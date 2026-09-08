@@ -9,6 +9,16 @@ import org.jetbrains.annotations.Contract;
 /**
  * <h1>应用自定义异常代码</h1>
  *
+ * <p>本仓<b>业务错误码的唯一落点</b>：业务侧抛错统一在此登记枚举值（implements airpower
+ * {@link IException}），用 {@code CustomError.XXX.show()} 或
+ * {@code throw new ServiceException(CustomError.XXX)} 抛出；code 实际值为
+ * {@code BASE_CUSTOM_ERROR + 声明值}（见 {@link AppConstant}）。框架级错误码用 airpower 的
+ * {@code cn.hamm.airpower.exception.Errors}，业务级错误码只此一处。</p>
+ *
+ * <p>历史上曾另有一份 560 行的 {@code cn.hamm.spms.common.ErrorCode} 枚举（零引用、与本文职责
+ * 重复、且 code 空间与 {@link AppConstant#BASE_CUSTOM_ERROR} 偏移冲突），已于 2026-09-09 删除；
+ * <b>勿再新建第二套错误码枚举</b>，新增业务码在本枚举追加即可。</p>
+ *
  * @author Hamm.cn
  */
 @SuppressWarnings("AlibabaEnumConstantsMustHaveComment")

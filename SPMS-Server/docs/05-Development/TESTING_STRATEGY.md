@@ -85,8 +85,8 @@ class InventoryServiceTest {
 
         // When & Then
         assertThatThrownBy(() -> inventoryService.deduct(cmd, "idem-key"))
-            .isInstanceOf(BusinessException.class)
-            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INSUFFICIENT_STOCK);
+            .isInstanceOf(ServiceException.class)
+            .hasFieldOrPropertyWithValue("code", CustomError.INSUFFICIENT_STOCK.getCode());
     }
 
     @ParameterizedTest
