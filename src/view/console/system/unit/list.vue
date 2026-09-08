@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { APanel, ATable } from '@airpower/web'
 import { Permissions } from '@/config/permissions'
+import { UnitService } from '@/hook/system/useUnit'
 import { useTanStackTable } from '@/hook/useTanStackTable'
-import { UnitService } from '@/model/system/unit/UnitService'
 import { UnitEditor } from './component'
 
 const hook = useTanStackTable(UnitService, {

@@ -1881,3 +1881,58 @@ describe('mask contract · 策略指向缺失/未启用资源盘点', () => {
       .toMatch(/<ElAlert[^>]*v-else-if="refRiskFailed"/)
   })
 })
+
+describe('mask contract · Outbox 同事务写入（P5 第一刀）', () => {
+  it('发布先落 outbox 再走 Redis：持久化与实时两条路径各司其职', () => {
+    const publisher = readJavaCode(join(SERVER, 'module/system/datapermission/event/DataPermissionEventPublisher.java'))
+    const body = methodBody(publisher, 'private void publish(')
+    expect(body, 'publish 不再写 outbox：权限变更又回到「Redis 一挂就丢」').toContain('outboxRecorder.record(')
+    expect(body, 'publish 不再走 Redis 实时广播：多实例缓存失效会被退化成单实例').toContain('redisHelper.publish(')
+    expect(body.indexOf('outboxRecorder.record('), '落库必须在广播之前：先广播后落库，落库失败时其它实例已经拿到失效、本实例却以为没发出')
+      .toBeLessThan(body.indexOf('redisHelper.publish('))
+  })
+
+  it('记录器落 PENDING 且不吞 DB 异常：落不下 outbox 必须让调用方看见', () => {
+    const recorder = readJavaCode(join(SERVER, 'module/system/datapermission/service/PermissionChangeOutboxRecorder.java'))
+    expect(recorder, '记录器不再写 PENDING：初值不再与 DDL 默认一致').toContain('PermissionChangeOutboxStatus.PENDING.name()')
+    expect(recorder, '记录器丢了幂等键：event_key 唯一约束会退化成「随它去」').toContain('setEventKey(')
+    // 只幂等跳过重复键，其余异常不 catch（否则「变更发生但无持久化记录」会被静默吞掉）
+    expect(recorder, '记录器把 save 的异常也 catch 掉了：outbox 会给出「已记录」的错觉')
+      .not
+      .toMatch(/catch\s*\(\s*(?:Exception|RuntimeException)\b/)
+  })
+
+  it('退避纯逻辑只有一份：MAX_RETRY 与 nextRetryAtMillis 钉住，Dispatcher 不得重抄', () => {
+    const backoff = readJavaCode(join(SERVER, 'module/system/datapermission/service/PermissionChangeOutboxBackoff.java'))
+    expect(backoff, '退避逻辑没了 MAX_RETRY：死信阈值无单一来源').toContain('MAX_RETRY')
+    expect(backoff, '退避逻辑没了 nextRetryAtMillis：Dispatcher 会各自抄一份指数退避').toContain('nextRetryAtMillis(')
+    const status = readJavaCode(join(SERVER, 'module/system/datapermission/service/PermissionChangeOutboxStatus.java'))
+    for (const s of ['PENDING', 'PROCESSING', 'DONE', 'DEAD']) {
+      expect(status, `状态机缺 ${s}`).toContain(s)
+    }
+  })
+})
+
+describe('mask contract · F3 数据层收敛（unit 试点）', () => {
+  const VIEW = (p: string) => join(ROOT, 'src', 'view', 'console', 'system', 'unit', ...p.split('/'))
+
+  it('unit 模块视图不再直接 import @/model/*Service（由 hook 转发）', () => {
+    for (const f of ['list.vue', 'component/editor.vue', 'component/selector.vue']) {
+      const code = read(VIEW(f))
+      expect(code, `${f} 仍直接 import @/model/*Service：F3 试点没收敛`).not.toMatch(/from\s+['"]@\/model\/[^'"]*Service['"]/)
+      expect(code, `${f} 没改成从 hook 取 Service`).toContain('@/hook/system/useUnit')
+    }
+    const hook = read(join(ROOT, 'src', 'hook', 'system', 'useUnit.ts'))
+    expect(hook, 'hook 模块没转发 UnitService：视图还是得回头 import @/model').toContain('UnitService')
+  })
+
+  it('视图直连 model Service 总数不反弹（当前基线 144，只许降不许升）', () => {
+    const files = [...collect(join(ROOT, 'src', 'view'), '.vue'), ...collect(join(ROOT, 'src', 'view'), '.ts')]
+    const total = files.reduce(
+      (sum, file) => sum + (read(file).match(/from\s+['"]@\/model\/[^'"]*Service['"]/g)?.length ?? 0),
+      0,
+    )
+    expect(total, `视图直连 @/model/*Service 反弹到 ${total}：F3 基线（144）被突破，收敛只能前进不能后退`)
+      .toBeLessThanOrEqual(144)
+  })
+})
