@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
+import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
