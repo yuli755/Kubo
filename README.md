@@ -21,50 +21,58 @@
 
 实现从采购、生产、仓储到销售全流程的信息化、精细化、智能化管理。
 
+## 仓库结构
+
+| 目录 | 说明 |
+| --- | --- |
+| `/`（根） | 前端 **kubo-web**（Vue 3 + Vite + Pinia + Element Plus + TanStack Query） |
+| `SPMS-Server/` | 后端 **SPMS-Server**（Spring Boot 3 + JPA/MyBatis + airpower 框架） |
+| `SPMS-Server/docs/` | 后端/全栈文档（见 [文档索引](./SPMS-Server/docs/README.md)） |
+| `packages/shared/` | 前后端共享的脱敏/权限类型与工具（`@kubo/shared`） |
+
 ## 快速开始
 
 ### 📚 完整文档
 
-- **[STARTUP.md](./STARTUP.md)** - 完整启动指南 (环境检查、Redis启动、项目启动)
+- **[STARTUP.md](./STARTUP.md)** - 完整启动指南 (环境检查、Redis 启动、项目启动)
 - **[LOGIN.md](./LOGIN.md)** - 默认账号和测试数据说明
+- **[AGENT.md](./AGENT.md)** - AI 辅助开发的工程规范、目录结构、编码风格
+- **[SPMS-Server/docs](./SPMS-Server/docs/README.md)** - 后端文档索引（数据权限施工图、真实环境验收清单、迁移脚本）
 
 ### 环境准备
 
 - Node.js 18+
-- Yarn 包管理器
+- pnpm 9+（`package.json` 已声明 `packageManager: pnpm@9.0.0`）
 - TypeScript 5.9+
-- MySQL 8+
-- Redis
+- MySQL 8+（后端用；表结构由 JPA `ddl-auto=validate` 校验，增量迁移见 `SPMS-Server/docs/database/migration/`）
+- Redis（后端）
+- JDK 17+（后端，仅运行 SPMS-Server 时需要）
 
 ### 安装依赖
 
 ```shell
-  yarn
+pnpm install
 ```
 
 ### 配置环境变量
 
-复制模板并按需修改：
-
-```shell
-  cp .env.template .env
-```
-
-修改配置：
-
-```conf
-VITE_APP_NAME = "开发环境"
-VITE_APP_API_URL = "/api/"
-```
+- 生产构建读取根目录 **`.env.production`**（如 `VITE_APP_NAME`、`VITE_APP_API_URL = "/api/"`）。
+- 本地开发无需手工配 `.env`：前端通过 Vite 代理把 `/api` 转发到 `http://127.0.0.1:8080/`（后端），见 `vite.config.mts`。
 
 ### 启动项目
 
 ```shell
-# 启动开发服务器
-yarn s
+# 启动前端开发服务器（后端需先跑在 8080）
+pnpm s
 
-# 打包生产环境
-yarn production
+# 生产构建
+pnpm build        # 等价于 pnpm production
+
+# 代码格式检查与修复
+pnpm lint
+
+# 全部门禁（lint + typecheck + test + 权限码 + 文本 + DDL 漂移 + 构建 + 体积）
+pnpm check
 ```
 
 ### 🔐 默认登录账号
@@ -77,19 +85,6 @@ yarn production
 ```
 
 详细信息查看 **[LOGIN.md](./LOGIN.md)**
-
-### 启动项目
-
-```shell
-# 开发环境
-yarn s
-
-# 生产构建
-yarn production
-
-# 代码格式检查与修复
-yarn lint
-```
 
 ### VS Code 推荐插件
 
@@ -105,6 +100,6 @@ yarn lint
 
 ## 开源协议
 
-**Kubo** 所有代码均在 **MIT** 开源协议规范下免费提供，你可以放心使用。
+**Kubo** 所有代码均在 **MIT** 开源协议规范下免费提供，你可以放心使用（见 [LICENSE](./LICENSE)）。
 
 如有定制需求，欢迎联系我们：admin#hamm.cn
