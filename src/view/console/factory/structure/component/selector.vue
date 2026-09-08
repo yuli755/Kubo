@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { ASelector, DialogProps } from '@airpower/web'
+import { StructureService } from '@/hook/factory/useStructure'
 import { StructureEntity } from '@/model/factory/structure/StructureEntity'
-import { StructureService } from '@/model/factory/structure/StructureService'
 
 const props = defineProps(DialogProps.withSelector<StructureEntity>())
 </script>

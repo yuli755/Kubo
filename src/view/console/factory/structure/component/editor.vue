@@ -2,9 +2,9 @@
 import { AButton, ADialog, AFormField, AGroup, DialogProps, DialogUtil, useEditor } from '@airpower/web'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
+import { StructureService } from '@/hook/factory/useStructure'
 import { StructureEntity } from '@/model/factory/structure/StructureEntity'
 
-import { StructureService } from '@/model/factory/structure/StructureService'
 import { OperationSelector } from '@/view/console/mes/operation/component'
 import { DepartmentSelector } from '@/view/console/personnel/department/component'
 

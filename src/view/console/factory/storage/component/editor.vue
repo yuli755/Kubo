@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { ADialog, AFormField, DialogProps, getFormConfigList, useEditor } from '@airpower/web'
+import { StorageService } from '@/hook/factory/useStorage'
 import { StorageEntity } from '@/model/factory/storage/StorageEntity'
-import { StorageService } from '@/model/factory/storage/StorageService'
 
 const props = defineProps(DialogProps.withParam(new StorageEntity()))
 

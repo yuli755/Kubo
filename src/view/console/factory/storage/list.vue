@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { APanel, ATable, useTableTree } from '@airpower/web'
 import { Permissions } from '@/config/permissions'
-import { StorageService } from '@/model/factory/storage/StorageService'
+import { StorageService } from '@/hook/factory/useStorage'
 import { StorageEditor } from './component'
 
 const hook = useTableTree(StorageService, {
