@@ -88,7 +88,9 @@ class DataOwnershipMigrationServiceTest {
         Metamodel metamodel = org.mockito.Mockito.mock(Metamodel.class);
         given(entityManagerFactory.getMetamodel()).willReturn(metamodel);
         Set<ManagedType<?>> managedTypes = new LinkedHashSet<>();
-        ManagedType<?> ownedType = org.mockito.Mockito.mock(ManagedType.class);
+        // 类型必须给足：ManagedType<?>.getJavaType() 返回 Class<?>（捕获类型），
+        // willReturn(OwnedEntity.class) 会因不变性匹配不上；定到 ManagedType<OwnedEntity> 后返回 Class<OwnedEntity>。
+        ManagedType<OwnedEntity> ownedType = org.mockito.Mockito.mock(ManagedType.class);
         given(ownedType.getJavaType()).willReturn(OwnedEntity.class);
         managedTypes.add(ownedType);
         given(metamodel.getManagedTypes()).willReturn(managedTypes);
