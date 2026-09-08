@@ -4,8 +4,8 @@ import { AButton, APanel, ATable, ClipboardUtil, DialogUtil, FeedbackUtil } from
 import { ElMessageBox } from 'element-plus'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
+import { OpenAppService } from '@/hook/open/useApp'
 import { useTanStackTable } from '@/hook/useTanStackTable'
-import { OpenAppService } from '@/model/open/app/OpenAppService'
 import { OpenAppEditor, OpenAppLog, OpenAppTest } from './component'
 
 const hook = useTanStackTable(OpenAppService, {

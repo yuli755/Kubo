@@ -6,10 +6,10 @@ import { authApi } from '@/api/system'
 import Logo from '@/component/login/Logo.vue'
 import ThirdLogin from '@/component/login/ThirdLogin.vue'
 import { useRoutePreload } from '@/composables/useRoutePreload'
+import { OpenAppService } from '@/hook/open/useApp'
 import { UserService } from '@/hook/personnel/useUser'
 import { LoginAction } from '@/model/common/LoginAction'
 import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
-import { OpenAppService } from '@/model/open/app/OpenAppService'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
