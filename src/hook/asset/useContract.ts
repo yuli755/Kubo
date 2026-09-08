@@ -4,6 +4,10 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { computed, unref } from 'vue'
 import { contractApi } from '@/api/asset'
 
+// F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`。
+// 合同的 CRUD 走 airpower 的 Service 类，由本 hook 模块统一转发。
+export { ContractService } from '@/model/asset/contract/ContractService'
+
 export function useContractList(query: Ref<ContractQuery> | ContractQuery) {
   const resolvedQuery = computed(() => unref(query))
   return useQuery<{ list: ContractEntity[], total: number }>({

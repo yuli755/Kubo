@@ -3,9 +3,9 @@ import { AButton, APanel, ATable, DialogUtil } from '@airpower/web'
 import { ref } from 'vue'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
+import { DeviceService } from '@/hook/asset/useDevice'
 import { useTanStackTable } from '@/hook/useTanStackTable'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
-import { DeviceService } from '@/model/asset/device/DeviceService'
 import { DeviceEditor, DeviceMonitor } from './component'
 
 const filter = ref(new DeviceEntity())

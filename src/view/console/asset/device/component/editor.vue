@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { AButton, ADialog, AFormField, AGroup, DialogProps, DialogUtil, useEditor } from '@airpower/web'
+import { DeviceService } from '@/hook/asset/useDevice'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
-import { DeviceService } from '@/model/asset/device/DeviceService'
 import { ParameterEntity } from '@/model/iot/parameter/ParameterEntity'
 import { ParameterSelector } from '@/view/console/iot/parameter/component'
 

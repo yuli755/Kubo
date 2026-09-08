@@ -3,9 +3,9 @@ import { ADialog, AFormField, ASelect, DialogProps, useEditor } from '@airpower/
 import { ElMessage } from 'element-plus'
 import { onMounted } from 'vue'
 import { useMaskPolicy } from '@/composables/useMaskPolicy'
+import { MaterialService } from '@/hook/asset/useMaterial'
 
 import { MaterialEntity } from '@/model/asset/material/MaterialEntity'
-import { MaterialService } from '@/model/asset/material/MaterialService'
 import { UnitSelector } from '@/view/console/system/unit/component'
 
 const props = defineProps(DialogProps.withParam(new MaterialEntity()))
