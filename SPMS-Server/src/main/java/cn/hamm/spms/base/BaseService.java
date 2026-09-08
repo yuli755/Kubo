@@ -6,6 +6,7 @@ import cn.hamm.spms.module.system.coderule.CodeRuleService;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.module.system.datapermission.service.AttributionWriteProtection;
 import cn.hamm.spms.module.system.datapermission.service.ColumnMaskingService;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionGuard;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionRuntime;
@@ -85,8 +86,37 @@ public class BaseService<
     protected E beforeUpdate(@NotNull E entity) {
         E result = super.beforeUpdate(entity);
         protectSensitiveFields(result);
+        protectAttribution(result);
         enforceDataPermission(DataPermissionAction.UPDATE);
         return result;
+    }
+
+    /**
+     * 归属列防篡改：更新时把 {@code tenant_id}/{@code creator_id} 恢复为库中既存值
+     *
+     * <p>§19.27 缺口③：普通用户可 PUT 把 {@code creatorId} 改成别人（把行送出自己视野）。
+     * D1 已定归属只信服务端，所以这里不判「谁有权限改归属」——更新一律恢复库中值。
+     * 新建不在这里处理：归属由 {@link TenantAwareEntity#fillAttribution()}（{@code @PrePersist}）
+     * 无条件用服务端上下文覆盖。</p>
+     *
+     * <p>只对继承 {@link TenantAwareEntity} 的实体生效，且只在更新既有行时回表一次。
+     * 取不到既存行直接放行：既存行都没了，归属恢复无从谈起（也不该拦——删除/重建的边界由别处管）。</p>
+     *
+     * @param entity 待更新实体
+     */
+    private void protectAttribution(@NotNull E entity) {
+        if (!(entity instanceof TenantAwareEntity<?> owned)) {
+            return;
+        }
+        Long id = entity.getId();
+        if (id == null) {
+            return;
+        }
+        E stored = repository.findById(id).orElse(null);
+        if (!(stored instanceof TenantAwareEntity<?> storedOwned)) {
+            return;
+        }
+        AttributionWriteProtection.restoreOnUpdate(owned, storedOwned.getTenantId(), storedOwned.getCreatorId());
     }
 
     /**

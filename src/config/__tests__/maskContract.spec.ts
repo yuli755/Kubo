@@ -956,6 +956,34 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
     expect(reg, 'OwnerColumnRegistration 的 MAX_SEGMENTS 不再是 2：editor.vue 的「最多一跳」要跟着改').toMatch(/MAX_SEGMENTS\s*=\s*2/)
   })
 
+  it('归属列防篡改：新建覆盖 + 更新恢复，各钉一处（D1 写侧兑现）', () => {
+    /**
+     * §19.27 缺口③：普通用户可 PUT 改 creatorId 把行送出自己视野。
+     * D1 已定归属只信服务端，所以补的不是「谁有权改归属」的判定，而是两处硬约束：
+     * 新建无条件覆盖（@PrePersist），更新恢复库中值（BaseService#protectAttribution）。
+     * 「客户端没填才补」是错误形状：那会把 tenant_id 的最终值交给请求方。
+     */
+    const bodyOf = methodBody
+    const tae = readJavaCode(join(SERVER, 'base/TenantAwareEntity.java'))
+    const fill = bodyOf(tae, 'protected void fillAttribution()')
+    expect(fill, 'fillAttribution 不再无条件覆盖：新建归属又退回「客户端没填才补」的可伪造形状')
+      .toContain('tenantId = context.tenantId();')
+    expect(fill, 'fillAttribution 仍保留 tenantId == null 守卫：客户端提交非空 tenant_id 就能伪造归属')
+      .not
+      .toMatch(/tenantId\s*==\s*null/)
+    expect(fill, 'fillAttribution 仍保留 creatorId == null 守卫：客户端提交非空 creator_id 就能伪造归属')
+      .not
+      .toMatch(/creatorId\s*==\s*null/)
+
+    const base = readJavaCode(join(SERVER, 'base/BaseService.java'))
+    expect(bodyOf(base, 'E beforeUpdate(@NotNull'), 'BaseService.beforeUpdate 没接归属恢复：更新时归属列仍可被 PUT 篡改')
+      .toContain('protectAttribution(')
+    const protect = bodyOf(base, 'private void protectAttribution(')
+    expect(protect, '归属恢复没调 AttributionWriteProtection.restoreOnUpdate：判定没落在一处可单测的函数上')
+      .toContain('AttributionWriteProtection.restoreOnUpdate(')
+    expect(protect, '归属恢复没回表读既存值：只覆盖不恢复，等于把库中值也覆盖掉').toContain('repository.findById(id)')
+  })
+
   it('字典 tip 引用的后端类必须真实存在', () => {
     // 与 fieldPolicy 编辑器 tip 同一条规矩：写一个不存在的类名，比不写更误导
     const doc = read(DICT)
