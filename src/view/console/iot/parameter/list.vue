@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { APanel, ATable } from '@airpower/web'
 import { Permissions } from '@/config/permissions'
+import { ParameterService } from '@/hook/iot/useParameter'
 import { useTanStackTable } from '@/hook/useTanStackTable'
-import { ParameterService } from '@/model/iot/parameter/ParameterService'
 import { ParameterEditor } from './component'
 
 const hook = useTanStackTable(ParameterService, {

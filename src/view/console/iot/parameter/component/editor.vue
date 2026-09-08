@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { ADialog, AFormField, DialogProps, getFormConfigList, useEditor } from '@airpower/web'
+import { ParameterService } from '@/hook/iot/useParameter'
 import { ParameterEntity } from '@/model/iot/parameter/ParameterEntity'
-import { ParameterService } from '@/model/iot/parameter/ParameterService'
 
 const props = defineProps(DialogProps.withParam(new ParameterEntity()))
 

@@ -3,9 +3,9 @@ import { AEmpty, AGroup, APanel, DialogUtil, QueryRequest, WebColor } from '@air
 import { ElMessage } from 'element-plus'
 import { ref } from 'vue'
 import { usePolling } from '@/hook'
+import { DeviceService } from '@/hook/asset/useDevice'
 import { AlarmStatusEnum } from '@/model/asset/device/AlarmStatusEnum'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
-import { DeviceService } from '@/model/asset/device/DeviceService'
 import { DeviceStatusEnum } from '@/model/asset/device/DeviceStatusEnum'
 import { DeviceMonitor } from '../../asset/device/component'
 

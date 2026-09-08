@@ -1,0 +1,3 @@
+// F3 数据层收敛（D5）：采集参数 CRUD 由 airpower 的 Service 类驱动（useTanStackTable / useEditor / useSelector），
+// 由本 hook 模块统一转发 —— 视图从这里取，不再直接 import @/model 的 Service。
+export { ParameterService } from '@/model/iot/parameter/ParameterService'
