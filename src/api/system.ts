@@ -16,6 +16,7 @@ import type {
   MaskPolicy,
   MenuEntity,
   MenuQuery,
+  OutboxDeadItem,
   PermissionEntity,
   PermissionQuery,
   PolicyResourceRiskItem,
@@ -307,6 +308,47 @@ export const dataResourceApi = {
    */
   getDenyLogs(resourceKey?: string): Promise<DenyLogItem[]> {
     return request.get('/dataResource/deny-logs', resourceKey ? { params: { resourceKey } } : undefined)
+  },
+
+  /**
+   * 权限变更 Outbox 死信列表（P5：连续重投仍失败的变更通知，需人工处置）。
+   *
+   * 只读，挂在 `dataResource` 管理端点下，后端校验 `system:data-permission:outbox` 身份
+   * （root 视为持有）；无权限时 403。前端不判死信语义（什么算 DEAD 在后端），只照实回显。
+   *
+   * @returns 死信事件（最新在前，最多 100 条）；无死信时为空数组
+   */
+  getOutboxDead(): Promise<OutboxDeadItem[]> {
+    return request.get('/dataResource/outbox-dead')
+  },
+
+  /**
+   * 重放单条死信（P5 人工补偿）：DEAD → PENDING，交还 Dispatcher 下轮重投。
+   * 特权接口，每次重放后端落审计（reason=outbox-replayed）。
+   *
+   * @param eventKey 事件唯一键
+   */
+  replayOutbox(eventKey: string): Promise<void> {
+    return request.post('/dataResource/outbox-replay', { eventKey })
+  },
+
+  /**
+   * 重放全部死信（P5 人工补偿，故障恢复后批量续投）。
+   *
+   * @returns 后端返回重放条数（Json.success 无 data，这里以 void 处理，条数以后端提示为准）
+   */
+  replayAllOutbox(): Promise<void> {
+    return request.post('/dataResource/outbox-replay-all')
+  },
+
+  /**
+   * 丢弃单条死信（P5 人工补偿：管理员判定事件已无意义，物理删除）。
+   * 特权接口，每次丢弃后端落审计（reason=outbox-discarded）。
+   *
+   * @param eventKey 事件唯一键
+   */
+  discardOutbox(eventKey: string): Promise<void> {
+    return request.post('/dataResource/outbox-discard', { eventKey })
   },
 }
 

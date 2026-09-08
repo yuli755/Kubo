@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { APanel, ATable } from '@airpower/web'
+import { APanel, ATable, FeedbackUtil } from '@airpower/web'
 import { ElAlert } from 'element-plus'
 import { useDataPermissionRuntimeStatus } from '@/composables/useDataPermissionRuntimeStatus'
 import { useDenyLogReport } from '@/composables/useDenyLogReport'
@@ -7,6 +7,7 @@ import { useDimensionBindingRiskReport } from '@/composables/useDimensionBinding
 import { useEnforceReadiness } from '@/composables/useEnforceReadiness'
 import { useExportGapReport } from '@/composables/useExportGapReport'
 import { useInertPolicyReport } from '@/composables/useInertPolicyReport'
+import { useOutboxDead } from '@/composables/useOutboxDead'
 import { Permissions } from '@/config/permissions'
 import { DataResourceService } from '@/hook/system/useDataResource'
 import { useTanStackTable } from '@/hook/useTanStackTable'
@@ -42,6 +43,35 @@ const {
 
 // 拒绝事件盘点：谁在何时被拒、因何、在哪个档位下。判定都在后端，这里只搬运与摘要。
 const { count: denyLogCount, preview: denyLogPreview, failed: denyLogFailed } = useDenyLogReport()
+
+// 权限变更死信：连续重投仍失败的变更通知，需人工重放/丢弃。状态迁移与权限校验都在后端。
+const {
+  ready: outboxReady,
+  failed: outboxFailed,
+  items: outboxItems,
+  count: outboxCount,
+  replay: replayOutbox,
+  replayAll: replayAllOutbox,
+  discard: discardOutbox,
+} = useOutboxDead()
+
+async function onReplay(eventKey: string) {
+  await FeedbackUtil.confirmWarning(`重放会把死信重置为待投递，交给 Dispatcher 下轮重投。是否重放 ${eventKey}？`, '重放死信')
+  await replayOutbox(eventKey)
+  FeedbackUtil.toastSuccess('死信已重放')
+}
+
+async function onReplayAll() {
+  await FeedbackUtil.confirmWarning('是否重放全部死信？所有 DEAD 事件都会回到待投递并交还 Dispatcher。', '重放全部死信')
+  await replayAllOutbox()
+  FeedbackUtil.toastSuccess('死信已重放')
+}
+
+async function onDiscard(eventKey: string) {
+  await FeedbackUtil.confirmWarning(`丢弃会删除这条死信，且不可恢复（判定事件已无意义才可丢弃）。是否丢弃 ${eventKey}？`, '丢弃死信')
+  await discardOutbox(eventKey)
+  FeedbackUtil.toastSuccess('死信已丢弃')
+}
 
 const hook = useTanStackTable(DataResourceService, {
   queryKey: ['system:datapermission:resource'],
@@ -209,6 +239,58 @@ const hook = useTanStackTable(DataResourceService, {
       title="未能取得拒绝事件"
       description="刷新本页或检查 /dataResource/deny-logs 是否可用；取不到结果时不会显示为「没人被拒」。"
     />
+    <section
+      v-if="outboxReady && outboxCount"
+      class="parity-panel"
+      aria-label="权限变更死信"
+    >
+      <div class="parity-panel__title parity-panel__title--actions">
+        <span>权限变更死信（连续重投仍失败，需人工处置；处置需 data-permission:outbox 权限）</span>
+        <el-button
+          size="small"
+          type="primary"
+          plain
+          @click="onReplayAll"
+        >
+          重放全部
+        </el-button>
+      </div>
+      <div
+        v-for="item in outboxItems"
+        :key="item.id"
+        class="parity-panel__row parity-panel__row--actions"
+      >
+        <strong class="parity-panel__key">{{ item.eventKey }}</strong>
+        <span class="parity-panel__muted">{{ item.eventType }} · 重试 {{ item.retryCount }} 次 · {{ item.lastError || '无错误信息' }}</span>
+        <span class="parity-panel__actions">
+          <el-button
+            size="small"
+            link
+            type="primary"
+            @click="onReplay(item.eventKey)"
+          >
+            重放
+          </el-button>
+          <el-button
+            size="small"
+            link
+            type="danger"
+            @click="onDiscard(item.eventKey)"
+          >
+            丢弃
+          </el-button>
+        </span>
+      </div>
+    </section>
+    <ElAlert
+      v-else-if="outboxFailed"
+      class="gap-warning"
+      type="info"
+      :closable="false"
+      show-icon
+      title="未能取得死信列表"
+      description="刷新本页或检查 /dataResource/outbox-dead 是否可用；取不到结果时不会显示为「没有死信」。"
+    />
     <ATable
       :use-hook="hook"
       :add-permission="Permissions.System.DataResource.add"
@@ -237,12 +319,34 @@ const hook = useTanStackTable(DataResourceService, {
   font-weight: 600;
 }
 
+.parity-panel__title--actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .parity-panel__row {
   display: flex;
   gap: 12px;
   align-items: baseline;
   padding: 4px 0;
   line-height: 1.5;
+}
+
+.parity-panel__row--actions {
+  align-items: center;
+}
+
+.parity-panel__key {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.parity-panel__actions {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .parity-panel__muted {

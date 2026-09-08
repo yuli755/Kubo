@@ -412,3 +412,36 @@ export interface DenyLogItem {
   /** 运维明细（ID、字段名、动作等）；可为 null */
   detail: string | null
 }
+
+/**
+ * 权限变更 Outbox 死信（P5：连续重投仍失败、需人工处置的事件）
+ *
+ * 字段与 `PermissionChangeOutboxEntity` 对齐（`next_retry_at` / `processed_at` 为毫秒时间戳）。
+ * 死信的判定语义（什么算 DEAD）在后端，前端只照实回显与触发重放/丢弃。
+ */
+export interface OutboxDeadItem {
+  /** 事件主键 */
+  id: number
+  /** 发生时间（毫秒时间戳，来自框架基类 create_time） */
+  createTime: number
+  /** 事件唯一键（幂等键，同一事件不落两行） */
+  eventKey: string
+  /** 聚合类型（policy / resource / fieldPolicy / departmentTree / storageTree …） */
+  aggregateType: string
+  /** 聚合 ID；无数值主键时为 0 */
+  aggregateId: number
+  /** 事件类型 */
+  eventType: string
+  /** 事件载荷（JSON 字符串） */
+  payload: string
+  /** 投递状态：PENDING / PROCESSING / DONE / DEAD */
+  status: string
+  /** 已重试次数 */
+  retryCount: number
+  /** 下次重试时间（毫秒）；死信或已处理时为 null */
+  nextRetryAt: number | null
+  /** 处理完成时间（毫秒）；未处理为 null */
+  processedAt: number | null
+  /** 最后错误；为空表示没有错误 */
+  lastError: string | null
+}

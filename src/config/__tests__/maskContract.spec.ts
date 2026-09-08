@@ -2002,6 +2002,33 @@ describe('mask contract · Outbox 同事务写入（P5 第一刀）', () => {
     const step = readJavaCode(join(SERVER, 'module/system/datapermission/service/OutboxDispatchStep.java'))
     expect(step, 'OutboxDispatchStep 缺 markReplay：重放语义没有单一来源').toContain('public static Result markReplay(')
   })
+
+  it('死信处置路径前后端对得上，且只挂在管理端点上', () => {
+    const API = join(ROOT, 'src', 'api', 'system.ts')
+    expect(read(API)).toContain('request.get(\'/dataResource/outbox-dead\'')
+    expect(read(API)).toContain('request.post(\'/dataResource/outbox-replay\'')
+    expect(read(API)).toContain('request.post(\'/dataResource/outbox-discard\'')
+    const controller = join(SERVER, 'module/system/datapermission/controller/DataResourceController.java')
+    expect(readJavaCode(controller)).toContain('@GetMapping("outbox-dead")')
+    expect(readJavaCode(controller)).toContain('@PostMapping("outbox-replay")')
+    expect(readJavaCode(controller)).toContain('@PostMapping("outbox-discard")')
+    for (const file of collect(join(SERVER, 'module/system/datapermission/controller'), '.java')) {
+      if (file.endsWith('DataResourceController.java')) {
+        continue
+      }
+      expect(read(file), `死信处置端点出现在 ${file.split('/').pop()}：这份「哪些变更通知没送出去」的数据会从 dataResource 权限面漂走`)
+        .not
+        .toContain('outbox-dead')
+    }
+  })
+
+  it('前端只回显与触发死信处置，不重算状态迁移', () => {
+    const panel = read(join(ROOT, 'src', 'composables', 'useOutboxDead.ts'))
+    expect(panel, '前端开始判 status/retryCount 语义：什么算死信、重放后状态怎么走都是后端判定的').not.toMatch(/status\s*===|retryCount\s*>=|DEAD\s*===/)
+    const list = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'resource', 'list.vue'))
+    expect(list).toContain('useOutboxDead')
+    expect(list, '取数失败必须能被看见（这里显示「没有死信」等于把取不到表读成审计干净）').toMatch(/<ElAlert[^>]*v-else-if="outboxFailed"/)
+  })
 })
 
 describe('mask contract · F3 数据层收敛（system + personnel + wms + factory + open + iot + asset + channel + mes 模块已迁，全部清零）', () => {
