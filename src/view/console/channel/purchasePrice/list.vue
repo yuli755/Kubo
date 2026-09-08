@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { APanel, APayload, ATable } from '@airpower/web'
 import { Permissions } from '@/config/permissions'
+import { PurchasePriceService } from '@/hook/channel/usePurchasePrice'
 import { useTanStackTable } from '@/hook/useTanStackTable'
-import { PurchasePriceService } from '@/model/channel/purchasePrice/PurchasePriceService'
 import { SupplierDetail } from '../supplier/component'
 import { PurchasePriceEditor } from './component'
 

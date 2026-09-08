@@ -15,9 +15,9 @@ import {
 } from '@airpower/web'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
+import { PurchaseService } from '@/hook/channel/usePurchase'
 import { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
 import { PurchaseEntity } from '@/model/channel/purchase/PurchaseEntity'
-import { PurchaseService } from '@/model/channel/purchase/PurchaseService'
 import { PurchaseDetailEditor } from '.'
 
 const props = defineProps(DialogProps.withParam(new PurchaseEntity()))

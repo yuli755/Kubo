@@ -2,9 +2,8 @@
 import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
 import { Permissions } from '@/config/permissions'
-import { useSaleAudit, useSaleReject } from '@/hook/channel/useSale'
+import { SaleService, useSaleAudit, useSaleReject } from '@/hook/channel/useSale'
 import { useTanStackTable } from '@/hook/useTanStackTable'
-import { SaleService } from '@/model/channel/sale/SaleService'
 import { SaleStatusEnum } from '@/model/channel/sale/SaleStatusEnum'
 import { SaleDetail, SaleEditor } from './component'
 

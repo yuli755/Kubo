@@ -4,10 +4,10 @@ import { BillFormCode, BillFormMoreDetail } from '@/component'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
 import { useBillDetail } from '@/hook/billTable/useBillDetail'
+import { PurchaseService } from '@/hook/channel/usePurchase'
 
 import { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
 import { PurchaseEntity } from '@/model/channel/purchase/PurchaseEntity'
-import { PurchaseService } from '@/model/channel/purchase/PurchaseService'
 import { PurchaseStatusEnum } from '@/model/channel/purchase/PurchaseStatusEnum'
 
 const props = defineProps(DialogProps.withParam(new PurchaseEntity()))

@@ -2,9 +2,9 @@
 import { ADialog, AFormField, AGroup, ATable, DialogProps, useDetail } from '@airpower/web'
 
 import { BillFormCode, BillFormMoreDetail } from '@/component'
+import { SaleService } from '@/hook/channel/useSale'
 import { SaleDetailEntity } from '@/model/channel/sale/SaleDetailEntity'
 import { SaleEntity } from '@/model/channel/sale/SaleEntity'
-import { SaleService } from '@/model/channel/sale/SaleService'
 
 const props = defineProps(DialogProps.withParam(new SaleEntity()))
 

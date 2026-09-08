@@ -4,6 +4,11 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { computed, unref } from 'vue'
 import { saleApi } from '@/api/channel'
 
+// F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`。
+// 销售单及其明细的 CRUD 走 airpower 的 Service 类，由本 hook 模块统一转发。
+export { SaleDetailService } from '@/model/channel/sale/SaleDetailService'
+export { SaleService } from '@/model/channel/sale/SaleService'
+
 export function useSaleList(query: Ref<SaleQuery> | SaleQuery) {
   const resolvedQuery = computed(() => unref(query))
   return useQuery<{ list: SaleEntity[], total: number }>({

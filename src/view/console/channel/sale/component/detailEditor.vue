@@ -2,9 +2,9 @@
 import type { FormInstance } from 'element-plus'
 import { ADialog, AInput, ASelect, DialogProps, FeedbackUtil, getFieldLabel } from '@airpower/web'
 import { ref, watch } from 'vue'
+import { SaleDetailService } from '@/hook/channel/useSale'
+import { SalePriceService } from '@/hook/channel/useSalePrice'
 import { SaleDetailEntity } from '@/model/channel/sale/SaleDetailEntity'
-import { SaleDetailService } from '@/model/channel/sale/SaleDetailService'
-import { SalePriceService } from '@/model/channel/salePrice/SalePriceService'
 import { MaterialSelector } from '@/view/console/asset/material/component'
 
 const props = defineProps(DialogProps.withParam(new SaleDetailEntity()))

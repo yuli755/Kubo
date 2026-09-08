@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { ASelector, DialogProps } from '@airpower/web'
 
+import { SaleService } from '@/hook/channel/useSale'
 import { SaleEntity } from '@/model/channel/sale/SaleEntity'
-import { SaleService } from '@/model/channel/sale/SaleService'
 import { SaleStatusEnum } from '@/model/channel/sale/SaleStatusEnum'
 import { SaleEditor } from '.'
 

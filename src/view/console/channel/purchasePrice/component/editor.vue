@@ -3,9 +3,9 @@ import { ADialog, AFormField, ASelect, DialogProps, useEditor } from '@airpower/
 import { ElMessage } from 'element-plus'
 import { onMounted } from 'vue'
 import { useMaskPolicy } from '@/composables/useMaskPolicy'
+import { PurchasePriceService } from '@/hook/channel/usePurchasePrice'
 
 import { PurchasePriceEntity } from '@/model/channel/purchasePrice/PurchasePriceEntity'
-import { PurchasePriceService } from '@/model/channel/purchasePrice/PurchasePriceService'
 import { MaterialSelector } from '@/view/console/asset/material/component'
 import { SupplierSelector } from '../../supplier/component'
 

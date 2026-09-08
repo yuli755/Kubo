@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { ADialog, AFormField, DialogProps, getFormConfigList, useEditor } from '@airpower/web'
+import { SupplierService } from '@/hook/channel/useSupplier'
 import { SupplierEntity } from '@/model/channel/supplier/SupplierEntity'
-import { SupplierService } from '@/model/channel/supplier/SupplierService'
 
 const props = defineProps(DialogProps.withParam(new SupplierEntity()))
 

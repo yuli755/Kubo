@@ -15,10 +15,10 @@ import {
 } from '@airpower/web'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
+import { SaleService } from '@/hook/channel/useSale'
 
 import { SaleDetailEntity } from '@/model/channel/sale/SaleDetailEntity'
 import { SaleEntity } from '@/model/channel/sale/SaleEntity'
-import { SaleService } from '@/model/channel/sale/SaleService'
 import { SaleDetailEditor } from '.'
 import { CustomerSelector } from '../../customer/component'
 

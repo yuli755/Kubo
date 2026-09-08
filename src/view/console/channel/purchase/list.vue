@@ -2,9 +2,8 @@
 import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
 import { BillAuditOrReject, BillRejectDialog } from '@/component'
 import { Permissions } from '@/config/permissions'
-import { usePurchaseAudit, usePurchaseReject } from '@/hook/channel/usePurchase'
+import { PurchaseService, usePurchaseAudit, usePurchaseReject } from '@/hook/channel/usePurchase'
 import { useTanStackTable } from '@/hook/useTanStackTable'
-import { PurchaseService } from '@/model/channel/purchase/PurchaseService'
 import { PurchaseStatusEnum } from '@/model/channel/purchase/PurchaseStatusEnum'
 import { PurchaseDetail, PurchaseEditor } from './component'
 

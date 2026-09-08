@@ -1,10 +1,9 @@
 <script lang="ts" setup>
 import { AButton, ADialog, ATable, DialogProps } from '@airpower/web'
 import { ref } from 'vue'
+import { PurchaseService } from '@/hook/channel/usePurchase'
 import { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
 import { PurchaseEntity } from '@/model/channel/purchase/PurchaseEntity'
-
-import { PurchaseService } from '@/model/channel/purchase/PurchaseService'
 
 const props = defineProps(DialogProps.withSelector<PurchaseDetailEntity, PurchaseEntity>())
 
