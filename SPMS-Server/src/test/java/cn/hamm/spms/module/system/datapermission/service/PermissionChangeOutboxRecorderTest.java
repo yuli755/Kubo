@@ -67,20 +67,36 @@ class PermissionChangeOutboxRecorderTest {
     }
 
     @Test
-    @DisplayName("资源变更 / 字段策略变更 / 全量刷新：聚合类型与 ID 语义正确")
-    void nonPolicyEventsMapAggregate() {
+    @DisplayName("资源变更：聚合类型 DATA_RESOURCE、无数值主键记 0")
+    void resourceChangeMapsAggregate() {
         recorder().record(DataPermissionChangedEvent.resourceChanged("wms.input"));
-        assertEquals("DATA_RESOURCE", captured().getAggregateType());
-        assertEquals(0L, captured().getAggregateId());
-        assertEquals("RESOURCE_CHANGED", captured().getEventType());
 
+        PermissionChangeOutboxEntity row = captured();
+        assertEquals("DATA_RESOURCE", row.getAggregateType());
+        assertEquals(0L, row.getAggregateId());
+        assertEquals("RESOURCE_CHANGED", row.getEventType());
+    }
+
+    @Test
+    @DisplayName("字段策略变更：聚合类型 DATA_FIELD_POLICY")
+    void fieldPolicyChangeMapsAggregate() {
         recorder().record(DataPermissionChangedEvent.fieldPolicyChanged("wms.input"));
-        assertEquals("DATA_FIELD_POLICY", captured().getAggregateType());
-        assertEquals("FIELD_POLICY_CHANGED", captured().getEventType());
 
+        PermissionChangeOutboxEntity row = captured();
+        assertEquals("DATA_FIELD_POLICY", row.getAggregateType());
+        assertEquals(0L, row.getAggregateId());
+        assertEquals("FIELD_POLICY_CHANGED", row.getEventType());
+    }
+
+    @Test
+    @DisplayName("全量刷新：聚合类型 FULL_REFRESH")
+    void fullRefreshMapsAggregate() {
         recorder().record(DataPermissionChangedEvent.fullRefresh());
-        assertEquals("FULL_REFRESH", captured().getAggregateType());
-        assertEquals("FULL_REFRESH", captured().getEventType());
+
+        PermissionChangeOutboxEntity row = captured();
+        assertEquals("FULL_REFRESH", row.getAggregateType());
+        assertEquals(0L, row.getAggregateId());
+        assertEquals("FULL_REFRESH", row.getEventType());
     }
 
     @Test
