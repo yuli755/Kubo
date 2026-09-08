@@ -7,6 +7,7 @@ import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
 import cn.hamm.spms.module.system.datapermission.service.DataOwnershipMigrationService;
 import cn.hamm.spms.module.system.datapermission.service.DataResourceService;
+import cn.hamm.spms.module.system.datapermission.service.PermissionChangeOutboxAdminService;
 import cn.hamm.airpower.core.Json;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -175,5 +176,61 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
     public Json migrateOwnership(@RequestBody DataOwnershipMigrationService.OwnershipMigrateRequest request) {
         ownershipMigrationService.migrate(request);
         return Json.success("归属已迁移");
+    }
+
+    @Autowired
+    private PermissionChangeOutboxAdminService outboxAdminService;
+
+    /**
+     * 权限变更 Outbox 死信列表（P5：事后追认「哪些变更通知没送出去」）
+     *
+     * <p>死信是 {@code Dispatcher} 连续 {@code MAX_RETRY} 次投递失败后置 {@code DEAD} 的事件；
+     * 这份列表只读、给管理员看「缓存失效通知可能漏了哪几条」，配合 {@code outbox-replay} 重放。
+     * 与归属迁移同一权限面（{@code dataResource}），需 {@code data-permission:outbox} 身份。</p>
+     *
+     * @return 死信事件（最新在前，最多 100 条）
+     */
+    @GetMapping("outbox-dead")
+    @Description("死信事件列表（需 data-permission:outbox）")
+    public Json outboxDead() {
+        return Json.data(outboxAdminService.listDead());
+    }
+
+    /**
+     * 重放单条死信（P5 人工补偿）：DEAD → PENDING，交还 Dispatcher 下轮重投
+     *
+     * @param request 重放请求（eventKey）
+     * @return 成功消息
+     */
+    @PostMapping("outbox-replay")
+    @Description("重放单条死信（需 data-permission:outbox）")
+    public Json outboxReplay(@RequestBody PermissionChangeOutboxAdminService.OutboxReplayRequest request) {
+        outboxAdminService.replay(request.eventKey());
+        return Json.success("死信已重放");
+    }
+
+    /**
+     * 重放全部死信（P5 人工补偿，故障恢复后批量续投）
+     *
+     * @return 成功消息（含重放条数）
+     */
+    @PostMapping("outbox-replay-all")
+    @Description("重放全部死信（需 data-permission:outbox）")
+    public Json outboxReplayAll() {
+        int count = outboxAdminService.replayAllDead();
+        return Json.success("已重放 " + count + " 条死信");
+    }
+
+    /**
+     * 丢弃单条死信（P5 人工补偿：管理员判定事件已无意义，物理删除）
+     *
+     * @param request 丢弃请求（eventKey）
+     * @return 成功消息
+     */
+    @PostMapping("outbox-discard")
+    @Description("丢弃单条死信（需 data-permission:outbox）")
+    public Json outboxDiscard(@RequestBody PermissionChangeOutboxAdminService.OutboxReplayRequest request) {
+        outboxAdminService.discard(request.eventKey());
+        return Json.success("死信已丢弃");
     }
 }

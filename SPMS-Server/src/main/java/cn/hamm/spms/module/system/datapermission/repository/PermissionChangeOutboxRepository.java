@@ -16,4 +16,6 @@ public interface PermissionChangeOutboxRepository extends BaseRepository<Permiss
     PermissionChangeOutboxEntity getByEventKey(String eventKey);
 
     List<PermissionChangeOutboxEntity> findTop100ByStatusAndNextRetryAtLessThanEqualOrderByIdAsc(String status, Long nextRetryAt);
+
+    List<PermissionChangeOutboxEntity> findByStatusOrderByIdDesc(String status);
 }

@@ -52,4 +52,18 @@ public final class OutboxDispatchStep {
         return new Result(PermissionChangeOutboxStatus.PENDING.name(), next,
                 PermissionChangeOutboxBackoff.nextRetryAtMillis(next, nowMillis), null, lastError);
     }
+
+    /**
+     * 死信重放（人工补偿）：DEAD → PENDING，重试次数清零，下次重试置为「此刻即到期」。
+     *
+     * <p>把 {@code nextRetryAt} 置为当前时间戳（而非未来）是为了让 {@code Dispatcher} 下一轮
+     * 轮询（{@code next_retry_at <= now}）立即把它拉走重投；重试次数清零给它全新的
+     * {@code MAX_RETRY} 次机会，错误信息清空（重新来过）。</p>
+     *
+     * @param nowMillis 当前时间戳
+     * @return PENDING 迁移（retryCount 归零、nextRetryAt 即时到期、清空错误）
+     */
+    public static Result markReplay(long nowMillis) {
+        return new Result(PermissionChangeOutboxStatus.PENDING.name(), 0, nowMillis, null, null);
+    }
 }

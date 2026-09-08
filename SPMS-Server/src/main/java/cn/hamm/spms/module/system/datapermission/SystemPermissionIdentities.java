@@ -16,6 +16,13 @@ public final class SystemPermissionIdentities {
      */
     public static final String DATA_PERMISSION_OWNERSHIP = "system:data-permission:ownership";
 
+    /**
+     * 死信重放权限（P5）：允许管理员查看/重放/丢弃权限变更 Outbox 的死信事件（{@code DEAD}）。
+     * 默认不授予任何角色 —— 死信是「连续重试仍投不出去」的异常态，处置是运维特权，
+     * 每次重放/丢弃都落审计（见 {@code PermissionChangeOutboxAdminService}）。
+     */
+    public static final String DATA_PERMISSION_OUTBOX = "system:data-permission:outbox";
+
     private SystemPermissionIdentities() {
     }
 }

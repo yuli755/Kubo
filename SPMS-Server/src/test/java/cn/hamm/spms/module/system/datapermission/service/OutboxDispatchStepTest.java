@@ -62,4 +62,16 @@ class OutboxDispatchStepTest {
         assertEquals(10, result.retryCount());
         assertNull(result.nextRetryAt());
     }
+
+    @Test
+    @DisplayName("死信重放 → PENDING，重试清零，下次重试即时到期，清空错误")
+    void replayResetsToPendingImmediatelyDue() {
+        OutboxDispatchStep.Result result = OutboxDispatchStep.markReplay(NOW);
+
+        assertEquals("PENDING", result.status());
+        assertEquals(0, result.retryCount());
+        assertEquals(NOW, result.nextRetryAt());
+        assertNull(result.processedAt());
+        assertNull(result.lastError());
+    }
 }

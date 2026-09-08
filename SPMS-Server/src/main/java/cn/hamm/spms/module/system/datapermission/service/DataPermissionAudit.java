@@ -60,6 +60,21 @@ public class DataPermissionAudit {
      */
     public static final String REASON_OWNERSHIP_MIGRATED = "ownership-migrated";
 
+    /**
+     * 死信重放被拒（无 {@code system:data-permission:outbox} 权限）
+     */
+    public static final String REASON_OUTBOX_DENIED = "outbox-denied";
+
+    /**
+     * 死信已重放（特权操作，落库审计）
+     */
+    public static final String REASON_OUTBOX_REPLAYED = "outbox-replayed";
+
+    /**
+     * 死信已丢弃（特权操作，落库审计）
+     */
+    public static final String REASON_OUTBOX_DISCARDED = "outbox-discarded";
+
     private final ObjectProvider<MeterRegistry> registryProvider;
     private final DataPermissionProperties properties;
     private final ObjectProvider<DataPermissionDenyLogRecorder> denyLogRecorderProvider;

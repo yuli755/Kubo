@@ -1983,6 +1983,25 @@ describe('mask contract · Outbox 同事务写入（P5 第一刀）', () => {
     expect(outboxSwitch, 'application.yml 里没有 outbox.enabled：没人看见的开关等于没有开关').not.toBeNull()
     expect(outboxSwitch![1], 'Dispatcher 默认必须关（本地/测试环境不该启动轮询）').toBe('false')
   })
+
+  it('死信重放/丢弃是独立特权接口，重放状态迁移单源，且落审计（P5 人工补偿）', () => {
+    const controller = readJavaCode(join(SERVER, 'module/system/datapermission/controller/DataResourceController.java'))
+    expect(controller, '缺死信列表端点：管理员看不到哪些变更通知没送出去').toContain('@GetMapping("outbox-dead")')
+    expect(controller, '缺死信重放端点：DEAD 永远死着，人工补偿没有入口').toContain('@PostMapping("outbox-replay")')
+    expect(controller, '缺死信丢弃端点：已无意义的事件无法清掉').toContain('@PostMapping("outbox-discard")')
+
+    const identities = readJavaCode(join(SERVER, 'module/system/datapermission/SystemPermissionIdentities.java'))
+    expect(identities, '缺 DATA_PERMISSION_OUTBOX 身份：死信处置没有独立权限门').toContain('DATA_PERMISSION_OUTBOX')
+
+    const admin = readJavaCode(join(SERVER, 'module/system/datapermission/service/PermissionChangeOutboxAdminService.java'))
+    const body = methodBody(admin, 'private void applyReplay(')
+    expect(body, '重放状态迁移没走 OutboxDispatchStep.markReplay：状态判据又抄了一份').toContain('OutboxDispatchStep.markReplay(')
+    expect(admin, '重放前不校验 outbox 权限：任何能调端点的人都能重放/丢弃死信').toContain('systemPermissionService.has(')
+    expect(admin, '重放/丢弃不落审计：特权操作不可追责').toContain('denyLogRecorder.record(')
+
+    const step = readJavaCode(join(SERVER, 'module/system/datapermission/service/OutboxDispatchStep.java'))
+    expect(step, 'OutboxDispatchStep 缺 markReplay：重放语义没有单一来源').toContain('public static Result markReplay(')
+  })
 })
 
 describe('mask contract · F3 数据层收敛（system + personnel + wms + factory + open + iot + asset + channel + mes 模块已迁，全部清零）', () => {
