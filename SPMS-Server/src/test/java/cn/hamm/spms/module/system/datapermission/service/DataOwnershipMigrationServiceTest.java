@@ -162,7 +162,9 @@ class DataOwnershipMigrationServiceTest {
     @DisplayName("目标记录不是带归属实体 → 参数错误")
     void nonTenantAwareTargetFails() {
         stubEntityClassIndex();
-        given(entityManager.find(OwnedEntity.class, 9L)).willReturn(new Object());
+        // find(Class, Object) 是泛型方法：直接 willReturn(OwnedEntity.class 版本) 会把 T 锁定为 OwnedEntity，
+        // 传 new Object() 会编译不过。这里用原始 Class 匹配器把 T 放宽到 Object，模拟"表索引反查出的类与记录类型不符"。
+        given(entityManager.find(any(Class.class), any())).willReturn(new Object());
 
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             UserEntity user = org.mockito.Mockito.mock(UserEntity.class);

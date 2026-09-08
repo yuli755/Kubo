@@ -85,11 +85,13 @@ public class DataOwnershipMigrationService {
     public void migrate(OwnershipMigrateRequest request) {
         if (request == null || request.resourceKey() == null || request.entityId() == null) {
             PARAM_INVALID.show("归属迁移需要 resourceKey 与 entityId");
+            return;
         }
         PermissionContext context = PermissionContextHolder.current().orElse(null);
         if (context == null) {
             DataPermissionDenial.denied(null, request.resourceKey(), DataPermissionAudit.REASON_OWNERSHIP_DENIED,
                     "无请求上下文", "数据权限不足：归属迁移需要在请求上下文中执行（需 data-permission:ownership）");
+            return;
         }
 
         UserEntity current = userService.get(context.userId());
@@ -98,15 +100,18 @@ public class DataOwnershipMigrationService {
             DataPermissionDenial.denied(null, request.resourceKey(), DataPermissionAudit.REASON_OWNERSHIP_DENIED,
                     "operator=" + context.userId(),
                     "数据权限不足：归属迁移需要 data-permission:ownership 权限（仅平台管理员可执行）");
+            return;
         }
 
         Class<?> entityClass = entityClassOf(request.resourceKey());
         Object target = entityManager.find(entityClass, request.entityId());
         if (target == null) {
             PARAM_INVALID.show("记录不存在：" + request.resourceKey() + "#" + request.entityId());
+            return;
         }
         if (!(target instanceof TenantAwareEntity<?> owned)) {
             PARAM_INVALID.show("该资源不是带归属（tenant_id/creator_id）的实体，无法迁移归属：" + request.resourceKey());
+            return;
         }
 
         Long beforeTenant = owned.getTenantId();
