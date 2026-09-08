@@ -165,7 +165,7 @@ jobs:
       - name: Reject forbidden dependencies
         run: |
           set -e
-          # 架构红线（见 docs/二次改造前后端推进路线与可行性建议.md）：
+          # 架构红线（见 docs/archive/二次改造前后端推进路线与可行性建议.md，已归档）：
           # 不得引入 AMQP 之外的消息中间件客户端；MyBatis 必须与 MyBatis-Plus 同版本族。
           # 【2026-09-08 修的一处空转】原来是 `-q dependency:tree`：dependency:tree 是通过 INFO 日志
           # 输出的，`-q` 把它整个压掉 ⇒ $tree 恒为空 ⇒ 下面两条红线 grep 的永远是空串，"通过"是假的。

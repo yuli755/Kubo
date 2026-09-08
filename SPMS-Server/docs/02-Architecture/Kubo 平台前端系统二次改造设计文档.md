@@ -2487,7 +2487,7 @@ Phase 4                                                            ████�
 ## 附录 B: 参考文档
 
 - [Kubo 平台-前端高并发重构实施路线规划计划.md](../Kubo%20平台-前端高并发重构实施路线规划计划.md)
-- [前后端重构规划差距分析报告.md](../前后端重构规划差距分析报告.md)
+- [前后端重构规划差距分析报告.md](../archive/前后端重构规划差距分析报告.md)
 - [Kubo 平台后端系统二次改造设计文档](./Kubo%20平台后端系统二次改造设计文档.md)
 - [SECURITY_GUIDE.md](../05-Development/SECURITY_GUIDE.md)
 - [TESTING_STRATEGY.md](../05-Development/TESTING_STRATEGY.md)
