@@ -688,6 +688,30 @@ describe('mask contract · 界面文案与后端能力对齐', () => {
         .some(file => file.endsWith(`/${cls}.java`))
       expect(hit, `tip 引用的 ${cls} 在后端找不到`).toBe(true)
     }
+
+    // D13-B：维度落地后，主体字典也不许再把 FACTORY 灰掉（灰掉一个已落地维度 =
+    // 管理员无法授权该维度，与 EXPORT 那条「灰掉已实现能力」同一套道理）。
+    const subjectDict = read(join(ROOT, 'src/model/system/datapermission/DataPermissionSubjectType.ts'))
+    const factoryTail = (() => {
+      const lines = subjectDict.split(/\r?\n/)
+      for (let i = 0; i < lines.length; i++) {
+        if (/static readonly FACTORY\s*=/.test(lines[i])) {
+          let tail = ''
+          for (let j = i + 1; j < lines.length && /^\s*\.\w+\(/.test(lines[j]); j++) {
+            tail += lines[j]
+          }
+          return tail
+        }
+      }
+      return ''
+    })()
+    expect(factoryTail.length, '没解析到 FACTORY 字典项：字典形状变了，本用例已失效').toBeGreaterThan(0)
+    if (factoryOff) {
+      expect(factoryTail).toMatch(/setDisabled\(true\)/)
+    }
+    else {
+      expect(factoryTail, '工厂维度已落地，字典里仍把 FACTORY 灰掉会让管理员无法授权').not.toMatch(/setDisabled\(true\)/)
+    }
   })
 })
 

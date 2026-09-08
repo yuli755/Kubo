@@ -149,6 +149,8 @@ public class DevDataInitRunner implements CommandLineRunner {
                             .setTableName("inventory")
                             .setTableAlias("t")
                             .setTenantColumn("tenant_id")
+                            // D13-B：工厂归属沿 storage 关联走一跳（InventoryEntity.@ManyToOne storage）
+                            .setOwnerColumns("FACTORY:storage.id")
                             .setSupportedActions("QUERY,DETAIL,EXPORT")
                             .setStatus("ENABLED")
             );
@@ -218,6 +220,8 @@ public class DevDataInitRunner implements CommandLineRunner {
                             .setTableName("move")
                             .setTableAlias("t")
                             .setTenantColumn("tenant_id")
+                            // D13-B：工厂归属沿 storage 关联走一跳（MoveEntity.@ManyToOne storage）
+                            .setOwnerColumns("FACTORY:storage.id")
                             .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
                             .setStatus("ENABLED")
             );

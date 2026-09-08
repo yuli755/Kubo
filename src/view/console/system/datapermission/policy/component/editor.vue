@@ -32,9 +32,10 @@ const {
       @submit.prevent
     >
       <div class="tip">
-        工厂（FACTORY）维度尚未落地：没有 user_factory 关系表、factoryIds 恒为空，保存会被后端 DimensionGuard 拒绝；
-        条件树里引用 factoryIds 同样被拒（那会被渲染成恒假条件，整个列表变空结果）。
-        租户 / 用户 / 部门 / 仓库 / 角色可用。conditionJson 只允许白名单列，写裸 SQL 会被拒绝。
+        工厂（FACTORY）维度已落地：先在「用户」上维护其所属工厂（user_factory 关系表），登录/刷新会把工厂节点连同
+        整棵仓库子树展开进 factoryIds，行级与写侧共用同一份 factoryIds。策略列绑定沿 FACTORY:storage.id 关联路径
+        走一跳（当前接在 wms.inventory / wms.move）。租户 / 用户 / 部门 / 仓库 / 角色同样可用。
+        conditionJson 只允许白名单列，写裸 SQL 会被拒绝。
       </div>
       <AFormField field="policyCode" />
       <AFormField field="resourceId" />

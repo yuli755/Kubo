@@ -304,9 +304,12 @@ class RequestInterceptorPermissionContextTest {
                     .willReturn(new PermissionEntity().setIdentity("test:permission").setName("测试权限"));
             given(systemPermissionService.has(any(UserEntity.class), eq("test:permission"))).willReturn(true);
 
-            // 默认 DataPermissionProperties.factoryDimensionEnabled=false：不解析 factoryList，也不碰树索引
+            // D13-B 起默认 factoryDimensionEnabled=true，这里显式关掉它：
+            // 维度关闭时不得解析 factoryList，也不得碰树索引（代价为零才叫灰度开关）
+            DataPermissionProperties properties = new DataPermissionProperties();
+            properties.setFactoryDimensionEnabled(false);
             StorageHierarchyIndex index = org.mockito.Mockito.mock(StorageHierarchyIndex.class);
-            injectField(interceptor, "dataPermissionProperties", new DataPermissionProperties());
+            injectField(interceptor, "dataPermissionProperties", properties);
             injectField(interceptor, "storageHierarchyIndex", index);
 
             interceptor.checkUserPermission(verifiedToken, "test:permission", request);

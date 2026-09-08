@@ -3,6 +3,7 @@ package cn.hamm.spms.module.system.datapermission.service;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -68,6 +69,25 @@ class FactoryDimensionReadinessTest {
         private Long tenantId;
     }
 
+    /**
+     * D13-B：工厂归属登记成 {@code FACTORY:storage.id}，实体上真正挂着
+     * {@code @ManyToOne storage}（对应 {@code InventoryEntity} / {@code MoveEntity} 的真实形状）
+     */
+    @Table(name = "inventory")
+    static class InventoryWithStorageAssociation {
+        @ManyToOne
+        @SuppressWarnings("unused")
+        private StorageRef storage;
+    }
+
+    /**
+     * 关联目标（{@code storage} 树节点）的形状：至少要有 {@code id} 可绑
+     */
+    static class StorageRef {
+        @SuppressWarnings("unused")
+        private Long id;
+    }
+
     private static DataResourceEntity resource(String key, String table, String ownerColumns) {
         return new DataResourceEntity().setResourceKey(key).setTableName(table).setOwnerColumns(ownerColumns);
     }
@@ -111,6 +131,26 @@ class FactoryDimensionReadinessTest {
                 List.of(resource("channel.purchase", "purchase", "creator_id, factory_id")));
 
         assertTrue(problems.isEmpty(), String.join(" / ", problems));
+    }
+
+    @Test
+    @DisplayName("登记 FACTORY:storage.id 且实体真挂 @ManyToOne storage → 就绪（D13-B）")
+    void recognizesFactoryAssociationPath() {
+        List<String> problems = FactoryDimensionReadiness.inspect(
+                List.of(ReadyUserEntity.class, InventoryWithStorageAssociation.class),
+                List.of(resource("wms.inventory", "inventory", "FACTORY:storage.id")));
+
+        assertTrue(problems.isEmpty(), String.join(" / ", problems));
+    }
+
+    @Test
+    @DisplayName("登记 FACTORY:storage.id 但实体没挂 storage 关联 → 不算具备（路径不是免检通道）")
+    void factoryAssociationPathMustActuallyBind() {
+        List<String> problems = FactoryDimensionReadiness.inspect(
+                List.of(ReadyUserEntity.class, PurchaseWithoutFactory.class),
+                List.of(resource("channel.purchase", "purchase", "FACTORY:storage.id")));
+
+        assertTrue(problems.stream().anyMatch(p -> p.contains("没有任何已注册资源")), String.join(" / ", problems));
     }
 
     @Test

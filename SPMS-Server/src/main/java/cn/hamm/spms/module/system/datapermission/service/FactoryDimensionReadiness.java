@@ -3,6 +3,7 @@ package cn.hamm.spms.module.system.datapermission.service;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
+import cn.hamm.spms.module.system.datapermission.rule.OwnerColumnRegistration;
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Table;
@@ -175,9 +176,20 @@ public class FactoryDimensionReadiness {
                 return true;
             }
         }
-        // 归属列允许由资源显式登记（与条件树白名单同源），登记了就算具备
+        // 归属列允许由资源显式登记（与条件树白名单同源）。分两种写法：
         String ownerColumns = resource.getOwnerColumns();
         if (ownerColumns != null) {
+            // ① 带 FACTORY: 维度前缀的登记（D13-B）：`FACTORY:storage.id` 这类关联路径
+            //    必须能在实体形状上真绑上才算具备 —— 光有登记没绑上，是又一条「配了没用」，
+            //    打开开关后该资源上的 FACTORY 策略照样一条都拼不出来。
+            List<OwnerColumnRegistration> items = OwnerColumnRegistration.parse(ownerColumns);
+            List<String> factoryPaths = OwnerColumnRegistration.pathsFor(items, "FACTORY");
+            if (!factoryPaths.isEmpty()) {
+                EntityShapeIndex.Shape shape = EntityShapeIndex.shapeOf(entity);
+                return factoryPaths.stream().anyMatch(shape::binds);
+            }
+            // ② 裸写法（无维度前缀）：沿用「登记了 factory_id 就算具备」的既有口径，
+            //    不动历史 owner_columns 的兼容语义（FactoryDimensionReadinessTest#ownerColumnsCountAsReady）
             for (String part : ownerColumns.split(",")) {
                 if (normalize(part).equals(OWNER_COLUMN_NAME)) {
                     return true;
