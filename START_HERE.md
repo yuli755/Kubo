@@ -1,5 +1,9 @@
 # 🎉 Kubo 项目准备完成！
 
+> ⚠️ **历史快照（2026-09-07 准备阶段）**：本文是当时「准备完成」的里程碑记录，其中
+> `start-redis.bat` / `check-env.*` 等脚本现已不存在、前端已从 `SPMS-Web` 目录迁到仓库根目录、
+> 包管理已从 Yarn 换为 pnpm、表结构口径已更新（增量迁移脚本）。**启动请以 [STARTUP.md](./STARTUP.md) 为准**。
+
 ## ✅ 所有工作已完成
 
 ### 1. 品牌重塑
@@ -29,7 +33,7 @@
 
 ### 第 1 步: 启动 Redis
 ```bash
-start-redis.bat
+docker run -d --name kubo-redis -p 6379:6379 redis:alpine
 ```
 
 ### 第 2 步: 启动后端
@@ -40,9 +44,9 @@ cd SPMS-Server
 
 ### 第 3 步: 启动前端
 ```bash
-cd D:\JAVA\Code_repository\SPMS-Web
-yarn install
-yarn s
+# 仓库根目录（新开终端）
+pnpm install
+pnpm s
 ```
 
 ### 第 4 步: 登录测试

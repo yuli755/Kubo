@@ -73,7 +73,7 @@ cd SPMS-Server
 
 # 3. 启动前端 (新终端)
 cd ..
-yarn s
+pnpm s
 ```
 
 ### 步骤 2: 访问登录页

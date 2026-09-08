@@ -414,13 +414,13 @@ const {
 
 ```bash
 # 启动开发服务器
-yarn s
+pnpm s
 
 # ESLint 自动修复代码格式
-yarn lint
+pnpm lint
 
 # 生产构建
-yarn production
+pnpm build
 ```
 
 ## 构建配置

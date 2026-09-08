@@ -1,6 +1,13 @@
 # Kubo 数据库表结构文档
 
 > 本文档由 JPA 实体类自动生成，表结构会在首次启动时由 Hibernate 自动创建
+>
+> ⚠️ **补充**：本文只覆盖 JPA 建的业务表。数据权限二次改造另有一批**手写幂等迁移表**——
+> `data_resource` / `data_policy` / `data_field_policy` / `permission_change_outbox` /
+> `tenant` / `user_tenant` / `user_factory` / `data_permission_diff_log` /
+> `data_permission_deny_log` / `data_permission_orm_parity_log` 等——见
+> `SPMS-Server/docs/database/migration/20260909_data_permission_migrations_consolidated.sql`
+> 与 `SPMS-Server/docs/database/tenant_readiness_matrix.md`。
 
 ## 📊 数据库信息
 
@@ -359,9 +366,9 @@ ALTER TABLE `user` ADD COLUMN `wechat` varchar(255) DEFAULT '' COMMENT '微信�
 
 1. **ddl-auto: update** 只能增加字段，不能删除字段
 2. 修改字段类型需要谨慎，可能导致数据丢失
-3. 生产环境建议使用 **ddl-auto: validate** 并手动执行 SQL
-4. 复杂的表结构变更建议使用 **Flyway** 或 **Liquibase** 版本管理工具
+3. 生产环境（`validate`）**先跑迁移脚本再启动**：`mysql -u root -p kubo < SPMS-Server/docs/database/migration/20260909_data_permission_migrations_consolidated.sql`
+4. 结构变更的约定：JPA 建业务表；增量变更（补列、回填、唯一域降级、新表）写**手写幂等迁移脚本**进 `SPMS-Server/docs/database/migration/`（不用 Flyway/Liquibase，幂等由 CI 双跑判据保证）
 
 ---
 
-**更多信息**: 查看 [WHY_NO_SQL.md](./WHY_NO_SQL.md) 了解为什么没有 SQL 文件
+**更多信息**: 查看 [WHY_NO_SQL.md](./WHY_NO_SQL.md) 了解「JPA 建表 + 手写迁移」的现行口径
