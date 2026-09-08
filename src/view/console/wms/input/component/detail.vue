@@ -4,10 +4,10 @@ import { BillFormCode, BillFormMoreDetail } from '@/component'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
 import { useBillDetail } from '@/hook/billTable/useBillDetail'
+import { InputService } from '@/hook/wms/useInput'
 
 import { InputDetailEntity } from '@/model/wms/input/InputDetailEntity'
 import { InputEntity } from '@/model/wms/input/InputEntity'
-import { InputService } from '@/model/wms/input/InputService'
 
 import { InputStatusEnum } from '@/model/wms/input/InputStatusEnum'
 import { InputTypeEnum } from '@/model/wms/input/InputTypeEnum'

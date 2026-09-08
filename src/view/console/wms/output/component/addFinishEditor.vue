@@ -5,9 +5,8 @@ import { ref } from 'vue'
 import { InventoryEntity } from '@/model/wms/inventory/InventoryEntity'
 import { InventoryTypeEnum } from '@/model/wms/inventory/InventoryTypeEnum'
 
+import { OutputDetailService, useOutputAddFinish } from '@/hook/wms/useOutput'
 import { OutputDetailEntity } from '@/model/wms/output/OutputDetailEntity'
-import { OutputDetailService } from '@/model/wms/output/OutputDetailService'
-import { useOutputAddFinish } from '@/hook/wms/useOutput'
 import { InventorySelector } from '../../inventory/component'
 
 const props = defineProps(DialogProps.withParam(new OutputDetailEntity()))

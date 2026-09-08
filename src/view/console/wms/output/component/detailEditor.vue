@@ -2,8 +2,8 @@
 import type { FormInstance } from 'element-plus'
 import { ADialog, AInput, ASelect, DialogProps, getFieldLabel } from '@airpower/web'
 import { ref } from 'vue'
+import { OutputDetailService } from '@/hook/wms/useOutput'
 import { OutputDetailEntity } from '@/model/wms/output/OutputDetailEntity'
-import { OutputDetailService } from '@/model/wms/output/OutputDetailService'
 
 import { MaterialSelector } from '@/view/console/asset/material/component'
 

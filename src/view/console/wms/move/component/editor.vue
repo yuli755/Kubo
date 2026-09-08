@@ -15,12 +15,12 @@ import {
 } from '@airpower/web'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
+import { MoveService } from '@/hook/wms/useMove'
 import { InventoryEntity } from '@/model/wms/inventory/InventoryEntity'
 
 import { InventoryTypeEnum } from '@/model/wms/inventory/InventoryTypeEnum'
 import { MoveDetailEntity } from '@/model/wms/move/MoveDetailEntity'
 import { MoveEntity } from '@/model/wms/move/MoveEntity'
-import { MoveService } from '@/model/wms/move/MoveService'
 import { StorageSelector } from '@/view/console/factory/storage/component'
 import { MoveDetailEditor } from '.'
 import { InventorySelector } from '../../inventory/component'

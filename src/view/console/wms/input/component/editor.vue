@@ -16,9 +16,9 @@ import {
 import { computed } from 'vue'
 import { Permissions } from '@/config/permissions'
 import { vPermission } from '@/directives'
+import { InputService } from '@/hook/wms/useInput'
 import { InputDetailEntity } from '@/model/wms/input/InputDetailEntity'
 import { InputEntity } from '@/model/wms/input/InputEntity'
-import { InputService } from '@/model/wms/input/InputService'
 import { InputTypeEnum } from '@/model/wms/input/InputTypeEnum'
 import { InputDetailEditor } from '.'
 

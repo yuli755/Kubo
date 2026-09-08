@@ -3,9 +3,8 @@ import type { FormInstance } from 'element-plus'
 
 import { ADialog, AInput, DialogProps, DialogUtil } from '@airpower/web'
 import { ref } from 'vue'
-import { useInputAddFinish } from '@/hook/wms/useInput'
+import { InputDetailService, useInputAddFinish } from '@/hook/wms/useInput'
 import { InputDetailEntity } from '@/model/wms/input/InputDetailEntity'
-import { InputDetailService } from '@/model/wms/input/InputDetailService'
 import { StorageSelector } from '@/view/console/factory/storage/component'
 
 const props = defineProps(DialogProps.withParam(new InputDetailEntity()))

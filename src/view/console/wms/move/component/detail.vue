@@ -5,10 +5,10 @@ import { Permissions } from '@/config/permissions'
 
 import { vPermission } from '@/directives'
 import { useBillDetail } from '@/hook/billTable/useBillDetail'
+import { MoveService } from '@/hook/wms/useMove'
 import { MoveDetailEntity } from '@/model/wms/move/MoveDetailEntity'
 import { MoveEntity } from '@/model/wms/move/MoveEntity'
 
-import { MoveService } from '@/model/wms/move/MoveService'
 import { MoveStatusEnum } from '@/model/wms/move/MoveStatusEnum'
 
 const props = defineProps(DialogProps.withParam(new MoveEntity()))

@@ -15,9 +15,9 @@ import {
   useEditor,
 } from '@airpower/web'
 import { computed } from 'vue'
+import { OutputService } from '@/hook/wms/useOutput'
 import { OutputDetailEntity } from '@/model/wms/output/OutputDetailEntity'
 import { OutputEntity } from '@/model/wms/output/OutputEntity'
-import { OutputService } from '@/model/wms/output/OutputService'
 import { OutputTypeEnum } from '@/model/wms/output/OutputTypeEnum'
 import { OutputDetailEditor } from '.'
 
