@@ -1288,13 +1288,11 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
     expect(retention).toContain('cutoffEpochMillis')
     expect(diffRepository).toContain('delete from data_permission_diff_log where create_time < :cutoff')
     expect(parityRepository).toContain('delete from data_permission_orm_parity_log where create_time < :cutoff')
-    expect(read(join(ROOT, 'SPMS-Server', 'docs', 'database', 'migration', '20260907_data_permission_rule_kernel.sql')))
-      .toContain('idx_dp_diff_create_time')
-    expect(read(join(ROOT, 'SPMS-Server', 'docs', 'database', 'migration', '20260908_data_permission_orm_parity.sql')))
-      .toContain('idx_dp_parity_create_time')
-    const retentionMigration = read(join(ROOT, 'SPMS-Server', 'docs', 'database', 'migration', '20260909_data_permission_evidence_retention.sql'))
-    expect(retentionMigration).toContain('kubo_dp_add_evidence_time_index')
-    expect(retentionMigration).toContain('information_schema.STATISTICS')
+    const migration = read(join(ROOT, 'SPMS-Server', 'docs', 'database', 'migration', '20260909_data_permission_migrations_consolidated.sql'))
+    expect(migration).toContain('idx_dp_diff_create_time')
+    expect(migration).toContain('idx_dp_parity_create_time')
+    expect(migration).toContain('kubo_dp_add_evidence_time_index')
+    expect(migration).toContain('information_schema.STATISTICS')
   })
 
   it('写侧动作级守卫必须认得 mode 与「资源是否纳管」', () => {
