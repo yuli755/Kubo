@@ -36,7 +36,7 @@ src/
 │   ├── Constant.ts     # 常量
 │   └── routes.ts       # 路由配置
 ├── hook/            # 自定义 Hooks
-│   └── useMyTable.ts  # 表格Hook封装
+│   └── useTanStackTable.ts  # 表格 Hook 封装（useMyTable 已废弃）
 ├── model/           # 数据模型 (Entity, Service, Enum)
 ├── view/            # 页面视图
 ├── App.vue
@@ -103,8 +103,8 @@ view/console/business-module/function-module/
 | 类        | PascalCase          | `MaterialEntity`, `MaterialService` |
 | 枚举类    | PascalCase          | `MaterialTypeEnum`                  |
 | 枚举常量  | UPPER_SNAKE_CASE    | `PRODUCT`, `PURCHASE`               |
-| 接口/类型 | PascalCase (前缀 I) | `IBaseTableResult`                  |
-| 函数/变量 | camelCase           | `useMyTable`, `onPublish`           |
+| 接口/类型 | PascalCase (前缀 I) | `ITableResult`                      |
+| 函数/变量 | camelCase           | `useTanStackTable`, `onPublish`     |
 | TS 文件   | PascalCase          | `MaterialEntity.ts`                 |
 | Vue 文件  | kebab-case          | `editor.vue`, `list.vue`            |
 
@@ -296,10 +296,10 @@ export class MaterialEntity extends BaseEntity implements IPayload {
 
 **示例**:
 ```typescript
-export function useMyTable<E extends BaseEntity, S extends AbstractBaseService<E>>(
+export function useTanStackTable<E extends BaseEntity, S extends AbstractBaseService<E>>(
   serviceClass: CurdServiceConstructor<E, S>,
-  option: ITableOption<E> = {},
-): IBaseTableResult<E, S> {
+  option: ITableOption<E> & { queryKey: string[] },
+): ITableResult<E, S> {
   // ...
 }
 ```
@@ -311,11 +311,12 @@ export function useMyTable<E extends BaseEntity, S extends AbstractBaseService<E
 ```vue
 <script lang="ts" setup>
 import { APanel, ATable } from '@airpower/web'
-import { useMyTable } from '@/hook/useMyTable'
-import { MaterialService } from '@/model/asset/material/MaterialService'
+import { useTanStackTable } from '@/hook/useTanStackTable'
+import { MaterialService } from '@/hook/asset/useMaterial'
 import { MaterialEditor } from './component'
 
-const hook = useMyTable(MaterialService, {
+const hook = useTanStackTable(MaterialService, {
+  queryKey: ['asset:material'],
   editView: MaterialEditor,
 })
 </script>
@@ -437,7 +438,7 @@ yarn production
 ## 最佳实践
 
 1. ✅ **复用基础组件**: 优先使用 `@airpower/web` 提供的 `APanel`、`ATable`、`ADialog`、`AFormField`、`ASelect` 等组件
-2. ✅ **复用 Hooks**: 使用 `useTable`、`useEditor`、`useSelector`、`useMyTable` 等封装好的 Hooks
+2. ✅ **复用 Hooks**: 使用 `useTanStackTable`、`useEditor`、`useSelector`、`useDetail` 等封装好的 Hooks（`useMyTable`/`useBillTable` 已废弃，勿再用）
 3. ✅ **业务分层**: 模型在 `model/`，页面在 `view/`，业务逻辑在 Service，不要在页面写过多逻辑
 4. ✅ **类型安全**: 充分利用 TypeScript 类型系统，不使用 `any`
 5. ✅ **继承基类**: 实体继承 `BaseEntity`，服务继承 `AbstractBaseService`，获得通用能力
