@@ -418,6 +418,22 @@ describe('mask contract · 脱敏实现只允许存在一处', () => {
     expect(list, '行级策略列表没渲染盘点结果').toMatch(/<ElAlert[^>]*v-if="riskCount"/)
     expect(list).toContain('useRowPolicyRiskReport')
   })
+
+  it('显式拒绝（EXPLICIT_DENY）类别与运行期 CREATE 放行同源', () => {
+    const analyzer = readJavaCode(join(SERVER, 'module/system/datapermission/service/RowPolicyRiskAnalyzer.java'))
+    expect(analyzer, '显式拒绝类别被删：CREATE 配 deny:true 会静默放行，而盘点不再提示')
+      .toContain('KIND_EXPLICIT_DENY')
+    const isDeny = methodBody(analyzer, 'boolean isExplicitDeny(')
+    expect(isDeny, '显式拒绝判据不再 parse 条件树：那它就是在猜，与运行期 PermissionRuleParser 分叉')
+      .toContain('PARSER.parse(')
+    // 判据的锚点是 RowWriteGuard 对 CREATE 直接放行：一旦 CREATE 开始走行级判定，这条类别的前提就变了
+    const guard = methodBody(
+      readJavaCode(join(SERVER, 'module/system/datapermission/service/RowWriteGuard.java')),
+      'public void enforce(',
+    )
+    expect(guard, 'RowWriteGuard 不再对 CREATE 放行：EXPLICIT_DENY 的判据前提（新建无既存行可判）被改写，类别要跟着重写')
+      .toContain('DataPermissionAction.CREATE')
+  })
   it('维度可绑定性盘点：路径对账、前端不重算实体形状、判据与运行期同源', () => {
     /**
      * 第四个自查端点。前三个的共同教训是：**composable 的 catch 只置 failed、不弹错**，

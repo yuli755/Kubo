@@ -124,4 +124,31 @@ class RowPolicyRiskAnalyzerTest {
 
         assertTrue(risks(allowAll, false).isEmpty());
     }
+
+    @Test
+    @DisplayName("CREATE 配显式恒假 → 报显式拒绝：动作级只认有策略、行级对新建放行，拒绝不生效")
+    void createWithExplicitDenyIsReported() {
+        DataPolicyEntity deny = row("CREATE", "ROLE", "buyer", null).setConditionJson("{\"deny\":true}");
+
+        List<RowPolicyRiskAnalyzer.Risk> found = risks(deny, false);
+
+        assertEquals(1, found.size());
+        assertEquals(RowPolicyRiskAnalyzer.KIND_EXPLICIT_DENY, found.get(0).kind());
+        assertTrue(found.get(0).detail().contains("删除"), found.get(0).detail());
+    }
+
+    @Test
+    @DisplayName("QUERY / UPDATE 配显式恒假 → 不报：读侧全拒是合法表达，改/删由行级守卫正确拦截")
+    void explicitDenyIsLegitOutsideCreate() {
+        assertTrue(risks(row("QUERY", "ROLE", "buyer", null).setConditionJson("{\"deny\":true}"), false).isEmpty());
+        assertTrue(risks(row("UPDATE", "USER", null, 9L).setConditionJson("{\"deny\":true}"), false).isEmpty());
+    }
+
+    @Test
+    @DisplayName("condition 解析失败（裸 SQL）不算显式拒绝：那归运行期 condition-parse-failed 口径")
+    void unparsableConditionIsNotExplicitDeny() {
+        DataPolicyEntity raw = row("CREATE", "ROLE", "buyer", null).setConditionJson("{\"raw\":\"1=1\"}");
+
+        assertTrue(risks(raw, false).isEmpty());
+    }
 }

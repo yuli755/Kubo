@@ -3,6 +3,8 @@ package cn.hamm.spms.module.system.datapermission.service;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionSubjectType;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRule;
+import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,6 +58,18 @@ public final class RowPolicyRiskAnalyzer {
     public static final String KIND_DIMENSION_NOT_WIRED = "DIMENSION_NOT_WIRED";
 
     /**
+     * 写侧 CREATE 动作配了显式恒假（{@code {"deny":true}}）：动作级只看「有策略」、行级对新建直接放行，
+     * 这条「拒绝」永远不会生效
+     */
+    public static final String KIND_EXPLICIT_DENY = "EXPLICIT_DENY";
+
+    /**
+     * 条件树解析器（无状态、线程安全）。只为盘出「显式恒假」这一类存在；
+     * 解析失败的策略不在这里重复报 —— 那归运行期 fail-closed 的 {@code condition-parse-failed} 口径。
+     */
+    private static final PermissionRuleParser PARSER = new PermissionRuleParser();
+
+    /**
      * 一条风险
      *
      * @param policyId   策略行主键
@@ -88,6 +102,14 @@ public final class RowPolicyRiskAnalyzer {
                 risks.add(new Risk(policy.getId(), policy.getPolicyCode(), KIND_UNREACHABLE_ACTION,
                         "动作「" + (action.isEmpty() ? "(未填)" : action) + "」不是合法的数据权限动作：取数按 资源 + 动作 精确匹配，"
                                 + "这一行任何请求都不会读到。若它是该主体在此资源上的唯一策略，enforce 后会落到默认拒绝（该主体查不到数据）。"));
+                continue;
+            }
+
+            if (DataPermissionAction.CREATE.name().equals(action) && isExplicitDeny(policy.getConditionJson())) {
+                risks.add(new Risk(policy.getId(), policy.getPolicyCode(), KIND_EXPLICIT_DENY,
+                        "CREATE 策略的条件是显式恒假（condition_json = {\"deny\":true}）：写侧动作级只认「有策略即允许」、"
+                                + "行级守卫对新建直接放行（见 RowWriteGuard 的 CREATE 边界），这条「拒绝」不会生效 —— 创建照常放行。"
+                                + "白名单模型下「禁止创建」的正确表达是<b>删除这条 CREATE 策略</b>（无策略即拒绝），而不是配恒假条件。"));
                 continue;
             }
 
@@ -126,6 +148,21 @@ public final class RowPolicyRiskAnalyzer {
             return trim(policy.getRoleCode()).isEmpty();
         }
         return policy.getSubjectId() == null;
+    }
+
+    /**
+     * 条件树是不是「显式恒假」（{@code {"deny":true}} → {@link PermissionRule.Deny}）
+     *
+     * <p>解析失败（非法 JSON / 裸 SQL / 非法形状）一律返回 false：那类策略的运行期表现是
+     * fail-closed 的「条件解析失败」，不该被这里当成「显式拒绝」重复上报。</p>
+     */
+    private static boolean isExplicitDeny(String conditionJson) {
+        try {
+            return PARSER.parse("policy", conditionJson) instanceof PermissionRule.Deny;
+        }
+        catch (RuntimeException ex) {
+            return false;
+        }
     }
 
     private static String requiredFieldOf(String type) {

@@ -32,8 +32,8 @@ const hook = useTanStackTable(DataPolicyService, {
       type="error"
       :closable="false"
       show-icon
-      title="有启用的行级策略永远不会被任何请求读到"
-      :description="`${riskCount} 条（${riskPreview.join('、')}）。行级规则不命中意味着该主体在这个资源上完全没有过滤；而如果它是该主体的唯一策略，enforce 后会落到默认拒绝、该主体查不到数据。请按类别修正动作名与主体必填项，FACTORY 一类留到工厂维度接入后再配。`"
+      title="有启用的行级策略无法按预期生效"
+      :description="`${riskCount} 条（${riskPreview.join('、')}）。行级规则不命中意味着该主体在这个资源上完全没有过滤；而如果它是该主体的唯一策略，enforce 后会落到默认拒绝、该主体查不到数据。请按类别修正动作名与主体必填项，FACTORY 一类留到工厂维度接入后再配；EXPLICIT_DENY 一类（CREATE 配了显式拒绝）请直接删除该策略——白名单下「禁止创建」的正确表达是不配 CREATE 策略。`"
     />
     <ElAlert
       v-else-if="riskFailed"
