@@ -9,8 +9,11 @@ Kubo 有 53 个 @Entity，逐表手工盘点归属列一定会漏、一定会和
 
 1. `tenant_readiness_matrix.md`：每张表 → 资源键 / 是否已注册 / **数据库里真实存在的归属列** /
    声明了 `unique = true` 的列（真多租户必须降为 (tenant_id, col) 复合唯一）/ 接入分级。
-2. `20260906_multitenant_foundation.sql`：幂等迁移（建租户主表与用户租户关系、补 tenant_id / creator_id、
-   建索引、唯一域降级、存量回填、校验清单、回滚说明）。
+2. 多租户地基迁移（幂等：建租户主表与用户租户关系、补 tenant_id / creator_id、建索引、唯一域降级、
+   存量回填、校验清单、回滚说明）。2026-09-09 起该段已并入单文件
+   `SPMS-Server/docs/database/migration/20260909_data_permission_migrations_consolidated.sql` 的
+   「阶段 2/9」；本脚本默认仍把这段单独写进 `--out` 指定路径（默认 `20260906_multitenant_foundation.sql`），
+   供改动实体后重生成、再并入合并文件时对照。
 
 关键判断（不是猜的）
 --------------------

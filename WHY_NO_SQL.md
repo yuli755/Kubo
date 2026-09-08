@@ -11,8 +11,9 @@
 ## 现状（2026-09 起，数据权限改造引入手写迁移）
 
 数据权限改造引入了**手写、幂等的增量迁移脚本**，目录在
-`SPMS-Server/docs/database/migration/`（如 `20260906_multitenant_foundation.sql`、
-`20260909_factory_owner_columns.sql` 等）。注意区分两种 SQL：
+`SPMS-Server/docs/database/migration/`。2026-09-09 起，原 9 份分步脚本已合并为**单文件**
+`20260909_data_permission_migrations_consolidated.sql`（按执行顺序含 9 个阶段，可直接
+`mysql < 该文件` 落库）。注意区分两种 SQL：
 
 | 类型 | 谁生成 | 例子 |
 | --- | --- | --- |
