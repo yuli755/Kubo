@@ -49,20 +49,23 @@ export default antfu({
 /**
  * 数据层单入口约定（决策 D5）：视图层禁止直接依赖 @/model 下的 Service。
  *
- * 现状：133 个视图仍直接 import `@/model/**Service`，而 `src/api` 的 typed client 只有 2 处在用，
- * 属于「双轨数据层」—— 缓存失效与请求治理各跑一半，行为不可预测。
- * 这里先把约定写成 lint 规则（warn，避免一次性打断 CI）；F2 迁完视图后改成 error，
- * 之后 lint:ci 就会守住不回退。
+ * F3 已把 133 处视图直连全部迁到 src/hook 下的 use* 系列 hook（走 @/api typed client），
+ * maskContract 门禁里「视图直连总数基线 0」也在守着。这里把规则从 warn 升为 error 锁死：
+ * 任何视图回头直接 import `@/model/**Service` 都会让 lint:ci 直接失败。
+ *
+ * 坑：pattern 必须写 `@/model/**\/*Service`。写成 `@/model/**Service` 时，minimatch 的
+ * globstar `**` 因后面直接跟非 `/` 字符而退化为单段匹配，匹配不到 `@/model/asset/material/MaterialService`
+ * 这类多段路径 —— 规则会变成从不触发的死规则（本项目此前正是这样，warn 阶段一条都没报过）。
  */
 {
   files: ['src/view/**/*.{ts,vue}'],
   rules: {
     'no-restricted-imports': [
-      'warn',
+      'error',
       {
         patterns: [
           {
-            group: ['@/model/**Service'],
+            group: ['@/model/**/*Service'],
             message: '视图层请改用 src/hook 下的 use* 系列 hook（内部统一走 @/api typed client），不要直接 import @/model 的 Service。',
           },
         ],
