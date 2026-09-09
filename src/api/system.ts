@@ -17,6 +17,7 @@ import type {
   MaskPolicy,
   MenuEntity,
   MenuQuery,
+  OperationLogItem,
   OutboxDeadItem,
   PermissionEntity,
   PermissionQuery,
@@ -309,6 +310,19 @@ export const dataResourceApi = {
    */
   getDenyLogs(resourceKey?: string): Promise<DenyLogItem[]> {
     return request.get('/dataResource/deny-logs', resourceKey ? { params: { resourceKey } } : undefined)
+  },
+
+  /**
+   * 最近的操作审计事件（谁在何时把哪条记录改成了什么）。
+   *
+   * 与 `getDenyLogs` 互补且同一权限面（`dataResource`）：都是跨角色的「谁改过 / 谁被拒过」。
+   * 取不到表 / 没有记录时后端返回空数组，调用方要按「取不到 ≠ 从没改过」来处理。
+   *
+   * @param resourceKey 省略则返回全量最近记录（最多 200 条，最新在前）
+   * @returns 操作审计事件列表；无记录 / 表未建时为空数组
+   */
+  getOperationLogs(resourceKey?: string): Promise<OperationLogItem[]> {
+    return request.get('/dataResource/operation-logs', resourceKey ? { params: { resourceKey } } : undefined)
   },
 
   /**

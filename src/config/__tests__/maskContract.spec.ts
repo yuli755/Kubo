@@ -1911,6 +1911,45 @@ describe('mask contract · 拒绝事件落库（B4）', () => {
   })
 })
 
+describe('mask contract · 操作审计落库（P3）', () => {
+  const DPM = join(SERVER, 'module', 'system', 'datapermission')
+  const RECORDER = join(DPM, 'service', 'OperationLogRecorder.java')
+
+  it('operation-logs 路径前后端对得上，且只挂在管理端点上', () => {
+    const API = join(ROOT, 'src', 'api', 'system.ts')
+    expect(read(API)).toContain('request.get(\'/dataResource/operation-logs\'')
+    const controller = join(DPM, 'controller', 'DataResourceController.java')
+    expect(readJavaCode(controller)).toContain('@GetMapping("operation-logs")')
+    for (const file of collect(join(DPM, 'controller'), '.java')) {
+      if (file.endsWith('DataResourceController.java')) {
+        continue
+      }
+      expect(read(file), `操作审计端点出现在 ${file.split('/').pop()}：这份「谁改过」的跨角色数据会从 dataResource 权限面漂走`)
+        .not
+        .toContain('operation-logs')
+    }
+  })
+
+  it('前端只回显操作审计，不把动作当判定', () => {
+    const report = read(join(ROOT, 'src', 'composables', 'useOperationLogReport.ts'))
+    expect(report, '前端开始判 action 语义：动作是后端 BaseService 钩子判定的，抄一遍就是第二套真相')
+      .not
+      .toMatch(/action\s*===|action\s*!==/)
+    const list = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'resource', 'list.vue'))
+    expect(list).toContain('useOperationLogReport')
+    expect(list, '取数失败必须能被看见（这里显示「没人改过」等于把取不到表读成审计干净）')
+      .toMatch(/<ElAlert[^>]*v-else-if="operationLogFailed"/)
+  })
+
+  it('落库失败与缺 Bean 都不许改变业务结果', () => {
+    const persist = methodBody(readJavaCode(RECORDER), 'void persist(')
+    expect(persist, 'persist 不再判 getIfAvailable：缺 Bean（测试上下文/未建表）会把异步任务炸掉，证据失败不该有第二个出口')
+      .toContain('getIfAvailable()')
+    expect(persist, 'persist 吞不掉写库异常：业务路径会被落库失败改写（审计坏了不能变成 500）')
+      .toContain('catch (RuntimeException')
+  })
+})
+
 describe('mask contract · 策略指向缺失/未启用资源盘点', () => {
   const DPM = join(SERVER, 'module', 'system', 'datapermission')
   const ANALYZER = join(DPM, 'service', 'PolicyResourceReferenceAnalyzer.java')

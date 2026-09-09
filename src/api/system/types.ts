@@ -414,6 +414,36 @@ export interface DenyLogItem {
 }
 
 /**
+ * 一条通用操作审计事件（`operation_log`）。
+ *
+ * 语义是「操作轨迹」，不是「策略命中」：`action` 只有 CREATE / UPDATE / DELETE，
+ * 快照是标量字段的 JSON 文本（后端 `OperationLogSnapshot` 负责只取标量、跳过关系字段）。
+ * 前端只回显，不重算任何判定。
+ */
+export interface OperationLogItem {
+  /** 事件主键 */
+  id: number
+  /** 发生时间（毫秒时间戳，来自框架基类 create_time） */
+  createTime: number
+  /** 数据资源标识（如 asset.material） */
+  resourceKey: string
+  /** 动作：CREATE / UPDATE / DELETE */
+  action: string
+  /** 操作者用户；无上下文（内部调用）时为 null */
+  userId: number | null
+  /** 操作者租户；无上下文（内部调用）时为 null */
+  tenantId: number | null
+  /** 目标记录 ID；删除时仍有值（记录的是被删的那条） */
+  targetId: number | null
+  /** 目标记录摘要（编码/名称）；取不到时退化为类名#id */
+  targetLabel: string | null
+  /** 变更前快照（JSON 文本）；CREATE 时为 null */
+  beforeSnapshot: string | null
+  /** 变更后快照（JSON 文本）；DELETE 时为 null */
+  afterSnapshot: string | null
+}
+
+/**
  * 权限变更 Outbox 死信（P5：连续重投仍失败、需人工处置的事件）
  *
  * 字段与 `PermissionChangeOutboxEntity` 对齐（`next_retry_at` / `processed_at` 为毫秒时间戳）。

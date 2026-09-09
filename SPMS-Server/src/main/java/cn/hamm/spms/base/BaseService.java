@@ -5,6 +5,7 @@ import cn.hamm.spms.module.system.SystemServices;
 import cn.hamm.spms.module.system.coderule.CodeRuleService;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.AttributionWriteProtection;
 import cn.hamm.spms.module.system.datapermission.service.ColumnMaskingService;
@@ -13,10 +14,12 @@ import cn.hamm.spms.module.system.datapermission.service.DataPermissionRuntime;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionResourceResolver;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import cn.hamm.spms.module.system.datapermission.service.MaskedInputRegistry;
+import cn.hamm.spms.module.system.datapermission.service.OperationLogRecorder;
 import cn.hamm.spms.module.system.datapermission.service.RowWriteGuard;
 import cn.hamm.spms.module.system.datapermission.service.SensitiveWriteProtection;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 
@@ -34,6 +37,18 @@ public class BaseService<
         E extends BaseEntity<E>,
         R extends BaseRepository<E>
         > extends CurdService<E, R> {
+
+    /**
+     * 通用操作审计记录器（P3）。可选注入：容器未装配该 Bean 时，审计静默跳过，不影响任何业务路径。
+     */
+    @Autowired(required = false)
+    private OperationLogRecorder operationLogRecorder;
+
+    /**
+     * 更新前的「旧值」暂存：{@code beforeUpdate} 回表取到的既存行先存这里，
+     * {@code afterUpdate} 再取出来连同提交值一起记账。每个请求线程一次更新一条，单槽足够。
+     */
+    private final ThreadLocal<E> operationLogBeforeSnapshot = new ThreadLocal<>();
 
     /**
      * 当前服务的数据库最后一次确认
@@ -88,6 +103,8 @@ public class BaseService<
         protectSensitiveFields(result);
         protectAttribution(result);
         enforceDataPermission(DataPermissionAction.UPDATE);
+        // P3 通用操作审计：更新前回表取旧值，供 afterUpdate 记「改前」
+        stashOperationLogBefore(result);
         return result;
     }
 
@@ -172,6 +189,8 @@ public class BaseService<
         super.beforeDelete(entity);
         enforceDataPermission(DataPermissionAction.DELETE);
         enforceRowPermission(entity, DataPermissionAction.DELETE);
+        // P3 通用操作审计：删除记「删掉的那条」
+        recordOperationLog(OperationLogRecorder.ACTION_DELETE, entity.getId(), entity, null);
     }
 
     /**
@@ -222,6 +241,8 @@ public class BaseService<
 
     @Override
     protected final void afterAdd(long id, @NotNull E source) {
+        // P3 通用操作审计：新增记「建出来的那条」
+        recordOperationLog(OperationLogRecorder.ACTION_CREATE, id, null, source);
         afterAppAdd(id, source);
     }
 
@@ -230,10 +251,52 @@ public class BaseService<
 
     @Override
     protected void afterUpdate(long id, @NotNull E source) {
+        // P3 通用操作审计：更新记「改前 + 改后」；旧值来自 beforeUpdate 暂存
+        recordOperationLog(OperationLogRecorder.ACTION_UPDATE, id, operationLogBeforeSnapshot.get(), source);
+        operationLogBeforeSnapshot.remove();
         afterAppUpdate(id, source);
     }
 
     protected void afterAppUpdate(long id, @NotNull E source) {
+    }
+
+    /**
+     * 更新前把「旧值」暂存到线程局部，供 {@link #afterUpdate} 记「改前」。
+     *
+     * <p>只对标记了 {@link OperationLog} 的实体回表取旧值；未标记的零开销。</p>
+     */
+    private void stashOperationLogBefore(@NotNull E entity) {
+        if (operationLogRecorder == null || !isOperationLogged(entity)) {
+            return;
+        }
+        Long id = entity.getId();
+        operationLogBeforeSnapshot.set(id == null ? null : repository.findById(id).orElse(null));
+    }
+
+    /**
+     * 是否开启了该实体的通用操作审计。
+     */
+    private boolean isOperationLogged(@NotNull E entity) {
+        return entity.getClass().isAnnotationPresent(OperationLog.class);
+    }
+
+    /**
+     * 落一条通用操作审计。资源标识沿 {@link DataPermissionResourceResolver} 约定从 Service 类推导，
+     * 与 {@code data_resource.resource_key} 一字不差；未开启审计或解析不到资源时静默返回。
+     */
+    private void recordOperationLog(@NotNull String action, Long targetId, E before, E after) {
+        if (operationLogRecorder == null) {
+            return;
+        }
+        E source = after != null ? after : before;
+        if (source == null || !isOperationLogged(source)) {
+            return;
+        }
+        String resourceKey = DataPermissionResourceResolver.resolve(getClass());
+        if (resourceKey == null) {
+            return;
+        }
+        operationLogRecorder.record(resourceKey, action, targetId, before, after);
     }
 
     /**

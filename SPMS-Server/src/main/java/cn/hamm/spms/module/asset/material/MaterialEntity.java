@@ -10,6 +10,7 @@ import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.asset.material.enums.MaterialType;
 import cn.hamm.spms.module.asset.material.enums.MaterialUseType;
 import cn.hamm.spms.module.system.coderule.enums.CodeRuleField;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import cn.hamm.spms.module.system.datapermission.annotation.SensitiveField;
 import cn.hamm.spms.module.system.unit.UnitEntity;
 import jakarta.persistence.Column;
@@ -44,6 +45,7 @@ import org.hibernate.annotations.DynamicUpdate;
 @DynamicUpdate
 @Table(name = "material")
 @Description("物料")
+@OperationLog
 public class MaterialEntity extends TenantAwareEntity<MaterialEntity> {
     @Description("物料名称")
     @Search

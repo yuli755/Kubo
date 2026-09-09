@@ -7,6 +7,7 @@ import { useDimensionBindingRiskReport } from '@/composables/useDimensionBinding
 import { useEnforceReadiness } from '@/composables/useEnforceReadiness'
 import { useExportGapReport } from '@/composables/useExportGapReport'
 import { useInertPolicyReport } from '@/composables/useInertPolicyReport'
+import { useOperationLogReport } from '@/composables/useOperationLogReport'
 import { useOutboxDead } from '@/composables/useOutboxDead'
 import { Permissions } from '@/config/permissions'
 import { DataResourceService } from '@/hook/system/useDataResource'
@@ -43,6 +44,9 @@ const {
 
 // 拒绝事件盘点：谁在何时被拒、因何、在哪个档位下。判定都在后端，这里只搬运与摘要。
 const { count: denyLogCount, preview: denyLogPreview, failed: denyLogFailed } = useDenyLogReport()
+
+// 操作审计盘点：谁在何时把哪条记录改成了什么。动作与快照口径都在后端，这里只搬运与摘要。
+const { count: operationLogCount, preview: operationLogPreview, failed: operationLogFailed } = useOperationLogReport()
 
 // 权限变更死信：连续重投仍失败的变更通知，需人工重放/丢弃。状态迁移与权限校验都在后端。
 const {
@@ -238,6 +242,24 @@ const hook = useTanStackTable(DataResourceService, {
       show-icon
       title="未能取得拒绝事件"
       description="刷新本页或检查 /dataResource/deny-logs 是否可用；取不到结果时不会显示为「没人被拒」。"
+    />
+    <ElAlert
+      v-if="operationLogCount"
+      class="gap-warning"
+      type="info"
+      :closable="false"
+      show-icon
+      title="最近的操作审计事件"
+      :description="`最近 ${operationLogCount} 条（${operationLogPreview.join('；')}）。谁在何时把哪条记录改成了什么，与拒绝事件互为补充。`"
+    />
+    <ElAlert
+      v-else-if="operationLogFailed"
+      class="gap-warning"
+      type="info"
+      :closable="false"
+      show-icon
+      title="未能取得操作审计"
+      description="刷新本页或检查 /dataResource/operation-logs 是否可用；取不到结果时不会显示为「没人改过」。"
     />
     <section
       v-if="outboxReady && outboxCount"
