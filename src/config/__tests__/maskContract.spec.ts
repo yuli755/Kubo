@@ -14,9 +14,9 @@ import { describe, expect, it } from 'vitest'
  * 2. **前端写的 `resourceKey` 必须是后端注册过的数据资源**。写错一个字母，
  *    `my-mask` 永远返回 `null` = "该字段无需脱敏"，脱敏静默失效（fail-open）。
  * 3. **只有后端真的提供 export 端点的实体才允许开 `showExport`**。`BaseController`
- *    全局 `@Extends(exclude = {Curd.Export, Curd.QueryExport})`，八个读侧换轨资源
- *    （material / inventory / input / output / move / order / plan / picking）都已把
- *    `Curd.Export` 加回来并覆写了 `export(QueryListRequest)`；导出走文件流不经过 Jackson，
+ *    全局 `@Extends(exclude = {Curd.Export, Curd.QueryExport})`，十个读侧换轨资源
+ *    （material / inventory / input / output / move / order / plan / picking / purchase / sale）
+ *    都已把 `Curd.Export` 加回来并覆写了 `export(QueryListRequest)`；导出走文件流不经过 Jackson，
  *    是脱敏的已知旁路，前端别在没加回来的实体上随手开。
  * 4. **模型里的敏感字段必须显式表态**：`@Table({ desensitize })` 或 `mask-exempt: 理由`。
  *    框架在列表渲染层认这个元数据，一处声明全视图生效；漏了就是"某个页面的手机号裸奔"。
@@ -225,6 +225,8 @@ describe('mask contract · 前后端脱敏口径', () => {
       'mes/order',
       'mes/plan',
       'mes/picking',
+      'channel/purchase',
+      'channel/sale',
     ]))
 
     const offenders: string[] = []
@@ -1796,7 +1798,7 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
 
     const implementors = collect(SERVER, '.java').filter(file => /implements[^;]*RowParityCounter|extends[^;]*RowParityCounter/.test(readJavaCode(file)))
     expect(implementors, '没有任何探针实现：这张表与整套对账判据就成了没人消费的机器，要么接上第一个资源，要么删掉')
-      .toHaveLength(8)
+      .toHaveLength(10)
     for (const file of implementors) {
       expect(readJavaCode(file), `${file.split('/').pop()} 的 parityResourceKey 必须是 default 方法`)
         .toMatch(/default\s+String\s+parityResourceKey\s*\(\)/)
