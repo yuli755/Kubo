@@ -19,7 +19,7 @@ import java.util.Map;
  *
  * @author Hamm.cn
  */
-@DataResource(key = "asset.contract", alias = "c")
+@DataResource(key = "asset.contract", alias = "contract")
 public interface ContractMapper extends KuboBaseMapper<ContractEntity>, RowParityCounter {
 
     @Override

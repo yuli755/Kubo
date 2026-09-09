@@ -23,7 +23,7 @@ import java.util.Map;
  *
  * @author zfy
  */
-@DataResource(key = "asset.device", alias = "d")
+@DataResource(key = "asset.device", alias = "device")
 public interface DeviceMapper extends KuboBaseMapper<DeviceEntity>, RowParityCounter {
 
     @Override
