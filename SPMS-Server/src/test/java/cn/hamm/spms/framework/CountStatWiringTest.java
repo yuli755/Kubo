@@ -16,12 +16,18 @@ import cn.hamm.spms.module.channel.saleprice.SalePriceController;
 import cn.hamm.spms.module.channel.saleprice.SalePriceService;
 import cn.hamm.spms.module.channel.supplier.SupplierController;
 import cn.hamm.spms.module.channel.supplier.SupplierService;
+import cn.hamm.spms.module.mes.bom.BomController;
+import cn.hamm.spms.module.mes.bom.BomService;
+import cn.hamm.spms.module.mes.operation.OperationController;
+import cn.hamm.spms.module.mes.operation.OperationService;
 import cn.hamm.spms.module.mes.order.OrderController;
 import cn.hamm.spms.module.mes.order.OrderService;
 import cn.hamm.spms.module.mes.picking.PickingController;
 import cn.hamm.spms.module.mes.picking.PickingService;
 import cn.hamm.spms.module.mes.plan.PlanController;
 import cn.hamm.spms.module.mes.plan.PlanService;
+import cn.hamm.spms.module.mes.routing.RoutingController;
+import cn.hamm.spms.module.mes.routing.RoutingService;
 import cn.hamm.spms.module.wms.input.InputController;
 import cn.hamm.spms.module.wms.input.InputService;
 import cn.hamm.spms.module.wms.inventory.InventoryController;
@@ -52,18 +58,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * <h1>十四资源 count/stat 接线自检</h1>
+ * <h1>十七资源 count/stat 接线自检</h1>
  *
- * <p>十三个资源运行时测试逐资源断言了 Mapper 的 {@code statByPermission} 与 service 的
+ * <p>十七个资源运行时测试逐资源断言了 Mapper 的 {@code statByPermission} 与 service 的
  * {@code getMapperCount/getMapperStat} 同值；本类补的是<b>全量接线</b>这一面：开关打开时，
- * 十四个 Controller 都暴露 {@code getCount/getStat} 端点、十四个 Service 都有同名的公开方法且返回
- * 类型统一（{@code long} / {@link ReadStat}）、十四个 Service 都报告 {@code isMapperReadEnabled()==true}、
- * 十四个 Controller 都覆写了 {@code export(QueryListRequest)}（导出换轨的入口）、十四个读侧 Mapper XML
+ * 十七个 Controller 都暴露 {@code getCount/getStat} 端点、十七个 Service 都有同名的公开方法且返回
+ * 类型统一（{@code long} / {@link ReadStat}）、十七个 Service 都报告 {@code isMapperReadEnabled()==true}、
+ * 十七个 Controller 都覆写了 {@code export(QueryListRequest)}（导出换轨的入口）、十七个读侧 Mapper XML
  * 只注册 SELECT 语句（写路径不许混入读侧 Mapper）。任何一处漏接或漂移都会在这里红，
  * 而不是等真实前端联调才暴露。</p>
  *
  * <p>本类只反射/扫资源、不查数据、不开权限上下文，因此不 seed、不依赖 data_policy；档位钉在
- * {@code mapper-read.enabled=true}（这是十四个运行时测试已证明能启动的组合），web 环境用 MOCK。</p>
+ * {@code mapper-read.enabled=true}（这是十七个运行时测试已证明能启动的组合），web 环境用 MOCK。</p>
  *
  * @author Hamm.cn
  */
@@ -75,7 +81,7 @@ import static org.junit.jupiter.api.Assertions.fail;
         "kubo.data-permission.mode=enforce",
         "kubo.data-permission.mapper-read.enabled=true"
 }, webEnvironment = SpringBootTest.WebEnvironment.MOCK)
-@DisplayName("十四资源 count/stat 接线自检")
+@DisplayName("十七资源 count/stat 接线自检")
 class CountStatWiringTest {
 
     @Autowired
@@ -106,6 +112,12 @@ class CountStatWiringTest {
     private PlanController planController;
     @Autowired
     private PickingController pickingController;
+    @Autowired
+    private BomController bomController;
+    @Autowired
+    private OperationController operationController;
+    @Autowired
+    private RoutingController routingController;
 
     @Autowired
     private MaterialService materialService;
@@ -135,9 +147,15 @@ class CountStatWiringTest {
     private PlanService planService;
     @Autowired
     private PickingService pickingService;
+    @Autowired
+    private BomService bomService;
+    @Autowired
+    private OperationService operationService;
+    @Autowired
+    private RoutingService routingService;
 
     @Test
-    @DisplayName("十四个 Controller 都暴露 getCount/getStat 端点")
+    @DisplayName("十七个 Controller 都暴露 getCount/getStat 端点")
     void allControllersExposeCountAndStatEndpoints() {
         assertEndpoint(materialController, "getCount");
         assertEndpoint(materialController, "getStat");
@@ -167,10 +185,16 @@ class CountStatWiringTest {
         assertEndpoint(purchasePriceController, "getStat");
         assertEndpoint(salePriceController, "getCount");
         assertEndpoint(salePriceController, "getStat");
+        assertEndpoint(bomController, "getCount");
+        assertEndpoint(bomController, "getStat");
+        assertEndpoint(operationController, "getCount");
+        assertEndpoint(operationController, "getStat");
+        assertEndpoint(routingController, "getCount");
+        assertEndpoint(routingController, "getStat");
     }
 
     @Test
-    @DisplayName("十四个 Service 都有 getMapperCount/getMapperStat，返回类型统一")
+    @DisplayName("十七个 Service 都有 getMapperCount/getMapperStat，返回类型统一")
     void allServicesExposeUniformCountStatMethods() {
         assertServiceMethods(materialService);
         assertServiceMethods(inventoryService);
@@ -186,10 +210,13 @@ class CountStatWiringTest {
         assertServiceMethods(supplierService);
         assertServiceMethods(purchasePriceService);
         assertServiceMethods(salePriceService);
+        assertServiceMethods(bomService);
+        assertServiceMethods(operationService);
+        assertServiceMethods(routingService);
     }
 
     @Test
-    @DisplayName("十四个 Service 在开关打开时都报告 isMapperReadEnabled=true")
+    @DisplayName("十七个 Service 在开关打开时都报告 isMapperReadEnabled=true")
     void allServicesReportMapperReadEnabled() {
         assertTrue(materialService.isMapperReadEnabled());
         assertTrue(inventoryService.isMapperReadEnabled());
@@ -205,10 +232,13 @@ class CountStatWiringTest {
         assertTrue(supplierService.isMapperReadEnabled());
         assertTrue(purchasePriceService.isMapperReadEnabled());
         assertTrue(salePriceService.isMapperReadEnabled());
+        assertTrue(bomService.isMapperReadEnabled());
+        assertTrue(operationService.isMapperReadEnabled());
+        assertTrue(routingService.isMapperReadEnabled());
     }
 
     @Test
-    @DisplayName("十四个 Controller 都覆写了 export(QueryListRequest)（导出换轨入口）")
+    @DisplayName("十七个 Controller 都覆写了 export(QueryListRequest)（导出换轨入口）")
     void allControllersOverrideExportMethod() {
         assertOverridesExport(materialController);
         assertOverridesExport(inventoryController);
@@ -224,6 +254,9 @@ class CountStatWiringTest {
         assertOverridesExport(supplierController);
         assertOverridesExport(purchasePriceController);
         assertOverridesExport(salePriceController);
+        assertOverridesExport(bomController);
+        assertOverridesExport(operationController);
+        assertOverridesExport(routingController);
     }
 
     @Test
