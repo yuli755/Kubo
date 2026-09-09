@@ -4,6 +4,7 @@ import { APanel, RouterUtil } from '@airpower/web'
 import { computed, ref } from 'vue'
 import { Permissions } from '@/config/permissions'
 import { usePermissionStore } from '@/stores/permission'
+import BusinessOverview from './BusinessOverview.vue'
 import SecurityDashboard from './SecurityDashboard.vue'
 
 /**
@@ -63,6 +64,7 @@ function goPage(path: string) {
 <template>
   <APanel>
     <div class="home">
+      <BusinessOverview class="business" />
       <SecurityDashboard
         v-if="canViewSecurity"
         class="security"
@@ -106,6 +108,7 @@ function goPage(path: string) {
   overflow-y: auto;
 }
 
+.business,
 .security {
   flex-shrink: 0;
 }

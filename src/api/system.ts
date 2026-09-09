@@ -5,6 +5,7 @@ import type {
   CodeRuleQuery,
   ConfigEntity,
   ConfigQuery,
+  DashboardOverviewItem,
   DataFieldPolicyEntity,
   DataFieldPolicyQuery,
   DataPermissionRuntimeStatus,
@@ -417,5 +418,24 @@ export const dataFieldPolicyApi = {
 
   delete(id: number): Promise<void> {
     return request.post('/dataFieldPolicy/delete', { id })
+  },
+}
+
+// ──────────────────────────────────────────
+// 数据看板 (Dashboard · 业务概况)
+// ──────────────────────────────────────────
+
+export const dashboardApi = {
+  /**
+   * 业务概况：「当前登录用户」在其行级权限可见范围内的各资源行数。
+   *
+   * 只要求登录（后端 `@Permission(authorize = false)`），不做粗粒度动作鉴权 ——
+   * 每一档 count 都由对应资源的 `getMapperCount` 经 Mapper 权限拦截链过滤，返回内容本身
+   * 已被收敛，不含跨租户元数据。前端只回显，不重算任何聚合判定。
+   *
+   * @returns 资源条目列表（键、人看名称、可见行数）
+   */
+  getOverview(): Promise<DashboardOverviewItem[]> {
+    return request.get('/dashboard/overview')
   },
 }

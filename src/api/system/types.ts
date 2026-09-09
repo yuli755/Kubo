@@ -445,3 +445,18 @@ export interface OutboxDeadItem {
   /** 最后错误；为空表示没有错误 */
   lastError: string | null
 }
+
+/**
+ * 业务概况条目（P2 · 数据权限感知看板）。
+ *
+ * `resourceKey` 与后端 `@DataResource(key)` 同域（DOT 记号），`count` 是「当前用户可见范围内」
+ * 的行数 —— 由各资源 `getMapperCount` 经 Mapper 权限拦截链得出。前端只回显，不做任何聚合判定。
+ */
+export interface DashboardOverviewItem {
+  /** 数据资源标识，如 channel.purchase */
+  resourceKey: string
+  /** 人看名称 */
+  label: string
+  /** 当前用户可见行数 */
+  count: number
+}
