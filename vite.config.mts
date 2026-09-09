@@ -134,9 +134,16 @@ export default defineConfig({
     },
   },
   server: {
-    open: true,
+    // 不自动拉起浏览器：在无图形环境（WSL/远程容器/CI）下 `open: true` 会因缺少
+    // xdg-open 等 opener 直接崩溃退出（spawn xdg-open ENOENT），导致 `pnpm dev` 起不来。
+    // Vite 启动后会在终端打印本地/网络地址，手动访问即可。
+    open: false,
     host: '0.0.0.0',
     port: 3000,
+    // 允许任意 Host 访问（开发服务器）。默认只放行 localhost/绑定地址，会导致
+    // 云端预览、反向代理、隧道（ngrok / cloud dev 环境 / e2b 等）访问时被 403 拒绝。
+    // 仅影响 dev server，不影响生产构建产物。
+    allowedHosts: true,
     https: false,
     proxy: {
       '/api': {

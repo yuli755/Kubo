@@ -73,12 +73,12 @@ cd SPMS-Server
 
 # 3. 启动前端 (新终端)
 cd ..
-pnpm s
+pnpm dev
 ```
 
 ### 步骤 2: 访问登录页
 
-浏览器自动打开: http://localhost:3000
+浏览器打开: http://localhost:3000
 
 或手动访问: http://localhost:3000/login
 

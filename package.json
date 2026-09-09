@@ -6,6 +6,7 @@
   "packageManager": "pnpm@9.0.0",
   "author": "Hamm",
   "scripts": {
+    "dev": "vite",
     "s": "vite",
     "lint": "eslint --fix",
     "lint:ci": "eslint .",
