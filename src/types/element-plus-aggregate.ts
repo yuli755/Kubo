@@ -49,6 +49,7 @@ import { ElLoading as _ElLoading } from 'element-plus/es/components/loading/inde
 
 export { ElAlert } from 'element-plus/es/components/alert/index.mjs'
 export { ElButton } from 'element-plus/es/components/button/index.mjs'
+export { ElCard } from 'element-plus/es/components/card/index.mjs'
 export { ElCheckTag } from 'element-plus/es/components/check-tag/index.mjs'
 // ── 项目源码使用的组件（components.d.ts 声明 + main.ts 命令式 API）────────
 export { ElCheckbox } from 'element-plus/es/components/checkbox/index.mjs'

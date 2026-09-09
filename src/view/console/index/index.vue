@@ -1,7 +1,20 @@
 <script lang="ts" setup>
 import type { IJson } from '@airpower/web'
 import { APanel, RouterUtil } from '@airpower/web'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { Permissions } from '@/config/permissions'
+import { usePermissionStore } from '@/stores/permission'
+import SecurityDashboard from './SecurityDashboard.vue'
+
+/**
+ * 安全态势看板只在持有数据权限管理身份时渲染：其数据来自跨租户的
+ * `dataResource/*` 管理端点（后端鉴权），对普通业务用户既是噪声也是越权面。
+ */
+const canViewSecurity = computed(() => usePermissionStore().hasAny(
+  Permissions.System.DataResource.getDetail,
+  Permissions.System.DataPolicy.getDetail,
+  Permissions.System.DataFieldPolicy.getDetail,
+))
 
 const modules = ref<IJson[]>([
   {
@@ -49,27 +62,33 @@ function goPage(path: string) {
 
 <template>
   <APanel>
-    <div class="index">
-      <div
-        v-for="(module, index) in modules"
-        :key="index"
-        class="module"
-      >
-        <div class="title">
-          {{ module.title }}
-        </div>
-        <div class="actions">
-          <div
-            v-for="action in module.actions"
-            :key="action.name"
-            class="action"
-            @click="goPage(action.path)"
-          >
-            <div class="name">
-              {{ action.name }}
-            </div>
-            <div class="desc">
-              {{ action.desc }}
+    <div class="home">
+      <SecurityDashboard
+        v-if="canViewSecurity"
+        class="security"
+      />
+      <div class="index">
+        <div
+          v-for="(module, index) in modules"
+          :key="index"
+          class="module"
+        >
+          <div class="title">
+            {{ module.title }}
+          </div>
+          <div class="actions">
+            <div
+              v-for="action in module.actions"
+              :key="action.name"
+              class="action"
+              @click="goPage(action.path)"
+            >
+              <div class="name">
+                {{ action.name }}
+              </div>
+              <div class="desc">
+                {{ action.desc }}
+              </div>
             </div>
           </div>
         </div>
@@ -79,12 +98,22 @@ function goPage(path: string) {
 </template>
 
 <style lang="scss" scoped>
-.index {
+.home {
   position: absolute;
   inset: 10px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+}
+
+.security {
+  flex-shrink: 0;
+}
+
+.index {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 
   .module {
     display: flex;
