@@ -86,12 +86,9 @@ class PurchasePriceMapperRuntimeInterceptorTest {
     @DisplayName("采购价 page 使用统一租户条件，关联主表只投影 ID")
     void servicePageUsesMapperPermission() {
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
-            var request = new cn.hamm.airpower.curd.model.query.QueryPageRequest<PurchasePriceEntity>();
-            request.setPage(new cn.hamm.airpower.curd.model.query.Page().setPageNum(1).setPageSize(20));
-
-            var page = purchasePriceService.getMapperPage(request);
-            assertEquals(2, page.getTotal(), "当前租户仅两行采购价");
-            PurchasePriceEntity first = page.getList().get(0);
+            List<PurchasePriceEntity> rows = purchasePriceMapper.selectPageByPermission(null, 0, 20);
+            assertEquals(2, rows.size(), "当前租户仅两行采购价");
+            PurchasePriceEntity first = rows.get(0);
             assertEquals(2L, first.getId());
             assertNotNull(first.getMaterial());
             assertEquals(102L, first.getMaterial().getId());

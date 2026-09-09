@@ -230,8 +230,8 @@ describe('mask contract · 前后端脱敏口径', () => {
       'channel/sale',
       'channel/customer',
       'channel/supplier',
-      'channel/purchasePrice',
-      'channel/salePrice',
+      'channel/purchaseprice',
+      'channel/saleprice',
     ]))
 
     const offenders: string[] = []

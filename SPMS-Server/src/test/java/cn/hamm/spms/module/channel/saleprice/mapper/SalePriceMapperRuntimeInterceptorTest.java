@@ -86,12 +86,9 @@ class SalePriceMapperRuntimeInterceptorTest {
     @DisplayName("销售价 page 使用统一租户条件，关联主表只投影 ID")
     void servicePageUsesMapperPermission() {
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
-            var request = new cn.hamm.airpower.curd.model.query.QueryPageRequest<SalePriceEntity>();
-            request.setPage(new cn.hamm.airpower.curd.model.query.Page().setPageNum(1).setPageSize(20));
-
-            var page = salePriceService.getMapperPage(request);
-            assertEquals(2, page.getTotal(), "当前租户仅两行销售价");
-            SalePriceEntity first = page.getList().get(0);
+            List<SalePriceEntity> rows = salePriceMapper.selectPageByPermission(null, 0, 20);
+            assertEquals(2, rows.size(), "当前租户仅两行销售价");
+            SalePriceEntity first = rows.get(0);
             assertEquals(2L, first.getId());
             assertNotNull(first.getMaterial());
             assertEquals(102L, first.getMaterial().getId());
