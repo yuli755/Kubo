@@ -1,7 +1,8 @@
 package cn.hamm.spms.module.channel.saleprice;
 
 import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.airpower.core.annotation.Export;
+import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.channel.customer.CustomerEntity;
 import cn.hamm.spms.module.system.datapermission.annotation.SensitiveField;
@@ -31,7 +32,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @DynamicUpdate
 @Table(name = "sale_price")
 @Description("销售价格")
-public class SalePriceEntity extends BaseEntity<SalePriceEntity> implements ISalePriceAction {
+public class SalePriceEntity extends TenantAwareEntity<SalePriceEntity> implements ISalePriceAction {
     @Description("物料信息")
     @ManyToOne(fetch = EAGER)
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "物料不能为空")
@@ -46,5 +47,6 @@ public class SalePriceEntity extends BaseEntity<SalePriceEntity> implements ISal
     @SensitiveField(resourceKey = "channel.salePrice")
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '销售单价'")
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "销售单价不能为空")
+    @Export(Export.Type.NUMBER)
     private Double price;
 }

@@ -4,10 +4,18 @@ import cn.hamm.airpower.curd.model.query.QueryListRequest;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.asset.material.MaterialController;
 import cn.hamm.spms.module.asset.material.MaterialService;
+import cn.hamm.spms.module.channel.customer.CustomerController;
+import cn.hamm.spms.module.channel.customer.CustomerService;
 import cn.hamm.spms.module.channel.purchase.PurchaseController;
 import cn.hamm.spms.module.channel.purchase.PurchaseService;
+import cn.hamm.spms.module.channel.purchaseprice.PurchasePriceController;
+import cn.hamm.spms.module.channel.purchaseprice.PurchasePriceService;
 import cn.hamm.spms.module.channel.sale.SaleController;
 import cn.hamm.spms.module.channel.sale.SaleService;
+import cn.hamm.spms.module.channel.saleprice.SalePriceController;
+import cn.hamm.spms.module.channel.saleprice.SalePriceService;
+import cn.hamm.spms.module.channel.supplier.SupplierController;
+import cn.hamm.spms.module.channel.supplier.SupplierService;
 import cn.hamm.spms.module.mes.order.OrderController;
 import cn.hamm.spms.module.mes.order.OrderService;
 import cn.hamm.spms.module.mes.picking.PickingController;
@@ -44,18 +52,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * <h1>十资源 count/stat 接线自检</h1>
+ * <h1>十四资源 count/stat 接线自检</h1>
  *
- * <p>九个资源运行时测试逐资源断言了 Mapper 的 {@code statByPermission} 与 service 的
+ * <p>十三个资源运行时测试逐资源断言了 Mapper 的 {@code statByPermission} 与 service 的
  * {@code getMapperCount/getMapperStat} 同值；本类补的是<b>全量接线</b>这一面：开关打开时，
- * 十个 Controller 都暴露 {@code getCount/getStat} 端点、十个 Service 都有同名的公开方法且返回
- * 类型统一（{@code long} / {@link ReadStat}）、十个 Service 都报告 {@code isMapperReadEnabled()==true}、
- * 十个 Controller 都覆写了 {@code export(QueryListRequest)}（导出换轨的入口）、十个读侧 Mapper XML
+ * 十四个 Controller 都暴露 {@code getCount/getStat} 端点、十四个 Service 都有同名的公开方法且返回
+ * 类型统一（{@code long} / {@link ReadStat}）、十四个 Service 都报告 {@code isMapperReadEnabled()==true}、
+ * 十四个 Controller 都覆写了 {@code export(QueryListRequest)}（导出换轨的入口）、十四个读侧 Mapper XML
  * 只注册 SELECT 语句（写路径不许混入读侧 Mapper）。任何一处漏接或漂移都会在这里红，
  * 而不是等真实前端联调才暴露。</p>
  *
  * <p>本类只反射/扫资源、不查数据、不开权限上下文，因此不 seed、不依赖 data_policy；档位钉在
- * {@code mapper-read.enabled=true}（这是十个运行时测试已证明能启动的组合），web 环境用 MOCK。</p>
+ * {@code mapper-read.enabled=true}（这是十四个运行时测试已证明能启动的组合），web 环境用 MOCK。</p>
  *
  * @author Hamm.cn
  */
@@ -67,7 +75,7 @@ import static org.junit.jupiter.api.Assertions.fail;
         "kubo.data-permission.mode=enforce",
         "kubo.data-permission.mapper-read.enabled=true"
 }, webEnvironment = SpringBootTest.WebEnvironment.MOCK)
-@DisplayName("十资源 count/stat 接线自检")
+@DisplayName("十四资源 count/stat 接线自检")
 class CountStatWiringTest {
 
     @Autowired
@@ -76,6 +84,14 @@ class CountStatWiringTest {
     private PurchaseController purchaseController;
     @Autowired
     private SaleController saleController;
+    @Autowired
+    private CustomerController customerController;
+    @Autowired
+    private SupplierController supplierController;
+    @Autowired
+    private PurchasePriceController purchasePriceController;
+    @Autowired
+    private SalePriceController salePriceController;
     @Autowired
     private InventoryController inventoryController;
     @Autowired
@@ -98,6 +114,14 @@ class CountStatWiringTest {
     @Autowired
     private SaleService saleService;
     @Autowired
+    private CustomerService customerService;
+    @Autowired
+    private SupplierService supplierService;
+    @Autowired
+    private PurchasePriceService purchasePriceService;
+    @Autowired
+    private SalePriceService salePriceService;
+    @Autowired
     private InventoryService inventoryService;
     @Autowired
     private InputService inputService;
@@ -113,7 +137,7 @@ class CountStatWiringTest {
     private PickingService pickingService;
 
     @Test
-    @DisplayName("十个 Controller 都暴露 getCount/getStat 端点")
+    @DisplayName("十四个 Controller 都暴露 getCount/getStat 端点")
     void allControllersExposeCountAndStatEndpoints() {
         assertEndpoint(materialController, "getCount");
         assertEndpoint(materialController, "getStat");
@@ -135,10 +159,18 @@ class CountStatWiringTest {
         assertEndpoint(purchaseController, "getStat");
         assertEndpoint(saleController, "getCount");
         assertEndpoint(saleController, "getStat");
+        assertEndpoint(customerController, "getCount");
+        assertEndpoint(customerController, "getStat");
+        assertEndpoint(supplierController, "getCount");
+        assertEndpoint(supplierController, "getStat");
+        assertEndpoint(purchasePriceController, "getCount");
+        assertEndpoint(purchasePriceController, "getStat");
+        assertEndpoint(salePriceController, "getCount");
+        assertEndpoint(salePriceController, "getStat");
     }
 
     @Test
-    @DisplayName("十个 Service 都有 getMapperCount/getMapperStat，返回类型统一")
+    @DisplayName("十四个 Service 都有 getMapperCount/getMapperStat，返回类型统一")
     void allServicesExposeUniformCountStatMethods() {
         assertServiceMethods(materialService);
         assertServiceMethods(inventoryService);
@@ -150,10 +182,14 @@ class CountStatWiringTest {
         assertServiceMethods(pickingService);
         assertServiceMethods(purchaseService);
         assertServiceMethods(saleService);
+        assertServiceMethods(customerService);
+        assertServiceMethods(supplierService);
+        assertServiceMethods(purchasePriceService);
+        assertServiceMethods(salePriceService);
     }
 
     @Test
-    @DisplayName("十个 Service 在开关打开时都报告 isMapperReadEnabled=true")
+    @DisplayName("十四个 Service 在开关打开时都报告 isMapperReadEnabled=true")
     void allServicesReportMapperReadEnabled() {
         assertTrue(materialService.isMapperReadEnabled());
         assertTrue(inventoryService.isMapperReadEnabled());
@@ -165,10 +201,14 @@ class CountStatWiringTest {
         assertTrue(pickingService.isMapperReadEnabled());
         assertTrue(purchaseService.isMapperReadEnabled());
         assertTrue(saleService.isMapperReadEnabled());
+        assertTrue(customerService.isMapperReadEnabled());
+        assertTrue(supplierService.isMapperReadEnabled());
+        assertTrue(purchasePriceService.isMapperReadEnabled());
+        assertTrue(salePriceService.isMapperReadEnabled());
     }
 
     @Test
-    @DisplayName("十个 Controller 都覆写了 export(QueryListRequest)（导出换轨入口）")
+    @DisplayName("十四个 Controller 都覆写了 export(QueryListRequest)（导出换轨入口）")
     void allControllersOverrideExportMethod() {
         assertOverridesExport(materialController);
         assertOverridesExport(inventoryController);
@@ -180,6 +220,10 @@ class CountStatWiringTest {
         assertOverridesExport(pickingController);
         assertOverridesExport(purchaseController);
         assertOverridesExport(saleController);
+        assertOverridesExport(customerController);
+        assertOverridesExport(supplierController);
+        assertOverridesExport(purchasePriceController);
+        assertOverridesExport(salePriceController);
     }
 
     @Test

@@ -1,7 +1,8 @@
 package cn.hamm.spms.module.channel.purchaseprice;
 
 import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.airpower.core.annotation.Export;
+import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.channel.supplier.SupplierEntity;
 import cn.hamm.spms.module.system.datapermission.annotation.SensitiveField;
@@ -31,7 +32,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @DynamicUpdate
 @Table(name = "purchase_price")
 @Description("采购价格")
-public class PurchasePriceEntity extends BaseEntity<PurchasePriceEntity> implements IPurchasePriceAction {
+public class PurchasePriceEntity extends TenantAwareEntity<PurchasePriceEntity> implements IPurchasePriceAction {
     @Description("物料信息")
     @ManyToOne(fetch = EAGER)
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class, WhenGetByMaterialAndSupplier.class}, message = "物料不能为空")
@@ -46,5 +47,6 @@ public class PurchasePriceEntity extends BaseEntity<PurchasePriceEntity> impleme
     @SensitiveField(resourceKey = "channel.purchasePrice")
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '采购单价'")
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "采购单价不能为空")
+    @Export(Export.Type.NUMBER)
     private Double price;
 }

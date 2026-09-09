@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  销售价格读侧语句。权限条件由 MyBatis-Plus 按 statement ID 追加；销售价无业务筛选，
+  关联主表（物料/客户）只投影 ID，由 Service 通过受控详情服务补齐。
+  parity statement 不使用别名，保证 renderer 使用的物理表限定名与 SQL 一致。
+-->
+<mapper namespace="cn.hamm.spms.module.channel.saleprice.mapper.SalePriceMapper">
+
+    <resultMap id="salePriceReadMap" type="cn.hamm.spms.module.channel.saleprice.SalePriceEntity">
+        <id column="id" property="id"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_disabled" property="isDisabled"/>
+        <result column="is_published" property="isPublished"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="creator_id" property="creatorId"/>
+        <result column="price" property="price"/>
+        <!-- 关系表不在本资源的权限绑定中；详情先只返回关联 ID，避免无策略的 JOIN 表成为旁路。 -->
+        <association property="material" javaType="cn.hamm.spms.module.asset.material.MaterialEntity">
+            <id column="material_id" property="id"/>
+        </association>
+        <association property="customer" javaType="cn.hamm.spms.module.channel.customer.CustomerEntity">
+            <id column="customer_id" property="id"/>
+        </association>
+    </resultMap>
+
+    <sql id="salePriceColumns">
+        sp.id,
+        sp.create_time,
+        sp.update_time,
+        sp.is_disabled,
+        sp.is_published,
+        sp.tenant_id,
+        sp.creator_id,
+        sp.material_id,
+        sp.customer_id,
+        sp.price
+    </sql>
+
+    <select id="selectPageByPermission" resultMap="salePriceReadMap">
+        SELECT
+        <include refid="salePriceColumns"/>
+        FROM sale_price sp
+        ORDER BY sp.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectDetailByPermission" resultMap="salePriceReadMap">
+        SELECT
+        <include refid="salePriceColumns"/>
+        FROM sale_price sp
+        WHERE sp.id = #{id}
+    </select>
+
+    <select id="selectForExport" resultMap="salePriceReadMap">
+        SELECT
+        <include refid="salePriceColumns"/>
+        FROM sale_price sp
+        ORDER BY sp.id DESC
+    </select>
+
+    <select id="countByPermission" resultType="long">
+        SELECT COUNT(1)
+        FROM sale_price sp
+    </select>
+
+    <select id="statByPermission" resultType="cn.hamm.spms.base.mapper.ReadStat">
+        SELECT
+            COUNT(1) AS total,
+            COALESCE(SUM(CASE WHEN sp.is_published THEN 1 ELSE 0 END), 0) AS published_total
+        FROM sale_price sp
+    </select>
+
+    <select id="countByPermissionFragment" resultType="long">
+        SELECT COUNT(1) FROM sale_price
+        <where>
+            <if test="fragment != null and fragment != ''">
+                AND ${fragment}
+            </if>
+        </where>
+    </select>
+
+</mapper>
