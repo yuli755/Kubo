@@ -32,6 +32,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         "spring.cache.type=none",
         "airpower.redis.enabled=false",
         "airpower.mqtt.enabled=false",
+        // 独立的 H2 库：本类只建最小 business 表（SELECT COUNT(1) 不需要实体全列），
+        // 若与十四个运行时测试共享 testdb，最小表会顶掉完整 schema 导致对方 INSERT 语法失败。
+        "spring.datasource.url=jdbc:h2:mem:dashboarddb;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;INIT=RUNSCRIPT FROM 'classpath:schema-test.sql'",
         "kubo.data-permission.mode=off",
         "kubo.data-permission.mapper-read.enabled=true"
 }, webEnvironment = SpringBootTest.WebEnvironment.MOCK)
