@@ -1,10 +1,11 @@
 package cn.hamm.spms.module.factory.storage;
 
 import cn.hamm.airpower.core.annotation.Description;
+import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.airpower.core.annotation.Meta;
 import cn.hamm.airpower.core.interfaces.ITree;
 import cn.hamm.airpower.curd.annotation.Search;
-import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -35,11 +36,12 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.StorageCod
 @DynamicUpdate
 @Table(name = "storage")
 @Description("仓库")
-public class StorageEntity extends BaseEntity<StorageEntity> implements ITree<StorageEntity> {
+public class StorageEntity extends TenantAwareEntity<StorageEntity> implements ITree<StorageEntity> {
     @Description("仓库编码")
     @Column(columnDefinition = "varchar(255) default '' comment '仓库编码'", unique = true)
     @AutoGenerateCode(StorageCode)
     @Meta
+    @Export
     private String code;
 
     @Description("名称")
@@ -48,6 +50,7 @@ public class StorageEntity extends BaseEntity<StorageEntity> implements ITree<St
     @Length(max = 200, message = "名称最多允许{max}个字符")
     @NotBlank(groups = {WhenUpdate.class, WhenAdd.class}, message = "名称不能为空")
     @Meta
+    @Export
     private String name;
 
     @Description("父级 ID")

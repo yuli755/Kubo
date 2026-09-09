@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  生产单元主表读出口。权限条件由 MyBatis-Plus 按 statement ID 追加；树导航（children）走 JPA getList，
+  operationList 是 @ManyToMany，不在这里 JOIN。parity statement 不使用别名。
+-->
+<mapper namespace="cn.hamm.spms.module.factory.structure.mapper.StructureMapper">
+
+    <resultMap id="structureReadMap" type="cn.hamm.spms.module.factory.structure.StructureEntity">
+        <id column="id" property="id"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_disabled" property="isDisabled"/>
+        <result column="is_published" property="isPublished"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="creator_id" property="creatorId"/>
+        <result column="code" property="code"/>
+        <result column="name" property="name"/>
+        <result column="type" property="type"/>
+        <result column="parent_id" property="parentId"/>
+    </resultMap>
+
+    <sql id="structureColumns">
+        st.id,
+        st.create_time,
+        st.update_time,
+        st.is_disabled,
+        st.is_published,
+        st.tenant_id,
+        st.creator_id,
+        st.code,
+        st.name,
+        st.type,
+        st.parent_id
+    </sql>
+
+    <sql id="structureFilter">
+        <if test="filter != null and filter.code != null and filter.code != ''">
+            AND st.code LIKE CONCAT('%', #{filter.code}, '%')
+        </if>
+        <if test="filter != null and filter.name != null and filter.name != ''">
+            AND st.name LIKE CONCAT('%', #{filter.name}, '%')
+        </if>
+        <if test="filter != null and filter.type != null">
+            AND st.type = #{filter.type}
+        </if>
+    </sql>
+
+    <sql id="structureParityFilter">
+        <if test="filter != null and filter.code != null and filter.code != ''">
+            AND code LIKE CONCAT('%', #{filter.code}, '%')
+        </if>
+        <if test="filter != null and filter.name != null and filter.name != ''">
+            AND name LIKE CONCAT('%', #{filter.name}, '%')
+        </if>
+        <if test="filter != null and filter.type != null">
+            AND type = #{filter.type}
+        </if>
+    </sql>
+
+    <select id="selectPageByPermission" resultMap="structureReadMap">
+        SELECT
+        <include refid="structureColumns"/>
+        FROM structure st
+        <where>
+            <include refid="structureFilter"/>
+        </where>
+        ORDER BY st.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectDetailByPermission" resultMap="structureReadMap">
+        SELECT
+        <include refid="structureColumns"/>
+        FROM structure st
+        WHERE st.id = #{id}
+    </select>
+
+    <select id="selectForExport" resultMap="structureReadMap">
+        SELECT
+        <include refid="structureColumns"/>
+        FROM structure st
+        <where>
+            <include refid="structureFilter"/>
+        </where>
+        ORDER BY st.id DESC
+    </select>
+
+    <select id="countByPermission" resultType="long">
+        SELECT COUNT(1)
+        FROM structure st
+        <where>
+            <include refid="structureFilter"/>
+        </where>
+    </select>
+
+    <select id="statByPermission" resultType="cn.hamm.spms.base.mapper.ReadStat">
+        SELECT
+            COUNT(1) AS total,
+            COALESCE(SUM(CASE WHEN st.is_published THEN 1 ELSE 0 END), 0) AS published_total
+        FROM structure st
+        <where>
+            <include refid="structureFilter"/>
+        </where>
+    </select>
+
+    <select id="countByPermissionFragment" resultType="long">
+        SELECT COUNT(1) FROM structure
+        <where>
+            <include refid="structureParityFilter"/>
+            <if test="fragment != null and fragment != ''">
+                AND ${fragment}
+            </if>
+        </where>
+    </select>
+
+</mapper>
