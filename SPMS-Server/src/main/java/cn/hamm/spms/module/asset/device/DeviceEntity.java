@@ -2,10 +2,11 @@ package cn.hamm.spms.module.asset.device;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Dictionary;
+import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.airpower.core.annotation.Meta;
 import cn.hamm.airpower.core.annotation.ReadOnly;
 import cn.hamm.airpower.curd.annotation.Search;
-import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.asset.device.enums.DeviceAlarm;
 import cn.hamm.spms.module.asset.device.enums.DeviceStatus;
@@ -38,51 +39,59 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.DeviceCode
 @DynamicUpdate
 @Table(name = "device")
 @Description("设备")
-public class DeviceEntity extends BaseEntity<DeviceEntity> implements IDeviceAction {
+public class DeviceEntity extends TenantAwareEntity<DeviceEntity> implements IDeviceAction {
     @Description("设备名称")
     @Search
     @Column(columnDefinition = "varchar(255) default '' comment '设备名称'", unique = true)
     @NotBlank(groups = {WhenAdd.class, WhenUpdate.class}, message = "设备名称不能为空")
     @Meta
+    @Export
     private String name;
 
     @Description("设备编码")
     @Column(columnDefinition = "varchar(255) default '' comment '设备编码'", unique = true)
     @AutoGenerateCode(DeviceCode)
     @Meta
+    @Export
     private String code;
 
     @Description("设备 UUID")
     @Search
     @Column(columnDefinition = "varchar(255) default '' comment '设备UUID'", unique = true)
     @NotBlank(groups = {WhenGetDeviceConfig.class}, message = "请传入设备uuid(采集端deviceId)")
+    @Export
     private String uuid;
 
     @Description("设备状态")
     @ReadOnly
     @Column(columnDefinition = "int UNSIGNED default 4 comment '设备状态'")
     @Dictionary(value = DeviceStatus.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer status;
 
     @Description("报警状态")
     @ReadOnly
     @Column(columnDefinition = "int UNSIGNED default 0 comment '报警状态'")
     @Dictionary(value = DeviceAlarm.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer alarm;
 
     @Description("实时产量")
     @ReadOnly
     @Column(columnDefinition = "bigint UNSIGNED default 0 comment '实时产量'")
+    @Export(Export.Type.NUMBER)
     private Long partCount;
 
     @Description("开启采集")
     @Column(columnDefinition = "bit(1) default 1 comment '开启采集'")
+    @Export
     private Boolean isReporting;
 
     @Description("采集频率")
     @Column(columnDefinition = "int UNSIGNED default 1000 comment '采集频率'")
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "采集频率不能为空")
     @Min(ReportConstant.REPORT_RATE_MIN)
+    @Export(Export.Type.NUMBER)
     private Integer rate;
 
     @Description("参数列表")

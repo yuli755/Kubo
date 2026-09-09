@@ -2,9 +2,10 @@ package cn.hamm.spms.module.asset.contract;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Dictionary;
+import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.airpower.core.annotation.Meta;
 import cn.hamm.airpower.curd.annotation.Search;
-import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.asset.contract.document.ContractDocumentEntity;
 import cn.hamm.spms.module.asset.contract.enums.ContractStatus;
@@ -34,12 +35,13 @@ import java.util.Set;
 @DynamicUpdate
 @Table(name = "contract")
 @Description("合同")
-public class ContractEntity extends BaseEntity<ContractEntity> {
+public class ContractEntity extends TenantAwareEntity<ContractEntity> {
     @Description("合同编码")
     @Search
     @Column(columnDefinition = "varchar(255) default '' comment '合同编码'", unique = true)
     @AutoGenerateCode(CodeRuleField.ContractCode)
     @Meta
+    @Export
     private String code;
 
     @Description("合同名称")
@@ -47,6 +49,7 @@ public class ContractEntity extends BaseEntity<ContractEntity> {
     @Column(columnDefinition = "varchar(255) default '' comment '合同名称'")
     @NotBlank(groups = {WhenAdd.class, WhenUpdate.class}, message = "合同名称不能为空")
     @Meta
+    @Export
     private String name;
 
     @Description("合同内容")
@@ -65,11 +68,13 @@ public class ContractEntity extends BaseEntity<ContractEntity> {
     @Description("合同类型")
     @Column(columnDefinition = "bigint UNSIGNED default 0 comment '合同类型'")
     @Dictionary(value = ContractType.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer type;
 
     @Description("合同状态")
     @Column(columnDefinition = "bigint UNSIGNED default 1 comment '合同状态'")
     @Dictionary(value = ContractStatus.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer status;
 
     @Description("附件列表")
