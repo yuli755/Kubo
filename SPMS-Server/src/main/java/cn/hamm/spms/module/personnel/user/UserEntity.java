@@ -5,7 +5,7 @@ import cn.hamm.spms.module.system.datapermission.annotation.SensitiveField;
 import cn.hamm.airpower.core.annotation.*;
 import cn.hamm.airpower.core.enums.DesensitizeType;
 import cn.hamm.airpower.curd.annotation.Search;
-import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;
 import cn.hamm.spms.module.personnel.role.RoleEntity;
@@ -42,7 +42,7 @@ import static com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY;
 @DynamicUpdate
 @Table(name = "user")
 @Description("用户")
-public class UserEntity extends BaseEntity<UserEntity> implements IUserAction {
+public class UserEntity extends TenantAwareEntity<UserEntity> implements IUserAction {
     @Description("用户昵称")
     @Column(columnDefinition = "varchar(255) default '' comment '昵称'")
     @NotBlank(groups = {WhenUpdate.class, WhenAdd.class, WhenUpdateMyInfo.class}, message = "昵称不能为空")
