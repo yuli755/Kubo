@@ -12,7 +12,8 @@ import { queryClient } from '@/query/queryClient'
 import { createAppRouter } from '@/router/appRouter'
 import { createPersistPlugin } from '@/stores/persist'
 import { useThemeStore } from '@/stores/theme'
-import { installGlobalErrorHandler } from '@/utils/errorHandler'
+import { installGlobalErrorHandler, setErrorReporter } from '@/utils/errorHandler'
+import { reportErrorToServer } from '@/utils/errorReportClient'
 // airpower 的 WebConfig 配置 + web.css 已移至 src/config/airpower-bootstrap.ts，
 // 随业务页（Console.vue 懒加载）初始化，避免首屏加载 airpower 单体（107 KB）。
 // V1+V2：设计 token 层 + Element Plus 暗色变量（顺序敏感，必须在本文件其它样式之后引入）
@@ -28,6 +29,9 @@ const app = createApp(App)
 
 // P1：全局错误兜底（未捕获异常落日志 + 预留上报钩子），在挂载前注册
 installGlobalErrorHandler(app)
+// 生产可观测性闭环：把错误上报钩子接到后端（限流+脱敏+落结构化日志），
+// 失败静默 + 去重，见 src/utils/errorReportClient.ts
+setErrorReporter(reportErrorToServer)
 
 const pinia = createPinia()
 pinia.use(createPersistPlugin())
