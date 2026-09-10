@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { onMounted, ref } from 'vue'
+import ErrorBoundary from '@/component/ErrorBoundary.vue'
 
 const isLoading = ref(true)
 
@@ -13,7 +14,9 @@ onMounted(() => {
     v-loading="isLoading"
     class="app"
   >
-    <RouterView />
+    <ErrorBoundary>
+      <RouterView />
+    </ErrorBoundary>
   </div>
 </template>
 
