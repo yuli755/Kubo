@@ -1,14 +1,16 @@
 <script lang="ts" setup>
 import type { IJson } from '@airpower/web'
-import { DateTimeUtil, FeedbackUtil, RouterUtil } from '@airpower/web'
+import { DateTimeUtil, FeedbackUtil } from '@airpower/web'
 import { ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { UserService } from '@/hook/personnel/useUser'
 
 const isLoading = ref(true)
+const route = useRoute()
 
 async function init() {
-  const platform = RouterUtil.router.currentRoute.value.params.platform.toString()
-  const code = RouterUtil.router.currentRoute.value.query.code?.toString() || ''
+  const platform = route.params.platform.toString()
+  const code = route.query.code?.toString() || ''
   try {
     await UserService.create(isLoading).thirdBind(platform, code)
   }

@@ -6,20 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * `useUserStore` 契约测试。
  *
  * 锁的是登录态这条主线的不变量：
- * - token 与 airpower `WebConfig` 双向同步（框架与自研请求拦截器都能读到同一份）；
+ * - token 与 airpower 共享同 key（`Authorization`）的 localStorage（框架与自研请求
+ *   拦截器都能读到同一份，兼容层见 `@/utils/airpowerCompat`）；
  * - 租户列表只接受后端下发、且过滤非法 id（不自行拼接）；
  * - logout 无论后端成败都清空本地状态、摘 token、断开 WS、清权限。
  */
-
-const webConfig = {
-  getAccessToken: vi.fn(() => ''),
-  saveAccessToken: vi.fn(),
-  removeAccessToken: vi.fn(),
-}
-
-vi.mock('@airpower/web', () => ({
-  WebConfig: webConfig,
-}))
 
 const authApi = {
   logout: vi.fn(),
@@ -49,20 +40,19 @@ const { useUserStore } = await import('@/stores/user')
 beforeEach(() => {
   localStorage.clear()
   setActivePinia(createPinia())
-  webConfig.getAccessToken.mockReturnValue('')
   vi.clearAllMocks()
 })
 
 describe('useUserStore · 登录态不变量', () => {
-  it('setToken 同步写入 WebConfig', () => {
+  it('setToken 写入 airpower 同 key 的 localStorage（Authorization）', () => {
     const store = useUserStore()
     store.setToken('t-123')
     expect(store.token).toBe('t-123')
-    expect(webConfig.saveAccessToken).toHaveBeenCalledWith('t-123')
+    expect(localStorage.getItem('Authorization')).toBe('t-123')
   })
 
-  it('初始化从 WebConfig 恢复 token（刷新不丢）', () => {
-    webConfig.getAccessToken.mockReturnValue('restored')
+  it('初始化从 Authorization 恢复 token（刷新不丢）', () => {
+    localStorage.setItem('Authorization', 'restored')
     const store = useUserStore()
     expect(store.token).toBe('restored')
     expect(store.isLoggedIn()).toBe(true)
@@ -111,7 +101,7 @@ describe('useUserStore · 登录态不变量', () => {
     expect(store.token).toBe('')
     expect(store.tenantId).toBeUndefined()
     expect(store.userInfo).toBeNull()
-    expect(webConfig.removeAccessToken).toHaveBeenCalled()
+    expect(localStorage.getItem('Authorization')).toBeNull()
     expect(localStorage.getItem('kubo:user')).toBeNull()
     // 异步副作用
     await vi.waitFor(() => expect(webSocketManager.disconnect).toHaveBeenCalled())
@@ -126,7 +116,7 @@ describe('useUserStore · 登录态不变量', () => {
     await store.logout()
 
     expect(store.token).toBe('')
-    expect(webConfig.removeAccessToken).toHaveBeenCalled()
+    expect(localStorage.getItem('Authorization')).toBeNull()
   })
 
   it('无 refreshToken 时 refreshToken 抛错', async () => {

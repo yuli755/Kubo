@@ -1,7 +1,5 @@
-import { RouterUtil, WebConfig } from '@airpower/web'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import { ElLoading } from 'element-plus'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { createPinia } from 'pinia'
 import { createApp } from 'vue'
 import App from '@/App.vue'
@@ -11,10 +9,12 @@ import { initAuthGuard } from '@/guard/authGuard'
 import { initPermissionGuard } from '@/guard/permissionGuard'
 import { registerPWA } from '@/pwa/registerSW'
 import { queryClient } from '@/query/queryClient'
+import { createAppRouter } from '@/router/appRouter'
 import { createPersistPlugin } from '@/stores/persist'
 import { useThemeStore } from '@/stores/theme'
 import { installGlobalErrorHandler } from '@/utils/errorHandler'
-import '@airpower/web/dist/web.css'
+// airpower 的 WebConfig 配置 + web.css 已移至 src/config/airpower-bootstrap.ts，
+// 随业务页（Console.vue 懒加载）初始化，避免首屏加载 airpower 单体（107 KB）。
 // V1+V2：设计 token 层 + Element Plus 暗色变量（顺序敏感，必须在本文件其它样式之后引入）
 import '@/styles/index.scss'
 
@@ -23,12 +23,6 @@ import '@/styles/index.scss'
 import 'element-plus/es/components/message/style/css'
 import 'element-plus/es/components/message-box/style/css'
 import 'element-plus/es/components/loading/style/css'
-
-WebConfig.elementPlusLocale = zhCn
-WebConfig.appKey = 'kubo'
-WebConfig.product = 'Kubo'
-WebConfig.uploadUrl = '/api/file/upload'
-WebConfig.staticUrl = '/static/'
 
 const app = createApp(App)
 
@@ -43,7 +37,7 @@ app.use(pinia)
 // V2：挂载前应用主题偏好，确保首帧渲染就带正确的 html.dark（避免浅色闪烁）
 useThemeStore()
 
-const router = RouterUtil.createRouter(routes)
+const router = createAppRouter(routes)
 
 // 注册路由守卫（顺序：先认证 → 再权限）
 initAuthGuard(router)

@@ -1,7 +1,8 @@
 <script lang="ts" setup>
 import type { OauthScope } from '@/model/open/oauth/OauthScope'
-import { FeedbackUtil, RouterUtil } from '@airpower/web'
+import { FeedbackUtil } from '@airpower/web'
 import { ref } from 'vue'
+import { useRoute } from 'vue-router'
 import Copyright from '@/component/login/Copyright.vue'
 import Logo from '@/component/login/Logo.vue'
 import { OpenAppService } from '@/hook/open/useApp'
@@ -11,9 +12,10 @@ import { UserEntity } from '@/model/personnel/user/UserEntity'
 
 const user = ref(new UserEntity())
 
-const appKey = (RouterUtil.router.currentRoute.value.query.appKey || '').toString()
-const scope = (RouterUtil.router.currentRoute.value.query.scope || '').toString()
-const redirectUri = (RouterUtil.router.currentRoute.value.query.redirectUri || '/console').toString()
+const route = useRoute()
+const appKey = (route.query.appKey || '').toString()
+const scope = (route.query.scope || '').toString()
+const redirectUri = (route.query.redirectUri || '/console').toString()
 
 const appInfo = ref(new OpenAppEntity())
 

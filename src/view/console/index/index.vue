@@ -1,8 +1,9 @@
 <script lang="ts" setup>
 import type { IJson } from '@airpower/web'
-import { APanel, RouterUtil } from '@airpower/web'
+import { APanel } from '@airpower/web'
 import { computed, ref } from 'vue'
 import { Permissions } from '@/config/permissions'
+import { getRouter } from '@/router/appRouter'
 import { usePermissionStore } from '@/stores/permission'
 import BusinessOverview from './BusinessOverview.vue'
 import SecurityDashboard from './SecurityDashboard.vue'
@@ -57,7 +58,7 @@ const modules = ref<IJson[]>([
 ])
 
 function goPage(path: string) {
-  RouterUtil.router.push(path)
+  getRouter().push(path)
 }
 </script>
 

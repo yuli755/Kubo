@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { MenuEntity } from '@/model/system/menu/MenuEntity'
-import { AFrame, RouterUtil } from '@airpower/web'
+import { AFrame } from '@airpower/web'
 import { onErrorCaptured, ref } from 'vue'
 import { authApi } from '@/api/system'
 import TenantSwitcher from '@/component/TenantSwitcher.vue'
@@ -8,10 +8,12 @@ import ThemeSwitcher from '@/component/ThemeSwitcher.vue'
 import UserCard from '@/component/UserCard.vue'
 import { UserEntity } from '@/model/personnel/user/UserEntity'
 import { UserService } from '@/model/personnel/user/UserService'
+import { getRouter, initVueRouter, reloadCurrentRoute } from '@/router/appRouter'
 import { usePermissionStore } from '@/stores/permission'
 import { useUserStore } from '@/stores/user'
 import { reportError } from '@/utils/errorHandler'
 import { webSocketManager } from '@/websocket/WebSocketManager'
+import '@/config/airpower-bootstrap'
 
 const components = import.meta.glob('/src/view/**/*.vue')
 const currentUserInfo = ref(new UserEntity())
@@ -43,8 +45,8 @@ function applyMenuPermissions(menus: MenuEntity[]): MenuEntity[] {
 
 async function getMenuList() {
   menuList.value = applyMenuPermissions(await UserService.create(isLoading).getMyMenuList())
-  RouterUtil.initVueRouter(menuList.value, components, '/src/view', 'console')
-  await RouterUtil.reloadCurrentRoute()
+  initVueRouter(menuList.value, components, '/src/view', 'console')
+  await reloadCurrentRoute()
 }
 
 async function init() {
@@ -82,7 +84,7 @@ async function retryInit() {
 }
 
 function backToHome() {
-  RouterUtil.router.push('/home')
+  getRouter().push('/home')
 }
 
 init()

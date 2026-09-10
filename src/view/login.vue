@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import { RouterUtil, ValidateUtil } from '@airpower/web'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { authApi } from '@/api/system'
 import Logo from '@/component/login/Logo.vue'
 import ThirdLogin from '@/component/login/ThirdLogin.vue'
@@ -12,8 +12,10 @@ import { LoginAction } from '@/model/common/LoginAction'
 import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
 import { useUserStore } from '@/stores/user'
 import { reportError } from '@/utils/errorHandler'
+import { isEmail, isMobilePhone, isNaturalNumber } from '@/utils/validators'
 
 const userStore = useUserStore()
+const route = useRoute()
 
 const { preload } = useRoutePreload()
 
@@ -40,9 +42,9 @@ const user = ref({
   appKey: '',
 })
 
-const appKey = (RouterUtil.router.currentRoute.value.query.appKey || '').toString()
-const scope = (RouterUtil.router.currentRoute.value.query.scope || '').toString()
-const redirectUri = (RouterUtil.router.currentRoute.value.query.redirectUri || '/console').toString()
+const appKey = (route.query.appKey || '').toString()
+const scope = (route.query.scope || '').toString()
+const redirectUri = (route.query.redirectUri || '/console').toString()
 
 const appInfo = ref(new OpenAppEntity())
 
@@ -54,10 +56,10 @@ const isPhoneCodeLoading = ref(false)
 
 // 表单验证
 const isValidCode = computed(() => user.value.code && user.value.code.length === 6)
-const isValidEmail = computed(() => user.value.email && ValidateUtil.isEmail(user.value.email))
-const isValidPhone = computed(() => user.value.phone && ValidateUtil.isMobilePhone(user.value.phone))
+const isValidEmail = computed(() => user.value.email && isEmail(user.value.email))
+const isValidPhone = computed(() => user.value.phone && isMobilePhone(user.value.phone))
 const isValidAccount = computed(
-  () => user.value.email && (ValidateUtil.isEmail(user.value.email) || ValidateUtil.isNaturalNumber(user.value.email)),
+  () => user.value.email && (isEmail(user.value.email) || isNaturalNumber(user.value.email)),
 )
 
 /**

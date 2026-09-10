@@ -132,6 +132,12 @@ export default defineConfig({
             if (id.includes('@tanstack/vue-query') || id.includes('@tanstack/query-core')) {
               return 'vendor-query'
             }
+            // axios 单独成 chunk：airpower 的 Http 也依赖 axios，若不拆出，axios 会被
+            // 归入 vendor-airpower，导致首屏仅因 `@/api/axios` 引用 axios 就整包加载
+            // airpower 单体（~100 KB gzip）。拆出后首屏只按需加载 vendor-axios（~13 KB）。
+            if (id.includes('axios')) {
+              return 'vendor-axios'
+            }
             if (id.includes('@airpower/web') || id.includes('@airpower/core')) {
               return 'vendor-airpower'
             }

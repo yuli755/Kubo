@@ -1,8 +1,8 @@
 <script lang="ts" setup>
-import { RouterUtil } from '@airpower/web'
 import { Avatar, Collection, OfficeBuilding, User } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
 import { authApi } from '@/api/system'
+import { getRouter } from '@/router/appRouter'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
@@ -75,7 +75,11 @@ async function init() {
  * ### 跳转到控制台
  */
 function goConsole() {
-  RouterUtil.router.push('/console')
+  getRouter().push('/console')
+}
+
+function goPath(path: string) {
+  getRouter().push(path)
 }
 
 onMounted(init)
@@ -123,7 +127,7 @@ onMounted(init)
           v-for="item in entries"
           :key="item.title"
           class="card"
-          @click="RouterUtil.router.push(item.path)"
+          @click="goPath(item.path)"
         >
           <el-icon :size="32">
             <component :is="item.icon" />
