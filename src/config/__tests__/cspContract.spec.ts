@@ -67,6 +67,14 @@ describe('csp contract · 前端 CSP（nginx 托管层）', () => {
     ).toMatch(/X-Frame-Options\s+"DENY"/)
   })
 
+  it('frame-src 必须放行 blob:（Firefox 把 blob 文件下载视为 frame 导航，不放行则导出下载失效）', () => {
+    const conf = read(NGINX)
+    expect(
+      conf,
+      'CSP 缺 frame-src blob:：Firefox 下 <a download href=blob:> 的文件导出会被 default-src 阻断，下载失效',
+    ).toMatch(/frame-src[^;]*blob:/)
+  })
+
   it('nginx 不得开启目录列表（autoindex on 暴露静态目录结构）', () => {
     const conf = read(NGINX)
     // 只检查指令行，跳过注释（注释里会解释"autoindex on 会暴露结构"）
