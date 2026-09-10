@@ -24,5 +24,33 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.spec.ts', 'packages/shared/**/*.spec.ts'],
     // 组件测试需要 element-plus 的解析器时，按需在具体用例里注册，避免全局开销
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary', 'html'],
+      // 覆盖率只统计「有单元测试价值的纯逻辑层」，排除视图(.vue)/网络层/模型实体：
+      // 那些要么是不可单测的模板渲染，要么是 OpenAPI 生成的一次性胶水代码。
+      include: [
+        'src/utils/**/*.ts',
+        'src/composables/**/*.ts',
+        'src/stores/**/*.ts',
+        'src/directives/**/*.ts',
+        'src/config/**/*.ts',
+        'src/guard/**/*.ts',
+        'packages/shared/src/**/*.ts',
+      ],
+      exclude: [
+        '**/__tests__/**',
+        '**/*.spec.ts',
+        '**/*.d.ts',
+      ],
+      // 防回归地板（非追求指标）：核心纯逻辑（脱敏/权限/持久化/守卫/错误上报）
+      // 一旦被删改导致覆盖率骤降，这里会拦。当前基线 ~56% lines / 71% funcs / 85% branches。
+      thresholds: {
+        lines: 50,
+        functions: 65,
+        statements: 50,
+        branches: 75,
+      },
+    },
   },
 })

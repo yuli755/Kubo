@@ -2,6 +2,7 @@
 node_modules
 dist
 dist.zip
+coverage
 
 # local env files
 .env
