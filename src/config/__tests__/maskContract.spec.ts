@@ -2234,6 +2234,26 @@ describe('mask contract · 安全响应头（S4 第一批）', () => {
   })
 })
 
+describe('mask contract · 生产包体日志关闭（安全加固 P3）', () => {
+  const PROD = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'application-production.yml')
+
+  it('生产配置必须显式关闭请求/响应包体日志（airpower 会把完整 body 打印到日志）', () => {
+    const yml = read(PROD)
+    // 逐行断言，避免误匹配到注释里的解释文字
+    const lines = yml.split('\n')
+    const reqLog = lines.find(l => l.trim().startsWith('request-log:'))
+    const resLog = lines.find(l => l.trim().startsWith('response-log:'))
+
+    expect(reqLog, '生产 request-log 未显式关闭：airpower 会把请求 body 打印到日志（登录密码 / token / PII）')
+      .toBeDefined()
+    expect(reqLog?.trim(), '生产 request-log 必须为 false').toBe('request-log: false')
+
+    expect(resLog, '生产 response-log 未显式关闭：airpower 会把响应 body 打印到日志（客户信息 / 查询结果）')
+      .toBeDefined()
+    expect(resLog?.trim(), '生产 response-log 必须为 false').toBe('response-log: false')
+  })
+})
+
 describe('mask contract · 归属迁移（B1 余半块）', () => {
   it('唯一豁免挂在专用接口 + 独立权限身份，默认防篡改不变', () => {
     const identities = readJavaCode(join(SERVER, 'module/system/datapermission/SystemPermissionIdentities.java'))

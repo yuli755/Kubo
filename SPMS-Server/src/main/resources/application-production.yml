@@ -17,6 +17,14 @@ spring:
       host: kubo-redis
       port: 6379
       database: 5
+airpower:
+  api:
+    # P3：生产关闭请求/响应包体日志。airpower 的 request-log/response-log 会把完整请求/响应
+    # body 打印到日志（登录密码、token、客户 PII、查询结果），是 PII 泄露面 + 无谓日志 I/O。
+    # 排障改用 traceId（airpower 默认 bodyTraceId: true，响应体带 traceId 可关联）。
+    request-log: false
+    response-log: false
+
 app:
   upload-platform: local
   login-url: 'https://kubo.hamm.cn/login'
