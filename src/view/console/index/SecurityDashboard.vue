@@ -3,6 +3,7 @@ import type { EChartsType } from 'echarts/core'
 import type { ResourceRuntimeStatus } from '@/api/system/types'
 import { RefreshRight } from '@element-plus/icons-vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import AnimatedNumber from '@/component/AnimatedNumber.vue'
 import EmptyState from '@/component/EmptyState.vue'
 import Skeleton from '@/component/Skeleton.vue'
 import { useDataPermissionRuntimeStatus } from '@/composables/useDataPermissionRuntimeStatus'
@@ -121,6 +122,24 @@ const cards = computed<StatCard[]>(() => [
 ])
 
 /**
+ * 8 张卡片的「全部落定」信号（V6 · 卡片骨架）：
+ * 每个 composable 要么 `ready`（成功取到）、要么 `failed`（失败要显示退化态），
+ * 只要有一个还悬着就显示骨架，避免卡片先闪现「0 / 空」再被真实值覆盖。
+ * readiness 用 `fetched`（它的成功信号名不同），其余用 `ready`。
+ */
+const cardsReady = computed(() => {
+  const settled = (s: { ready: boolean, failed: boolean }) => s.ready || s.failed
+  return (readiness.fetched || readiness.failed)
+    && settled(deny)
+    && settled(gap)
+    && settled(inert)
+    && settled(binding)
+    && settled(rowPolicy)
+    && settled(policyResource)
+    && settled(outbox)
+})
+
+/**
  * ORM 对账分布：跨资源累加后端给的四个计数器，不自行判定方向语义。
  */
 const ormParity = computed(() => {
@@ -167,6 +186,9 @@ function buildModeOption(resources: ResourceRuntimeStatus[]) {
     value: resources.filter(r => r.effectiveMode === mode).length,
   })).filter(item => item.value > 0)
   return {
+    // V6：图表入场动画（展开过渡，合成器友好，reduced-motion 下由 echarts 关闭）
+    animationDuration: 600,
+    animationEasing: 'cubicOut' as const,
     tooltip: { trigger: 'item' as const },
     legend: { bottom: 0 },
     series: [
@@ -186,6 +208,9 @@ function buildModeOption(resources: ResourceRuntimeStatus[]) {
 function buildParityOption() {
   const { consistent, stricter, looser, error } = ormParity.value
   return {
+    // V6：图表入场动画（柱状生长过渡）
+    animationDuration: 600,
+    animationEasing: 'cubicOut' as const,
     tooltip: { trigger: 'axis' as const },
     legend: { bottom: 0 },
     grid: { left: '8%', right: '4%', top: '8%', bottom: '22%', containLabel: true },
@@ -278,7 +303,15 @@ onBeforeUnmount(() => {
       :title="runtime.summary"
     />
 
-    <div class="cards">
+    <Skeleton
+      v-if="!cardsReady"
+      variant="card"
+      :count="8"
+    />
+    <div
+      v-else
+      class="cards"
+    >
       <el-card
         v-for="card in cards"
         :key="card.label"
@@ -292,7 +325,13 @@ onBeforeUnmount(() => {
           class="stat-value"
           :class="card.alerting ? 'alert' : 'normal'"
         >
-          {{ card.failed ? '未能取得' : card.value }}
+          <template v-if="card.failed">
+            未能取得
+          </template>
+          <AnimatedNumber
+            v-else
+            :value="card.value"
+          />
         </div>
         <div class="stat-detail">
           {{ card.failed ? '取数失败，请刷新或检查接口' : card.detail }}
