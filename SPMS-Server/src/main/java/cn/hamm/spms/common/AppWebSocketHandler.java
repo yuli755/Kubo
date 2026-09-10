@@ -118,8 +118,9 @@ public class AppWebSocketHandler extends WebSocketHandler {
                 }
                 MemberEntity joinMember = memberService.getMemberWithAutoCreate(userId, room.getId());
                 if (roomService.checkIfNeedPassword(joinMember) &&
-                        !room.getPassword().equalsIgnoreCase(joinRequest.getPassword())) {
-                    // 房间需要密码且校验未通过：回退加入失败，不泄露「密码错在哪」
+                        !room.getPassword().equals(joinRequest.getPassword())) {
+                    // 房间需要密码且校验未通过：回退加入失败，不泄露「密码错在哪」。
+                    // 密码比对必须大小写敏感（equals），equalsIgnoreCase 会把 RoomPass/roompass 当同码，削弱口令熵。
                     webSocketPayload = new WebSocketPayload()
                             .setType(ROOM_JOIN_FAIL.getKeyString())
                             .setData("进入房间失败，房间密码错误！");
