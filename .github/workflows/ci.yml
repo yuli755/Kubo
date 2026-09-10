@@ -254,6 +254,24 @@ jobs:
           # 只读依赖树里传递进来的实际版本；下一格核对版本族看这一行，不照记忆写。
           jsql_ver=$(echo "$tree" | grep -oE "com\.github\.jsqlparser:jsqlparser:jar:[0-9][^:]*" | head -1 | awk -F: '{print $NF}')
           echo "::notice title=jsqlparser 本体版本（依赖树实测）::${jsql_ver:-不在依赖树里 ⇒ 接任何 InnerInterceptor 前必须显式补}"
+
+      - name: Dependency analysis report (informational)
+        # 依赖瘦身的前置侦察（P3 #2）：dependency:analyze 输出「声明了却没用」与「用了却未声明」两类，
+        # 是后续剪依赖的输入。刻意**不设为门禁**：analyze 插件对 Lombok/反射/运行期才加载的依赖有已知误报，
+        # 拿它当红灯会把正常依赖升级卡死。报告以 artifact 上传（Actions 日志正文在 blob 上取不到，
+        # 本仓踩过「CI 红了但读不到为什么红」），供人工对照剪。
+        run: |
+          chmod +x ./mvnw || true
+          ./mvnw -B -s settings.xml dependency:analyze > target/dependency-analyze.txt 2>&1 || true
+          echo "dependency:analyze 报告已写入 target/dependency-analyze.txt（非门禁，失败不阻断）"
+
+      - name: Upload dependency analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-analyze-report
+          path: SPMS-Server/target/dependency-analyze.txt
+          if-no-files-found: ignore
   # ============================================================================
   # 迁移脚本的真实方言门禁（§19.11 第 2 项里"今天就能自动化"的那一半）
   # 为什么不用 Testcontainers：那要往 pom 里加 testcontainers + mysql-connector 依赖，
