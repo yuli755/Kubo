@@ -7,6 +7,7 @@ import { DeviceService } from '@/hook/asset/useDevice'
 import { AlarmStatusEnum } from '@/model/asset/device/AlarmStatusEnum'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
 import { DeviceStatusEnum } from '@/model/asset/device/DeviceStatusEnum'
+import { reportError } from '@/utils/errorHandler'
 import { DeviceMonitor } from '../../asset/device/component'
 
 const deviceList = ref<DeviceEntity[]>([])
@@ -23,7 +24,7 @@ async function getDeviceList() {
     polling.markSuccess()
   }
   catch (error) {
-    console.error('获取设备列表失败:', error)
+    reportError(error, 'device-list')
     // polling 在下方 usePolling(...) 创建；回调只在挂载后执行，无 TDZ 风险
     // eslint-disable-next-line ts/no-use-before-define
     polling.markFail()

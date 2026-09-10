@@ -1,5 +1,6 @@
 import { AbstractBaseService } from '@/base/AbstractBaseService'
 import { MaterialEntity } from '@/model/asset/material/MaterialEntity'
+import { reportError } from '@/utils/errorHandler'
 import { CustomerEntity } from '../customer/CustomerEntity'
 import { SalePriceEntity } from './SalePriceEntity'
 
@@ -16,7 +17,7 @@ export class SalePriceService extends AbstractBaseService<SalePriceEntity> {
       return this.api('getByMaterialAndCustomer').throwError().requestModel(entity, SalePriceEntity)
     }
     catch (e) {
-      console.error(e)
+      reportError(e, 'sale-price')
       return null
     }
   }

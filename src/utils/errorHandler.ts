@@ -19,14 +19,17 @@ import type { App } from 'vue'
 export interface ErrorReport {
   message: string
   stack?: string
-  source: 'vue' | 'promise' | 'window'
+  source: 'vue' | 'promise' | 'window' | 'manual'
+  /** 业务上下文（如 login / websocket / device-monitor），帮助定位错误来源 */
+  context?: string
   time: number
 }
 
 export type ErrorReporter = (report: ErrorReport) => void
 
 let reporter: ErrorReporter = (report) => {
-  console.error(`[Kubo][global-${report.source}]`, report.message, report.stack ?? '')
+  const ctx = report.context ? ` (context=${report.context})` : ''
+  console.error(`[Kubo][global-${report.source}]`, report.message, report.stack ?? '', ctx)
 }
 
 /** 注入生产上报（Sentry / 自建监控）。默认实现只落 console。 */
@@ -34,11 +37,22 @@ export function setErrorReporter(next: ErrorReporter): void {
   reporter = next
 }
 
-function toReport(error: unknown, source: ErrorReport['source']): ErrorReport {
+function toReport(error: unknown, source: ErrorReport['source'], context?: string): ErrorReport {
   if (error instanceof Error) {
-    return { message: error.message, stack: error.stack, source, time: Date.now() }
+    return { message: error.message, stack: error.stack, source, context, time: Date.now() }
   }
-  return { message: String(error), source, time: Date.now() }
+  return { message: String(error), source, context, time: Date.now() }
+}
+
+/**
+ * 业务代码主动上报错误（供 `try/catch` 捕获点调用）。
+ *
+ * 与 `installGlobalErrorHandler` 的兜底互补：后者接「未捕获」的异常，这里接「已捕获但值得上报」的
+ * 错误（登录失败、WebSocket 断连、设备数据拉取失败……）。接入后这些错误会走统一的 `reporter`，
+ * 将来接 Sentry/自建监控时自动纳入，无需再改调用点。默认实现仍落 console，不改变现有行为。
+ */
+export function reportError(error: unknown, context?: string): void {
+  reporter(toReport(error, 'manual', context))
 }
 
 /** 在 main.ts 挂载前调用，统一接住 Vue 组件错误、未处理 rejection 与全局 error。 */

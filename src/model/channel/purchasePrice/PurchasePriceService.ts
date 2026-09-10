@@ -1,5 +1,6 @@
 import { AbstractBaseService } from '@/base/AbstractBaseService'
 import { MaterialEntity } from '@/model/asset/material/MaterialEntity'
+import { reportError } from '@/utils/errorHandler'
 import { SupplierEntity } from '../supplier/SupplierEntity'
 import { PurchasePriceEntity } from './PurchasePriceEntity'
 
@@ -16,7 +17,7 @@ export class PurchasePriceService extends AbstractBaseService<PurchasePriceEntit
       return this.api('getByMaterialAndSupplier').throwError().requestModel(entity, PurchasePriceEntity)
     }
     catch (e) {
-      console.error(e)
+      reportError(e, 'purchase-price')
       return null
     }
   }

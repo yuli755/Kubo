@@ -10,6 +10,7 @@ import { UserEntity } from '@/model/personnel/user/UserEntity'
 import { UserService } from '@/model/personnel/user/UserService'
 import { usePermissionStore } from '@/stores/permission'
 import { useUserStore } from '@/stores/user'
+import { reportError } from '@/utils/errorHandler'
 import { webSocketManager } from '@/websocket/WebSocketManager'
 
 const components = import.meta.glob('/src/view/**/*.vue')
@@ -23,7 +24,7 @@ const tenantReady = ref(false)
 const userStore = useUserStore()
 
 onErrorCaptured((error) => {
-  console.error('子组件渲染错误:', error)
+  reportError(error, 'console-render')
   loadError.value = true
   errorTitle.value = '页面渲染异常'
   errorMessage.value = error instanceof Error ? error.message : '页面渲染异常，请刷新或重试'
@@ -62,7 +63,7 @@ async function init() {
     webSocketManager.connect()
   }
   catch (error) {
-    console.error('初始化控制台失败:', error)
+    reportError(error, 'console-init')
     loadError.value = true
     errorTitle.value = '控制台初始化失败'
     errorMessage.value = error instanceof Error ? error.message : '菜单或权限加载失败，请重试'

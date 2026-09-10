@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { App } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { installGlobalErrorHandler, setErrorReporter } from '@/utils/errorHandler'
+import { installGlobalErrorHandler, reportError, setErrorReporter } from '@/utils/errorHandler'
 
 /**
  * `installGlobalErrorHandler` 契约测试（P1 · 前端可观测性兜底）。
@@ -70,5 +70,29 @@ describe('errorHandler · 全局错误兜底', () => {
     const events = addSpy.mock.calls.map(c => c[0])
     expect(events).toContain('unhandledrejection')
     expect(events).toContain('error')
+  })
+
+  it('reportError 手动上报走同一 reporter，并带 context', () => {
+    const reporter = vi.fn()
+    setErrorReporter(reporter)
+
+    reportError(new Error('manual boom'), 'login')
+
+    expect(reporter).toHaveBeenCalledTimes(1)
+    expect(reporter.mock.calls[0][0]).toMatchObject({
+      message: 'manual boom',
+      source: 'manual',
+      context: 'login',
+    })
+  })
+
+  it('reportError 也接受非 Error（String 化）', () => {
+    const reporter = vi.fn()
+    setErrorReporter(reporter)
+
+    reportError('plain string', 'ws')
+
+    expect(reporter.mock.calls[0][0].message).toBe('plain string')
+    expect(reporter.mock.calls[0][0].context).toBe('ws')
   })
 })

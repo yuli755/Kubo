@@ -9,6 +9,7 @@ import { AlarmStatusEnum } from '@/model/asset/device/AlarmStatusEnum'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
 import { DeviceStatusEnum } from '@/model/asset/device/DeviceStatusEnum'
 import { CollectionDefault } from '@/model/iot/collection/CollectionDefault'
+import { reportError } from '@/utils/errorHandler'
 import { ParameterEditor } from '@/view/console/iot/parameter/component'
 import DeviceCollectHistory from './history.vue'
 
@@ -23,7 +24,7 @@ async function getDetail() {
     formData.value = await DeviceService.create().getDetail(props.param.id)
   }
   catch (error) {
-    console.error('获取设备详情失败:', error)
+    reportError(error, 'device-detail')
   }
 }
 
@@ -36,7 +37,7 @@ async function getCurrentReport() {
     polling.markSuccess()
   }
   catch (error) {
-    console.error('获取设备实时数据失败:', error)
+    reportError(error, 'device-realtime')
     // polling 在下方 usePolling(...) 创建；回调只在挂载后执行，无 TDZ 风险
     // eslint-disable-next-line ts/no-use-before-define
     polling.markFail()

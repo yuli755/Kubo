@@ -3,6 +3,7 @@ import { ADialog, AFormField, AGroup, CryptoUtil, DialogProps, FeedbackUtil, Ran
 import { computed, ref } from 'vue'
 import { OpenAppArithmeticEnum } from '@/model/open/app/OpenAppArithmeticEnum'
 import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
+import { reportError } from '@/utils/errorHandler'
 
 const props = defineProps(DialogProps.withParam())
 
@@ -71,7 +72,7 @@ async function onTest() {
     FeedbackUtil.alertSuccess(data, '响应数据')
   }
   catch (error) {
-    console.error('接口测试失败:', error)
+    reportError(error, 'open-app-test')
     FeedbackUtil.toastError('接口测试失败，请检查配置')
   }
   finally {
