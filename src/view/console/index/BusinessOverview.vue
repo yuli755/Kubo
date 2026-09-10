@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { RefreshRight } from '@element-plus/icons-vue'
+import Skeleton from '@/component/Skeleton.vue'
 import { useBusinessOverview } from '@/composables/useBusinessOverview'
 
 /**
@@ -37,6 +38,11 @@ const overview = useBusinessOverview()
       show-icon
       title="未能取得业务概况"
       description="取不到结果时不会显示为「全部为 0」；请检查 /dashboard/overview 是否可用。"
+    />
+    <Skeleton
+      v-else-if="overview.loading && !overview.ready"
+      variant="card"
+      :count="7"
     />
     <div
       v-else

@@ -3,6 +3,7 @@ import type { EChartsType } from 'echarts/core'
 import type { ResourceRuntimeStatus } from '@/api/system/types'
 import { RefreshRight } from '@element-plus/icons-vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import Skeleton from '@/component/Skeleton.vue'
 import { useDataPermissionRuntimeStatus } from '@/composables/useDataPermissionRuntimeStatus'
 import { useDenyLogReport } from '@/composables/useDenyLogReport'
 import { useDimensionBindingRiskReport } from '@/composables/useDimensionBindingRiskReport'
@@ -311,6 +312,10 @@ onBeforeUnmount(() => {
           ref="modeChartEl"
           class="chart"
         />
+        <Skeleton
+          v-else-if="runtime.loading"
+          variant="chart"
+        />
         <el-empty
           v-else
           :description="runtime.failed ? '未能取得资源档位分布' : '暂无已登记资源'"
@@ -329,6 +334,10 @@ onBeforeUnmount(() => {
           v-if="runtime.ready && runtime.resources.length"
           ref="parityChartEl"
           class="chart"
+        />
+        <Skeleton
+          v-else-if="runtime.loading"
+          variant="chart"
         />
         <el-empty
           v-else

@@ -135,7 +135,15 @@ init()
         <UserCard :user="currentUserInfo" />
       </div>
     </template>
-    <router-view />
+    <!-- V3：路由过渡（淡入 + 轻微上移，只动 opacity/transform，合成器友好） -->
+    <router-view v-slot="{ Component }">
+      <Transition
+        name="fade-slide"
+        mode="out-in"
+      >
+        <component :is="Component" />
+      </Transition>
+    </router-view>
   </AFrame>
 </template>
 
@@ -161,5 +169,31 @@ init()
   text-decoration: none;
   color: white;
   margin-top: 5px;
+}
+
+/* V3：路由过渡（只动 opacity/transform） */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition:
+    opacity var(--kubo-duration-base) var(--kubo-ease-out),
+    transform var(--kubo-duration-base) var(--kubo-ease-out);
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* V8：用户偏好减少动效时关闭路由过渡 */
+@media (prefers-reduced-motion: reduce) {
+  .fade-slide-enter-active,
+  .fade-slide-leave-active {
+    transition: none;
+  }
 }
 </style>
