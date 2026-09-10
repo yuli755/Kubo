@@ -1,3 +1,17 @@
+# =============================================================================
+# ⚠️ 本 compose 是「本地开发 + 全链路可观测」栈，不是生产编排。
+#
+# 生产由 k8s 承载（见 application-production.yml：kubo-mysql / kubo-redis 等服务发现），
+# 本文件的凭据（MySQL root/root、RabbitMQ kubo/kubo、Nacos 默认 auth-token、MinIO kubo/kubo123456、
+# Grafana admin/admin123、Elasticsearch kubo123456）全部是**弱默认值**，且端口发布到 0.0.0.0
+# （形如 '3306:3306'，未绑定 127.0.0.1）。
+#
+# 因此**严禁**把本文件原样 `docker-compose up -d` 到公网/可被外部访问的服务器：
+# 那等于把 MySQL/Redis/RabbitMQ/Nacos/MinIO/ES 连同弱凭据一起暴露在公网。
+# 若确需在共享服务器上跑本栈，必须先做两件事：
+#   1. 改掉全部弱默认凭据（环境变量注入，勿硬编码）；
+#   2. 数据/中间件端口改为 `127.0.0.1:PORT:PORT`（仅观测 UI 可按需对外）。
+# =============================================================================
 version: '3.8'
 
 services:
