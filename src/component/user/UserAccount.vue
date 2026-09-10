@@ -61,7 +61,7 @@ const active = ref(TABS.modifyPassword)
 
   .account {
     margin: 5px 10px;
-    background-color: #f8f8f8;
+    background-color: var(--kubo-color-muted-bg);
     border-radius: 10px;
     padding: 20px;
     font-size: 14px;
@@ -72,7 +72,7 @@ const active = ref(TABS.modifyPassword)
     img {
       width: 24px;
       height: 24px;
-      background-color: #ccc;
+      background-color: var(--el-text-color-placeholder);
       padding: 5px;
       border-radius: 10px;
     }
@@ -81,12 +81,12 @@ const active = ref(TABS.modifyPassword)
       display: flex;
       flex-direction: row;
       align-items: center;
-      color: #aaa;
+      color: var(--el-text-color-secondary);
       font-weight: bold;
       flex: 1;
 
       .logo {
-        background-color: #aaa;
+        background-color: var(--el-text-color-placeholder);
         margin-right: 10px;
       }
     }
@@ -95,7 +95,7 @@ const active = ref(TABS.modifyPassword)
       display: flex;
       flex-direction: row;
       align-items: center;
-      color: #aaa;
+      color: var(--el-text-color-secondary);
       font-weight: bold;
 
       .avatar {

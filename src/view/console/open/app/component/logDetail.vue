@@ -104,7 +104,7 @@ const responseJson = computed(() => {
   flex: 1;
 
   .key {
-    color: #999;
+    color: var(--el-text-color-secondary);
   }
 
   .value {

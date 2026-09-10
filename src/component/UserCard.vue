@@ -146,7 +146,7 @@ async function onUploadAvatar(file: FileEntity) {
     ::v-deep(.el-image) {
       width: 80px;
       height: 80px;
-      background: #f5f5f5;
+      background: var(--kubo-color-muted-bg);
       border-radius: 10px;
 
       img {
@@ -189,12 +189,12 @@ async function onUploadAvatar(file: FileEntity) {
         .key {
           width: 40px;
           font-size: 13px;
-          color: #999;
+          color: var(--el-text-color-secondary);
         }
 
         .value {
           font-size: 13px;
-          color: #333;
+          color: var(--el-text-color-primary);
 
           .el-link {
             margin-left: 8px;
@@ -209,7 +209,7 @@ async function onUploadAvatar(file: FileEntity) {
 .setting {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--el-border-color);
   padding-top: 10px;
   margin-top: 10px;
 
@@ -218,11 +218,11 @@ async function onUploadAvatar(file: FileEntity) {
     cursor: pointer;
     border-radius: 6px;
     font-size: 14px;
-    color: #333;
+    color: var(--el-text-color-primary);
     transition: all 0.2s;
 
     &:hover {
-      background: #f5f7fa;
+      background: var(--kubo-color-muted-bg);
       color: var(--primary-color, #409eff);
     }
   }

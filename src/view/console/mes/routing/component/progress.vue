@@ -249,9 +249,9 @@ function onDeleteRoutingOperation(index: number) {
         .item {
           cursor: grab;
           border-radius: 10px;
-          border: 1px solid #f8f8f8;
+          border: 1px solid var(--el-border-color);
           margin: 8px 0;
-          background-color: #f8f8f8;
+          background-color: var(--kubo-color-muted-bg);
           font-size: 16px;
           padding: 10px 15px;
           user-select: none;

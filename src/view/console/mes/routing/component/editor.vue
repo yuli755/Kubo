@@ -91,7 +91,7 @@ const materialFilter = ref(material)
 .tips {
   text-align: right;
   font-size: 12px;
-  color: #ccc;
+  color: var(--el-text-color-secondary);
   margin-top: -15px;
   margin-bottom: 15px;
 }

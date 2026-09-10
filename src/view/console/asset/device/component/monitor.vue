@@ -168,7 +168,7 @@ async function showHistory(item: CollectionEntity) {
       cursor: pointer;
       transition: all 0.3s;
       margin: 5px;
-      background-color: #f5f5f5;
+      background-color: var(--kubo-color-muted-bg);
       border-radius: 10px;
       padding: 20px;
       height: 80px;
@@ -184,7 +184,7 @@ async function showHistory(item: CollectionEntity) {
         }
 
         .code {
-          color: #999;
+          color: var(--el-text-color-secondary);
           font-size: 14px;
         }
       }

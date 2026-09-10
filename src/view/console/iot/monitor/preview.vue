@@ -191,7 +191,7 @@ function showMonitor(device: DeviceEntity) {
     min-width: 360px;
 
     .device-card {
-      background-color: #f8f8f8;
+      background-color: var(--kubo-color-muted-bg);
       margin: 5px;
       border-radius: 10px;
       padding: 20px;
@@ -225,7 +225,7 @@ function showMonitor(device: DeviceEntity) {
 
         .device-code {
           font-size: 14px;
-          color: #999;
+          color: var(--el-text-color-secondary);
         }
       }
 
@@ -243,7 +243,7 @@ function showMonitor(device: DeviceEntity) {
 
           span {
             font-size: 12px;
-            color: #999;
+            color: var(--el-text-color-secondary);
             font-weight: normal;
             margin-left: -5px;
           }
