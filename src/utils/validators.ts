@@ -16,9 +16,11 @@ export function isEmail(value: string): boolean {
   return /^[a-z0-9]+(?:\.[a-z0-9]+)*@[a-z0-9]+(?:\.[a-z0-9]+)+$/i.test(value)
 }
 
-/** 手机号（airpower `ValidateUtil.isMobilePhone`，`+` 前缀必填，语义一致） */
+/** 手机号（airpower `ValidateUtil.isMobilePhone`：`+` 国家码整体可选，语义一致） */
 export function isMobilePhone(value: string): boolean {
-  return /^\+\d{0,4}1[3-9]\d{9}$/.test(value)
+  // airpower 原版 /^(\+(\d{1,4}))?1[3-9](\d{9})$/：`+` 与 1-4 位国家码是「整体可选」，
+  // 即裸手机号（无 +）也匹配。捕获组改非捕获组，语义不变。
+  return /^(?:\+\d{1,4})?1[3-9]\d{9}$/.test(value)
 }
 
 /** 自然数/小数（airpower `ValidateUtil.isNaturalNumber`，`\.` 修正点号笔误） */

@@ -37,12 +37,12 @@ describe('validators · airpower ValidateUtil 复刻', () => {
       expect(isMobilePhone('+8613800138000')).toBe(true)
     })
 
-    it('接受无国家码（+ 前缀必填）', () => {
-      expect(isMobilePhone('+13800138000')).toBe(true)
+    it('接受无 + 的裸手机号（airpower 语义：+ 国家码整体可选）', () => {
+      expect(isMobilePhone('13800138000')).toBe(true)
     })
 
-    it('拒绝缺 + 前缀', () => {
-      expect(isMobilePhone('13800138000')).toBe(false)
+    it('拒绝 + 后紧跟 1[3-9]（空国家码）', () => {
+      expect(isMobilePhone('+13800138000')).toBe(false)
     })
 
     it('拒绝第二段非 3-9', () => {
