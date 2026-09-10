@@ -56,19 +56,10 @@ export default defineConfig({
       workbox: {
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB (echarts 约 2.77 MiB)
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^\/api\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'kubo-api-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 300,
-              },
-            },
-          },
-        ],
+        // 刻意**不**对 /api/ 做 runtimeCaching：API 响应是「按当前用户租户 + 行级/列级权限过滤后的
+        // 业务数据」，落到浏览器 Cache Storage 后（原 NetworkFirst + 5min）会在共享浏览器上把上一
+        // 个用户的可见数据喂给下一个用户（离线兜底时），是跨租户泄露面。PWA 的离线价值只保留在
+        // 「静态壳」（上面 globPatterns 预缓存的 js/css/html），动态数据一律走网络、不落缓存。
       },
     }),
   ],
