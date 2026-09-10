@@ -5,9 +5,9 @@
 # exporter 服务当时根本不在 compose 里 —— 属于「愿景态配置，从未真正闭环」。
 # 本次改为与 docker-compose.yml 一一对应的静态 targets，只有真实存在的服务才会被 scrape。
 #
-# 应用层指标（JVM/HTTP/HikariCP）依赖后端 pom 引入 micrometer-registry-prometheus 并在
-# management 暴露 /actuator/prometheus，属于「后端理论代码」批次；本文件先以注释占位，
-# 待后端容器化进 compose 后启用（见文末 spring-boot-actuator 段）。
+# 应用层指标（JVM/HTTP/HikariCP）依赖后端 pom 引入 micrometer-registry-prometheus（已引入）并在
+# management 暴露 /actuator/prometheus（已配置）；下方 spring-boot-actuator job 已启用，
+# target 用 host.docker.internal:8080 占位（后端尚未容器化进 compose），容器化后改为 kubo-server:8080。
 global:
   scrape_interval: 15s
   evaluation_interval: 15s

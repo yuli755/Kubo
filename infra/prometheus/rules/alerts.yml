@@ -6,8 +6,9 @@
 # 这些要么组件根本没接（RabbitMQ 代码未接、无主从），要么是纯愿景指标 —— 告警永远
 # 静默不触发或误报。本次瘦身为「基础设施层真实可采集」的最小集（up/node/redis/mysql）。
 #
-# 应用层（jvm_* / http_server_requests_*）依赖后端引入 micrometer-registry-prometheus，
-# 属「后端理论代码」批；规则阈值已标定，先整段注释挂起，待端点就绪后取消注释启用。
+# 应用层（jvm_* / http_server_requests_*）依赖后端 micrometer-registry-prometheus（已引入）
+# + production 暴露 /actuator/prometheus（已配置），下方 kubo-platform-application 规则组**已启用**。
+# 后端尚未容器化进 compose 时这些指标不产生，规则静默不触发（属预期过渡态，非误报）。
 # 通道（alertmanager）已接通，见 infra/alertmanager/alertmanager.yml 与 docker-compose.yml。
 #
 # 阈值均为默认值，需按真实负载标定（见 docs/可观测性与告警加固方案.md §3）。
