@@ -13,6 +13,7 @@ import cn.hamm.airpower.curd.permission.PermissionUtil;
 import cn.hamm.airpower.email.helper.EmailHelper;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.common.AppConfig;
+import cn.hamm.spms.common.sms.SmsHelper;
 import cn.hamm.spms.module.personnel.PersonnelServices;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;
 import cn.hamm.spms.module.personnel.user.enums.UserTokenType;
@@ -76,6 +77,9 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
 
     @Autowired
     private EmailHelper emailHelper;
+
+    @Autowired
+    private SmsHelper smsHelper;
 
     @Autowired
     private CookieHelper cookieHelper;
@@ -269,8 +273,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
         SMS_SEND_BUSY.when(redisHelper.hasKey(getPhoneCodeCacheKey(phone)));
         String code = getRandomValidateCode();
         redisHelper.set(getPhoneCodeCacheKey(phone), code, CACHE_CODE_EXPIRE_SECOND);
-        log.info("短信验证码：{}", code);
-        //todo 发送验证码
+        smsHelper.sendCode(phone, code);
     }
 
     /**
