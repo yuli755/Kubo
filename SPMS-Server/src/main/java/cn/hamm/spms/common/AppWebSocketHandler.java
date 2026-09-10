@@ -10,6 +10,7 @@ import cn.hamm.spms.module.chat.member.MemberService;
 import cn.hamm.spms.module.chat.room.RoomEntity;
 import cn.hamm.spms.module.chat.room.RoomService;
 import cn.hamm.spms.module.chat.room.event.MemberTextMessageEvent;
+import cn.hamm.spms.common.security.RateLimitHelper;
 import cn.hamm.spms.module.chat.room.model.RoomJoinRequest;
 import cn.hamm.spms.module.chat.room.model.RoomMemberEvent;
 import cn.hamm.spms.module.personnel.user.UserService;
@@ -57,6 +58,9 @@ public class AppWebSocketHandler extends WebSocketHandler {
     @Autowired
     private RoomService roomService;
 
+    @Autowired
+    private RateLimitHelper rateLimitHelper;
+
     /**
      * 房间事件
      *
@@ -102,6 +106,25 @@ public class AppWebSocketHandler extends WebSocketHandler {
     protected void onWebSocketPayload(@NotNull WebSocketPayload webSocketPayload, @NotNull WebSocketSession session) {
         Long userId = userIdHashMap.get(session.getId());
         if (Objects.isNull(userId)) {
+            return;
+        }
+        // ── 输入守卫：类型白名单 + 消息体长度上限 + 每用户发送限流 ─────────────────
+        // 白名单/长度是纯逻辑（WebSocketMessageGuard）；限流复用 RateLimitHelper（Redis 固定窗口，
+        // 不可用时降级放行，与公开端点同口径——只防脚本刷屏、不误伤真人聊天）。
+        if (!WebSocketMessageGuard.isClientEvent(webSocketPayload.getType())) {
+            log.debug("[ws] 丢弃非法/未知事件类型：type={}", webSocketPayload.getType());
+            return;
+        }
+        if (WebSocketMessageGuard.isOversized(webSocketPayload.getData())) {
+            log.warn("[ws] 丢弃超大消息：userId={}，dataLength={}",
+                    userId, webSocketPayload.getData().length());
+            return;
+        }
+        if (!rateLimitHelper.allow(
+                WebSocketMessageGuard.RATE_LIMIT_KEY_PREFIX + userId,
+                WebSocketMessageGuard.MAX_MESSAGES_PER_MINUTE,
+                WebSocketMessageGuard.RATE_LIMIT_WINDOW_SECONDS)) {
+            log.warn("[ws] 发送过快被限流：userId={}", userId);
             return;
         }
         switch (getByStringKey(webSocketPayload.getType())) {
