@@ -11,10 +11,12 @@ import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import cn.hamm.airpower.curd.permission.Permission;
 import cn.hamm.airpower.redis.RedisHelper;
 import cn.hamm.spms.base.BaseController;
+import cn.hamm.spms.common.security.RateLimitHelper;
 import cn.hamm.spms.module.iot.parameter.ParameterEntity;
 import cn.hamm.spms.module.iot.report.IReportPayloadAction;
 import cn.hamm.spms.module.iot.report.ReportPayload;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,6 +28,7 @@ import java.util.Set;
 import static cn.hamm.airpower.curd.base.Curd.GetDetail;
 import static cn.hamm.airpower.curd.base.Curd.GetPage;
 import static cn.hamm.airpower.exception.Errors.DATA_NOT_FOUND;
+import static cn.hamm.spms.common.exception.CustomError.REQUEST_TOO_FREQUENT;
 import static cn.hamm.spms.module.iot.report.ReportConstant.getDeviceReportCacheKey;
 
 /**
@@ -45,6 +48,14 @@ public class DeviceController extends BaseController<
         > implements IDeviceAction, IReportPayloadAction {
     @Resource
     private RedisHelper redisHelper;
+
+    @Resource
+    private RateLimitHelper rateLimitHelper;
+
+    /** 采集端公开出口限流 key 前缀 */
+    private static final String RATE_KEY_PREFIX = "kubo:device:rate:";
+    /** 采集端公开出口单 IP 每分钟最大请求数（DoS 防护阈值，刻意宽松，见 RateLimitHelper 注释） */
+    private static final int MAX_REQUESTS_PER_MINUTE = 3000;
 
     @Override
     protected DeviceEntity afterGetDetail(@NotNull DeviceEntity device) {
@@ -133,14 +144,18 @@ public class DeviceController extends BaseController<
     @PostMapping("getCurrentReport")
     @Permission(login = false)
     @ExposeAll({ReportPayload.class})
-    public Json getCurrentReport(@RequestBody @Validated(WhenIdRequired.class) DeviceEntity device) {
+    public Json getCurrentReport(@RequestBody @Validated(WhenIdRequired.class) DeviceEntity device,
+                                 HttpServletRequest request) {
+        REQUEST_TOO_FREQUENT.when(!rateLimitHelper.allowByIp(request, RATE_KEY_PREFIX, MAX_REQUESTS_PER_MINUTE, 60));
         return Json.data(service.getCurrentReport(device.getId()));
     }
 
     @Description("获取采集配置")
     @PostMapping("getDeviceConfig")
     @Permission(login = false)
-    public Json getDeviceConfig(@RequestBody @Validated(WhenGetDeviceConfig.class) DeviceEntity device) {
+    public Json getDeviceConfig(@RequestBody @Validated(WhenGetDeviceConfig.class) DeviceEntity device,
+                                HttpServletRequest request) {
+        REQUEST_TOO_FREQUENT.when(!rateLimitHelper.allowByIp(request, RATE_KEY_PREFIX, MAX_REQUESTS_PER_MINUTE, 60));
         device = service.getByUuid(device.getUuid());
         DATA_NOT_FOUND.whenNull(device);
         device.excludeNotMeta();
@@ -157,7 +172,9 @@ public class DeviceController extends BaseController<
     @Description("获取指定设备某个参数的历史")
     @PostMapping("getDevicePayloadHistory")
     @Permission(login = false)
-    public Json getDevicePayloadHistory(@RequestBody @Validated(WhenGetDevicePayloadHistory.class) ReportPayload payload) {
+    public Json getDevicePayloadHistory(@RequestBody @Validated(WhenGetDevicePayloadHistory.class) ReportPayload payload,
+                                        HttpServletRequest request) {
+        REQUEST_TOO_FREQUENT.when(!rateLimitHelper.allowByIp(request, RATE_KEY_PREFIX, MAX_REQUESTS_PER_MINUTE, 60));
         return Json.data(service.getDevicePayloadHistory(payload));
     }
 

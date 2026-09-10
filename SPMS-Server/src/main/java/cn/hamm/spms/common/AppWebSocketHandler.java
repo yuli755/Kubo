@@ -119,7 +119,7 @@ public class AppWebSocketHandler extends WebSocketHandler {
                 MemberEntity joinMember = memberService.getMemberWithAutoCreate(userId, room.getId());
                 if (roomService.checkIfNeedPassword(joinMember) &&
                         !room.getPassword().equalsIgnoreCase(joinRequest.getPassword())) {
-                    // todo 密码不正确
+                    // 房间需要密码且校验未通过：回退加入失败，不泄露「密码错在哪」
                     webSocketPayload = new WebSocketPayload()
                             .setType(ROOM_JOIN_FAIL.getKeyString())
                             .setData("进入房间失败，房间密码错误！");

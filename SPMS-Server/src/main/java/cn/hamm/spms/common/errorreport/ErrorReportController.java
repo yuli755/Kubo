@@ -5,16 +5,12 @@ import cn.hamm.airpower.api.annotation.Api;
 import cn.hamm.airpower.core.Json;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.curd.permission.Permission;
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.common.security.RateLimitHelper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-
-import java.util.concurrent.TimeUnit;
 
 /**
  * <h1>前端错误上报端点</h1>
@@ -26,7 +22,7 @@ import java.util.concurrent.TimeUnit;
  *
  * <h2>安全设计（未登录可访问的端点，必须防滥用）</h2>
  * <ul>
- *   <li><b>限流</b>：按客户端 IP 固定窗口计数（Redis increment + expire），1 分钟内超过
+ *   <li><b>限流</b>：按客户端 IP 固定窗口计数（复用 {@link RateLimitHelper}），1 分钟内超过
  *       {@value #MAX_REPORTS_PER_MINUTE} 条即拒绝，防「错误风暴」把后端日志/采集打爆；</li>
  *   <li><b>脱敏</b>：{@code message}/{@code stack} 截断到 {@value #MAX_MESSAGE_LENGTH} 字符，
  *       并去除 URL 查询参数里的 token（accessToken/authorization），避免堆栈把令牌泄进日志；</li>
@@ -55,14 +51,13 @@ public class ErrorReportController extends ApiController {
     private static final String RATE_KEY_PREFIX = "kubo:error-report:rate:";
 
     @Autowired
-    private RedisHelper redisHelper;
+    private RateLimitHelper rateLimitHelper;
 
     @Description("上报前端错误")
     @Permission(login = false)
     @PostMapping("")
     public Json report(@RequestBody FrontendErrorReport report, HttpServletRequest request) {
-        String clientIp = resolveClientIp(request);
-        if (!allowReport(clientIp)) {
+        if (!rateLimitHelper.allowByIp(request, RATE_KEY_PREFIX, MAX_REPORTS_PER_MINUTE, RATE_WINDOW_SECONDS)) {
             return Json.success("已限流");
         }
         // 脱敏后落结构化日志（traceId 由 logback 自动附加）
@@ -73,24 +68,6 @@ public class ErrorReportController extends ApiController {
                 sanitize(report.getMessage()),
                 sanitize(report.getStack()));
         return Json.success("上报成功");
-    }
-
-    /** 限流判定：固定窗口计数，超阈值拒绝。Redis 不可用时放行（降级）。 */
-    private boolean allowReport(String clientIp) {
-        RedisTemplate<String, Object> redisTemplate = redisHelper.getRedisTemplate();
-        if (redisTemplate == null) {
-            return true;
-        }
-        if (!StringUtils.hasText(clientIp)) {
-            // 取不到 IP（直连且无 X-Forwarded-For）时无法按 IP 限流，仍放行（防误伤）
-            return true;
-        }
-        String key = RATE_KEY_PREFIX + clientIp;
-        Long count = redisTemplate.opsForValue().increment(key);
-        if (count != null && count == 1L) {
-            redisTemplate.expire(key, RATE_WINDOW_SECONDS, TimeUnit.SECONDS);
-        }
-        return count == null || count <= MAX_REPORTS_PER_MINUTE;
     }
 
     /** 截断 + 去除 URL 中的 token 参数，避免堆栈/URL 把敏感信息泄进日志。 */
@@ -105,21 +82,5 @@ public class ErrorReportController extends ApiController {
         return trimmed
                 .replaceAll("(?i)(accessToken|authorization|token)=[^&\\s\"']+", "$1=***")
                 .replaceAll("(?i)(Bearer\\s+)[A-Za-z0-9._-]+", "$1***");
-    }
-
-    /** 解析客户端 IP（nginx 反代后取 X-Forwarded-For 首个 / X-Real-IP，直连取 remoteAddr）。 */
-    private String resolveClientIp(HttpServletRequest request) {
-        if (request == null) {
-            return null;
-        }
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwarded)) {
-            return forwarded.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (StringUtils.hasText(realIp)) {
-            return realIp.trim();
-        }
-        return request.getRemoteAddr();
     }
 }
