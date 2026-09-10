@@ -4,8 +4,9 @@ import { computed, ref } from 'vue'
 import { OpenAppArithmeticEnum } from '@/model/open/app/OpenAppArithmeticEnum'
 import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
 import { reportError } from '@/utils/errorHandler'
+import { rsaDecrypt, rsaEncrypt } from '@/utils/rsa'
 
-const props = defineProps(DialogProps.withParam())
+defineProps(DialogProps.withParam())
 
 const app = ref(new OpenAppEntity())
 app.value.appKey = ''
@@ -26,11 +27,6 @@ const url = ref('openApi/test/test')
 
 const nonce = ref(RandomUtil.getRandMixedCharString())
 
-if (OpenAppArithmeticEnum.RSA.equalsKey(app.value.arithmetic)) {
-  FeedbackUtil.toastWarning('前端暂未支持RSA加解密的测试，请自行测试')
-  props.onCancel()
-}
-
 app.value.appKey = localStorage.getItem(APP_KEY) || ''
 app.value.appSecret = localStorage.getItem(APP_SECRET) || ''
 
@@ -43,6 +39,12 @@ const content = computed(() => {
         return ''
       }
       return CryptoUtil.aesEncrypt(json.value, app.value.appSecret)
+    case OpenAppArithmeticEnum.RSA.key:
+      if (!app.value.publicKey) {
+        return ''
+      }
+      // 与后端 airpower-open 的 AirRsa 对齐：X509 公钥 + PKCS#1 v1.5 + Base64
+      return rsaEncrypt(json.value, app.value.publicKey)
     default:
       return json.value
   }
@@ -68,7 +70,10 @@ async function onTest() {
       }),
     })
     const res = await response.text()
-    const data = CryptoUtil.aesDecrypt(res, app.value.appSecret)
+    // 响应解密按加密算法分派：RSA 用公钥还原（服务端私钥加密），其余维持 AES 解密
+    const data = OpenAppArithmeticEnum.RSA.equalsKey(app.value.arithmetic)
+      ? rsaDecrypt(res, app.value.appSecret)
+      : CryptoUtil.aesDecrypt(res, app.value.appSecret)
     FeedbackUtil.alertSuccess(data, '响应数据')
   }
   catch (error) {
@@ -118,14 +123,7 @@ async function onTest() {
         <AFormField
           v-model="app"
           :entity="OpenAppEntity"
-          :list="
-            OpenAppArithmeticEnum.toArray().map((item) => {
-              if (OpenAppArithmeticEnum.RSA.equalsKey(item.key)) {
-                item.disabled = true
-              }
-              return item
-            })
-          "
+          :list="OpenAppArithmeticEnum.toArray()"
           field="arithmetic"
         />
         <el-form-item label="版本号">
