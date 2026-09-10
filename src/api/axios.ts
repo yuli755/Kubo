@@ -61,12 +61,14 @@ function createAxiosInstance(): AxiosInstance {
       }
 
       // 添加幂等键 (POST/PUT/PATCH 请求)
+      // 后端 OpenApiConfig 已把它声明为 Idempotency-Key security scheme（外部 API 契约的一部分）。
       if (config.method && ['post', 'put', 'patch'].includes(config.method.toLowerCase())) {
         const idempotentKey = crypto.randomUUID()
         config.headers['Idempotency-Key'] = idempotentKey
       }
 
-      // 添加请求时间戳 (用于防重放攻击)
+      // 请求时间戳：仅作服务端观测/审计预留。注意它**不构成防重放防护**——后端当前不校验此值，
+      // 攻击者直接构造请求即可绕过；真正的防重放需后端配合（时间窗口校验 + 幂等去重），前端加 header 无防护意义。
       config.headers['X-Request-Time'] = Date.now().toString()
 
       return config

@@ -1,4 +1,4 @@
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { onScopeDispose, ref, watch } from 'vue'
 
 /**
  * # 数字滚动动效（V6 · 看板动效）
@@ -66,7 +66,7 @@ export function useCountUp(target: () => number, options: CountUpOptions = {}) {
 
   watch(target, val => animateTo(val), { immediate: true })
 
-  onBeforeUnmount(() => {
+  onScopeDispose(() => {
     cancelAnimationFrame(rafId)
   })
 
