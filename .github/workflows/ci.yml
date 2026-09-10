@@ -20,6 +20,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  dependency-review:
+    name: Dependency review (PR gate)
+    # 供应链安全门禁：PR 上检查「新增依赖」是否带已知漏洞（CVE/GHSA）。
+    # 与 web/server 的存量测试互补——那些只验证「改完还能跑」，这里验证「新引进来的是干净的」。
+    # 用 GitHub 依赖图谱做比对，不下载 NVD 数据库，几秒出结果，挂在每次 PR 上零负担。
+    # 前提：public 仓库免费；private 仓库需 GitHub Advanced Security（免费版不含）。若当前仓库
+    # 是 private 且未开通 GHAS，本 job 会以 license 错误失败——届时按需降级为 dependabot.yml 的
+    # 自动告警（仅持续监控、不阻断 PR）。
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@v4
+        with:
+          # high 及以上（high/critical）的新增漏洞依赖即阻断合入；moderate/low 只提示不阻断，
+          # 避免「低危升级把 PR 卡死」拖慢正常依赖升级（Dependabot PR 尤其常见）。
+          fail-on-severity: high
+          # 补依赖变更说明：让审阅者一眼看到本次 PR 增删了哪些依赖、各自是什么许可证/风险。
+          comment-summary-in-pr: always
+
   web:
     name: Web (lint / typecheck / test / build / size)
     runs-on: ubuntu-latest
