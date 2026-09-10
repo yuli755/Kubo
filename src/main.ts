@@ -19,11 +19,10 @@ import '@airpower/web/dist/web.css'
 import '@/styles/index.scss'
 
 // element-plus 命令式 API 与指令的样式需显式引入（按需导入下 resolver 不会注入它们）：
-// ElMessage / ElMessageBox / ElNotification 函数式调用 + v-loading 指令
+// ElMessage / ElMessageBox 函数式调用 + v-loading 指令（ElNotification 项目未使用，不引入）
 import 'element-plus/es/components/message/style/css'
 import 'element-plus/es/components/message-box/style/css'
 import 'element-plus/es/components/loading/style/css'
-import 'element-plus/es/components/notification/style/css'
 
 WebConfig.elementPlusLocale = zhCn
 WebConfig.appKey = 'kubo'
