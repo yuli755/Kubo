@@ -7,6 +7,7 @@ import cn.hamm.airpower.websocket.WebSocketHandler;
 import cn.hamm.airpower.websocket.WebSocketSupport;
 import cn.hamm.spms.common.AppWebSocketHandler;
 import cn.hamm.spms.common.Configs;
+import cn.hamm.spms.common.filter.SecurityHeadersFilter;
 import cn.hamm.spms.common.interceptor.RequestInterceptor;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,6 +62,19 @@ public class WebConfig implements WebMvcConfigurer, WebSocketConfigurer {
         registration.setFilter(new RequestFilter());
         registration.addUrlPatterns("/*");
         // 通过拦截器排除路径
+        return registration;
+    }
+
+    /**
+     * 安全响应头过滤器（S4 第一批）：给所有响应注入 nosniff / Referrer-Policy 等零风险头。
+     * CSP 不在本过滤器里（见 SecurityHeadersFilter 类注释），避免误伤前端内联脚本与图表。
+     */
+    @Bean
+    public FilterRegistrationBean<SecurityHeadersFilter> getSecurityHeadersFilterRegistration() {
+        FilterRegistrationBean<SecurityHeadersFilter> registration = new FilterRegistrationBean<>();
+        registration.setFilter(new SecurityHeadersFilter());
+        registration.addUrlPatterns("/*");
+        registration.setOrder(0);
         return registration;
     }
 

@@ -2221,6 +2221,19 @@ describe('mask contract · F3 数据层收敛（system + personnel + wms + facto
   })
 })
 
+describe('mask contract · 安全响应头（S4 第一批）', () => {
+  const FILTER = join(SERVER, 'common', 'filter', 'SecurityHeadersFilter.java')
+
+  it('后端只注入零风险头，CSP 不进后端（会误伤前端内联脚本/图表而白屏）', () => {
+    const filter = readJavaCode(FILTER)
+    expect(filter, '缺 nosniff：JSON 响应可被 MIME 嗅探当 HTML 执行').toContain('X-Content-Type-Options')
+    expect(filter, '缺 Referrer-Policy：令牌/路径可能经 Referer 跨源泄露').toContain('Referrer-Policy')
+    expect(filter, '缺 Permissions-Policy：管理后台未禁用摄像头/麦克风/定位').toContain('Permissions-Policy')
+    // CSP 涉及前端内联脚本 + ECharts dataURI + WebSocket，加在后端会白屏，必须留待前端托管层/CI 验证
+    expect(filter, 'CSP 被加进后端过滤器：配置错会白屏，应在前端托管层（Nginx）收紧').not.toContain('Content-Security-Policy')
+  })
+})
+
 describe('mask contract · 归属迁移（B1 余半块）', () => {
   it('唯一豁免挂在专用接口 + 独立权限身份，默认防篡改不变', () => {
     const identities = readJavaCode(join(SERVER, 'module/system/datapermission/SystemPermissionIdentities.java'))
