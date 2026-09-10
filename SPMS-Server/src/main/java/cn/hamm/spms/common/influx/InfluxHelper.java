@@ -73,11 +73,19 @@ public class InfluxHelper {
     private @Nullable WriteApiBlocking getWriteApi() {
         try {
             initInfluxDbClient();
+            // S2：未配置 InfluxDB（空令牌）时 initInfluxDbClient 不建连，client 保持 null；
+            // 这里必须判空，否则下方 setLogLevel 对 null 调方法会 NPE（与「静默禁用」相矛盾）。
+            if (Objects.isNull(influxDbClient)) {
+                return null;
+            }
             influxDbClient.setLogLevel(LogLevel.NONE);
             return influxDbClient.getWriteApiBlocking();
         } catch (Exception ignored) {
-            influxDbClient.close();
-            influxDbClient = null;
+            // 建连/写点失败时关闭并置空，下次重新初始化；同样要判空，避免对 null 调用 close 二次 NPE
+            if (Objects.nonNull(influxDbClient)) {
+                influxDbClient.close();
+                influxDbClient = null;
+            }
         }
         return null;
     }
