@@ -4,6 +4,7 @@ import { AFrame, RouterUtil } from '@airpower/web'
 import { onErrorCaptured, ref } from 'vue'
 import { authApi } from '@/api/system'
 import TenantSwitcher from '@/component/TenantSwitcher.vue'
+import ThemeSwitcher from '@/component/ThemeSwitcher.vue'
 import UserCard from '@/component/UserCard.vue'
 import { UserEntity } from '@/model/personnel/user/UserEntity'
 import { UserService } from '@/model/personnel/user/UserService'
@@ -130,6 +131,7 @@ init()
     <template #user>
       <div class="header-actions">
         <TenantSwitcher />
+        <ThemeSwitcher />
         <UserCard :user="currentUserInfo" />
       </div>
     </template>

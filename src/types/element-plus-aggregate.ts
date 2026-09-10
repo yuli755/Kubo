@@ -94,6 +94,8 @@ export { ElTabPane, ElTabs } from 'element-plus/es/components/tabs/index.mjs'
 export { ElTag } from 'element-plus/es/components/tag/index.mjs'
 // timeline 子路径同时导出 ElTimeline / ElTimelineItem
 export { ElTimeline, ElTimelineItem } from 'element-plus/es/components/timeline/index.mjs'
+// tooltip 子路径导出 ElTooltip（未导出 ElTooltipContent）
+export { ElTooltip } from 'element-plus/es/components/tooltip/index.mjs'
 export type { TreeInstance } from 'element-plus/es/components/tree/index.mjs'
 export { ElTree } from 'element-plus/es/components/tree/index.mjs'
 export { ElUpload } from 'element-plus/es/components/upload/index.mjs'

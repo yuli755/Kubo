@@ -12,7 +12,10 @@ import { initPermissionGuard } from '@/guard/permissionGuard'
 import { registerPWA } from '@/pwa/registerSW'
 import { queryClient } from '@/query/queryClient'
 import { createPersistPlugin } from '@/stores/persist'
+import { useThemeStore } from '@/stores/theme'
 import '@airpower/web/dist/web.css'
+// V1+V2：设计 token 层 + Element Plus 暗色变量（顺序敏感，必须在本文件其它样式之后引入）
+import '@/styles/index.scss'
 
 // element-plus 命令式 API 与指令的样式需显式引入（按需导入下 resolver 不会注入它们）：
 // ElMessage / ElMessageBox / ElNotification 函数式调用 + v-loading 指令
@@ -33,6 +36,9 @@ const pinia = createPinia()
 pinia.use(createPersistPlugin())
 
 app.use(pinia)
+
+// V2：挂载前应用主题偏好，确保首帧渲染就带正确的 html.dark（避免浅色闪烁）
+useThemeStore()
 
 const router = RouterUtil.createRouter(routes)
 

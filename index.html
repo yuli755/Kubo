@@ -8,12 +8,44 @@
   <meta content="" name="description">
   <meta content="yes" name="mobile-web-app-capable">
   <meta content="yes" name="apple-mobile-web-app-capable">
-  <meta content="#000" name="theme-color">
+  <meta content="#ffffff" name="theme-color">
+  <script>
+    // V2 首屏防闪烁：在 JS bundle 与样式加载前，按持久化偏好同步 html.dark 与 theme-color。
+    // 逻辑与 src/stores/theme.ts 的 resolveDark 保持一致（此处不依赖任何运行时库）。
+    ;(function () {
+      try {
+        var pref = localStorage.getItem('kubo:theme') || 'system'
+        var dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        if (dark) {
+          document.documentElement.classList.add('dark')
+        }
+        var meta = document.querySelector('meta[name="theme-color"]')
+        if (meta) {
+          meta.content = dark ? '#141414' : '#ffffff'
+        }
+      }
+      catch (e) { /* localStorage 不可用时静默降级为浅色 */ }
+    })()
+  </script>
   <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
   <link href="/favicon.ico" rel="shortcut icon">
   <meta content="telephone=no" name="format-detection">
   <meta content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" name="viewport">
   <style>
+    /* V1：首屏内联骨架屏也走变量，避免硬编码浅灰在深色下刺眼。
+       （EP 暗色 css-vars 此时尚未加载，故在此内联声明暗色映射） */
+    :root {
+      --loader-bg: #f5f7fa;
+      --loader-text: #909399;
+      --loader-track: #e4e7ed;
+    }
+
+    html.dark {
+      --loader-bg: #141414;
+      --loader-text: #8c8c8c;
+      --loader-track: #333333;
+    }
+
     /* #app 内联骨架屏：在 JS bundle 解析前为用户提供即时视觉反馈 */
     #app-loader {
       position: fixed;
@@ -22,7 +54,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #f5f7fa;
+      background: var(--loader-bg);
       z-index: 9999;
     }
 
@@ -40,7 +72,7 @@
       width: 180px;
       height: 6px;
       border-radius: 3px;
-      background: #e4e7ed;
+      background: var(--loader-track);
       overflow: hidden;
     }
 
@@ -57,7 +89,7 @@
     #app-loader .loader-text {
       margin-top: 18px;
       font-size: 13px;
-      color: #909399;
+      color: var(--loader-text);
       letter-spacing: 1px;
     }
 
