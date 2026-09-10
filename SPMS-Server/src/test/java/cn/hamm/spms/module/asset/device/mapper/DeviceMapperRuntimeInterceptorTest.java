@@ -58,7 +58,7 @@ class DeviceMapperRuntimeInterceptorTest {
                 + "id BIGINT PRIMARY KEY, create_time BIGINT DEFAULT 0, update_time BIGINT DEFAULT 0, "
                 + "is_disabled BOOLEAN DEFAULT FALSE, is_published BOOLEAN DEFAULT FALSE, "
                 + "tenant_id BIGINT, creator_id BIGINT, name VARCHAR(255), code VARCHAR(255), "
-                + "uuid VARCHAR(255), status INT, alarm INT, part_count BIGINT, "
+                + "uuid VARCHAR(255), api_key VARCHAR(255), status INT, alarm INT, part_count BIGINT, "
                 + "is_reporting BOOLEAN, rate INT)");
         addDeviceColumn("create_time", "BIGINT DEFAULT 0");
         addDeviceColumn("update_time", "BIGINT DEFAULT 0");
@@ -67,6 +67,7 @@ class DeviceMapperRuntimeInterceptorTest {
         addDeviceColumn("name", "VARCHAR(255)");
         addDeviceColumn("code", "VARCHAR(255)");
         addDeviceColumn("uuid", "VARCHAR(255)");
+        addDeviceColumn("api_key", "VARCHAR(255)");
         addDeviceColumn("status", "INT");
         addDeviceColumn("alarm", "INT");
         addDeviceColumn("part_count", "BIGINT");

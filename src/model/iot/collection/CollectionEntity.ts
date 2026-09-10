@@ -49,6 +49,12 @@ export class CollectionEntity extends BaseEntity {
   })
   uuid!: string
 
+  /**
+   * ### 采集端 API-Key
+   * 历史查询出口（getDevicePayloadHistory）认证用，随请求提交、不回显。
+   */
+  apiKey!: string
+
   @Form()
   @Field({
     label: '颗粒度',

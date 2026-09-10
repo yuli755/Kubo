@@ -3,6 +3,7 @@ package cn.hamm.spms.module.asset.device;
 import cn.hamm.airpower.core.CollectionUtil;
 import cn.hamm.airpower.core.DictionaryUtil;
 import cn.hamm.airpower.core.Json;
+import cn.hamm.airpower.core.RandomUtil;
 import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
 import cn.hamm.airpower.curd.model.query.QueryListRequest;
@@ -33,15 +34,19 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
+import static cn.hamm.airpower.exception.Errors.UNAUTHORIZED;
 import static cn.hamm.spms.module.iot.report.ReportConstant.*;
 
 /**
@@ -212,13 +217,15 @@ public class DeviceService extends BaseService<DeviceEntity, DeviceRepository> {
     private InfluxHelper influxHelper;
 
     /**
-     * 查询指定设备 UUID 的当前报告
+     * 查询指定设备 UUID 的当前报告（采集端认证：必须携带匹配的设备 API-Key）
      *
      * @param deviceId 设备 ID
+     * @param apiKey   采集端提交的 API-Key（请求体，不回显）
      * @return 报告列表
      */
-    public List<ReportPayload> getCurrentReport(long deviceId) {
+    public List<ReportPayload> getCurrentReport(long deviceId, @Nullable String apiKey) {
         DeviceEntity device = get(deviceId);
+        authenticateDevice(apiKey, device);
         Object data = redisHelper.get(ReportConstant.getDeviceReportCacheKey(device.getUuid()));
         if (Objects.isNull(data)) {
             return new ArrayList<>();
@@ -237,12 +244,15 @@ public class DeviceService extends BaseService<DeviceEntity, DeviceRepository> {
     }
 
     /**
-     * 查询指定设备指定参数的历史记录
+     * 查询指定设备指定参数的历史记录（采集端认证：必须携带匹配的设备 API-Key）
      *
-     * @param reportPayload 传入参数
+     * @param reportPayload 传入参数（含设备 UUID 与 API-Key）
+     * @param apiKey        采集端提交的 API-Key
      * @return 查询历史
      */
-    public List<ReportInfluxPayload> getDevicePayloadHistory(@NotNull ReportPayload reportPayload) {
+    public List<ReportInfluxPayload> getDevicePayloadHistory(@NotNull ReportPayload reportPayload, @Nullable String apiKey) {
+        DeviceEntity device = repository.getByUuid(reportPayload.getUuid());
+        authenticateDevice(apiKey, device);
         ParameterEntity parameter = IotServices.getParameterService().getByCode(reportPayload.getCode());
         PARAM_INVALID.whenNull(parameter, "不支持的参数");
         ReportGranularity reportGranularity = DictionaryUtil.getDictionary(ReportGranularity.class, reportPayload.getReportGranularity());
@@ -253,6 +263,60 @@ public class DeviceService extends BaseService<DeviceEntity, DeviceRepository> {
             case BOOLEAN -> influxHelper.querySwitch(reportPayload, reportGranularity);
             default -> influxHelper.queryInformation(reportPayload, reportGranularity);
         };
+    }
+
+    /**
+     * 设备采集端认证：常量时间比对提交的 API-Key 与库中设备密钥。
+     *
+     * <p>设备不存在与密钥不匹配返回同一结果（401），避免通过响应差异枚举设备是否存在。
+     * 比对用 {@link MessageDigest#isEqual}（常量时间），防时序侧信道。</p>
+     *
+     * @param providedKey 采集端提交的 API-Key（可为空）
+     * @param device      库中设备（可为空）
+     */
+    public void authenticateDevice(@Nullable String providedKey, @Nullable DeviceEntity device) {
+        String expected = device == null ? null : device.getApiKey();
+        UNAUTHORIZED.when(!apiKeyMatches(providedKey, expected), "设备认证失败");
+    }
+
+    /**
+     * 常量时间比对两个 API-Key（防时序侧信道；任一为空即不匹配）。
+     *
+     * @param provided 采集端提交值
+     * @param expected 库中期望值
+     * @return 是否匹配
+     */
+    public static boolean apiKeyMatches(@Nullable String provided, @Nullable String expected) {
+        if (provided == null || expected == null || provided.isEmpty() || expected.isEmpty()) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                provided.getBytes(StandardCharsets.UTF_8),
+                expected.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    /**
+     * 生成新的设备采集端 API-Key（Base64 编码的随机字节，与 OpenApp 的 AppSecret 同强度口径）。
+     *
+     * @return 新密钥
+     */
+    public String generateApiKey() {
+        return Base64.getEncoder().encodeToString(RandomUtil.randomBytes());
+    }
+
+    /**
+     * 重置指定设备的采集端 API-Key，返回新密钥（仅此一次回显，调用方负责向采集端下发）。
+     *
+     * @param id 设备 ID
+     * @return 新密钥
+     */
+    public String resetApiKey(long id) {
+        DeviceEntity device = get(id);
+        String newKey = generateApiKey();
+        device.setApiKey(newKey);
+        update(device);
+        return newKey;
     }
 
     /**
@@ -281,6 +345,10 @@ public class DeviceService extends BaseService<DeviceEntity, DeviceRepository> {
     protected DeviceEntity beforeAppSaveToDatabase(@NotNull DeviceEntity device) {
         if (!StringUtils.hasText(device.getUuid())) {
             device.setUuid(device.getCode());
+        }
+        // 采集端 API-Key：仅在新建（无 id）且未显式指定时自动生成；更新不动已有密钥（避免每次保存重置导致采集端掉线）
+        if (device.getId() == null && !StringUtils.hasText(device.getApiKey())) {
+            device.setApiKey(generateApiKey());
         }
         return device;
     }

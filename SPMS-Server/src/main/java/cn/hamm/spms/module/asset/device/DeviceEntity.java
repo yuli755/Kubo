@@ -12,12 +12,14 @@ import cn.hamm.spms.module.asset.device.enums.DeviceAlarm;
 import cn.hamm.spms.module.asset.device.enums.DeviceStatus;
 import cn.hamm.spms.module.iot.parameter.ParameterEntity;
 import cn.hamm.spms.module.iot.report.ReportConstant;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import lombok.experimental.Accessors;
 import org.hibernate.annotations.DynamicInsert;
 import org.hibernate.annotations.DynamicUpdate;
@@ -25,6 +27,7 @@ import org.hibernate.annotations.DynamicUpdate;
 import java.util.Set;
 
 import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.DeviceCode;
+import static com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY;
 
 /**
  * <h1>设备实体</h1>
@@ -61,6 +64,12 @@ public class DeviceEntity extends TenantAwareEntity<DeviceEntity> implements IDe
     @NotBlank(groups = {WhenGetDeviceConfig.class}, message = "请传入设备uuid(采集端deviceId)")
     @Export
     private String uuid;
+
+    @Description("采集端 API-Key（设备侧认证密钥，写端可入、读端永不回显）")
+    @JsonProperty(access = WRITE_ONLY)
+    @ToString.Exclude
+    @Column(columnDefinition = "varchar(255) default '' comment '采集端API密钥'")
+    private String apiKey;
 
     @Description("设备状态")
     @ReadOnly

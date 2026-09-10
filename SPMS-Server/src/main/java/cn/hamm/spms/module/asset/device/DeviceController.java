@@ -35,8 +35,12 @@ import static cn.hamm.spms.module.iot.report.ReportConstant.getDeviceReportCache
  * <h1>Controller</h1>
  *
  * <p>写接口继续复用 AirPower JPA CRUD；page/detail/stat/count/export 在本类显式换到 DeviceMapper，
- * 让它们都经过同一条 statement 绑定和行级权限拦截链。采集端的三个 {@code @Permission(login = false)}
- * 出口保持原样，不走权限拦截链。</p>
+ * 让它们都经过同一条 statement 绑定和行级权限拦截链。</p>
+ *
+ * <p>采集端的三个 {@code @Permission(login = false)} 出口不走登录权限拦截链，改为<b>设备侧 API-Key 认证</b>：
+ * 每个出口必须携带与目标设备匹配的 {@code apiKey}（请求体字段，写端可入、读端永不回显），
+ * 服务端按 uuid/id 定位设备后做常量时间比对，设备不存在与密钥不匹配返回同一 401。
+ * 密钥在设备新建时自动生成，通过 {@code getApiKey}/{@code resetApiKey}（登录态）查看/重置。</p>
  *
  * @author zfy
  */
@@ -147,7 +151,7 @@ public class DeviceController extends BaseController<
     public Json getCurrentReport(@RequestBody @Validated(WhenIdRequired.class) DeviceEntity device,
                                  HttpServletRequest request) {
         REQUEST_TOO_FREQUENT.when(!rateLimitHelper.allowByIp(request, RATE_KEY_PREFIX, MAX_REQUESTS_PER_MINUTE, 60));
-        return Json.data(service.getCurrentReport(device.getId()));
+        return Json.data(service.getCurrentReport(device.getId(), device.getApiKey()));
     }
 
     @Description("获取采集配置")
@@ -156,8 +160,9 @@ public class DeviceController extends BaseController<
     public Json getDeviceConfig(@RequestBody @Validated(WhenGetDeviceConfig.class) DeviceEntity device,
                                 HttpServletRequest request) {
         REQUEST_TOO_FREQUENT.when(!rateLimitHelper.allowByIp(request, RATE_KEY_PREFIX, MAX_REQUESTS_PER_MINUTE, 60));
-        device = service.getByUuid(device.getUuid());
-        DATA_NOT_FOUND.whenNull(device);
+        DeviceEntity stored = service.getByUuid(device.getUuid());
+        service.authenticateDevice(device.getApiKey(), stored);
+        device = stored;
         device.excludeNotMeta();
         Set<ParameterEntity> parameters = new HashSet<>();
         device = service.getDeviceParameters(device);
@@ -175,7 +180,20 @@ public class DeviceController extends BaseController<
     public Json getDevicePayloadHistory(@RequestBody @Validated(WhenGetDevicePayloadHistory.class) ReportPayload payload,
                                         HttpServletRequest request) {
         REQUEST_TOO_FREQUENT.when(!rateLimitHelper.allowByIp(request, RATE_KEY_PREFIX, MAX_REQUESTS_PER_MINUTE, 60));
-        return Json.data(service.getDevicePayloadHistory(payload));
+        return Json.data(service.getDevicePayloadHistory(payload, payload.getApiKey()));
+    }
+
+    @Description("查看设备采集端 API-Key（仅此一次回显，用于向采集端下发）")
+    @PostMapping("getApiKey")
+    public Json getApiKey(@RequestBody @Validated(WhenIdRequired.class) @NotNull DeviceEntity device) {
+        DeviceEntity stored = service.get(device.getId());
+        return Json.data(stored.getApiKey());
+    }
+
+    @Description("重置设备采集端 API-Key（旧密钥立即失效，返回新密钥）")
+    @PostMapping("resetApiKey")
+    public Json resetApiKey(@RequestBody @Validated(WhenIdRequired.class) @NotNull DeviceEntity device) {
+        return Json.data(service.resetApiKey(device.getId()));
     }
 
     @Override
