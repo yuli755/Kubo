@@ -48,13 +48,12 @@ scrape_configs:
       - targets: ['mysql-exporter:9104']
 
   # ------------------------------------------------------------------------
-  # 应用层（Spring Boot Actuator）指标 —— 待「后端理论代码」批落地后启用：
-  #   1. SPMS-Server/pom.xml 引入 io.micrometer:micrometer-registry-prometheus；
-  #   2. application-production.yml 的 management.endpoints.web.exposure.include
-  #      追加 prometheus；
-  #   3. 后端容器化进 compose（当前后端在宿主单独跑，故先以 host.docker.internal 占位）。
-  # 启用后同步放开 infra/prometheus/rules/alerts.yml 里被注释挂起的 jvm_* / http_* 规则。
-  # - job_name: spring-boot-actuator
-  #   metrics_path: /actuator/prometheus
-  #   static_configs:
-  #     - targets: ['host.docker.internal:8080']
+  # 应用层（Spring Boot Actuator）指标 —— 依赖后端 pom 的 micrometer-registry-prometheus
+  # 与 application-production.yml 的 management.exposure 追加 prometheus（均已落地）。
+  # target 用 host.docker.internal 占位：当前后端在宿主单独跑（未容器化进 compose）；
+  # 后端容器化进 compose 后改为 kubo-server:8080。后端未引入 micrometer 前，此 target
+  # 会抓取失败（up=0），触发 TargetDown 告警 —— 这本身就是「应用层指标没接好」的正确信号。
+  - job_name: spring-boot-actuator
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8080']

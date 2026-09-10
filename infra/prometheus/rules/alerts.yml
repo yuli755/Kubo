@@ -130,64 +130,78 @@ groups:
           description: 'MySQL 慢查询每秒超过 10 条，需要优化'
 
   # ==========================================================================
-  # 应用层告警（挂起）：待后端 pom 引入 micrometer-registry-prometheus 并暴露
-  # /actuator/prometheus 后，取消整段注释启用（同时启用 prometheus.yml 里的
-  # spring-boot-actuator job）。阈值已标定，启用前无需重标。
-  # - name: kubo-platform-application
-  #   interval: 30s
-  #   rules:
-  #     - alert: JVMMemoryHigh
-  #       expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.85
-  #       for: 5m
-  #       labels: { severity: warning, team: platform }
-  #       annotations:
-  #         summary: 'JVM 堆内存使用率过高'
-  #         description: '{{ $labels.instance }} 堆内存使用率 {{ $value | humanizePercentage }}，超过 85%'
-  #
-  #     - alert: JVMMemoryCritical
-  #       expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.95
-  #       for: 2m
-  #       labels: { severity: critical, team: platform }
-  #       annotations:
-  #         summary: 'JVM 堆内存使用率严重过高'
-  #         description: '{{ $labels.instance }} 堆内存使用率 {{ $value | humanizePercentage }}，超过 95%，即将 OOM'
-  #
-  #     - alert: JVMGCPressure
-  #       expr: rate(jvm_gc_pause_seconds_sum[5m]) / rate(jvm_gc_pause_seconds_count[5m]) > 0.1
-  #       for: 5m
-  #       labels: { severity: warning, team: platform }
-  #       annotations:
-  #         summary: 'JVM GC 压力过大'
-  #         description: '{{ $labels.instance }} 平均 GC 暂停时间过长，可能存在内存泄漏或堆过小'
-  #
-  #     - alert: JVMThreadCountHigh
-  #       expr: jvm_threads_live > 500
-  #       for: 5m
-  #       labels: { severity: warning, team: platform }
-  #       annotations:
-  #         summary: 'JVM 线程数过高'
-  #         description: '{{ $labels.instance }} 存活线程数 {{ $value }}，超过 500，可能存在线程泄漏'
-  #
-  #     - alert: APIHighErrorRate
-  #       expr: sum(rate(http_server_requests_seconds_count{status=~"5.."}[1m])) by (service) / sum(rate(http_server_requests_seconds_count[1m])) by (service) > 0.05
-  #       for: 2m
-  #       labels: { severity: critical, team: backend }
-  #       annotations:
-  #         summary: '{{ $labels.service }} 错误率超过 5%'
-  #         description: '{{ $labels.service }} 5xx 错误率 {{ $value | humanizePercentage }}，持续超过 2 分钟'
-  #
-  #     - alert: APIHighLatency
-  #       expr: histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, service)) > 2
-  #       for: 3m
-  #       labels: { severity: warning, team: backend }
-  #       annotations:
-  #         summary: '{{ $labels.service }} P99 延迟超过 2s'
-  #         description: '{{ $labels.service }} P99 延迟 {{ $value | humanizeDuration }}，持续超过 3 分钟'
-  #
-  #     - alert: UnauthorizedAccessAttempts
-  #       expr: rate(http_server_requests_seconds_count{status="403"}[5m]) > 50
-  #       for: 5m
-  #       labels: { severity: warning, team: security }
-  #       annotations:
-  #         summary: '非授权访问尝试异常'
-  #         description: '403 错误每分钟超过 50 次，可能存在恶意探测'
+  # 应用层告警：依赖后端 pom 的 micrometer-registry-prometheus（已落地）+ 生产暴露
+  # /actuator/prometheus。后端未引入 micrometer 前这些指标不存在，规则静默不触发
+  # （属预期过渡态，不是误报）。阈值已标定，启用前无需重标。
+  - name: kubo-platform-application
+    interval: 30s
+    rules:
+      - alert: JVMMemoryHigh
+        expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: 'JVM 堆内存使用率过高'
+          description: '{{ $labels.instance }} 堆内存使用率 {{ $value | humanizePercentage }}，超过 85%'
+
+      - alert: JVMMemoryCritical
+        expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: 'JVM 堆内存使用率严重过高'
+          description: '{{ $labels.instance }} 堆内存使用率 {{ $value | humanizePercentage }}，超过 95%，即将 OOM'
+
+      - alert: JVMGCPressure
+        expr: rate(jvm_gc_pause_seconds_sum[5m]) / rate(jvm_gc_pause_seconds_count[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: 'JVM GC 压力过大'
+          description: '{{ $labels.instance }} 平均 GC 暂停时间过长，可能存在内存泄漏或堆过小'
+
+      - alert: JVMThreadCountHigh
+        expr: jvm_threads_live > 500
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: 'JVM 线程数过高'
+          description: '{{ $labels.instance }} 存活线程数 {{ $value }}，超过 500，可能存在线程泄漏'
+
+      - alert: APIHighErrorRate
+        expr: sum(rate(http_server_requests_seconds_count{status=~"5.."}[1m])) by (service) / sum(rate(http_server_requests_seconds_count[1m])) by (service) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: '{{ $labels.service }} 错误率超过 5%'
+          description: '{{ $labels.service }} 5xx 错误率 {{ $value | humanizePercentage }}，持续超过 2 分钟'
+
+      - alert: APIHighLatency
+        expr: histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, service)) > 2
+        for: 3m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: '{{ $labels.service }} P99 延迟超过 2s'
+          description: '{{ $labels.service }} P99 延迟 {{ $value | humanizeDuration }}，持续超过 3 分钟'
+
+      - alert: UnauthorizedAccessAttempts
+        expr: rate(http_server_requests_seconds_count{status="403"}[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: '非授权访问尝试异常'
+          description: '403 错误每分钟超过 50 次，可能存在恶意探测'

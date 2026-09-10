@@ -12,11 +12,13 @@ logging:
 
 # 可靠性加固（P1）：健康检查显式声明。默认只暴露 health，这里显式收紧为 health,info，
 # 并启用 readiness/liveness 探针（k8s 探针的刚需），敏感端点（env/beans/configprops）保持默认关闭。
+# 可观测性（§7.2）：追加 prometheus，暴露 /actuator/prometheus 供 Prometheus 抓取 JVM/HTTP/HikariCP
+# 指标（依赖 pom 的 micrometer-registry-prometheus；不引入该依赖时此端点不存在，不会报错）。
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
