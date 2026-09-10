@@ -89,7 +89,7 @@ describe('rsaEncrypt · 请求方向（公钥加密 ↔ 服务端私钥解密）
     const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
     const publicKeyBase64 = Buffer.from(publicKey.export({ type: 'spki', format: 'der' })).toString('base64')
 
-    const plaintext = JSON.stringify({ name: 'Hamm', age: 18, len: '18cm' })
+    const plaintext = JSON.stringify({ name: 'example', age: 18 })
     const ciphertext = rsaEncrypt(plaintext, publicKeyBase64)
 
     expect(decrypt(privateKey, ciphertext)).toBe(plaintext)

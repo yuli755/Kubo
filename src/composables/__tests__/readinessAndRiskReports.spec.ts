@@ -36,7 +36,7 @@ function readiness(partial: Record<string, unknown>) {
 }
 
 function gap(partial: Record<string, unknown>) {
-  return { resourceKey: 'asset.material', resourceId: 1, fieldName: 'price', ...partial }
+  return { resourceKey: 'asset.material', resourceId: 1, fieldName: 'price', roleCode: 'default', reason: '缺 EXPORT 授权', ...partial }
 }
 
 function bindingRisk(partial: Record<string, unknown>) {
@@ -132,7 +132,7 @@ describe('reports · 导出缺口 useExportGapReport', () => {
 
     expect(gapsForField(items, undefined, 'price')).toHaveLength(0)
     expect(gapsForField(items, 1, undefined)).toHaveLength(0)
-    expect(gapsForField(items, null, 'price')).toHaveLength(0)
+    expect(gapsForField(items, 1, '')).toHaveLength(0)
   })
 })
 

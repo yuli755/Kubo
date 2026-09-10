@@ -14,12 +14,13 @@ app.value.appSecret = ''
 
 const isLoading = ref(false)
 
-const json = ref('{"name":"Hamm","age":"18","len":"18cm"}')
+const json = ref('{"name":"示例数据","age":18}')
 
 const version = ref(10000)
 
+// 只缓存 appKey（公开的应用标识，非凭据）；appSecret 是凭据，**不得**持久化到 localStorage——
+// 明文落浏览器会被任意 XSS 读取、且登出后仍残留。测试完成后即丢弃，重新测试时手动粘贴。
 const APP_KEY = 'APP_KEY_TEST'
-const APP_SECRET = 'APP_SECRET_TEST'
 
 const timestamp = ref(new Date().valueOf())
 
@@ -28,11 +29,9 @@ const url = ref('openApi/test/test')
 const nonce = ref(RandomUtil.getRandMixedCharString())
 
 app.value.appKey = localStorage.getItem(APP_KEY) || ''
-app.value.appSecret = localStorage.getItem(APP_SECRET) || ''
 
 const content = computed(() => {
   localStorage.setItem(APP_KEY, app.value.appKey)
-  localStorage.setItem(APP_SECRET, app.value.appSecret)
   switch (app.value.arithmetic) {
     case OpenAppArithmeticEnum.AES.key:
       if (!app.value.appSecret) {

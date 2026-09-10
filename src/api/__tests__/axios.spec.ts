@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AxiosResponse } from 'axios'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * `axios` 请求层契约测试（安全/健壮性主线的「锁」）。
@@ -35,7 +35,7 @@ vi.mock('element-plus', () => ({
 
 const { request } = await import('@/api/axios')
 
-/** 用自定义 adapter 截获请求、回放固定响应（不真发网络） */
+/** 用自定义 adapter 回放固定响应（不真发网络） */
 function adapterReturning(payload: unknown, status = 200): (config: any) => Promise<AxiosResponse> {
   return async (config: any) => ({
     data: payload,
@@ -44,6 +44,20 @@ function adapterReturning(payload: unknown, status = 200): (config: any) => Prom
     headers: {},
     config,
   })
+}
+
+/** 用自定义 adapter 捕获「拦截器处理后的最终 config」，再回放空响应 */
+function captureAdapter(capture: (config: any) => void): (config: any) => Promise<AxiosResponse> {
+  return async (config: any) => {
+    capture(config)
+    return {
+      data: {},
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }
+  }
 }
 
 beforeEach(() => {
@@ -56,14 +70,22 @@ describe('axios 请求层 · 请求拦截器', () => {
   it('有 token 时注入 Authorization: Bearer', async () => {
     userStore.token = 't-abc'
     let captured: any
-    await request.get('/x', { adapter: async (c: any) => { captured = c; return { data: {}, status: 200, statusText: 'OK', headers: {}, config: c } } })
+    await request.get('/x', {
+      adapter: captureAdapter((c) => {
+        captured = c
+      }),
+    })
 
     expect(captured.headers.Authorization).toBe('Bearer t-abc')
   })
 
   it('无 token 时不伪造 Authorization 头', async () => {
     let captured: any
-    await request.get('/x', { adapter: async (c: any) => { captured = c; return { data: {}, status: 200, statusText: 'OK', headers: {}, config: c } } })
+    await request.get('/x', {
+      adapter: captureAdapter((c) => {
+        captured = c
+      }),
+    })
 
     expect(captured.headers.Authorization).toBeUndefined()
   })
@@ -72,22 +94,39 @@ describe('axios 请求层 · 请求拦截器', () => {
     userStore.tenantId = 42
 
     let withTenant: any
-    await request.get('/a', { adapter: async (c: any) => { withTenant = c; return { data: {}, status: 200, statusText: 'OK', headers: {}, config: c } } })
+    await request.get('/a', {
+      adapter: captureAdapter((c) => {
+        withTenant = c
+      }),
+    })
     expect(withTenant.headers['X-Tenant-Id']).toBe('42')
 
     let skipTenant: any
-    await request.get('/b', { tenantAware: false, adapter: async (c: any) => { skipTenant = c; return { data: {}, status: 200, statusText: 'OK', headers: {}, config: c } } } as any)
+    await request.get('/b', {
+      tenantAware: false,
+      adapter: captureAdapter((c) => {
+        skipTenant = c
+      }),
+    } as any)
     expect(skipTenant.headers['X-Tenant-Id']).toBeUndefined()
   })
 
   it('写方法（POST/PUT/PATCH）注入 Idempotency-Key，GET 不注入', async () => {
     let postCfg: any
-    await request.post('/p', {}, { adapter: async (c: any) => { postCfg = c; return { data: {}, status: 200, statusText: 'OK', headers: {}, config: c } } })
+    await request.post('/p', {}, {
+      adapter: captureAdapter((c) => {
+        postCfg = c
+      }),
+    })
     expect(typeof postCfg.headers['Idempotency-Key']).toBe('string')
     expect(postCfg.headers['Idempotency-Key']).not.toBe('')
 
     let getCfg: any
-    await request.get('/g', { adapter: async (c: any) => { getCfg = c; return { data: {}, status: 200, statusText: 'OK', headers: {}, config: c } } })
+    await request.get('/g', {
+      adapter: captureAdapter((c) => {
+        getCfg = c
+      }),
+    })
     expect(getCfg.headers['Idempotency-Key']).toBeUndefined()
   })
 })
