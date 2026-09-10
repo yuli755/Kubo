@@ -5,6 +5,7 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import Components from 'unplugin-vue-components/vite'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { airpowerCssStripPlugin } from './infra/plugins/airpower-css-strip'
 import { airpowerElementPlusShimPlugin } from './infra/plugins/airpower-element-plus-shim'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -23,6 +24,10 @@ export default defineConfig({
     // 会触发 element-plus 全量 80 组件进入 bundle（详见插件文件头注释）。
     // 此处在构建期将其替换为最小 shim（仅 v-loading 指令 + locale），恢复树摇。
     airpowerElementPlusShimPlugin(),
+    // airpower 整包 web.css 内嵌了 element-plus 全量样式（341 KB，与项目按需引入重复）。
+    // 此处在构建期剥离 element 部分，仅保留 airpower 自身样式（详见插件文件头注释），
+    // vendor-airpower.css 52.2 KB → 4.5 KB（gzip）。
+    airpowerCssStripPlugin(),
     // vueDevTools() — 已禁用：开发模式底部注入的悬浮按钮影响页面预览
     // vueDevTools(),
 
