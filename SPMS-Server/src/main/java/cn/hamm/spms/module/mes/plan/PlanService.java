@@ -10,6 +10,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.bill.AbstractBaseBillService;
 import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.mes.plan.detail.PlanDetailEntity;
 import cn.hamm.spms.module.mes.plan.detail.PlanDetailRepository;
 import cn.hamm.spms.module.mes.plan.detail.PlanDetailService;
@@ -160,7 +161,7 @@ public class PlanService extends AbstractBaseBillService<PlanEntity, PlanReposit
         List<PlanEntity> rows = planMapper.selectForExport(filter.getBillCode(), filter.getStatus(), filter.getType());
         List<PlanEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, PlanEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), PlanEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

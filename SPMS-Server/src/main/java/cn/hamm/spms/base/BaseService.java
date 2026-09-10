@@ -1,6 +1,7 @@
 package cn.hamm.spms.base;
 
 import cn.hamm.airpower.curd.base.CurdService;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.system.SystemServices;
 import cn.hamm.spms.module.system.coderule.CodeRuleService;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
@@ -312,6 +313,6 @@ public class BaseService<
      */
     @Override
     protected List<E> afterExportQuery(List<E> entities) {
-        return ExportColumnMasker.maskForExport(entities);
+        return CsvFormulaSanitizer.sanitize(ExportColumnMasker.maskForExport(entities));
     }
 }

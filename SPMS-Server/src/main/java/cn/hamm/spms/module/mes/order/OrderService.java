@@ -12,6 +12,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.bill.AbstractBaseBillService;
 import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.mes.order.detail.OrderDetailEntity;
 import cn.hamm.spms.module.mes.order.detail.OrderDetailRepository;
@@ -198,7 +199,7 @@ public class OrderService extends AbstractBaseBillService<OrderEntity, OrderRepo
         List<OrderEntity> rows = orderMapper.selectForExport(filter.getBillCode(), filter.getStatus(), filter.getType());
         List<OrderEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, OrderEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), OrderEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

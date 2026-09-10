@@ -8,6 +8,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.spms.base.BaseService;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.asset.material.mapper.MaterialMapper;
 import cn.hamm.spms.module.asset.material.mapper.MaterialReadShadowService;
 import cn.hamm.spms.base.mapper.ReadStat;
@@ -172,7 +173,7 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
         List<MaterialEntity> masked = ExportColumnMasker.maskForExport(rows);
         // 遮蔽已在请求线程完成；异步线程只做“已遮蔽字节 → 文件落盘”，不再依赖权限上下文。
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, MaterialEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), MaterialEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

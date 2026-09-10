@@ -9,6 +9,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.asset.AssetServices;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.channel.ChannelServices;
@@ -170,7 +171,7 @@ public class SalePriceService extends BaseService<SalePriceEntity, SalePriceRepo
                 .map(this::hydrateRelations).toList();
         List<SalePriceEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, SalePriceEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), SalePriceEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

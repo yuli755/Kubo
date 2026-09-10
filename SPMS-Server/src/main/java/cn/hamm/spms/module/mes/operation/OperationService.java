@@ -9,6 +9,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.mes.operation.mapper.OperationMapper;
 import cn.hamm.spms.module.mes.operation.mapper.OperationReadShadowService;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
@@ -158,7 +159,7 @@ public class OperationService extends BaseService<OperationEntity, OperationRepo
         List<OperationEntity> rows = operationMapper.selectForExport(filter);
         List<OperationEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, OperationEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), OperationEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

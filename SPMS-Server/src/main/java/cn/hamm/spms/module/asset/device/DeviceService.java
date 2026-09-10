@@ -13,6 +13,7 @@ import cn.hamm.airpower.redis.RedisHelper;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.influx.InfluxHelper;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.asset.device.mapper.DeviceMapper;
 import cn.hamm.spms.module.asset.device.mapper.DeviceReadShadowService;
 import cn.hamm.spms.module.iot.IotServices;
@@ -185,7 +186,7 @@ public class DeviceService extends BaseService<DeviceEntity, DeviceRepository> {
         List<DeviceEntity> rows = deviceMapper.selectForExport(filter);
         List<DeviceEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, DeviceEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), DeviceEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

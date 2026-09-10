@@ -12,6 +12,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.bill.AbstractBaseBillService;
 import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.channel.ChannelServices;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.mes.MesServices;
@@ -183,7 +184,7 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
         List<InputEntity> rows = inputMapper.selectForExport(filter.getBillCode(), filter.getStatus(), filter.getType());
         List<InputEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, InputEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), InputEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

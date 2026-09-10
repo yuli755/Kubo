@@ -9,6 +9,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.mes.routing.mapper.RoutingMapper;
 import cn.hamm.spms.module.mes.routing.mapper.RoutingReadShadowService;
@@ -192,7 +193,7 @@ public class RoutingService extends BaseService<RoutingEntity, RoutingRepository
         List<RoutingEntity> rows = routingMapper.selectForExport(filter);
         List<RoutingEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, RoutingEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), RoutingEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

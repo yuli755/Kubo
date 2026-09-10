@@ -9,6 +9,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.asset.contract.enums.ContractStatus;
 import cn.hamm.spms.module.asset.contract.mapper.ContractMapper;
 import cn.hamm.spms.module.asset.contract.mapper.ContractReadShadowService;
@@ -170,7 +171,7 @@ public class ContractService extends BaseService<ContractEntity, ContractReposit
         List<ContractEntity> rows = contractMapper.selectForExport(filter);
         List<ContractEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, ContractEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), ContractEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

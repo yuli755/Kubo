@@ -9,6 +9,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.mes.bom.mapper.BomMapper;
 import cn.hamm.spms.module.mes.bom.mapper.BomReadShadowService;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
@@ -164,7 +165,7 @@ public class BomService extends BaseService<BomEntity, BomRepository> {
         List<BomEntity> rows = bomMapper.selectForExport(filter);
         List<BomEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, BomEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), BomEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

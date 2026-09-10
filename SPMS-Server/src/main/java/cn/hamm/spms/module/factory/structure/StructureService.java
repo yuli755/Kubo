@@ -10,6 +10,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.factory.structure.mapper.StructureMapper;
 import cn.hamm.spms.module.factory.structure.mapper.StructureReadShadowService;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
@@ -168,7 +169,7 @@ public class StructureService extends BaseService<StructureEntity, StructureRepo
         List<StructureEntity> rows = structureMapper.selectForExport(filter);
         List<StructureEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, StructureEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), StructureEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }
