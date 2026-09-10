@@ -136,6 +136,10 @@ public class InfluxHelper {
      */
     private @NotNull List<ReportInfluxPayload> query(ReportPayload reportPayload, ReportDataType reportDataType, ReportGranularity reportGranularity) {
         initInfluxDbClient();
+        if (influxDbClient == null) {
+            // S2：未配置 InfluxDB（空令牌）时静默返回空结果，不报错
+            return new ArrayList<>();
+        }
         influxDbClient.setLogLevel(LogLevel.BASIC);
         List<ReportInfluxPayload> result = new ArrayList<>();
         QueryApi queryApi = influxDbClient.getQueryApi();
@@ -171,10 +175,16 @@ public class InfluxHelper {
 
     /**
      * 初始化 InfluxDB
+     *
+     * <p><b>安全（S2）</b>：令牌为空时视为「未配置」，不建立连接（上报/查询静默禁用），
+     * 避免空令牌强行建连抛异常污染日志。</p>
      */
     private void initInfluxDbClient() {
         if (Objects.isNull(influxDbClient)) {
             InfluxConfig influxConfig = Configs.getInfluxConfig();
+            if (influxConfig == null || influxConfig.getToken() == null || influxConfig.getToken().isBlank()) {
+                return;
+            }
             influxDbClient = InfluxDBClientFactory.create(
                     influxConfig.getUrl(),
                     influxConfig.getToken().toCharArray(),

@@ -181,26 +181,32 @@ function createAxiosInstance(): AxiosInstance {
 // 导出单例实例
 export const request = createAxiosInstance()
 
+// 响应拦截器已把统一响应格式解包为 `res.data`，因此把 axios 的响应类型收窄为数据类型的工具。
+// （axios 1.20 起 `get/post/...` 默认返回 `Promise<AxiosResponse<T>>`，而本项目实际返回的是 data。）
+function unwrapData<T>(promise: Promise<unknown>): Promise<T> {
+  return promise as Promise<T>
+}
+
 // 封装常用请求方法
 export const api = {
   get<T = unknown>(url: string, params?: Record<string, unknown>, config?: RequestConfig): Promise<T> {
-    return request.get(url, { params, ...config })
+    return unwrapData<T>(request.get(url, { params, ...config }))
   },
 
   post<T = unknown>(url: string, data?: unknown, config?: RequestConfig): Promise<T> {
-    return request.post(url, data, config)
+    return unwrapData<T>(request.post(url, data, config))
   },
 
   put<T = unknown>(url: string, data?: unknown, config?: RequestConfig): Promise<T> {
-    return request.put(url, data, config)
+    return unwrapData<T>(request.put(url, data, config))
   },
 
   patch<T = unknown>(url: string, data?: unknown, config?: RequestConfig): Promise<T> {
-    return request.patch(url, data, config)
+    return unwrapData<T>(request.patch(url, data, config))
   },
 
   delete<T = unknown>(url: string, params?: Record<string, unknown>, config?: RequestConfig): Promise<T> {
-    return request.delete(url, { params, ...config })
+    return unwrapData<T>(request.delete(url, { params, ...config }))
   },
 
   // 文件上传
@@ -208,7 +214,7 @@ export const api = {
     const formData = new FormData()
     formData.append('file', file)
 
-    return request.post(url, formData, {
+    return unwrapData<T>(request.post(url, formData, {
       ...config,
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -218,7 +224,7 @@ export const api = {
           onProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total))
         }
       },
-    })
+    }))
   },
 
   // 文件下载
