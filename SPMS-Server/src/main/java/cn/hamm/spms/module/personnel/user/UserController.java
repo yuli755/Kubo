@@ -26,6 +26,7 @@ import jakarta.mail.MessagingException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +52,7 @@ import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
 @Api("user")
 @Description("用户")
 @Extends({Curd.Disable, Curd.Enable})
+@Slf4j
 public class UserController extends BaseController<UserEntity, UserService, UserRepository> implements IUserAction {
     @Autowired
     private CookieHelper cookieHelper;
@@ -275,8 +277,9 @@ public class UserController extends BaseController<UserEntity, UserService, User
     @Permission(login = false)
     @PostMapping("getWebAuthnAssertionOptions")
     public Json getWebAuthnAssertionOptions() {
-        // 这里需要根据实际情况获取用户的认证信息
-        // 目前先返回一个示例配置
+        // ⚠️ 未实现：占位空壳。此处返回硬编码的示例 challenge 与 rpId，既无注册端点、无服务端
+        // challenge 存管，也无前端调用（全仓无 webauthn/passkey 引用）。属「看起来有、实际不能用」，
+        // 见 docs/业务功能未开发盘点.md §2。真正接入无密码登录时再实现 challenge 生成/校验闭环。
         try {
             return Json.data(com.yubico.webauthn.data.PublicKeyCredentialRequestOptions.builder()
                 .challenge(com.yubico.webauthn.data.ByteArray.fromBase64Url("test-challenge"))
@@ -286,7 +289,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
                 .allowCredentials(Collections.emptyList())
                 .build(), "获取成功");
         } catch (com.yubico.webauthn.data.exception.Base64UrlException e) {
-            e.printStackTrace();
+            log.error("获取 WebAuthn 断言选项失败", e);
             return Json.error("获取 WebAuthn 断言选项失败");
         }
     }

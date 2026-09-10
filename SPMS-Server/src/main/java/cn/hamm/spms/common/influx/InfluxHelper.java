@@ -152,7 +152,6 @@ public class InfluxHelper {
         List<ReportInfluxPayload> result = new ArrayList<>();
         QueryApi queryApi = influxDbClient.getQueryApi();
         List<String> queryParams = getFluxQuery(reportPayload, reportDataType, reportGranularity);
-        System.out.println(String.join(INFLUX_SQL_SPLIT, queryParams));
         List<FluxTable> tables = queryApi.query(String.join(INFLUX_SQL_SPLIT, queryParams));
         for (FluxTable table : tables) {
             for (FluxRecord record : table.getRecords()) {
