@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { UserThirdLoginEntity } from '@/model/open/thirdlogin/UserThirdLoginEntity'
 import { DialogProps, FeedbackUtil } from '@airpower/web'
-import { ref } from 'vue'
+import { onScopeDispose, ref } from 'vue'
 import { ThirdLoginPlatform } from '@/model/open/thirdlogin/ThirdLoginPlatform'
 
 import { UserService } from '@/model/personnel/user/UserService'
@@ -9,6 +9,9 @@ import { UserService } from '@/model/personnel/user/UserService'
 defineProps(DialogProps.create())
 
 const isLoading = ref(false)
+
+/** 绑定第三方账号时检测弹窗关闭的轮询句柄（组件卸载/弹窗关闭时清理） */
+let bindCheckInterval: ReturnType<typeof setInterval> | null = null
 
 function getIcon(item: ThirdLoginPlatform) {
   return `/img/thirdlogin/${item.flag}.png`
@@ -43,13 +46,33 @@ function onBind(item: ThirdLoginPlatform) {
 
   const features = `menubar=no,toolbar=no,status=no,width=${item.width},height=${item.height},left=${(window.screen.width - item.width) / 2},top=${(window.screen.height - item.height) / 2}`
   const newWindow = window.open(url, '_blank', features)
-  const checkClosedInterval = setInterval(() => {
-    if (newWindow?.closed) {
-      clearInterval(checkClosedInterval)
+  // 弹窗被浏览器拦截时 window.open 返回 null：此时不能启动轮询，否则 interval 永不停止（空转泄漏）
+  if (!newWindow) {
+    FeedbackUtil.toastError('绑定弹窗被浏览器拦截，请允许本站弹出窗口后重试')
+    return
+  }
+  // 同时只允许一个轮询在跑（重复点击绑定不同平台时，先停掉上一个）
+  if (bindCheckInterval !== null) {
+    clearInterval(bindCheckInterval)
+  }
+  bindCheckInterval = setInterval(() => {
+    if (newWindow.closed) {
+      if (bindCheckInterval !== null) {
+        clearInterval(bindCheckInterval)
+        bindCheckInterval = null
+      }
       init()
     }
   }, 100)
 }
+
+// 组件卸载时清理轮询，避免 interval 泄漏
+onScopeDispose(() => {
+  if (bindCheckInterval !== null) {
+    clearInterval(bindCheckInterval)
+    bindCheckInterval = null
+  }
+})
 
 async function onUnBind(item: ThirdLoginPlatform) {
   const data = bindData(item)
@@ -75,6 +98,7 @@ init()
       <div class="left">
         <img
           :src="getIcon(item)"
+          alt=""
           class="logo"
         >
         <div class="name">
@@ -89,6 +113,7 @@ init()
           <img
             v-if="getAvatar(item)"
             :src="getAvatar(item)"
+            alt=""
             class="avatar"
           >
           <el-link

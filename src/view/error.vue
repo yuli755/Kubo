@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { RouterUtil, WebConfig } from '@airpower/web'
-import { ref, watch } from 'vue'
+import { onScopeDispose, ref, watch } from 'vue'
 
 const isLoading = ref(true)
 const isError = ref(false)
@@ -22,6 +22,9 @@ const timer = setTimeout(() => {
   errorCode.value = GATEWAY_TIMEOUT
   WebConfig.isTimeout = true
 }, WebConfig.timeout)
+
+// 组件卸载时清理超时计时器：避免用户离开后残留 timer 把全局 WebConfig.isTimeout 置真
+onScopeDispose(() => clearTimeout(timer))
 
 watch(errorCode, () => {
   switch (errorCode.value) {

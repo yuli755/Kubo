@@ -124,6 +124,7 @@ init()
   >
     <template #logo>
       <img
+        alt="Kubo"
         class="logo"
         height="40"
         src="@/assets/img/logo.svg"
