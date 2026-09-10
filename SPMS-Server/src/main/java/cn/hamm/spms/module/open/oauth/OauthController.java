@@ -94,6 +94,11 @@ public class OauthController extends ApiController implements IOauthAction {
     @Autowired
     private AppConfig appConfig;
 
+    /**
+     * OAuth2 授权入口：本就允许未登录访问（未登录 → 重定向登录页），这里显式声明 login=false 固化语义，
+     * 防止未来误改类级注解时把它拖进登录拦截链。
+     */
+    @Permission(login = false)
     @GetMapping("authorize")
     public ModelAndView index(
             HttpServletRequest request,
@@ -169,6 +174,7 @@ public class OauthController extends ApiController implements IOauthAction {
         return Json.data(userService.loginWithCookieAndResponse(response, user), "登录成功");
     }
 
+    @Permission(authorize = false)
     @PostMapping("thirdBind")
     public Json thirdBind(@RequestBody @Validated(OauthCallbackRequest.WhenOauthCallback.class) OauthCallbackRequest request) {
         UserEntity user = userService.get(getCurrentUserId());
@@ -176,9 +182,13 @@ public class OauthController extends ApiController implements IOauthAction {
         return Json.success("绑定成功");
     }
 
+    @Permission(authorize = false)
     @PostMapping("unBindThird")
     public Json unBindThird(@RequestBody @Validated(ICurdAction.WhenIdRequired.class) UserThirdLoginEntity userThirdLogin) {
-        userThirdLoginService.delete(userThirdLogin.getId());
+        UserThirdLoginEntity exist = userThirdLoginService.get(userThirdLogin.getId());
+        // 只能解绑自己账号的第三方绑定：防止登录用户按 ID 枚举删除他人绑定（越权）
+        FORBIDDEN.when(exist.getUser() == null || !Objects.equals(exist.getUser().getId(), getCurrentUserId()), "只能解绑自己账号的绑定");
+        userThirdLoginService.delete(exist.getId());
         return Json.success("解绑成功");
     }
 
@@ -214,6 +224,7 @@ public class OauthController extends ApiController implements IOauthAction {
         return Json.data(user);
     }
 
+    @Permission(authorize = false)
     @PostMapping("getScopeList")
     public Json getScopeList() {
         return Json.data(DictionaryUtil.getDictionaryList(OauthScope.class,
