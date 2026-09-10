@@ -24,7 +24,19 @@ export const airpowerToken = {
   remove: () => localStorage.removeItem(AUTHORIZATION_KEY),
 }
 
-/** 权限列表存取（与 airpower PermissionUtil 的缓存同 key） */
+/** 权限列表存取（与 airpower PermissionUtil 的缓存同 key + 同步其内存态） */
 export const airpowerPermission = {
-  saveList: (list: string[]) => localStorage.setItem(PERMISSION_KEY, JSON.stringify(list)),
+  saveList: (list: string[]) => {
+    localStorage.setItem(PERMISSION_KEY, JSON.stringify(list))
+    // airpower 的 PermissionUtil.has() 读的是「内存静态 permissionList」，仅写 localStorage
+    // 不足以让业务页 ATable/AButton 的自动权限门禁生效（WebConfig.disablePermission=false 时
+    // 会按 PermissionUtil.has() 隐藏增删改按钮）。此处懒加载同步其内存态：
+    // saveList 只在 Console.vue 权限加载时被调用，彼时业务页已静态 import airpower，
+    // 动态 import 命中同一模块实例，不会把 airpower 拖回首屏。
+    void import('@airpower/web')
+      .then(({ PermissionUtil }) => PermissionUtil.saveList(list))
+      .catch(() => {
+        // airpower 未加载：仅写 localStorage（理论上不触发——saveList 仅随业务页调用）
+      })
+  },
 }
