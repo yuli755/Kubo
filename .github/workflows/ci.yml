@@ -65,6 +65,13 @@ jobs:
       - name: Migration dialect syntax integrity (static)
         run: pnpm migration:check
 
+      # 监控/告警配置（prometheus/alerts/alertmanager/docker-compose）的静态完整性：
+      # YAML 语法、alertmanager 有处可送、target 指向真实存在的服务、alerts 不引用未暴露的愿景指标。
+      # 历史版本是「愿景态半成品」（k8s 服务发现 + 空 alertmanager + 引用未埋点指标），
+      # 沙箱无 Prometheus/Alertmanager，此步本地可跑、拦住读文件就能判定的错。
+      - name: Monitoring & alerting config integrity (static)
+        run: pnpm monitoring:check
+
       - name: Build
         run: pnpm build
 

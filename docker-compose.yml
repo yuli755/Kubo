@@ -281,6 +281,111 @@ services:
           memory: 512M
 
   # ===========================================
+  # Alertmanager（告警路由/分组/去重/投递）
+  # Prometheus 的 alertmanagers.targets 指向这里（9093），告警才有处可送
+  # ===========================================
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: kubo-alertmanager
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - '9093:9093'
+    volumes:
+      - alertmanager-data:/alertmanager
+      - ./infra/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    depends_on:
+      - prometheus
+    networks:
+      - kubo-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # ===========================================
+  # Node Exporter（宿主节点指标：CPU/内存/磁盘）
+  # ===========================================
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: kubo-node-exporter
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    ports:
+      - '9100:9100'
+    networks:
+      - kubo-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # ===========================================
+  # Redis Exporter（Redis 指标：内存/命中率/连接数）
+  # ===========================================
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.56.0
+    container_name: kubo-redis-exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: 'redis://redis:6379'
+    ports:
+      - '9121:9121'
+    depends_on:
+      - redis
+    networks:
+      - kubo-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.125'
+          memory: 64M
+
+  # ===========================================
+  # MySQL Exporter（MySQL 指标：连接数/慢查询/缓冲池）
+  # 用 root 连（与 mysql 服务的 MYSQL_ROOT_PASSWORD: root 一致，dev 模式）；
+  # 生产应改用只读监控账号（SELECT + PROCESS + REPLICATION CLIENT），勿用 root。
+  # ===========================================
+  mysql-exporter:
+    image: prom/mysqld-exporter:v0.15.1
+    container_name: kubo-mysql-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: 'root:root@(mysql:3306)/'
+    ports:
+      - '9104:9104'
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - kubo-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.125'
+          memory: 128M
+
+  # ===========================================
   # SkyWalking (APM 链路追踪)
   # ===========================================
   skywalking-oap:
@@ -472,6 +577,7 @@ volumes:
   minio-config:
   prometheus-data:
   grafana-data:
+  alertmanager-data:
   skywalking-oap-data:
   elasticsearch-data:
   loki-data:

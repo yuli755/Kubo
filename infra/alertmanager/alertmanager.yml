@@ -1,0 +1,33 @@
+# Alertmanager 配置（最小可用）
+# ============================================================================
+# 职责：接收 Prometheus 告警 → 分组/去重/抑制 → 投递到通知通道。
+# 通知通道（钉钉/企微/邮件/自研告警网关 webhook）需按真实环境填，此处给出
+# 「默认 receiver + webhook 占位」结构，保证告警有处可送、不会因 receiver 缺失而丢。
+# webhook 是 fire-and-forget：URL 无效只会投递失败，不会让 Alertmanager 崩溃。
+global:
+  resolve_timeout: 5m
+  smtp_require_tls: false
+
+route:
+  # 按告警名 + 级别分组，避免一次故障刷屏
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default'
+
+receivers:
+  - name: 'default'
+    webhook_configs:
+      # 占位：真实环境替换为钉钉/企微/自研告警网关 webhook。
+      # example.invalid 是 RFC 2606 保留域，永不解析 —— 明确表达「未配置」而非误连。
+      - url: 'http://kubo-alert-hook.example.invalid/alert'
+        send_resolved: true
+
+# 抑制：同一次故障只报最严重的那条（如节点 down 时不重复报节点上所有组件 down）
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['instance']

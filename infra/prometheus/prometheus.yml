@@ -1,3 +1,13 @@
+# Prometheus 抓取配置（docker-compose 单体部署）
+# ============================================================================
+# 历史版本用 kubernetes_sd_configs（K8s 服务发现），但实际部署是 docker-compose（无 K8s），
+# 且配了 rabbitmq:15692 / redis-exporter:9121 / mysql-exporter:9104 等 targets，而这些
+# exporter 服务当时根本不在 compose 里 —— 属于「愿景态配置，从未真正闭环」。
+# 本次改为与 docker-compose.yml 一一对应的静态 targets，只有真实存在的服务才会被 scrape。
+#
+# 应用层指标（JVM/HTTP/HikariCP）依赖后端 pom 引入 micrometer-registry-prometheus 并在
+# management 暴露 /actuator/prometheus，属于「后端理论代码」批次；本文件先以注释占位，
+# 待后端容器化进 compose 后启用（见文末 spring-boot-actuator 段）。
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -8,104 +18,43 @@ global:
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: []
+        # 告警必须「有处可送」：历史是空 targets []，告警触发也无处投递。
+        # alertmanager 服务已在 docker-compose.yml 定义（9093）。
+        - targets:
+            - 'alertmanager:9093'
 
 rule_files:
   - 'rules/*.yml'
 
 scrape_configs:
-  # Prometheus 自身监控
+  # Prometheus 自身
   - job_name: prometheus
     static_configs:
       - targets: ['localhost:9090']
 
-  # Kubernetes 服务发现
-  - job_name: kubernetes-pods
-    kubernetes_sd_configs:
-      - role: pod
-    relabel_configs:
-      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-        action: keep
-        regex: true
-      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-        action: replace
-        target_label: __metrics_path__
-        regex: (.+)
-      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-        action: replace
-        regex: ([^:]+)(?::\d+)?;(\d+)
-        replacement: $1:$2
-        target_label: __address__
-      - action: labelmap
-        regex: __meta_kubernetes_pod_label_(.+)
-      - source_labels: [__meta_kubernetes_namespace]
-        action: replace
-        target_label: kubernetes_namespace
-      - source_labels: [__meta_kubernetes_pod_name]
-        action: replace
-        target_label: kubernetes_pod_name
-
-  # Spring Boot Actuator 端点
-  - job_name: spring-boot-actuator
-    metrics_path: /actuator/prometheus
-    kubernetes_sd_configs:
-      - role: pod
-    relabel_configs:
-      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-        action: keep
-        regex: true
-      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-        action: replace
-        target_label: __metrics_path__
-        regex: (.+)
-      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-        action: replace
-        regex: ([^:]+)(?::\d+)?;(\d+)
-        replacement: $1:$2
-        target_label: __address__
-      - action: labelmap
-        regex: __meta_kubernetes_pod_label_(.+)
-
-  # Node Exporter (节点级指标)
+  # 节点级指标（CPU/内存/磁盘/文件系统）—— node-exporter 服务（compose）
   - job_name: node-exporter
-    kubernetes_sd_configs:
-      - role: node
-    relabel_configs:
-      - action: labelmap
-        regex: __meta_kubernetes_node_label_(.+)
-
-  # cAdvisor (容器级指标)
-  - job_name: cadvisor
-    kubernetes_sd_configs:
-      - role: node
-    scheme: https
-    tls_config:
-      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-    relabel_configs:
-      - action: replace
-        regex: (.+)
-        source_labels:
-          - __meta_kubernetes_node_name
-        target_label: node
-      - action: replace
-        regex: (.*)
-        target_label: metrics_path
-        replacement: /metrics/cadvisor
-
-  # Kafka/RabbitMQ Exporter (如有)
-  - job_name: rabbitmq
     static_configs:
-      - targets: ['rabbitmq:15692']
-        labels:
-          service: rabbitmq
+      - targets: ['node-exporter:9100']
 
-  # Redis Exporter
+  # Redis 指标（内存/命中率/连接数）—— redis-exporter 服务（compose，连 redis:6379）
   - job_name: redis
     static_configs:
       - targets: ['redis-exporter:9121']
 
-  # MySQL Exporter
+  # MySQL 指标（连接数/慢查询/缓冲池）—— mysql-exporter 服务（compose，连 mysql:3306）
   - job_name: mysql
     static_configs:
       - targets: ['mysql-exporter:9104']
+
+  # ------------------------------------------------------------------------
+  # 应用层（Spring Boot Actuator）指标 —— 待「后端理论代码」批落地后启用：
+  #   1. SPMS-Server/pom.xml 引入 io.micrometer:micrometer-registry-prometheus；
+  #   2. application-production.yml 的 management.endpoints.web.exposure.include
+  #      追加 prometheus；
+  #   3. 后端容器化进 compose（当前后端在宿主单独跑，故先以 host.docker.internal 占位）。
+  # 启用后同步放开 infra/prometheus/rules/alerts.yml 里被注释挂起的 jvm_* / http_* 规则。
+  # - job_name: spring-boot-actuator
+  #   metrics_path: /actuator/prometheus
+  #   static_configs:
+  #     - targets: ['host.docker.internal:8080']
