@@ -59,6 +59,12 @@ jobs:
       - name: Migration DDL vs JPA entity drift
         run: pnpm ddl:check
 
+      # 迁移脚本的 MySQL 8 方言「静态」完整性（DELIMITER/存储过程/幂等性/动态 SQL 配平）：
+      # 不连库、读文件就能判定的确定性错误在提交前拦住，真库 job（migrations）只验证真正需要
+      # 真库验证的东西（information_schema 反向核对、连跑两遍判幂等）。沙箱无 MySQL，此步本地可跑。
+      - name: Migration dialect syntax integrity (static)
+        run: pnpm migration:check
+
       - name: Build
         run: pnpm build
 
