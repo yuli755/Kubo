@@ -83,7 +83,7 @@ const overview = useBusinessOverview()
     margin: 0;
     font-size: 16px;
     font-weight: bold;
-    color: #333;
+    color: var(--el-text-color-primary);
   }
 }
 
@@ -102,7 +102,7 @@ const overview = useBusinessOverview()
 
   .label {
     font-size: 13px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
     margin-bottom: 6px;
     white-space: nowrap;
     overflow: hidden;

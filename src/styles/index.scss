@@ -1,11 +1,13 @@
 /**
- * # 全局样式入口（V1 + V2）
+ * # 全局样式入口（V1 + V2 + V4 + V8）
  *
  * 在 `main.ts` 里唯一一次引入，顺序敏感：
  * 1. 设计 token 层（定义并映射 `--el-color-*` / `--kubo-*`）；
- * 2. Element Plus 官方暗色变量（`html.dark` 下的结构色覆盖）。
+ * 2. Element Plus 官方暗色变量（`html.dark` 下的结构色覆盖）；
+ * 3. 全局微交互与动效降级（hover/focus/active + reduced-motion）。
  */
 
 @use './tokens.scss';
+@use './motion.scss';
 
 @import 'element-plus/theme-chalk/dark/css-vars.css';

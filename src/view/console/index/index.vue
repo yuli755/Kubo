@@ -131,7 +131,7 @@ function goPage(path: string) {
     .title {
       font-size: 18px;
       font-weight: bold;
-      color: #333333;
+      color: var(--el-text-color-primary);
       padding: 10px 20px;
     }
 
@@ -146,7 +146,7 @@ function goPage(path: string) {
       padding: 0 10px;
 
       .action {
-        background: white;
+        background: var(--el-bg-color);
         padding: 10px;
         margin: 0 5px;
         width: 25%;
@@ -160,7 +160,7 @@ function goPage(path: string) {
         flex-direction: column;
 
         .name {
-          color: #333;
+          color: var(--el-text-color-primary);
           margin-bottom: 5px;
           font-size: 18px;
           font-weight: bold;
@@ -168,7 +168,7 @@ function goPage(path: string) {
         }
 
         .desc {
-          color: #aaa;
+          color: var(--el-text-color-secondary);
           font-size: 14px;
           height: 0;
           word-break: break-word;

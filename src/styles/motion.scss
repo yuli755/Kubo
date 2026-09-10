@@ -1,0 +1,63 @@
+/**
+ * # 全局微交互与动效降级层（V4 + V8）
+ *
+ * 统一 hover / focus / active / 表格行过渡的「最后一公里」，全部只动
+ * `transform` / `opacity` / `background-color` / `box-shadow`，不触发布局抖动。
+ *
+ * ## 约束
+ * - 这里是**全局默认值**，业务组件仍可用 scoped 样式覆盖；
+ * - 所有过渡时长走 V1 的 `--kubo-duration-*` token；
+ * - 底部用 `@media (prefers-reduced-motion: reduce)` 统一关闭位移/缩放类动效（V8）。
+ */
+
+/* ── 键盘可达性：统一 focus-visible 描边（V8） ── */
+:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+/* ── 按钮按压下压（只位移，不改变尺寸/布局） ── */
+.el-button:not(.is-disabled):active {
+  transform: translateY(1px);
+}
+
+.el-button {
+  transition:
+    transform var(--kubo-duration-fast) var(--kubo-ease-out),
+    opacity var(--kubo-duration-fast) var(--kubo-ease-out);
+}
+
+/* ── 表格行 hover 平滑过渡（仅背景色，避免逐行重排） ── */
+.el-table__body tr {
+  transition: background-color var(--kubo-duration-fast) var(--kubo-ease-out);
+}
+
+/* ── 卡片 hover 轻微提升（用阴影 token，深浅色各自定义） ── */
+.el-card {
+  transition: box-shadow var(--kubo-duration-base) var(--kubo-ease-out);
+
+  &:hover {
+    box-shadow: var(--kubo-shadow-base);
+  }
+}
+
+/* ── 链接 / 可点击文本的色过渡 ── */
+a,
+.el-link {
+  transition: color var(--kubo-duration-fast) var(--kubo-ease-out);
+}
+
+/* ── V8：用户偏好减少动效时，统一关闭位移/缩放/阴影过渡（保留颜色/透明度） ── */
+@media (prefers-reduced-motion: reduce) {
+  .el-button,
+  .el-card,
+  a,
+  .el-link,
+  .el-table__body tr {
+    transition: none;
+  }
+
+  .el-button:not(.is-disabled):active {
+    transform: none;
+  }
+}

@@ -3,6 +3,7 @@ import type { EChartsType } from 'echarts/core'
 import type { ResourceRuntimeStatus } from '@/api/system/types'
 import { RefreshRight } from '@element-plus/icons-vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import EmptyState from '@/component/EmptyState.vue'
 import Skeleton from '@/component/Skeleton.vue'
 import { useDataPermissionRuntimeStatus } from '@/composables/useDataPermissionRuntimeStatus'
 import { useDenyLogReport } from '@/composables/useDenyLogReport'
@@ -316,7 +317,7 @@ onBeforeUnmount(() => {
           v-else-if="runtime.loading"
           variant="chart"
         />
-        <el-empty
+        <EmptyState
           v-else
           :description="runtime.failed ? '未能取得资源档位分布' : '暂无已登记资源'"
           :image-size="60"
@@ -339,7 +340,7 @@ onBeforeUnmount(() => {
           v-else-if="runtime.loading"
           variant="chart"
         />
-        <el-empty
+        <EmptyState
           v-else
           :description="runtime.failed ? '未能取得 ORM 对账分布' : '暂无对账样本'"
           :image-size="60"
@@ -367,7 +368,7 @@ onBeforeUnmount(() => {
     margin: 0;
     font-size: 16px;
     font-weight: bold;
-    color: #333;
+    color: var(--el-text-color-primary);
   }
 }
 
@@ -386,7 +387,7 @@ onBeforeUnmount(() => {
 
   .stat-label {
     font-size: 13px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
     margin-bottom: 6px;
   }
 
@@ -407,7 +408,7 @@ onBeforeUnmount(() => {
   .stat-detail {
     margin-top: 6px;
     font-size: 12px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -426,7 +427,7 @@ onBeforeUnmount(() => {
   .chart-title {
     font-size: 14px;
     font-weight: bold;
-    color: #333;
+    color: var(--el-text-color-primary);
   }
 
   .chart {
