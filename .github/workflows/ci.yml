@@ -98,6 +98,12 @@ jobs:
       - name: Monitoring & alerting config integrity (static)
         run: pnpm monitoring:check
 
+      # 备份/恢复演练脚本的静态完整性：恢复脚本必须带「拒绝生产库」护栏、必须 fail-fast、
+      # 备份必须 gzip -t 校验。沙箱无 docker/MySQL，真实恢复行为靠隔离环境跑脚本，此步拦
+      # 「读文件就能看出来的错」（见 docs/恢复演练DR-Runbook.md）。
+      - name: Backup & restore drill scripts integrity (static)
+        run: pnpm drill:check
+
       - name: Build
         run: pnpm build
 
