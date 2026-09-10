@@ -291,7 +291,10 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
         String cookieString = RandomUtil.randomString();
         saveCookie(user.getId(), cookieString);
         Cookie cookie = cookieHelper.getAuthorizeCookie(cookieString);
-        cookie.setHttpOnly(false);
+        // 认证 Cookie 必须 HttpOnly：其值（cookieString）经 Redis 映射到 userId，是 OAuth 授权流程
+        // 的「已登录」凭证。前端从不读 document.cookie（登出走 /user/logout 服务端删 Cookie），
+        // 故 JS 无需访问；置非 HttpOnly 会让任意 XSS 窃取该凭证、以受害者身份完成第三方应用授权。
+        cookie.setHttpOnly(true);
         cookie.setPath(CookieHelper.DEFAULT_PATH);
         response.addCookie(cookie);
         return accessToken;
@@ -305,6 +308,19 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
      */
     public void saveCookie(Long userId, String cookie) {
         redisHelper.set(getCookieCodeKey(cookie), userId, DateTimeUtil.SECOND_PER_DAY);
+    }
+
+    /**
+     * 删除 Cookie 会话（登出时使服务端会话失效）
+     *
+     * <p>登出不能只清浏览器 Cookie：Redis 里的 {@code cookieString → userId} 映射若不删，被窃取的
+     * cookie 值在 TTL（1 天）内仍能通过 {@link #getUserIdByCookie} 冒充该用户。此方法与
+     * {@link #saveCookie} 对称，负责删除服务端那半边。</p>
+     *
+     * @param cookie Cookie 字符串
+     */
+    public void deleteCookie(String cookie) {
+        redisHelper.delete(getCookieCodeKey(cookie));
     }
 
     /**

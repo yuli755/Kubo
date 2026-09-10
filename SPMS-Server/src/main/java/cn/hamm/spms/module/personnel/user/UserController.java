@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.personnel.user;
 
 import cn.hamm.airpower.api.annotation.Api;
+import cn.hamm.airpower.cookie.CookieConfig;
 import cn.hamm.airpower.cookie.CookieHelper;
 import cn.hamm.airpower.core.Json;
 import cn.hamm.airpower.core.StringUtil;
@@ -30,10 +31,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -74,6 +77,9 @@ public class UserController extends BaseController<UserEntity, UserService, User
 
     @Autowired
     private LoginBruteForceGuard loginBruteForceGuard;
+
+    @Autowired
+    private CookieConfig cookieConfig;
 
     @Description("获取我的信息")
     @Permission(authorize = false)
@@ -229,7 +235,19 @@ public class UserController extends BaseController<UserEntity, UserService, User
     @Description("退出登录")
     @Permission(login = false)
     @PostMapping("logout")
-    public Json logout(HttpServletResponse httpServletResponse) {
+    public Json logout(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) {
+        // 使服务端会话失效：只清浏览器 Cookie 不够，Redis 里的 cookie→userId 映射必须一并删除，
+        // 否则被窃取的 cookie 值在 TTL（1 天）内仍能通过 getUserIdByCookie 冒充该用户。
+        Cookie[] cookies = httpServletRequest.getCookies();
+        if (!Objects.isNull(cookies)) {
+            String cookieString = Arrays.stream(cookies)
+                .filter(cookie -> Objects.equals(cookieConfig.getAuthCookieName(), cookie.getName()))
+                .findFirst().map(Cookie::getValue)
+                .orElse(null);
+            if (StringUtils.hasText(cookieString)) {
+                service.deleteCookie(cookieString);
+            }
+        }
         Cookie cookie = cookieHelper.getAuthorizeCookie("");
         cookie.setHttpOnly(false);
         cookie.setPath(CookieHelper.DEFAULT_PATH);
