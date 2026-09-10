@@ -14,6 +14,7 @@ import { createPersistPlugin } from '@/stores/persist'
 import { useThemeStore } from '@/stores/theme'
 import { installGlobalErrorHandler, setErrorReporter } from '@/utils/errorHandler'
 import { reportErrorToServer } from '@/utils/errorReportClient'
+import { installRouterErrorHandler } from '@/utils/routerErrorHandler'
 // airpower 的 WebConfig 配置 + web.css 已移至 src/config/airpower-bootstrap.ts，
 // 随业务页（Console.vue 懒加载）初始化，避免首屏加载 airpower 单体（107 KB）。
 // V1+V2：设计 token 层 + Element Plus 暗色变量（顺序敏感，必须在本文件其它样式之后引入）
@@ -42,6 +43,10 @@ app.use(pinia)
 useThemeStore()
 
 const router = createAppRouter(routes)
+
+// 路由级错误兜底：懒加载 chunk 加载失败（发版时新旧 bundle 不匹配）走 router.onError、
+// 不经过 ErrorBoundary 的 onErrorCaptured；此处上报 + 刷新恢复，补上「导航侧」这条腿
+installRouterErrorHandler(router)
 
 // 注册路由守卫（顺序：先认证 → 再权限）
 initAuthGuard(router)

@@ -10,7 +10,9 @@ import type { App } from 'vue'
  * `app.config.errorHandler` 只**记录**组件渲染/生命周期错误，不会阻止错误沿组件树传播；
  * 真正的「错误边界」（局部降级渲染、不让整页白掉）由 `onErrorCaptured` + 错误边界组件包裹
  * 路由出口实现，见 `src/component/ErrorBoundary.vue`（已落地，包裹 `App.vue` 的 `<RouterView>`）。
- * 本文件只负责「记录」，边界组件负责「降级」，两者分工、互不重复。
+ * 此外，**导航侧**的懒加载 chunk 加载失败走 `router.onError`、不经过 `onErrorCaptured`，
+ * 由 `src/utils/routerErrorHandler.ts` 兜底（上报 + 刷新恢复）。
+ * 本文件只负责「记录」，边界组件负责「降级」，路由侧兜底负责「导航恢复」，三者分工、互不重复。
  *
  * ## 为什么默认只落 console、不弹 ElMessage
  * 同一坏数据可能让整个列表反复抛错，若每次弹提示会把用户淹没。这里只保证「错误可被观测」，
