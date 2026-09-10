@@ -3,7 +3,7 @@ import { VueQueryPlugin } from '@tanstack/vue-query'
 import { ElLoading } from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { createPinia } from 'pinia'
-import { createApp, version } from 'vue'
+import { createApp } from 'vue'
 import App from '@/App.vue'
 import { routes } from '@/config/routes'
 import { directives } from '@/directives'
@@ -13,6 +13,7 @@ import { registerPWA } from '@/pwa/registerSW'
 import { queryClient } from '@/query/queryClient'
 import { createPersistPlugin } from '@/stores/persist'
 import { useThemeStore } from '@/stores/theme'
+import { installGlobalErrorHandler } from '@/utils/errorHandler'
 import '@airpower/web/dist/web.css'
 // V1+V2：设计 token 层 + Element Plus 暗色变量（顺序敏感，必须在本文件其它样式之后引入）
 import '@/styles/index.scss'
@@ -31,6 +32,9 @@ WebConfig.uploadUrl = '/api/file/upload'
 WebConfig.staticUrl = '/static/'
 
 const app = createApp(App)
+
+// P1：全局错误兜底（未捕获异常落日志 + 预留上报钩子），在挂载前注册
+installGlobalErrorHandler(app)
 
 const pinia = createPinia()
 pinia.use(createPersistPlugin())
@@ -62,5 +66,3 @@ app.mount('#app')
 
 // PWA: 注册 Service Worker（仅 production 环境生效）
 registerPWA()
-
-console.warn(`Vue Version: ${version}`)

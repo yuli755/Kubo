@@ -1,4 +1,31 @@
+# 可靠性加固（P1）：优雅停机。k8s 滚动更新 / 负载均衡摘流时，让在途请求处理完再下线，
+# 避免连接被粗暴切断（表现为 5xx / 半提交事务）。
+server:
+  shutdown: graceful
+
+# 可观测性加固（P1）：生产关闭 Spring 内部 debug（application.yml 里 beans/context 是 debug，
+# 会打进生产的噪音 + 性能开销 + 内部实现信息）。
+logging:
+  level:
+    org.springframework.beans: info
+    org.springframework.context: info
+
+# 可靠性加固（P1）：健康检查显式声明。默认只暴露 health，这里显式收紧为 health,info，
+# 并启用 readiness/liveness 探针（k8s 探针的刚需），敏感端点（env/beans/configprops）保持默认关闭。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 spring:
+  lifecycle:
+    # 优雅停机每阶段最长等待（配合 server.shutdown: graceful）
+    timeout-per-shutdown-phase: 30s
   jpa:
     show-sql: false
     hibernate:
