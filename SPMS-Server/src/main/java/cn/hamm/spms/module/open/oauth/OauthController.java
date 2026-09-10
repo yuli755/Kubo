@@ -69,6 +69,7 @@ public class OauthController extends ApiController implements IOauthAction {
     private static final String REDIRECT_URI = "redirectUri";
     private static final String REDIRECT_URI_MISSING = "RedirectUri missing!";
     private static final String INVALID_APPKEY = "Invalid appKey!";
+    private static final String REDIRECT_URI_NOT_ALLOWED = "RedirectUri not allowed!";
     private static final String APP_KEY = "appKey";
     private static final String SCOPE = "scope";
     private static final String SCOPE_DELIMITER = ",";
@@ -115,6 +116,11 @@ public class OauthController extends ApiController implements IOauthAction {
         String redirectUri = request.getParameter(REDIRECT_URI);
         if (!StringUtils.hasText(redirectUri)) {
             return showError(REDIRECT_URI_MISSING);
+        }
+        // 防 OAuth code 泄露（开放重定向变体）：redirectUri 必须与 App 登记的回调地址一致，
+        // 否则已登录用户被诱导点击会把 code 外泄到攻击者域。未登记回调地址 → 拒绝（fail-closed）。
+        if (!isValidRedirectUri(openApp, redirectUri)) {
+            return showError(REDIRECT_URI_NOT_ALLOWED);
         }
         String scope = getScopeFromRequest(request);
         Long userId = getUserIdFromCookie();
@@ -346,6 +352,19 @@ public class OauthController extends ApiController implements IOauthAction {
             return null;
         }
         return userId;
+    }
+
+    /**
+     * 校验 redirectUri 是否为该 App 登记的回调地址（OAuth2 规范要求精确匹配）。
+     *
+     * @param openApp     App（含登记回调地址 url）
+     * @param redirectUri 授权请求携带的回调地址
+     * @return 是否允许
+     */
+    private boolean isValidRedirectUri(@NotNull OpenAppEntity openApp, @NotNull String redirectUri) {
+        String registered = openApp.getUrl();
+        // 未登记回调地址 → 拒绝；登记了则要求完全一致（防路径/后缀变体绕过）
+        return StringUtils.hasText(registered) && redirectUri.equals(registered);
     }
 
     /**

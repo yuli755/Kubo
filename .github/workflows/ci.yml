@@ -77,6 +77,11 @@ jobs:
       - name: Permission codes match backend controllers
         run: pnpm perms:check
 
+      # 每个 HTTP 端点都必须有显式 @Permission（类级或方法级），不得依赖 airpower「无注解=无需登录」隐式默认
+      # —— 历史真实漏洞：OauthController.unBindThird 匿名可删任意用户第三方登录绑定
+      - name: Every HTTP endpoint has explicit @Permission
+        run: pnpm auth:check
+
       # 两类"文本级但没人管"的问题：中文被 U+FFFD 污染（不影响编译，只在页面上显形）、
       # Java 源码里的单反斜杠转义（影响编译，但沙箱没有 JDK —— 见 docs §18.2 与 §19.9）
       - name: Source text integrity (encoding / Java literals / gate self-test)
