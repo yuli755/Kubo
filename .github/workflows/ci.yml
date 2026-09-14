@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Dependency review
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         with:
           # high 及以上（high/critical）的新增漏洞依赖即阻断合入；moderate/low 只提示不阻断，
           # 避免「低危升级把 PR 卡死」拖慢正常依赖升级（Dependabot PR 尤其常见）。
