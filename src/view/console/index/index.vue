@@ -1,7 +1,22 @@
 <script lang="ts" setup>
 import type { IJson } from '@airpower/web'
-import { APanel, RouterUtil } from '@airpower/web'
-import { ref } from 'vue'
+import { APanel } from '@airpower/web'
+import { computed, ref } from 'vue'
+import { Permissions } from '@/config/permissions'
+import { getRouter } from '@/router/appRouter'
+import { usePermissionStore } from '@/stores/permission'
+import BusinessOverview from './BusinessOverview.vue'
+import SecurityDashboard from './SecurityDashboard.vue'
+
+/**
+ * 安全态势看板只在持有数据权限管理身份时渲染：其数据来自跨租户的
+ * `dataResource/*` 管理端点（后端鉴权），对普通业务用户既是噪声也是越权面。
+ */
+const canViewSecurity = computed(() => usePermissionStore().hasAny(
+  Permissions.System.DataResource.getDetail,
+  Permissions.System.DataPolicy.getDetail,
+  Permissions.System.DataFieldPolicy.getDetail,
+))
 
 const modules = ref<IJson[]>([
   {
@@ -43,33 +58,40 @@ const modules = ref<IJson[]>([
 ])
 
 function goPage(path: string) {
-  RouterUtil.router.push(path)
+  getRouter().push(path)
 }
 </script>
 
 <template>
   <APanel>
-    <div class="index">
-      <div
-        v-for="(module, index) in modules"
-        :key="index"
-        class="module"
-      >
-        <div class="title">
-          {{ module.title }}
-        </div>
-        <div class="actions">
-          <div
-            v-for="action in module.actions"
-            :key="action.name"
-            class="action"
-            @click="goPage(action.path)"
-          >
-            <div class="name">
-              {{ action.name }}
-            </div>
-            <div class="desc">
-              {{ action.desc }}
+    <div class="home">
+      <BusinessOverview class="business" />
+      <SecurityDashboard
+        v-if="canViewSecurity"
+        class="security"
+      />
+      <div class="index">
+        <div
+          v-for="(module, index) in modules"
+          :key="index"
+          class="module"
+        >
+          <div class="title">
+            {{ module.title }}
+          </div>
+          <div class="actions">
+            <div
+              v-for="action in module.actions"
+              :key="action.name"
+              class="action"
+              @click="goPage(action.path)"
+            >
+              <div class="name">
+                {{ action.name }}
+              </div>
+              <div class="desc">
+                {{ action.desc }}
+              </div>
             </div>
           </div>
         </div>
@@ -79,12 +101,23 @@ function goPage(path: string) {
 </template>
 
 <style lang="scss" scoped>
-.index {
+.home {
   position: absolute;
   inset: 10px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+}
+
+.business,
+.security {
+  flex-shrink: 0;
+}
+
+.index {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 
   .module {
     display: flex;
@@ -99,7 +132,7 @@ function goPage(path: string) {
     .title {
       font-size: 18px;
       font-weight: bold;
-      color: #333333;
+      color: var(--el-text-color-primary);
       padding: 10px 20px;
     }
 
@@ -114,7 +147,7 @@ function goPage(path: string) {
       padding: 0 10px;
 
       .action {
-        background: white;
+        background: var(--el-bg-color);
         padding: 10px;
         margin: 0 5px;
         width: 25%;
@@ -128,7 +161,7 @@ function goPage(path: string) {
         flex-direction: column;
 
         .name {
-          color: #333;
+          color: var(--el-text-color-primary);
           margin-bottom: 5px;
           font-size: 18px;
           font-weight: bold;
@@ -136,7 +169,7 @@ function goPage(path: string) {
         }
 
         .desc {
-          color: #aaa;
+          color: var(--el-text-color-secondary);
           font-size: 14px;
           height: 0;
           word-break: break-word;

@@ -1,6 +1,7 @@
 import type { WebSocketMessageHandler, WebSocketPayload } from './types'
 import { ref } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { reportError } from '@/utils/errorHandler'
 import { WebSocketStatus } from './types'
 
 /**
@@ -103,7 +104,7 @@ class WebSocketManager {
       this.socket = new WebSocket(url)
     }
     catch (error) {
-      console.error('[WebSocket] 创建连接失败', error)
+      reportError(error, 'websocket-connect')
       this.scheduleReconnect()
       return false
     }
@@ -173,7 +174,7 @@ class WebSocketManager {
       handler(payload)
     }
     catch (error) {
-      console.error('[WebSocket] 消息处理器异常', error)
+      reportError(error, 'websocket-handler')
     }
   }
 
@@ -197,7 +198,7 @@ class WebSocketManager {
    * ### 连接错误回调
    */
   private onError(event: Event): void {
-    console.error('[WebSocket] 连接错误', event)
+    reportError(event, 'websocket-error')
     // onclose 会随后被触发，由其统一处理重连
   }
 
@@ -264,7 +265,7 @@ class WebSocketManager {
       return true
     }
     catch (error) {
-      console.error('[WebSocket] 发送失败', error)
+      reportError(error, 'websocket-send')
       return false
     }
   }
@@ -320,7 +321,7 @@ class WebSocketManager {
         listener(status)
       }
       catch (error) {
-        console.error('[WebSocket] 状态监听器异常', error)
+        reportError(error, 'websocket-listener')
       }
     })
   }

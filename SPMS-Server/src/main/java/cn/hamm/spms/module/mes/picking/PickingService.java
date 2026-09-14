@@ -11,6 +11,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.bill.AbstractBaseBillService;
 import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.mes.picking.detail.PickingDetailEntity;
 import cn.hamm.spms.module.mes.picking.detail.PickingDetailRepository;
 import cn.hamm.spms.module.mes.picking.detail.PickingDetailService;
@@ -178,7 +179,7 @@ public class PickingService extends AbstractBaseBillService<PickingEntity, Picki
         List<PickingEntity> rows = pickingMapper.selectForExport(filter.getBillCode(), filter.getStatus(), filter.getType());
         List<PickingEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, PickingEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), PickingEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

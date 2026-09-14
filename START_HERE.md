@@ -46,7 +46,7 @@ cd SPMS-Server
 ```bash
 # 仓库根目录（新开终端）
 pnpm install
-pnpm s
+pnpm dev
 ```
 
 ### 第 4 步: 登录测试

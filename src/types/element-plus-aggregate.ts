@@ -49,6 +49,7 @@ import { ElLoading as _ElLoading } from 'element-plus/es/components/loading/inde
 
 export { ElAlert } from 'element-plus/es/components/alert/index.mjs'
 export { ElButton } from 'element-plus/es/components/button/index.mjs'
+export { ElCard } from 'element-plus/es/components/card/index.mjs'
 export { ElCheckTag } from 'element-plus/es/components/check-tag/index.mjs'
 // ── 项目源码使用的组件（components.d.ts 声明 + main.ts 命令式 API）────────
 export { ElCheckbox } from 'element-plus/es/components/checkbox/index.mjs'
@@ -93,6 +94,8 @@ export { ElTabPane, ElTabs } from 'element-plus/es/components/tabs/index.mjs'
 export { ElTag } from 'element-plus/es/components/tag/index.mjs'
 // timeline 子路径同时导出 ElTimeline / ElTimelineItem
 export { ElTimeline, ElTimelineItem } from 'element-plus/es/components/timeline/index.mjs'
+// tooltip 子路径导出 ElTooltip（未导出 ElTooltipContent）
+export { ElTooltip } from 'element-plus/es/components/tooltip/index.mjs'
 export type { TreeInstance } from 'element-plus/es/components/tree/index.mjs'
 export { ElTree } from 'element-plus/es/components/tree/index.mjs'
 export { ElUpload } from 'element-plus/es/components/upload/index.mjs'

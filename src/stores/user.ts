@@ -1,13 +1,13 @@
 import type { TenantOption } from '@kubo/shared'
-import { WebConfig } from '@airpower/web'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { airpowerToken } from '@/utils/airpowerCompat'
 
 /**
  * # 用户状态 Store
  *
- * 与 @airpower/web 的 WebConfig 保持双向同步：
- * - `setToken` 同时写入 `WebConfig.saveAccessToken()`（兼容 airpower 框架）
+ * 与 @airpower/web 的 WebConfig 保持双向同步（key `Authorization`）：
+ * - `setToken` 同时写入 airpower 同 key 的 localStorage（兼容业务页 airpower 组件）
  * - 同时通过 persist 插件持久化到 localStorage（key: `kubo:user`）
  *
  * 供 `src/api/axios.ts` 请求拦截器使用。
@@ -17,9 +17,9 @@ export const useUserStore = defineStore(
   () => {
     /**
      * ### 访问令牌
-     * 初始化时从 WebConfig 恢复（支持页面刷新后 token 不丢失）
+     * 初始化时从 airpower 同 key 的 localStorage 恢复（支持页面刷新后 token 不丢失）
      */
-    const token = ref<string>(WebConfig.getAccessToken() || '')
+    const token = ref<string>(airpowerToken.get() || '')
 
     /**
      * ### 刷新令牌（用于 refreshToken 流程）
@@ -50,7 +50,7 @@ export const useUserStore = defineStore(
 
     function setToken(val: string) {
       token.value = val
-      WebConfig.saveAccessToken(val)
+      airpowerToken.save(val)
     }
 
     function setTenantId(val: number | undefined) {
@@ -112,7 +112,7 @@ export const useUserStore = defineStore(
       tenantList.value = []
       userInfo.value = null
       refreshTokenValue.value = ''
-      WebConfig.removeAccessToken()
+      airpowerToken.remove()
       localStorage.removeItem('kubo:user')
       // 断开 WebSocket 连接（延迟导入避免循环依赖）
       import('@/websocket/WebSocketManager').then(({ webSocketManager }) => {

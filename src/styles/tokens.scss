@@ -1,0 +1,99 @@
+/**
+ * # 设计 Token 层（V1）
+ *
+ * 全局唯一的「颜色 / 圆角 / 阴影 / 间距 / 动效时长」语义变量。三件事：
+ * 1. 定义 `--kubo-*` 品牌语义 token（业务组件统一从这里取值）；
+ * 2. 把品牌主色映射覆盖到 Element Plus 官方 `--el-color-*` 变量，
+ *    使 EP 组件与自定义组件同源同色（改主色 = 改一处，全局生效）；
+ * 3. 在 `html.dark` 下给出暗色映射（配合 `element-plus/theme-chalk/dark/css-vars.css`）。
+ *
+ * ## 约束
+ * - 业务代码一律引用 `var(--el-*)` 或 `var(--kubo-*)`，禁止再硬编码 `#409eff` 等十六进制主色；
+ * - 主色色阶为 Element Plus `#409eff` 官方预计算值，避免 `color-mix()` 的兼容性差异；
+ * - 状态色沿用 EP 默认（success/warning/danger/info），本层只在暗色下做对比度微调。
+ */
+
+:root {
+  /* ── 品牌主色（Element Plus #409eff 官方色阶，预计算） ── */
+  --kubo-color-primary: #409eff;
+  --kubo-color-primary-light-3: #79bbff;
+  --kubo-color-primary-light-5: #a0cfff;
+  --kubo-color-primary-light-7: #c6e2ff;
+  --kubo-color-primary-light-8: #d9ecff;
+  --kubo-color-primary-light-9: #ecf5ff;
+  --kubo-color-primary-dark-2: #337ecc;
+
+  /* ── 映射到 Element Plus：EP 组件（按钮/链接/开关…）与 var(--el-*) 消费方同源 ── */
+  --el-color-primary: var(--kubo-color-primary);
+  --el-color-primary-light-3: var(--kubo-color-primary-light-3);
+  --el-color-primary-light-5: var(--kubo-color-primary-light-5);
+  --el-color-primary-light-7: var(--kubo-color-primary-light-7);
+  --el-color-primary-light-8: var(--kubo-color-primary-light-8);
+  --el-color-primary-light-9: var(--kubo-color-primary-light-9);
+  --el-color-primary-dark-2: var(--kubo-color-primary-dark-2);
+
+  /* ── 圆角 / 阴影 / 间距 / 动效（语义 token，业务组件从这里取值） ── */
+  --kubo-radius-sm: 6px;
+  --kubo-radius-base: 10px;
+  --kubo-radius-lg: 14px;
+
+  --kubo-shadow-sm: 0 1px 3px rgb(0 0 0 / 6%), 0 1px 2px rgb(0 0 0 / 4%);
+  --kubo-shadow-base: 0 4px 12px rgb(0 0 0 / 8%);
+  --kubo-shadow-lg: 0 8px 24px rgb(0 0 0 / 12%);
+
+  --kubo-spacing-1: 4px;
+  --kubo-spacing-2: 8px;
+  --kubo-spacing-3: 12px;
+  --kubo-spacing-4: 16px;
+  --kubo-spacing-5: 24px;
+  --kubo-spacing-6: 32px;
+
+  /* ── 动效时长 / 缓动（合成器友好：只用于 transform/opacity） ── */
+  --kubo-duration-fast: 120ms;
+  --kubo-duration-base: 200ms;
+  --kubo-duration-slow: 320ms;
+  --kubo-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --kubo-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ── 字体 ── */
+  --kubo-font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+
+  /* ── 骨架屏 shimmer 高光（浅色下用较亮白，深色下见 html.dark 覆盖） ── */
+  --kubo-skeleton-highlight: rgb(255 255 255 / 60%);
+}
+
+/**
+ * 暗色模式（V2）：`html.dark` 由 `useThemeStore` 切换。
+ *
+ * EP 官方 `theme-chalk/dark/css-vars.css` 已在 main.ts 引入，负责 `--el-bg-color` /
+ * `--el-text-color-*` / `--el-border-color-*` 等结构色；这里只补：
+ * 1. 品牌主色在暗色背景下的对比度微调（暗色下 light-3 更亮、dark-2 用于 active）；
+ * 2. `--kubo-*` 语义 token 的暗色映射。
+ */
+html.dark {
+  /* 暗色下主色微调：加深主色、提亮浅色阶，保证文字/背景对比度 ≥ WCAG AA */
+  --kubo-color-primary-light-7: #3a5a80;
+  --kubo-color-primary-light-8: #2b3f57;
+  --kubo-color-primary-light-9: #1f2d3d;
+
+  --el-color-primary-light-7: var(--kubo-color-primary-light-7);
+  --el-color-primary-light-8: var(--kubo-color-primary-light-8);
+  --el-color-primary-light-9: var(--kubo-color-primary-light-9);
+
+  /* 阴影在暗色下更弱，避免糊成一片 */
+  --kubo-shadow-sm: 0 1px 3px rgb(0 0 0 / 40%);
+  --kubo-shadow-base: 0 4px 12px rgb(0 0 0 / 45%);
+  --kubo-shadow-lg: 0 8px 24px rgb(0 0 0 / 55%);
+
+  /* 骨架/占位等中性底色改为暗色系，避免硬编码浅灰在暗色下刺眼 */
+  --kubo-color-muted-bg: #262727;
+  --kubo-color-muted-border: #4c4d4f;
+
+  /* 暗色下 shimmer 高光更弱，避免大面积白闪 */
+  --kubo-skeleton-highlight: rgb(255 255 255 / 8%);
+}
+
+:root {
+  --kubo-color-muted-bg: #f5f7fa;
+  --kubo-color-muted-border: #e4e7ed;
+}

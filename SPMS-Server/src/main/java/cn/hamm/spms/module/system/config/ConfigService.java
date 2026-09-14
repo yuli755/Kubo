@@ -48,6 +48,19 @@ public class ConfigService extends BaseService<ConfigEntity, ConfigRepository> {
         return configuration;
     }
 
+    /**
+     * 根据配置标识获取配置信息（不存在时返回 {@code null}，不抛错）。
+     *
+     * <p>供功能开关/灰度等「配置可缺失、缺失时走默认值」的场景使用（见
+     * {@link cn.hamm.spms.common.feature.FeatureFlagService}）。</p>
+     *
+     * @param flag 配置标识
+     * @return 配置信息，或 {@code null}
+     */
+    public final ConfigEntity getOrNull(@NotNull String flag) {
+        return repository.getByFlag(flag);
+    }
+
     @Override
     protected void beforeDelete(@NotNull ConfigEntity config) {
         FORBIDDEN_DELETE.when(config.getIsSystem(), "系统内置配置无法被删除!");

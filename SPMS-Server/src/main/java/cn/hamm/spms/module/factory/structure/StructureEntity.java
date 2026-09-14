@@ -2,10 +2,11 @@ package cn.hamm.spms.module.factory.structure;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Dictionary;
+import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.airpower.core.annotation.Meta;
 import cn.hamm.airpower.core.interfaces.ITree;
 import cn.hamm.airpower.curd.annotation.Search;
-import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.factory.structure.enums.StructureType;
 import cn.hamm.spms.module.mes.operation.OperationEntity;
@@ -36,11 +37,12 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.StructureC
 @DynamicUpdate
 @Table(name = "structure")
 @Description("生产单元")
-public class StructureEntity extends BaseEntity<StructureEntity> implements ITree<StructureEntity> {
+public class StructureEntity extends TenantAwareEntity<StructureEntity> implements ITree<StructureEntity> {
     @Description("生产单元编码")
     @Column(columnDefinition = "varchar(255) default '' comment '生产单元编码'", unique = true)
     @AutoGenerateCode(StructureCode)
     @Meta
+    @Export
     private String code;
 
     @Description("名称")
@@ -49,11 +51,13 @@ public class StructureEntity extends BaseEntity<StructureEntity> implements ITre
     @Length(max = 200, message = "名称最多允许{max}个字符")
     @NotBlank(groups = {WhenUpdate.class, WhenAdd.class}, message = "名称不能为空")
     @Meta
+    @Export
     private String name;
 
     @Description("生产单元类型")
     @Column(columnDefinition = "bigint UNSIGNED default 1 comment '生产单元类型'")
     @Dictionary(value = StructureType.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer type;
 
     @Description("父级 ID")

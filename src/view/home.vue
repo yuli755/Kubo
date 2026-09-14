@@ -1,8 +1,8 @@
 <script lang="ts" setup>
-import { RouterUtil } from '@airpower/web'
 import { Avatar, Collection, OfficeBuilding, User } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
 import { authApi } from '@/api/system'
+import { getRouter } from '@/router/appRouter'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
@@ -75,7 +75,11 @@ async function init() {
  * ### 跳转到控制台
  */
 function goConsole() {
-  RouterUtil.router.push('/console')
+  getRouter().push('/console')
+}
+
+function goPath(path: string) {
+  getRouter().push(path)
 }
 
 onMounted(init)
@@ -123,7 +127,7 @@ onMounted(init)
           v-for="item in entries"
           :key="item.title"
           class="card"
-          @click="RouterUtil.router.push(item.path)"
+          @click="goPath(item.path)"
         >
           <el-icon :size="32">
             <component :is="item.icon" />
@@ -192,9 +196,9 @@ onMounted(init)
     .card {
       padding: 28px 20px;
       border-radius: 12px;
-      background: #fff;
+      background: var(--el-bg-color);
       box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-      border: 1px solid #ebeef5;
+      border: 1px solid var(--el-border-color);
       cursor: pointer;
       transition: all 0.3s;
       display: flex;
@@ -209,13 +213,13 @@ onMounted(init)
       .card-title {
         font-size: 16px;
         font-weight: 600;
-        color: #303133;
+        color: var(--el-text-color-primary);
         margin-top: 14px;
       }
 
       .card-desc {
         font-size: 13px;
-        color: #909399;
+        color: var(--el-text-color-secondary);
         margin-top: 6px;
       }
     }

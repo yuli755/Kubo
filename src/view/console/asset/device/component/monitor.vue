@@ -9,6 +9,7 @@ import { AlarmStatusEnum } from '@/model/asset/device/AlarmStatusEnum'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
 import { DeviceStatusEnum } from '@/model/asset/device/DeviceStatusEnum'
 import { CollectionDefault } from '@/model/iot/collection/CollectionDefault'
+import { reportError } from '@/utils/errorHandler'
 import { ParameterEditor } from '@/view/console/iot/parameter/component'
 import DeviceCollectHistory from './history.vue'
 
@@ -18,25 +19,37 @@ const formData = ref(props.param.copy())
 
 const monitorList = ref<CollectionEntity[]>([])
 
+/** 采集端 API-Key：懒加载并缓存，供实时监控与历史查询随请求提交 */
+const apiKey = ref('')
+
 async function getDetail() {
   try {
     formData.value = await DeviceService.create().getDetail(props.param.id)
   }
   catch (error) {
-    console.error('获取设备详情失败:', error)
+    reportError(error, 'device-detail')
   }
+}
+
+async function ensureApiKey() {
+  if (!apiKey.value) {
+    apiKey.value = await DeviceService.create().getApiKey(props.param.id)
+  }
+  return apiKey.value
 }
 
 async function getCurrentReport() {
   try {
+    // 采集端读出口需携带设备 API-Key；首次轮询前懒加载一次
+    const key = await ensureApiKey()
     // polling 在下方定义；回调只在挂载后执行，不存在 TDZ 问题
-    monitorList.value = await DeviceService.create().getCurrentReport(props.param.id)
+    monitorList.value = await DeviceService.create().getCurrentReport(props.param.id, key)
     // polling 在下方 usePolling(...) 创建；回调只在挂载后执行，无 TDZ 风险
     // eslint-disable-next-line ts/no-use-before-define
     polling.markSuccess()
   }
   catch (error) {
-    console.error('获取设备实时数据失败:', error)
+    reportError(error, 'device-realtime')
     // polling 在下方 usePolling(...) 创建；回调只在挂载后执行，无 TDZ 风险
     // eslint-disable-next-line ts/no-use-before-define
     polling.markFail()
@@ -85,6 +98,7 @@ function addParameter() {
 
 async function showHistory(item: CollectionEntity) {
   item.uuid = props.param.uuid
+  item.apiKey = await ensureApiKey()
   polling.pause()
   try {
     await DialogUtil.show(DeviceCollectHistory, item)
@@ -168,7 +182,7 @@ async function showHistory(item: CollectionEntity) {
       cursor: pointer;
       transition: all 0.3s;
       margin: 5px;
-      background-color: #f5f5f5;
+      background-color: var(--kubo-color-muted-bg);
       border-radius: 10px;
       padding: 20px;
       height: 80px;
@@ -184,7 +198,7 @@ async function showHistory(item: CollectionEntity) {
         }
 
         .code {
-          color: #999;
+          color: var(--el-text-color-secondary);
           font-size: 14px;
         }
       }

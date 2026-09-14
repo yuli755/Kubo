@@ -73,11 +73,19 @@ public class InfluxHelper {
     private @Nullable WriteApiBlocking getWriteApi() {
         try {
             initInfluxDbClient();
+            // S2：未配置 InfluxDB（空令牌）时 initInfluxDbClient 不建连，client 保持 null；
+            // 这里必须判空，否则下方 setLogLevel 对 null 调方法会 NPE（与「静默禁用」相矛盾）。
+            if (Objects.isNull(influxDbClient)) {
+                return null;
+            }
             influxDbClient.setLogLevel(LogLevel.NONE);
             return influxDbClient.getWriteApiBlocking();
         } catch (Exception ignored) {
-            influxDbClient.close();
-            influxDbClient = null;
+            // 建连/写点失败时关闭并置空，下次重新初始化；同样要判空，避免对 null 调用 close 二次 NPE
+            if (Objects.nonNull(influxDbClient)) {
+                influxDbClient.close();
+                influxDbClient = null;
+            }
         }
         return null;
     }
@@ -136,11 +144,14 @@ public class InfluxHelper {
      */
     private @NotNull List<ReportInfluxPayload> query(ReportPayload reportPayload, ReportDataType reportDataType, ReportGranularity reportGranularity) {
         initInfluxDbClient();
+        if (influxDbClient == null) {
+            // S2：未配置 InfluxDB（空令牌）时静默返回空结果，不报错
+            return new ArrayList<>();
+        }
         influxDbClient.setLogLevel(LogLevel.BASIC);
         List<ReportInfluxPayload> result = new ArrayList<>();
         QueryApi queryApi = influxDbClient.getQueryApi();
         List<String> queryParams = getFluxQuery(reportPayload, reportDataType, reportGranularity);
-        System.out.println(String.join(INFLUX_SQL_SPLIT, queryParams));
         List<FluxTable> tables = queryApi.query(String.join(INFLUX_SQL_SPLIT, queryParams));
         for (FluxTable table : tables) {
             for (FluxRecord record : table.getRecords()) {
@@ -171,10 +182,16 @@ public class InfluxHelper {
 
     /**
      * 初始化 InfluxDB
+     *
+     * <p><b>安全（S2）</b>：令牌为空时视为「未配置」，不建立连接（上报/查询静默禁用），
+     * 避免空令牌强行建连抛异常污染日志。</p>
      */
     private void initInfluxDbClient() {
         if (Objects.isNull(influxDbClient)) {
             InfluxConfig influxConfig = Configs.getInfluxConfig();
+            if (influxConfig == null || influxConfig.getToken() == null || influxConfig.getToken().isBlank()) {
+                return;
+            }
             influxDbClient = InfluxDBClientFactory.create(
                     influxConfig.getUrl(),
                     influxConfig.getToken().toCharArray(),

@@ -119,20 +119,20 @@ init()
 
       .item {
         padding: 10px;
-        background-color: #f5f5f5;
+        background-color: var(--kubo-color-muted-bg);
         margin: 5px 0;
         border-radius: 10px;
         position: relative;
 
         .token {
-          color: #999;
+          color: var(--el-text-color-secondary);
           font-size: 14px;
           margin-top: 5px;
         }
 
         .create-time,
         .status {
-          color: #999;
+          color: var(--el-text-color-secondary);
           font-size: 12px;
         }
 

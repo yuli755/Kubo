@@ -42,6 +42,11 @@ public class ReportPayload extends RootModel<ReportPayload> implements IReportPa
     private String uuid;
 
     /**
+     * 设备采集端 API-Key（仅历史查询出口使用，写端可入、读端不回显）
+     */
+    private String apiKey;
+
+    /**
      * 颗粒度不允许为空
      */
     @NotNull(groups = {WhenGetDevicePayloadHistory.class}, message = "颗粒度不允许为空")

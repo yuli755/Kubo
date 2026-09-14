@@ -2,7 +2,7 @@ package cn.hamm.spms.module.personnel.role;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Meta;
-import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.system.menu.MenuEntity;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
@@ -31,7 +31,7 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.RoleCode;
 @DynamicUpdate
 @Table(name = "role")
 @Description("角色")
-public class RoleEntity extends BaseEntity<RoleEntity> implements IRoleAction {
+public class RoleEntity extends TenantAwareEntity<RoleEntity> implements IRoleAction {
     @Description("角色名称")
     @Column(columnDefinition = "varchar(255) default '' comment '角色名称'", unique = true)
     @NotBlank(groups = {WhenUpdate.class, WhenAdd.class}, message = "角色名称不能为空")

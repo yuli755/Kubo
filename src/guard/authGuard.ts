@@ -5,7 +5,7 @@ import { useUserStore } from '@/stores/user'
  * # 认证路由守卫
  *
  * 检查用户是否已登录，未登录则重定向到 /login。
- * 配合 @airpower/web 的 RouterUtil 路由系统共存。
+ * 与 `@/router/appRouter`（vue-router 原生，复刻原 airpower RouterUtil）的路由系统共存。
  *
  * ## 检查逻辑
  * 1. 路由标记 `meta.guest` = true（如登录页）→ 直接放行

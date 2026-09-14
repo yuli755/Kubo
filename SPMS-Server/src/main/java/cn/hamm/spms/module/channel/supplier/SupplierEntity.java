@@ -1,10 +1,11 @@
 package cn.hamm.spms.module.channel.supplier;
 
 import cn.hamm.airpower.core.annotation.Description;
+import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.airpower.core.annotation.Meta;
 import cn.hamm.airpower.core.annotation.Phone;
 import cn.hamm.airpower.curd.annotation.Search;
-import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -31,12 +32,13 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.SupplierCo
 @DynamicUpdate
 @Table(name = "supplier")
 @Description("供应商")
-public class SupplierEntity extends BaseEntity<SupplierEntity> {
+public class SupplierEntity extends TenantAwareEntity<SupplierEntity> {
     @Description("供应商名称")
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "供应商名称不能为空")
     @Column(columnDefinition = "varchar(255) default '' comment '供应商名称'")
     @Search
     @Meta
+    @Export
     private String name;
 
     @Description("供应商编码")
@@ -44,10 +46,12 @@ public class SupplierEntity extends BaseEntity<SupplierEntity> {
     @AutoGenerateCode(SupplierCode)
     @Search
     @Meta
+    @Export
     private String code;
 
     @Description("联系电话")
     @Column(columnDefinition = "varchar(255) default '' comment '联系电话'")
     @Phone(groups = {WhenAdd.class, WhenUpdate.class})
+    @Export
     private String phone;
 }

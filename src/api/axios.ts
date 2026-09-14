@@ -3,6 +3,12 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 
+// 链路追踪（可观测性 P1）：与后端 airpower 的 HttpConstant.Header.TRACE_ID 对齐 —— airpower 的
+// CurdRequestInterceptor 读此头写入 MDC X-Trace-ID（logback 打印 TRACE_ID=...），CurdResponseInterceptor
+// 按 bodyTraceId 把同一 traceId 回写到响应。前端生成并发送，即可把「一次用户操作」关联到后端日志。
+// ⚠️ 头名字符串待与 airpower jar 的 HttpConstant 核对（发错头名不影响功能，只是链路不通）。
+const TRACE_ID_HEADER = 'X-Trace-Id'
+
 // 请求配置接口
 export interface RequestConfig extends AxiosRequestConfig {
   /** 是否显示错误提示 */
@@ -22,6 +28,8 @@ export interface ApiError {
   data?: unknown
   timestamp: string
   path: string
+  /** 本次请求的 traceId（关联后端日志用） */
+  traceId?: string
 }
 
 // 统一响应格式
@@ -61,13 +69,21 @@ function createAxiosInstance(): AxiosInstance {
       }
 
       // 添加幂等键 (POST/PUT/PATCH 请求)
+      // 后端 OpenApiConfig 已把它声明为 Idempotency-Key security scheme（外部 API 契约的一部分）。
       if (config.method && ['post', 'put', 'patch'].includes(config.method.toLowerCase())) {
         const idempotentKey = crypto.randomUUID()
         config.headers['Idempotency-Key'] = idempotentKey
       }
 
-      // 添加请求时间戳 (用于防重放攻击)
+      // 请求时间戳：仅作服务端观测/审计预留。注意它**不构成防重放防护**——后端当前不校验此值，
+      // 攻击者直接构造请求即可绕过；真正的防重放需后端配合（时间窗口校验 + 幂等去重），前端加 header 无防护意义。
       config.headers['X-Request-Time'] = Date.now().toString()
+
+      // 链路追踪：生成 traceId 发头，后端读入 MDC 后可在日志里关联本次请求；
+      // 同时挂到 config，供响应错误分支回填（网络错误无响应体，只能靠请求侧的值）。
+      const traceId = crypto.randomUUID()
+      config.headers[TRACE_ID_HEADER] = traceId
+      ;(config as InternalAxiosRequestConfig & { traceId?: string }).traceId = traceId
 
       return config
     },
@@ -99,6 +115,8 @@ function createAxiosInstance(): AxiosInstance {
           data: res.data,
           timestamp: res.timestamp || new Date().toISOString(),
           path: response.config.url || '',
+          // airpower bodyTraceId=true 时响应 body 带 traceId，回填以便关联后端日志
+          traceId: (res as { traceId?: string }).traceId,
         }
 
         return Promise.reject(error)
@@ -107,13 +125,16 @@ function createAxiosInstance(): AxiosInstance {
       return response.data
     },
     async (error: AxiosError<ApiError>) => {
-      const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
+      const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean, traceId?: string }
 
       // 网络错误或超时
       if (!error.response) {
         const message = error.code === 'ECONNABORTED' ? '请求超时' : '网络连接失败'
         ElMessage.error(message)
-        return Promise.reject(new Error(message))
+        const networkError = new Error(message) as Error & { traceId?: string }
+        // 网络错误无响应体，只能用请求侧生成的 traceId
+        networkError.traceId = originalRequest?.traceId
+        return Promise.reject(networkError)
       }
 
       const { status, data } = error.response
@@ -171,6 +192,9 @@ function createAxiosInstance(): AxiosInstance {
         data: data?.data,
         timestamp: data?.timestamp || new Date().toISOString(),
         path: originalRequest?.url || '',
+        // 优先用后端回传的 traceId（响应 body/header），回退到请求侧生成的值
+        traceId: data?.traceId || error.response?.headers?.[TRACE_ID_HEADER.toLowerCase()]
+          || (originalRequest as InternalAxiosRequestConfig & { traceId?: string }).traceId,
       }))
     },
   )
@@ -181,26 +205,32 @@ function createAxiosInstance(): AxiosInstance {
 // 导出单例实例
 export const request = createAxiosInstance()
 
+// 响应拦截器已把统一响应格式解包为 `res.data`，因此把 axios 的响应类型收窄为数据类型的工具。
+// （axios 1.20 起 `get/post/...` 默认返回 `Promise<AxiosResponse<T>>`，而本项目实际返回的是 data。）
+function unwrapData<T>(promise: Promise<unknown>): Promise<T> {
+  return promise as Promise<T>
+}
+
 // 封装常用请求方法
 export const api = {
   get<T = unknown>(url: string, params?: Record<string, unknown>, config?: RequestConfig): Promise<T> {
-    return request.get(url, { params, ...config })
+    return unwrapData<T>(request.get(url, { params, ...config }))
   },
 
   post<T = unknown>(url: string, data?: unknown, config?: RequestConfig): Promise<T> {
-    return request.post(url, data, config)
+    return unwrapData<T>(request.post(url, data, config))
   },
 
   put<T = unknown>(url: string, data?: unknown, config?: RequestConfig): Promise<T> {
-    return request.put(url, data, config)
+    return unwrapData<T>(request.put(url, data, config))
   },
 
   patch<T = unknown>(url: string, data?: unknown, config?: RequestConfig): Promise<T> {
-    return request.patch(url, data, config)
+    return unwrapData<T>(request.patch(url, data, config))
   },
 
   delete<T = unknown>(url: string, params?: Record<string, unknown>, config?: RequestConfig): Promise<T> {
-    return request.delete(url, { params, ...config })
+    return unwrapData<T>(request.delete(url, { params, ...config }))
   },
 
   // 文件上传
@@ -208,7 +238,7 @@ export const api = {
     const formData = new FormData()
     formData.append('file', file)
 
-    return request.post(url, formData, {
+    return unwrapData<T>(request.post(url, formData, {
       ...config,
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -218,7 +248,7 @@ export const api = {
           onProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total))
         }
       },
-    })
+    }))
   },
 
   // 文件下载

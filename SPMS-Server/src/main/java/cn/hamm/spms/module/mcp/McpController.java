@@ -24,7 +24,6 @@ import static cn.hamm.airpower.exception.Errors.PARAM_MISSING;
  *
  * @author Hamm.cn
  */
-@Permission(login = false)
 @Api("mcp")
 @Slf4j
 public class McpController extends ApiController {
@@ -35,6 +34,7 @@ public class McpController extends ApiController {
     private RequestInterceptor requestInterceptor;
 
     @PostMapping("")
+    @Permission(login = false)
     public McpResponse messages(HttpServletRequest request, @RequestBody McpRequest mcpRequest) {
         try {
             String accessToken = request.getParameter("token");
@@ -52,6 +52,7 @@ public class McpController extends ApiController {
 
     @PostMapping("getMcpTools")
     @Description("获取 MCP 工具列表")
+    @Permission(authorize = false)
     public Json messages() {
         return Json.data(McpService.tools);
     }

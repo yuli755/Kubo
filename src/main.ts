@@ -1,9 +1,7 @@
-import { RouterUtil, WebConfig } from '@airpower/web'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import { ElLoading } from 'element-plus'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { createPinia } from 'pinia'
-import { createApp, version } from 'vue'
+import { createApp } from 'vue'
 import App from '@/App.vue'
 import { routes } from '@/config/routes'
 import { directives } from '@/directives'
@@ -11,30 +9,44 @@ import { initAuthGuard } from '@/guard/authGuard'
 import { initPermissionGuard } from '@/guard/permissionGuard'
 import { registerPWA } from '@/pwa/registerSW'
 import { queryClient } from '@/query/queryClient'
+import { createAppRouter } from '@/router/appRouter'
 import { createPersistPlugin } from '@/stores/persist'
-import '@airpower/web/dist/web.css'
+import { useThemeStore } from '@/stores/theme'
+import { installGlobalErrorHandler, setErrorReporter } from '@/utils/errorHandler'
+import { reportErrorToServer } from '@/utils/errorReportClient'
+import { installRouterErrorHandler } from '@/utils/routerErrorHandler'
+// airpower 的 WebConfig 配置 + web.css 已移至 src/config/airpower-bootstrap.ts，
+// 随业务页（Console.vue 懒加载）初始化，避免首屏加载 airpower 单体（107 KB）。
+// V1+V2：设计 token 层 + Element Plus 暗色变量（顺序敏感，必须在本文件其它样式之后引入）
+import '@/styles/index.scss'
 
 // element-plus 命令式 API 与指令的样式需显式引入（按需导入下 resolver 不会注入它们）：
-// ElMessage / ElMessageBox / ElNotification 函数式调用 + v-loading 指令
+// ElMessage / ElMessageBox 函数式调用 + v-loading 指令（ElNotification 项目未使用，不引入）
 import 'element-plus/es/components/message/style/css'
 import 'element-plus/es/components/message-box/style/css'
 import 'element-plus/es/components/loading/style/css'
-import 'element-plus/es/components/notification/style/css'
-
-WebConfig.elementPlusLocale = zhCn
-WebConfig.appKey = 'kubo'
-WebConfig.product = 'Kubo'
-WebConfig.uploadUrl = '/api/file/upload'
-WebConfig.staticUrl = '/static/'
 
 const app = createApp(App)
+
+// P1：全局错误兜底（未捕获异常落日志 + 预留上报钩子），在挂载前注册
+installGlobalErrorHandler(app)
+// 生产可观测性闭环：把错误上报钩子接到后端（限流+脱敏+落结构化日志），
+// 失败静默 + 去重，见 src/utils/errorReportClient.ts
+setErrorReporter(reportErrorToServer)
 
 const pinia = createPinia()
 pinia.use(createPersistPlugin())
 
 app.use(pinia)
 
-const router = RouterUtil.createRouter(routes)
+// V2：挂载前应用主题偏好，确保首帧渲染就带正确的 html.dark（避免浅色闪烁）
+useThemeStore()
+
+const router = createAppRouter(routes)
+
+// 路由级错误兜底：懒加载 chunk 加载失败（发版时新旧 bundle 不匹配）走 router.onError、
+// 不经过 ErrorBoundary 的 onErrorCaptured；此处上报 + 刷新恢复，补上「导航侧」这条腿
+installRouterErrorHandler(router)
 
 // 注册路由守卫（顺序：先认证 → 再权限）
 initAuthGuard(router)
@@ -56,5 +68,3 @@ app.mount('#app')
 
 // PWA: 注册 Service Worker（仅 production 环境生效）
 registerPWA()
-
-console.warn(`Vue Version: ${version}`)

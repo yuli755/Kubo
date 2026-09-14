@@ -1,15 +1,19 @@
 <script lang="ts" setup>
 import type { MenuEntity } from '@/model/system/menu/MenuEntity'
-import { AFrame, RouterUtil } from '@airpower/web'
+import { AFrame } from '@airpower/web'
 import { onErrorCaptured, ref } from 'vue'
 import { authApi } from '@/api/system'
 import TenantSwitcher from '@/component/TenantSwitcher.vue'
+import ThemeSwitcher from '@/component/ThemeSwitcher.vue'
 import UserCard from '@/component/UserCard.vue'
 import { UserEntity } from '@/model/personnel/user/UserEntity'
 import { UserService } from '@/model/personnel/user/UserService'
+import { getRouter, initVueRouter, reloadCurrentRoute } from '@/router/appRouter'
 import { usePermissionStore } from '@/stores/permission'
 import { useUserStore } from '@/stores/user'
+import { reportError } from '@/utils/errorHandler'
 import { webSocketManager } from '@/websocket/WebSocketManager'
+import '@/config/airpower-bootstrap'
 
 const components = import.meta.glob('/src/view/**/*.vue')
 const currentUserInfo = ref(new UserEntity())
@@ -22,7 +26,7 @@ const tenantReady = ref(false)
 const userStore = useUserStore()
 
 onErrorCaptured((error) => {
-  console.error('子组件渲染错误:', error)
+  reportError(error, 'console-render')
   loadError.value = true
   errorTitle.value = '页面渲染异常'
   errorMessage.value = error instanceof Error ? error.message : '页面渲染异常，请刷新或重试'
@@ -41,8 +45,8 @@ function applyMenuPermissions(menus: MenuEntity[]): MenuEntity[] {
 
 async function getMenuList() {
   menuList.value = applyMenuPermissions(await UserService.create(isLoading).getMyMenuList())
-  RouterUtil.initVueRouter(menuList.value, components, '/src/view', 'console')
-  await RouterUtil.reloadCurrentRoute()
+  initVueRouter(menuList.value, components, '/src/view', 'console')
+  await reloadCurrentRoute()
 }
 
 async function init() {
@@ -61,7 +65,7 @@ async function init() {
     webSocketManager.connect()
   }
   catch (error) {
-    console.error('初始化控制台失败:', error)
+    reportError(error, 'console-init')
     loadError.value = true
     errorTitle.value = '控制台初始化失败'
     errorMessage.value = error instanceof Error ? error.message : '菜单或权限加载失败，请重试'
@@ -80,7 +84,7 @@ async function retryInit() {
 }
 
 function backToHome() {
-  RouterUtil.router.push('/home')
+  getRouter().push('/home')
 }
 
 init()
@@ -122,6 +126,7 @@ init()
   >
     <template #logo>
       <img
+        alt="Kubo"
         class="logo"
         height="40"
         src="@/assets/img/logo.svg"
@@ -130,10 +135,19 @@ init()
     <template #user>
       <div class="header-actions">
         <TenantSwitcher />
+        <ThemeSwitcher />
         <UserCard :user="currentUserInfo" />
       </div>
     </template>
-    <router-view />
+    <!-- V3：路由过渡（淡入 + 轻微上移，只动 opacity/transform，合成器友好） -->
+    <router-view v-slot="{ Component }">
+      <Transition
+        name="fade-slide"
+        mode="out-in"
+      >
+        <component :is="Component" />
+      </Transition>
+    </router-view>
   </AFrame>
 </template>
 
@@ -159,5 +173,31 @@ init()
   text-decoration: none;
   color: white;
   margin-top: 5px;
+}
+
+/* V3：路由过渡（只动 opacity/transform） */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition:
+    opacity var(--kubo-duration-base) var(--kubo-ease-out),
+    transform var(--kubo-duration-base) var(--kubo-ease-out);
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* V8：用户偏好减少动效时关闭路由过渡 */
+@media (prefers-reduced-motion: reduce) {
+  .fade-slide-enter-active,
+  .fade-slide-leave-active {
+    transition: none;
+  }
 }
 </style>

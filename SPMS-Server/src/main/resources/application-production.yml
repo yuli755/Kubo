@@ -1,4 +1,33 @@
+# 可靠性加固（P1）：优雅停机。k8s 滚动更新 / 负载均衡摘流时，让在途请求处理完再下线，
+# 避免连接被粗暴切断（表现为 5xx / 半提交事务）。
+server:
+  shutdown: graceful
+
+# 可观测性加固（P1）：生产关闭 Spring 内部 debug（application.yml 里 beans/context 是 debug，
+# 会打进生产的噪音 + 性能开销 + 内部实现信息）。
+logging:
+  level:
+    org.springframework.beans: info
+    org.springframework.context: info
+
+# 可靠性加固（P1）：健康检查显式声明。默认只暴露 health，这里显式收紧为 health,info，
+# 并启用 readiness/liveness 探针（k8s 探针的刚需），敏感端点（env/beans/configprops）保持默认关闭。
+# 可观测性（§7.2）：追加 prometheus，暴露 /actuator/prometheus 供 Prometheus 抓取 JVM/HTTP/HikariCP
+# 指标（依赖 pom 的 micrometer-registry-prometheus；不引入该依赖时此端点不存在，不会报错）。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 spring:
+  lifecycle:
+    # 优雅停机每阶段最长等待（配合 server.shutdown: graceful）
+    timeout-per-shutdown-phase: 30s
   jpa:
     show-sql: false
     hibernate:
@@ -7,14 +36,24 @@ spring:
       # 被 Hibernate 静默改表掩盖掉（tenant_id 加列后尤其危险）。
       ddl-auto: validate
   datasource:
+    # S3：生产凭据外置为环境变量，不再把明文 kubo/kubo 提交进仓库。
+    # useSSL=false 仅适用于可信内网/k8s 集群内部通信；若 DB 走公网必须改 true 并配 CA。
     url: 'jdbc:mysql://kubo-mysql:3306/kubo?allowPublicKeyRetrieval=true&serverTimezone=UTC&useUnicode=true&characterEncoding=utf8&useSSL=false'
-    username: kubo
-    password: kubo
+    username: '${DB_USERNAME:kubo}'
+    password: '${DB_PASSWORD:kubo}'
   data:
     redis:
       host: kubo-redis
       port: 6379
       database: 5
+airpower:
+  api:
+    # P3：生产关闭请求/响应包体日志。airpower 的 request-log/response-log 会把完整请求/响应
+    # body 打印到日志（登录密码、token、客户 PII、查询结果），是 PII 泄露面 + 无谓日志 I/O。
+    # 排障改用 traceId（airpower 默认 bodyTraceId: true，响应体带 traceId 可关联）。
+    request-log: false
+    response-log: false
+
 app:
   upload-platform: local
   login-url: 'https://kubo.hamm.cn/login'
@@ -22,7 +61,8 @@ app:
 # SpringDoc OpenAPI 3 生产环境配置
 springdoc:
   api-docs:
-    enabled: true
+    # S3：生产不暴露 OpenAPI schema（接口清单会泄露端点/字段结构，是攻击面测绘的来源）
+    enabled: false
     path: /v3/api-docs
   swagger-ui:
     enabled: false # 生产环境建议关闭 UI

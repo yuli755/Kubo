@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  设备主表读出口。权限条件由 MyBatis-Plus 按 statement ID 追加；参数列表是 @ManyToMany，
+  不在这里 JOIN。parity statement 不使用别名，保证 renderer 使用的物理表限定名与 SQL 一致。
+-->
+<mapper namespace="cn.hamm.spms.module.asset.device.mapper.DeviceMapper">
+
+    <resultMap id="deviceReadMap" type="cn.hamm.spms.module.asset.device.DeviceEntity">
+        <id column="id" property="id"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_disabled" property="isDisabled"/>
+        <result column="is_published" property="isPublished"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="creator_id" property="creatorId"/>
+        <result column="name" property="name"/>
+        <result column="code" property="code"/>
+        <result column="uuid" property="uuid"/>
+        <result column="status" property="status"/>
+        <result column="alarm" property="alarm"/>
+        <result column="part_count" property="partCount"/>
+        <result column="is_reporting" property="isReporting"/>
+        <result column="rate" property="rate"/>
+    </resultMap>
+
+    <sql id="deviceColumns">
+        d.id,
+        d.create_time,
+        d.update_time,
+        d.is_disabled,
+        d.is_published,
+        d.tenant_id,
+        d.creator_id,
+        d.name,
+        d.code,
+        d.uuid,
+        d.status,
+        d.alarm,
+        d.part_count,
+        d.is_reporting,
+        d.rate
+    </sql>
+
+    <sql id="deviceFilter">
+        <if test="filter != null and filter.name != null and filter.name != ''">
+            AND d.name LIKE CONCAT('%', #{filter.name}, '%')
+        </if>
+        <if test="filter != null and filter.uuid != null and filter.uuid != ''">
+            AND d.uuid LIKE CONCAT('%', #{filter.uuid}, '%')
+        </if>
+    </sql>
+
+    <sql id="deviceParityFilter">
+        <if test="filter != null and filter.name != null and filter.name != ''">
+            AND name LIKE CONCAT('%', #{filter.name}, '%')
+        </if>
+        <if test="filter != null and filter.uuid != null and filter.uuid != ''">
+            AND uuid LIKE CONCAT('%', #{filter.uuid}, '%')
+        </if>
+    </sql>
+
+    <select id="selectPageByPermission" resultMap="deviceReadMap">
+        SELECT
+        <include refid="deviceColumns"/>
+        FROM device d
+        <where>
+            <include refid="deviceFilter"/>
+        </where>
+        ORDER BY d.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectDetailByPermission" resultMap="deviceReadMap">
+        SELECT
+        <include refid="deviceColumns"/>
+        FROM device d
+        WHERE d.id = #{id}
+    </select>
+
+    <select id="selectForExport" resultMap="deviceReadMap">
+        SELECT
+        <include refid="deviceColumns"/>
+        FROM device d
+        <where>
+            <include refid="deviceFilter"/>
+        </where>
+        ORDER BY d.id DESC
+    </select>
+
+    <select id="countByPermission" resultType="long">
+        SELECT COUNT(1)
+        FROM device d
+        <where>
+            <include refid="deviceFilter"/>
+        </where>
+    </select>
+
+    <select id="statByPermission" resultType="cn.hamm.spms.base.mapper.ReadStat">
+        SELECT
+            COUNT(1) AS total,
+            COALESCE(SUM(CASE WHEN d.is_published THEN 1 ELSE 0 END), 0) AS published_total
+        FROM device d
+        <where>
+            <include refid="deviceFilter"/>
+        </where>
+    </select>
+
+    <select id="countByPermissionFragment" resultType="long">
+        SELECT COUNT(1) FROM device
+        <where>
+            <include refid="deviceParityFilter"/>
+            <if test="fragment != null and fragment != ''">
+                AND ${fragment}
+            </if>
+        </where>
+    </select>
+
+</mapper>

@@ -1,9 +1,11 @@
 <script lang="ts" setup>
-import { RouterUtil, WebConfig } from '@airpower/web'
-import { ref, watch } from 'vue'
+import { WebConfig } from '@airpower/web'
+import { onScopeDispose, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
 const isLoading = ref(true)
 const isError = ref(false)
+const route = useRoute()
 
 const errorCode = ref(WebConfig.successCode)
 
@@ -22,6 +24,9 @@ const timer = setTimeout(() => {
   errorCode.value = GATEWAY_TIMEOUT
   WebConfig.isTimeout = true
 }, WebConfig.timeout)
+
+// 组件卸载时清理超时计时器：避免用户离开后残留 timer 把全局 WebConfig.isTimeout 置真
+onScopeDispose(() => clearTimeout(timer))
 
 watch(errorCode, () => {
   switch (errorCode.value) {
@@ -51,7 +56,7 @@ watch(errorCode, () => {
 })
 
 function checkErrorCode() {
-  const code = RouterUtil.router.currentRoute.value.path.replace('/', '')
+  const code = route.path.replace('/', '')
   switch (code) {
     case FORBIDDEN.toString():
       clearTimeout(timer)
@@ -105,10 +110,12 @@ checkErrorCode()
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background-color: white;
+  /* V2：走 EP 页面底色变量，深浅色自动适配（不再硬编码 white） */
+  background-color: var(--el-bg-color-page, #f5f7fa);
 
   .box {
     width: 1200px;
+    max-width: 90vw;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -123,12 +130,12 @@ checkErrorCode()
 
     .title {
       font-size: 20px;
-      color: #333;
+      color: var(--el-text-color-primary);
     }
 
     .description {
       font-size: 14px;
-      color: #ccc;
+      color: var(--el-text-color-secondary);
       margin-top: 10px;
 
       a {

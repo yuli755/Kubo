@@ -10,6 +10,7 @@ import cn.hamm.spms.module.chat.member.MemberService;
 import cn.hamm.spms.module.chat.room.RoomEntity;
 import cn.hamm.spms.module.chat.room.RoomService;
 import cn.hamm.spms.module.chat.room.event.MemberTextMessageEvent;
+import cn.hamm.spms.common.security.RateLimitHelper;
 import cn.hamm.spms.module.chat.room.model.RoomJoinRequest;
 import cn.hamm.spms.module.chat.room.model.RoomMemberEvent;
 import cn.hamm.spms.module.personnel.user.UserService;
@@ -56,6 +57,9 @@ public class AppWebSocketHandler extends WebSocketHandler {
 
     @Autowired
     private RoomService roomService;
+
+    @Autowired
+    private RateLimitHelper rateLimitHelper;
 
     /**
      * 房间事件
@@ -104,6 +108,25 @@ public class AppWebSocketHandler extends WebSocketHandler {
         if (Objects.isNull(userId)) {
             return;
         }
+        // ── 输入守卫：类型白名单 + 消息体长度上限 + 每用户发送限流 ─────────────────
+        // 白名单/长度是纯逻辑（WebSocketMessageGuard）；限流复用 RateLimitHelper（Redis 固定窗口，
+        // 不可用时降级放行，与公开端点同口径——只防脚本刷屏、不误伤真人聊天）。
+        if (!WebSocketMessageGuard.isClientEvent(webSocketPayload.getType())) {
+            log.debug("[ws] 丢弃非法/未知事件类型：type={}", webSocketPayload.getType());
+            return;
+        }
+        if (WebSocketMessageGuard.isOversized(webSocketPayload.getData())) {
+            log.warn("[ws] 丢弃超大消息：userId={}，dataLength={}",
+                    userId, webSocketPayload.getData().length());
+            return;
+        }
+        if (!rateLimitHelper.allow(
+                WebSocketMessageGuard.RATE_LIMIT_KEY_PREFIX + userId,
+                WebSocketMessageGuard.MAX_MESSAGES_PER_MINUTE,
+                WebSocketMessageGuard.RATE_LIMIT_WINDOW_SECONDS)) {
+            log.warn("[ws] 发送过快被限流：userId={}", userId);
+            return;
+        }
         switch (getByStringKey(webSocketPayload.getType())) {
             case ROOM_MEMBER_JOIN:
                 RoomJoinRequest joinRequest = Json.parse(webSocketPayload.getData(), RoomJoinRequest.class);
@@ -118,8 +141,9 @@ public class AppWebSocketHandler extends WebSocketHandler {
                 }
                 MemberEntity joinMember = memberService.getMemberWithAutoCreate(userId, room.getId());
                 if (roomService.checkIfNeedPassword(joinMember) &&
-                        !room.getPassword().equalsIgnoreCase(joinRequest.getPassword())) {
-                    // todo 密码不正确
+                        !room.getPassword().equals(joinRequest.getPassword())) {
+                    // 房间需要密码且校验未通过：回退加入失败，不泄露「密码错在哪」。
+                    // 密码比对必须大小写敏感（equals），equalsIgnoreCase 会把 RoomPass/roompass 当同码，削弱口令熵。
                     webSocketPayload = new WebSocketPayload()
                             .setType(ROOM_JOIN_FAIL.getKeyString())
                             .setData("进入房间失败，房间密码错误！");

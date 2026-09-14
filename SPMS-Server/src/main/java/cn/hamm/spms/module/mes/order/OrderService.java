@@ -12,6 +12,7 @@ import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.spms.base.bill.AbstractBaseBillService;
 import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.mes.order.detail.OrderDetailEntity;
 import cn.hamm.spms.module.mes.order.detail.OrderDetailRepository;
@@ -38,12 +39,14 @@ import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
 
@@ -56,6 +59,15 @@ import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
 public class OrderService extends AbstractBaseBillService<OrderEntity, OrderRepository, OrderDetailEntity, OrderDetailService, OrderDetailRepository> {
     private static final int DEFAULT_READ_PAGE_SIZE = 20;
     private static final int MAX_READ_PAGE_SIZE = 200;
+
+    /**
+     * 报工并发锁（Redis 分布式锁）参数。锁按订单（billId）粒度，串行化「加明细 → 读全部明细汇总
+     * → 回写订单完成数」这段非原子读-算-写，避免多端并发报工互相覆盖 finishQuantity（丢更新）。
+     * TTL 兜底防死锁：报工耗时远小于 30s，业务正常时 finally 必释放；即便进程崩溃，锁也会过期自解。
+     */
+    private static final String ORDER_SUBMIT_WORK_LOCK_PREFIX = "order_submit_work_lock_";
+    private static final String ORDER_SUBMIT_WORK_LOCK_VALUE = "1";
+    private static final long ORDER_SUBMIT_WORK_LOCK_TTL_SECONDS = 30;
 
     @Autowired(required = false)
     private OrderMapper orderMapper;
@@ -187,7 +199,7 @@ public class OrderService extends AbstractBaseBillService<OrderEntity, OrderRepo
         List<OrderEntity> rows = orderMapper.selectForExport(filter.getBillCode(), filter.getStatus(), filter.getType());
         List<OrderEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, OrderEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), OrderEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }
@@ -244,36 +256,69 @@ public class OrderService extends AbstractBaseBillService<OrderEntity, OrderRepo
         ConfigEntity config = configService.get(ConfigFlag.ORDER_ENABLE_SUBMIT_WORK);
         FORBIDDEN.when(!config.booleanConfig(), "未开启订单报工模式");
 
-        //todo 需要加锁更新
+        // 报工并发锁：见 ORDER_SUBMIT_WORK_LOCK_* 注释。锁获取失败即拒绝（fail-fast），
+        // 不排队 —— 报工是低频写操作，并发冲突时让客户端重试比把请求线程挂在锁上更合理。
+        String lockKey = ORDER_SUBMIT_WORK_LOCK_PREFIX + orderDetail.getBillId();
+        boolean locked = tryLockSubmitWork(lockKey);
+        FORBIDDEN.when(!locked, "该工单正在报工，请稍后重试");
+        try {
+            // 更新明细数量和状态
+            Double quantity = orderDetail.getQuantity();
+            Double ngQuantity = orderDetail.getNgQuantity();
+            orderDetail.setQuantity(quantity)
+                    .setFinishQuantity(quantity)
+                    .setNgQuantity(ngQuantity)
+                    .setIsFinished(true);
+            OrderDetailService orderDetailService = MesServices.getOrderDetailService();
+            orderDetailService.add(orderDetail);
 
-        // 更新明细数量和状态
-        Double quantity = orderDetail.getQuantity();
-        Double ngQuantity = orderDetail.getNgQuantity();
-        orderDetail.setQuantity(quantity)
-                .setFinishQuantity(quantity)
-                .setNgQuantity(ngQuantity)
-                .setIsFinished(true);
-        OrderDetailService orderDetailService = MesServices.getOrderDetailService();
-        orderDetailService.add(orderDetail);
+            // 更新订单数量
+            OrderEntity order = get(orderDetail.getBillId());
+            List<OrderDetailEntity> details = orderDetailService.getAllByBillId(order.getId());
+            double totalFinishQuantity = 0D;
+            double tatalNgQuantity = 0D;
+            for (OrderDetailEntity detail : details) {
+                totalFinishQuantity = NumberUtil.add(totalFinishQuantity, detail.getFinishQuantity());
+                tatalNgQuantity = NumberUtil.add(tatalNgQuantity, detail.getNgQuantity());
+            }
+            order.setFinishQuantity(totalFinishQuantity)
+                    .setNgQuantity(tatalNgQuantity)
+            ;
+            updateToDatabase(order);
 
-        // 更新订单数量
-        OrderEntity order = get(orderDetail.getBillId());
-        List<OrderDetailEntity> details = orderDetailService.getAllByBillId(order.getId());
-        double totalFinishQuantity = 0D;
-        double tatalNgQuantity = 0D;
-        for (OrderDetailEntity detail : details) {
-            totalFinishQuantity = NumberUtil.add(totalFinishQuantity, detail.getFinishQuantity());
-            tatalNgQuantity = NumberUtil.add(tatalNgQuantity, detail.getNgQuantity());
+            config = configService.get(ConfigFlag.ORDER_AUTO_FINISH);
+            if (config.booleanConfig() && order.getFinishQuantity() >= order.getQuantity()) {
+                setBillDetailsAllFinished(order.getId());
+            }
+        } finally {
+            releaseSubmitWorkLock(lockKey);
         }
-        order.setFinishQuantity(totalFinishQuantity)
-                .setNgQuantity(tatalNgQuantity)
-        ;
-        updateToDatabase(order);
+    }
 
-        config = configService.get(ConfigFlag.ORDER_AUTO_FINISH);
-        if (config.booleanConfig() && order.getFinishQuantity() >= order.getQuantity()) {
-            setBillDetailsAllFinished(order.getId());
+    /**
+     * 尝试获取报工并发锁（Redis SET NX + TTL，Spring Data Redis 标准原语，无需额外依赖）。
+     * Redis 不可用（单机调试未配 Redis）时返回 true 跳过加锁，保持改造前行为 —— 生产 Redis
+     * 是数据权限/缓存的硬依赖，锁必然生效；此分支仅服务本地无 Redis 的调试场景。
+     *
+     * @param lockKey 锁键（按订单粒度）
+     * @return 是否成功获得锁
+     */
+    private boolean tryLockSubmitWork(String lockKey) {
+        RedisTemplate<String, Object> redisTemplate = redisHelper.getRedisTemplate();
+        if (redisTemplate == null) {
+            return true;
         }
+        return Boolean.TRUE.equals(redisTemplate.opsForValue()
+                .setIfAbsent(lockKey, ORDER_SUBMIT_WORK_LOCK_VALUE, ORDER_SUBMIT_WORK_LOCK_TTL_SECONDS, TimeUnit.SECONDS));
+    }
+
+    /**
+     * 释放报工并发锁。delete 不存在键是 no-op，故 Redis 不可用时调用也安全。
+     *
+     * @param lockKey 锁键
+     */
+    private void releaseSubmitWorkLock(String lockKey) {
+        redisHelper.delete(lockKey);
     }
 
     @Override

@@ -9,7 +9,9 @@ import cn.hamm.spms.module.system.datapermission.entity.DataPermissionDenyLogEnt
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionDiffEntity;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionOrmParityEntity;
+import cn.hamm.spms.module.system.datapermission.entity.OperationLogEntity;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDenyLogRepository;
+import cn.hamm.spms.module.system.datapermission.repository.OperationLogRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDiffRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionOrmParityRepository;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
@@ -93,6 +95,13 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
     private final ObjectProvider<DataPermissionDenyLogRepository> denyLogRepositoryProvider;
 
     /**
+     * 通用操作审计仓库（{@code operation_log}）：管理端「谁把哪条记录改成了什么」的取数来源。
+     * 同样是 ObjectProvider —— 表没建 / 最小化测试库没有它时，面板按「取不到」处理，
+     * 不把「查不到记录」伪装成「从没改过」。
+     */
+    private final ObjectProvider<OperationLogRepository> operationLogRepositoryProvider;
+
+    /**
      * 对账探针清单：回答"这个资源进没进换轨范围"。<b>它不参与任何判定</b>，只决定 ORM_PARITY
      * 那一档是"不适用"还是"缺证据"
      */
@@ -107,6 +116,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
                                ObjectProvider<DataPermissionDiffRepository> diffRepositoryProvider,
                                ObjectProvider<DataPermissionOrmParityRepository> parityRepositoryProvider,
                                ObjectProvider<DataPermissionDenyLogRepository> denyLogRepositoryProvider,
+                               ObjectProvider<OperationLogRepository> operationLogRepositoryProvider,
                                ObjectProvider<RowParityRegistry> parityRegistryProvider) {
         this.eventPublisher = eventPublisher;
         this.fieldPolicyProvider = fieldPolicyProvider;
@@ -117,6 +127,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
         this.diffRepositoryProvider = diffRepositoryProvider;
         this.parityRepositoryProvider = parityRepositoryProvider;
         this.denyLogRepositoryProvider = denyLogRepositoryProvider;
+        this.operationLogRepositoryProvider = operationLogRepositoryProvider;
         this.parityRegistryProvider = parityRegistryProvider;
     }
 
@@ -1089,6 +1100,54 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
         for (DataPermissionDenyLogEntity row : rows) {
             items.add(new DenyLogItem(row.getId(), row.getCreateTime(), row.getResourceKey(),
                     row.getReason(), row.getMode(), row.getUserId(), row.getTenantId(), row.getDetail()));
+        }
+        return items;
+    }
+
+    /**
+     * 一条通用操作审计事件（{@code operation_log}）的对外形态。
+     *
+     * <p>与 {@link DenyLogItem} 互补：拒绝事件回答「能不能看/改」，操作审计回答「改没改、改了啥」。
+     * 快照是标量字段的 JSON 文本，不含关系对象 —— 前端只原样回显，不重算任何判定。</p>
+     */
+    public record OperationLogItem(Long id,
+                                   Long createTime,
+                                   String resourceKey,
+                                   String action,
+                                   Long userId,
+                                   Long tenantId,
+                                   Long targetId,
+                                   String targetLabel,
+                                   String beforeSnapshot,
+                                   String afterSnapshot) {
+    }
+
+    /**
+     * 最近的操作审计事件（管理端「事后追认」：谁在何时把哪条记录改成了什么）。
+     *
+     * <p>语义是<em>操作轨迹</em>，不是「策略命中」：{@code action} 只有 CREATE / UPDATE / DELETE，
+     * 快照是标量字段 JSON。表没建 / 取数失败都返回空列表，前端按「取不到」显示，
+     * 不把空结果渲染成「从没改过」。</p>
+     *
+     * @param resourceKey 资源标识；为空则返回全量最近记录
+     * @return 最近最多 200 条（按 id 倒序，即最新在前）
+     */
+    public List<OperationLogItem> operationLogs(String resourceKey) {
+        OperationLogRepository repository = operationLogRepositoryProvider.getIfAvailable();
+        if (repository == null) {
+            return List.of();
+        }
+        List<OperationLogEntity> rows = (resourceKey == null || resourceKey.isBlank())
+                ? repository.findTop200ByOrderByIdDesc()
+                : repository.findTop200ByResourceKeyOrderByIdDesc(resourceKey);
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        List<OperationLogItem> items = new ArrayList<>(rows.size());
+        for (OperationLogEntity row : rows) {
+            items.add(new OperationLogItem(row.getId(), row.getCreateTime(), row.getResourceKey(),
+                    row.getAction(), row.getUserId(), row.getTenantId(), row.getTargetId(),
+                    row.getTargetLabel(), row.getBeforeSnapshot(), row.getAfterSnapshot()));
         }
         return items;
     }

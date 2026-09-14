@@ -63,7 +63,7 @@ pnpm install
 
 ```shell
 # 启动前端开发服务器（后端需先跑在 8080）
-pnpm s
+pnpm dev
 
 # 生产构建
 pnpm build        # 等价于 pnpm production

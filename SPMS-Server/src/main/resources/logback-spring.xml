@@ -18,10 +18,12 @@
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
             <!-- 每天滚动，并按大小分割 -->
             <fileNamePattern>${log.path}/${log.name}.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-            <maxFileSize>1GB</maxFileSize>
-            <maxHistory>1</maxHistory>
-            <!-- 总日志大小最大10GB -->
-            <totalSizeCap>10GB</totalSizeCap>
+            <maxFileSize>256MB</maxFileSize>
+            <!-- P2：排障窗口 1 天偏短（事故常需回溯一周），改为 7 天；单文件与总量随之收紧，
+                 在「排障能力」与「磁盘占用」之间取平衡（生产 P3 已关包体日志，日志量显著下降）。 -->
+            <maxHistory>7</maxHistory>
+            <!-- 总日志大小上限 3GB（原 10GB 对生产磁盘是隐性占用） -->
+            <totalSizeCap>3GB</totalSizeCap>
         </rollingPolicy>
     </appender>
 

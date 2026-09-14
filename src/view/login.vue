@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import { RouterUtil, ValidateUtil } from '@airpower/web'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { authApi } from '@/api/system'
 import Logo from '@/component/login/Logo.vue'
 import ThirdLogin from '@/component/login/ThirdLogin.vue'
@@ -11,8 +11,11 @@ import { UserService } from '@/hook/personnel/useUser'
 import { LoginAction } from '@/model/common/LoginAction'
 import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
 import { useUserStore } from '@/stores/user'
+import { reportError } from '@/utils/errorHandler'
+import { isEmail, isMobilePhone, isNaturalNumber } from '@/utils/validators'
 
 const userStore = useUserStore()
+const route = useRoute()
 
 const { preload } = useRoutePreload()
 
@@ -39,9 +42,9 @@ const user = ref({
   appKey: '',
 })
 
-const appKey = (RouterUtil.router.currentRoute.value.query.appKey || '').toString()
-const scope = (RouterUtil.router.currentRoute.value.query.scope || '').toString()
-const redirectUri = (RouterUtil.router.currentRoute.value.query.redirectUri || '/console').toString()
+const appKey = (route.query.appKey || '').toString()
+const scope = (route.query.scope || '').toString()
+const redirectUri = (route.query.redirectUri || '/console').toString()
 
 const appInfo = ref(new OpenAppEntity())
 
@@ -53,10 +56,10 @@ const isPhoneCodeLoading = ref(false)
 
 // 表单验证
 const isValidCode = computed(() => user.value.code && user.value.code.length === 6)
-const isValidEmail = computed(() => user.value.email && ValidateUtil.isEmail(user.value.email))
-const isValidPhone = computed(() => user.value.phone && ValidateUtil.isMobilePhone(user.value.phone))
+const isValidEmail = computed(() => user.value.email && isEmail(user.value.email))
+const isValidPhone = computed(() => user.value.phone && isMobilePhone(user.value.phone))
 const isValidAccount = computed(
-  () => user.value.email && (ValidateUtil.isEmail(user.value.email) || ValidateUtil.isNaturalNumber(user.value.email)),
+  () => user.value.email && (isEmail(user.value.email) || isNaturalNumber(user.value.email)),
 )
 
 /**
@@ -124,7 +127,7 @@ async function onLogin() {
     await loginRedirect(token)
   }
   catch (error) {
-    console.error('登录失败:', error)
+    reportError(error, 'login')
   }
   finally {
     isLoadingLogin.value = false
@@ -144,7 +147,7 @@ async function onEmailLogin() {
     await loginRedirect(token)
   }
   catch (error) {
-    console.error('邮箱登录失败:', error)
+    reportError(error, 'login-email')
   }
   finally {
     isLoadingLogin.value = false
@@ -164,7 +167,7 @@ async function onPhoneLogin() {
     await loginRedirect(token)
   }
   catch (error) {
-    console.error('手机登录失败:', error)
+    reportError(error, 'login-phone')
   }
   finally {
     isLoadingLogin.value = false
@@ -212,7 +215,7 @@ async function onSendEmailCode() {
     ElMessage.success('邮箱验证码发送成功，请注意查收（请检查垃圾箱）')
   }
   catch (error) {
-    console.error('发送邮箱验证码失败:', error)
+    reportError(error, 'login-send-email-code')
   }
   finally {
     isEmailCodeLoading.value = false
@@ -233,7 +236,7 @@ async function onSendSmsCode() {
     ElMessage.success('短信验证码发送成功，请注意查收')
   }
   catch (error) {
-    console.error('发送短信验证码失败:', error)
+    reportError(error, 'login-send-sms-code')
   }
   finally {
     isPhoneCodeLoading.value = false

@@ -664,7 +664,7 @@ function setCurrent(item?: IJson) {
   display: flex;
   flex-direction: row;
   align-items: center;
-  color: #999;
+  color: var(--el-text-color-secondary);
 
   .el-icon {
     margin-right: 3px;
@@ -673,8 +673,8 @@ function setCurrent(item?: IJson) {
 }
 
 .more-data {
-  background-color: #ccc;
-  color: #333;
+  background-color: var(--kubo-color-muted-border);
+  color: var(--el-text-color-primary);
   font-size: 12px;
   border-radius: 3px;
   padding: 5px 10px;
@@ -700,7 +700,7 @@ function setCurrent(item?: IJson) {
     > div {
       flex: 1;
       font-size: 14px;
-      color: #333;
+      color: var(--el-text-color-primary);
       font-weight: bold;
     }
 

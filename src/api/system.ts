@@ -5,6 +5,7 @@ import type {
   CodeRuleQuery,
   ConfigEntity,
   ConfigQuery,
+  DashboardOverviewItem,
   DataFieldPolicyEntity,
   DataFieldPolicyQuery,
   DataPermissionRuntimeStatus,
@@ -16,6 +17,7 @@ import type {
   MaskPolicy,
   MenuEntity,
   MenuQuery,
+  OperationLogItem,
   OutboxDeadItem,
   PermissionEntity,
   PermissionQuery,
@@ -311,6 +313,19 @@ export const dataResourceApi = {
   },
 
   /**
+   * 最近的操作审计事件（谁在何时把哪条记录改成了什么）。
+   *
+   * 与 `getDenyLogs` 互补且同一权限面（`dataResource`）：都是跨角色的「谁改过 / 谁被拒过」。
+   * 取不到表 / 没有记录时后端返回空数组，调用方要按「取不到 ≠ 从没改过」来处理。
+   *
+   * @param resourceKey 省略则返回全量最近记录（最多 200 条，最新在前）
+   * @returns 操作审计事件列表；无记录 / 表未建时为空数组
+   */
+  getOperationLogs(resourceKey?: string): Promise<OperationLogItem[]> {
+    return request.get('/dataResource/operation-logs', resourceKey ? { params: { resourceKey } } : undefined)
+  },
+
+  /**
    * 权限变更 Outbox 死信列表（P5：连续重投仍失败的变更通知，需人工处置）。
    *
    * 只读，挂在 `dataResource` 管理端点下，后端校验 `system:data-permission:outbox` 身份
@@ -417,5 +432,24 @@ export const dataFieldPolicyApi = {
 
   delete(id: number): Promise<void> {
     return request.post('/dataFieldPolicy/delete', { id })
+  },
+}
+
+// ──────────────────────────────────────────
+// 数据看板 (Dashboard · 业务概况)
+// ──────────────────────────────────────────
+
+export const dashboardApi = {
+  /**
+   * 业务概况：「当前登录用户」在其行级权限可见范围内的各资源行数。
+   *
+   * 只要求登录（后端 `@Permission(authorize = false)`），不做粗粒度动作鉴权 ——
+   * 每一档 count 都由对应资源的 `getMapperCount` 经 Mapper 权限拦截链过滤，返回内容本身
+   * 已被收敛，不含跨租户元数据。前端只回显，不重算任何聚合判定。
+   *
+   * @returns 资源条目列表（键、人看名称、可见行数）
+   */
+  getOverview(): Promise<DashboardOverviewItem[]> {
+    return request.get('/dashboard/overview')
   },
 }

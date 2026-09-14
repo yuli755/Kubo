@@ -14,9 +14,11 @@ import { describe, expect, it } from 'vitest'
  * 2. **前端写的 `resourceKey` 必须是后端注册过的数据资源**。写错一个字母，
  *    `my-mask` 永远返回 `null` = "该字段无需脱敏"，脱敏静默失效（fail-open）。
  * 3. **只有后端真的提供 export 端点的实体才允许开 `showExport`**。`BaseController`
- *    全局 `@Extends(exclude = {Curd.Export, Curd.QueryExport})`，八个读侧换轨资源
- *    （material / inventory / input / output / move / order / plan / picking）都已把
- *    `Curd.Export` 加回来并覆写了 `export(QueryListRequest)`；导出走文件流不经过 Jackson，
+ *    全局 `@Extends(exclude = {Curd.Export, Curd.QueryExport})`，二十一个读侧换轨资源
+ *    （material / inventory / input / output / move / order / plan / picking / purchase / sale /
+ *    customer / supplier / purchasePrice / salePrice / bom / operation / routing / device / contract /
+ *    storage / structure）
+ *    都已把 `Curd.Export` 加回来并覆写了 `export(QueryListRequest)`；导出走文件流不经过 Jackson，
  *    是脱敏的已知旁路，前端别在没加回来的实体上随手开。
  * 4. **模型里的敏感字段必须显式表态**：`@Table({ desensitize })` 或 `mask-exempt: 理由`。
  *    框架在列表渲染层认这个元数据，一处声明全视图生效；漏了就是"某个页面的手机号裸奔"。
@@ -218,6 +220,8 @@ describe('mask contract · 前后端脱敏口径', () => {
     }
     expect([...exportCapable]).toEqual(expect.arrayContaining([
       'asset/material',
+      'asset/device',
+      'asset/contract',
       'wms/inventory',
       'wms/input',
       'wms/output',
@@ -225,6 +229,17 @@ describe('mask contract · 前后端脱敏口径', () => {
       'mes/order',
       'mes/plan',
       'mes/picking',
+      'channel/purchase',
+      'channel/sale',
+      'channel/customer',
+      'channel/supplier',
+      'channel/purchaseprice',
+      'channel/saleprice',
+      'mes/bom',
+      'mes/operation',
+      'mes/routing',
+      'factory/storage',
+      'factory/structure',
     ]))
 
     const offenders: string[] = []
@@ -1796,7 +1811,7 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
 
     const implementors = collect(SERVER, '.java').filter(file => /implements[^;]*RowParityCounter|extends[^;]*RowParityCounter/.test(readJavaCode(file)))
     expect(implementors, '没有任何探针实现：这张表与整套对账判据就成了没人消费的机器，要么接上第一个资源，要么删掉')
-      .toHaveLength(8)
+      .toHaveLength(21)
     for (const file of implementors) {
       expect(readJavaCode(file), `${file.split('/').pop()} 的 parityResourceKey 必须是 default 方法`)
         .toMatch(/default\s+String\s+parityResourceKey\s*\(\)/)
@@ -1893,6 +1908,45 @@ describe('mask contract · 拒绝事件落库（B4）', () => {
     expect(list).toContain('useDenyLogReport')
     expect(list, '取数失败必须能被看见（这里显示「没人被拒」等于把取不到表读成审计干净）')
       .toMatch(/<ElAlert[^>]*v-else-if="denyLogFailed"/)
+  })
+})
+
+describe('mask contract · 操作审计落库（P3）', () => {
+  const DPM = join(SERVER, 'module', 'system', 'datapermission')
+  const RECORDER = join(DPM, 'service', 'OperationLogRecorder.java')
+
+  it('operation-logs 路径前后端对得上，且只挂在管理端点上', () => {
+    const API = join(ROOT, 'src', 'api', 'system.ts')
+    expect(read(API)).toContain('request.get(\'/dataResource/operation-logs\'')
+    const controller = join(DPM, 'controller', 'DataResourceController.java')
+    expect(readJavaCode(controller)).toContain('@GetMapping("operation-logs")')
+    for (const file of collect(join(DPM, 'controller'), '.java')) {
+      if (file.endsWith('DataResourceController.java')) {
+        continue
+      }
+      expect(read(file), `操作审计端点出现在 ${file.split('/').pop()}：这份「谁改过」的跨角色数据会从 dataResource 权限面漂走`)
+        .not
+        .toContain('operation-logs')
+    }
+  })
+
+  it('前端只回显操作审计，不把动作当判定', () => {
+    const report = read(join(ROOT, 'src', 'composables', 'useOperationLogReport.ts'))
+    expect(report, '前端开始判 action 语义：动作是后端 BaseService 钩子判定的，抄一遍就是第二套真相')
+      .not
+      .toMatch(/action\s*===|action\s*!==/)
+    const list = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'resource', 'list.vue'))
+    expect(list).toContain('useOperationLogReport')
+    expect(list, '取数失败必须能被看见（这里显示「没人改过」等于把取不到表读成审计干净）')
+      .toMatch(/<ElAlert[^>]*v-else-if="operationLogFailed"/)
+  })
+
+  it('落库失败与缺 Bean 都不许改变业务结果', () => {
+    const persist = methodBody(readJavaCode(RECORDER), 'void persist(')
+    expect(persist, 'persist 不再判 getIfAvailable：缺 Bean（测试上下文/未建表）会把异步任务炸掉，证据失败不该有第二个出口')
+      .toContain('getIfAvailable()')
+    expect(persist, 'persist 吞不掉写库异常：业务路径会被落库失败改写（审计坏了不能变成 500）')
+      .toContain('catch (RuntimeException')
   })
 })
 
@@ -2164,6 +2218,39 @@ describe('mask contract · F3 数据层收敛（system + personnel + wms + facto
     )
     expect(total, `视图直连 @/model/*Service 反弹到 ${total}：F3 基线（0）被突破，收敛只能前进不能后退`)
       .toBeLessThanOrEqual(0)
+  })
+})
+
+describe('mask contract · 安全响应头（S4 第一批）', () => {
+  const FILTER = join(SERVER, 'common', 'filter', 'SecurityHeadersFilter.java')
+
+  it('后端只注入零风险头，CSP 不进后端（会误伤前端内联脚本/图表而白屏）', () => {
+    const filter = readJavaCode(FILTER)
+    expect(filter, '缺 nosniff：JSON 响应可被 MIME 嗅探当 HTML 执行').toContain('X-Content-Type-Options')
+    expect(filter, '缺 Referrer-Policy：令牌/路径可能经 Referer 跨源泄露').toContain('Referrer-Policy')
+    expect(filter, '缺 Permissions-Policy：管理后台未禁用摄像头/麦克风/定位').toContain('Permissions-Policy')
+    // CSP 涉及前端内联脚本 + ECharts dataURI + WebSocket，加在后端会白屏，必须留待前端托管层/CI 验证
+    expect(filter, 'CSP 被加进后端过滤器：配置错会白屏，应在前端托管层（Nginx）收紧').not.toContain('Content-Security-Policy')
+  })
+})
+
+describe('mask contract · 生产包体日志关闭（安全加固 P3）', () => {
+  const PROD = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'application-production.yml')
+
+  it('生产配置必须显式关闭请求/响应包体日志（airpower 会把完整 body 打印到日志）', () => {
+    const yml = read(PROD)
+    // 逐行断言，避免误匹配到注释里的解释文字
+    const lines = yml.split('\n')
+    const reqLog = lines.find(l => l.trim().startsWith('request-log:'))
+    const resLog = lines.find(l => l.trim().startsWith('response-log:'))
+
+    expect(reqLog, '生产 request-log 未显式关闭：airpower 会把请求 body 打印到日志（登录密码 / token / PII）')
+      .toBeDefined()
+    expect(reqLog?.trim(), '生产 request-log 必须为 false').toBe('request-log: false')
+
+    expect(resLog, '生产 response-log 未显式关闭：airpower 会把响应 body 打印到日志（客户信息 / 查询结果）')
+      .toBeDefined()
+    expect(resLog?.trim(), '生产 response-log 必须为 false').toBe('response-log: false')
   })
 })
 

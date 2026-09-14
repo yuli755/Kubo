@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  采购单主表读出口。权限条件由 MyBatis-Plus 按 statement ID 追加；明细不在这里 JOIN。
+  parity statement 不使用别名，保证 renderer 使用的物理表限定名与 SQL 一致。
+-->
+<mapper namespace="cn.hamm.spms.module.channel.purchase.mapper.PurchaseMapper">
+
+    <resultMap id="purchaseReadMap" type="cn.hamm.spms.module.channel.purchase.PurchaseEntity">
+        <id column="id" property="id"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_disabled" property="isDisabled"/>
+        <result column="is_published" property="isPublished"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="creator_id" property="creatorId"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="bill_code" property="billCode"/>
+        <result column="reason" property="reason"/>
+        <result column="total_price" property="totalPrice"/>
+        <result column="total_real_price" property="totalRealPrice"/>
+        <result column="status" property="status"/>
+    </resultMap>
+
+    <sql id="purchaseColumns">
+        p.id,
+        p.create_time,
+        p.update_time,
+        p.is_disabled,
+        p.is_published,
+        p.tenant_id,
+        p.creator_id,
+        p.reject_reason,
+        p.bill_code,
+        p.reason,
+        p.total_price,
+        p.total_real_price,
+        p.status
+    </sql>
+
+    <sql id="purchaseFilter">
+        <if test="billCode != null and billCode != ''">
+            AND p.bill_code LIKE CONCAT('%', #{billCode}, '%')
+        </if>
+        <if test="reason != null and reason != ''">
+            AND p.reason LIKE CONCAT('%', #{reason}, '%')
+        </if>
+        <if test="status != null">
+            AND p.status = #{status}
+        </if>
+    </sql>
+
+    <sql id="purchaseParityFilter">
+        <if test="billCode != null and billCode != ''">
+            AND bill_code LIKE CONCAT('%', #{billCode}, '%')
+        </if>
+        <if test="reason != null and reason != ''">
+            AND reason LIKE CONCAT('%', #{reason}, '%')
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+    </sql>
+
+    <select id="selectPageByPermission" resultMap="purchaseReadMap">
+        SELECT
+        <include refid="purchaseColumns"/>
+        FROM purchase p
+        <where>
+            <include refid="purchaseFilter"/>
+        </where>
+        ORDER BY p.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectDetailByPermission" resultMap="purchaseReadMap">
+        SELECT
+        <include refid="purchaseColumns"/>
+        FROM purchase p
+        WHERE p.id = #{id}
+    </select>
+
+    <select id="selectForExport" resultMap="purchaseReadMap">
+        SELECT
+        <include refid="purchaseColumns"/>
+        FROM purchase p
+        <where>
+            <include refid="purchaseFilter"/>
+        </where>
+        ORDER BY p.id DESC
+    </select>
+
+    <select id="countByPermission" resultType="long">
+        SELECT COUNT(1)
+        FROM purchase p
+        <where>
+            <include refid="purchaseFilter"/>
+        </where>
+    </select>
+
+    <select id="statByPermission" resultType="cn.hamm.spms.base.mapper.ReadStat">
+        SELECT
+            COUNT(1) AS total,
+            COALESCE(SUM(CASE WHEN p.is_published THEN 1 ELSE 0 END), 0) AS published_total
+        FROM purchase p
+        <where>
+            <include refid="purchaseFilter"/>
+        </where>
+    </select>
+
+    <select id="countByPermissionFragment" resultType="long">
+        SELECT COUNT(1) FROM purchase
+        <where>
+            <include refid="purchaseParityFilter"/>
+            <if test="fragment != null and fragment != ''">
+                AND ${fragment}
+            </if>
+        </where>
+    </select>
+
+</mapper>

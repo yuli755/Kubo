@@ -414,7 +414,7 @@ const {
 
 ```bash
 # 启动开发服务器
-pnpm s
+pnpm dev
 
 # ESLint 自动修复代码格式
 pnpm lint

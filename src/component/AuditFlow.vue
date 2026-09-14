@@ -74,7 +74,7 @@ function deleteAuditUser(index: number) {
     content: '>';
     background: var(--el-color-primary-light-8);
     font-family: serif;
-    color: #999;
+    color: var(--el-text-color-secondary);
     width: 20px;
     height: 20px;
     display: inline-block;

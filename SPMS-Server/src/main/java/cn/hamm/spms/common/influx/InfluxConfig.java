@@ -20,8 +20,12 @@ public class InfluxConfig {
 
     /**
      * 连接令牌
+     *
+     * <p><b>安全（S2）</b>：默认值留空，不再在源码里含真实令牌。运行时通过配置
+     * {@code app.influxdb.token} 或环境变量 {@code APP_INFLUXDB_TOKEN} 注入；
+     * 未配置时 InfluxDB 上报静默禁用（见 {@link InfluxHelper}）。</p>
      */
-    private String token = "GAj6AiUiiPRR9D8Nfb37S3-Jxl7yMAnPDQn6KdhnIhbNJ7wpRPwC4XjpHUkxlA_45uRLaeV8xuZ7vOdNGfppcQ==";
+    private String token = "";
 
     /**
      * 使用的组织名

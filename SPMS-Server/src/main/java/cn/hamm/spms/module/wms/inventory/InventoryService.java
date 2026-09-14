@@ -14,6 +14,7 @@ import cn.hamm.airpower.curd.model.query.Sort;
 import cn.hamm.airpower.exception.Errors;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.asset.material.MaterialService;
 import cn.hamm.spms.module.wms.inventory.mapper.InventoryMapper;
@@ -194,7 +195,7 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
         List<InventoryEntity> rows = inventoryMapper.selectForExport(type, storageIds, structureIds);
         List<InventoryEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(masked, InventoryEntity.class);
+            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), InventoryEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

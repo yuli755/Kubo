@@ -1,16 +1,19 @@
 package cn.hamm.spms.module.personnel.user;
 
 import cn.hamm.airpower.api.annotation.Api;
+import cn.hamm.airpower.cookie.CookieConfig;
 import cn.hamm.airpower.cookie.CookieHelper;
 import cn.hamm.airpower.core.Json;
 import cn.hamm.airpower.core.StringUtil;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.ExposeAll;
+import cn.hamm.airpower.core.exception.ServiceException;
 import cn.hamm.airpower.curd.annotation.Extends;
 import cn.hamm.airpower.curd.base.Curd;
 import cn.hamm.airpower.curd.permission.Permission;
 import cn.hamm.airpower.redis.RedisHelper;
 import cn.hamm.spms.base.BaseController;
+import cn.hamm.spms.common.security.LoginBruteForceGuard;
 import cn.hamm.spms.module.open.thirdlogin.UserThirdLoginEntity;
 import cn.hamm.spms.module.open.thirdlogin.UserThirdLoginService;
 import cn.hamm.spms.module.personnel.user.enums.UserLoginType;
@@ -22,14 +25,18 @@ import cn.hamm.spms.module.system.tenant.TenantRepository;
 import cn.hamm.spms.module.system.tenant.UserTenantService;
 import jakarta.mail.MessagingException;
 import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -48,6 +55,7 @@ import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
 @Api("user")
 @Description("用户")
 @Extends({Curd.Disable, Curd.Enable})
+@Slf4j
 public class UserController extends BaseController<UserEntity, UserService, UserRepository> implements IUserAction {
     @Autowired
     private CookieHelper cookieHelper;
@@ -66,6 +74,12 @@ public class UserController extends BaseController<UserEntity, UserService, User
 
     @Autowired
     private TenantRepository tenantRepository;
+
+    @Autowired
+    private LoginBruteForceGuard loginBruteForceGuard;
+
+    @Autowired
+    private CookieConfig cookieConfig;
 
     @Description("获取我的信息")
     @Permission(authorize = false)
@@ -212,14 +226,28 @@ public class UserController extends BaseController<UserEntity, UserService, User
     @Description("账号密码登录")
     @Permission(login = false)
     @PostMapping("login")
-    public Json login(@RequestBody @Validated(WhenLogin.class) UserEntity user, HttpServletResponse httpServletResponse) {
-        return handleLoginRequest(UserLoginType.VIA_ACCOUNT_PASSWORD, user, httpServletResponse);
+    public Json login(@RequestBody @Validated(WhenLogin.class) UserEntity user,
+                      HttpServletResponse httpServletResponse,
+                      HttpServletRequest httpServletRequest) {
+        return handleLoginRequest(UserLoginType.VIA_ACCOUNT_PASSWORD, user, httpServletResponse, httpServletRequest);
     }
 
     @Description("退出登录")
     @Permission(login = false)
     @PostMapping("logout")
-    public Json logout(HttpServletResponse httpServletResponse) {
+    public Json logout(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) {
+        // 使服务端会话失效：只清浏览器 Cookie 不够，Redis 里的 cookie→userId 映射必须一并删除，
+        // 否则被窃取的 cookie 值在 TTL（1 天）内仍能通过 getUserIdByCookie 冒充该用户。
+        Cookie[] cookies = httpServletRequest.getCookies();
+        if (!Objects.isNull(cookies)) {
+            String cookieString = Arrays.stream(cookies)
+                .filter(cookie -> Objects.equals(cookieConfig.getAuthCookieName(), cookie.getName()))
+                .findFirst().map(Cookie::getValue)
+                .orElse(null);
+            if (StringUtils.hasText(cookieString)) {
+                service.deleteCookie(cookieString);
+            }
+        }
         Cookie cookie = cookieHelper.getAuthorizeCookie("");
         cookie.setHttpOnly(false);
         cookie.setPath(CookieHelper.DEFAULT_PATH);
@@ -232,15 +260,19 @@ public class UserController extends BaseController<UserEntity, UserService, User
     @Description("邮箱验证码登录")
     @Permission(login = false)
     @PostMapping("loginViaEmail")
-    public Json loginViaEmail(@RequestBody @Validated(WhenLoginViaEmail.class) UserEntity user, HttpServletResponse httpServletResponse) {
-        return handleLoginRequest(UserLoginType.VIA_EMAIL_CODE, user, httpServletResponse);
+    public Json loginViaEmail(@RequestBody @Validated(WhenLoginViaEmail.class) UserEntity user,
+                              HttpServletResponse httpServletResponse,
+                              HttpServletRequest httpServletRequest) {
+        return handleLoginRequest(UserLoginType.VIA_EMAIL_CODE, user, httpServletResponse, httpServletRequest);
     }
 
     @Description("手机验证码登录")
     @Permission(login = false)
     @PostMapping("loginViaPhone")
-    public Json loginViaPhone(@RequestBody @Validated(WhenLoginViaPhone.class) UserEntity user, HttpServletResponse httpServletResponse) {
-        return handleLoginRequest(UserLoginType.VIA_PHONE_CODE, user, httpServletResponse);
+    public Json loginViaPhone(@RequestBody @Validated(WhenLoginViaPhone.class) UserEntity user,
+                              HttpServletResponse httpServletResponse,
+                              HttpServletRequest httpServletRequest) {
+        return handleLoginRequest(UserLoginType.VIA_PHONE_CODE, user, httpServletResponse, httpServletRequest);
     }
 
     @Description("发送邮件")
@@ -263,8 +295,9 @@ public class UserController extends BaseController<UserEntity, UserService, User
     @Permission(login = false)
     @PostMapping("getWebAuthnAssertionOptions")
     public Json getWebAuthnAssertionOptions() {
-        // 这里需要根据实际情况获取用户的认证信息
-        // 目前先返回一个示例配置
+        // ⚠️ 未实现：占位空壳。此处返回硬编码的示例 challenge 与 rpId，既无注册端点、无服务端
+        // challenge 存管，也无前端调用（全仓无 webauthn/passkey 引用）。属「看起来有、实际不能用」，
+        // 见 docs/业务功能未开发盘点.md §2。真正接入无密码登录时再实现 challenge 生成/校验闭环。
         try {
             return Json.data(com.yubico.webauthn.data.PublicKeyCredentialRequestOptions.builder()
                 .challenge(com.yubico.webauthn.data.ByteArray.fromBase64Url("test-challenge"))
@@ -274,7 +307,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
                 .allowCredentials(Collections.emptyList())
                 .build(), "获取成功");
         } catch (com.yubico.webauthn.data.exception.Base64UrlException e) {
-            e.printStackTrace();
+            log.error("获取 WebAuthn 断言选项失败", e);
             return Json.error("获取 WebAuthn 断言选项失败");
         }
     }
@@ -285,17 +318,46 @@ public class UserController extends BaseController<UserEntity, UserService, User
      * @param userLoginType 登录方式
      * @param user          登录数据
      * @param response      响应
+     * @param request       请求（用于解析客户端 IP，防爆破计数维度）
      * @return JsonData
      */
-    private Json handleLoginRequest(@NotNull UserLoginType userLoginType, UserEntity user, HttpServletResponse response) {
-        UserEntity exist = switch (userLoginType) {
-            case VIA_ACCOUNT_PASSWORD -> service.loginViaEmailAndPassword(user.getEmail(), user.getPassword());
-            case VIA_EMAIL_CODE -> service.loginViaEmailAndCode(user.getEmail(), user.getCode());
-            case VIA_PHONE_CODE -> service.loginViaPhoneAndCode(user.getPhone(), user.getCode());
+    private Json handleLoginRequest(@NotNull UserLoginType userLoginType, UserEntity user,
+                                    HttpServletResponse response, HttpServletRequest request) {
+        String account = resolveLoginAccount(userLoginType, user);
+        String clientIp = loginBruteForceGuard.resolveClientIp(request);
+        // 锁定检查须在失败计数之外：锁定期直接拒绝，不计入「失败次数」（否则锁定永续）
+        loginBruteForceGuard.assertNotLocked(account, clientIp);
+        try {
+            UserEntity exist = switch (userLoginType) {
+                case VIA_ACCOUNT_PASSWORD -> service.loginViaEmailAndPassword(user.getEmail(), user.getPassword());
+                case VIA_EMAIL_CODE -> service.loginViaEmailAndCode(user.getEmail(), user.getCode());
+                case VIA_PHONE_CODE -> service.loginViaPhoneAndCode(user.getPhone(), user.getCode());
+            };
+            FORBIDDEN_DISABLED.when(exist.getIsDisabled(), "登录失败，你的账号已被禁用");
+            redisHelper.delete(getUserPermissionCacheKey(exist.getId()));
+            redisHelper.delete(getUserMenuCacheKey(exist.getId()));
+            // 登录成功：清零该账号与 IP 的失败计数
+            loginBruteForceGuard.clear(account, clientIp);
+            return Json.data(userService.loginWithCookieAndResponse(response, exist), "登录成功");
+        } catch (ServiceException exception) {
+            // 登录失败（账号/密码/验证码错误、账号禁用等）：计数，达阈值即锁定
+            loginBruteForceGuard.recordFailure(account, clientIp);
+            throw exception;
+        }
+    }
+
+    /**
+     * 解析登录账号（防爆破的账号维度）。账号密码 / 邮箱验证码登录以邮箱为维度，
+     * 手机验证码登录以手机号为维度；为空时守卫内部会跳过（由参数校验拦截）。
+     *
+     * @param userLoginType 登录方式
+     * @param user          登录数据
+     * @return 登录账号（邮箱或手机号）
+     */
+    private String resolveLoginAccount(@NotNull UserLoginType userLoginType, UserEntity user) {
+        return switch (userLoginType) {
+            case VIA_ACCOUNT_PASSWORD, VIA_EMAIL_CODE -> user.getEmail();
+            case VIA_PHONE_CODE -> user.getPhone();
         };
-        FORBIDDEN_DISABLED.when(exist.getIsDisabled(), "登录失败，你的账号已被禁用");
-        redisHelper.delete(getUserPermissionCacheKey(exist.getId()));
-        redisHelper.delete(getUserMenuCacheKey(exist.getId()));
-        return Json.data(userService.loginWithCookieAndResponse(response, exist), "登录成功");
     }
 }

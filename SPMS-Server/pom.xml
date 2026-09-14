@@ -113,6 +113,16 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!--
+          应用层指标（JVM / HTTP / HikariCP）暴露 /actuator/prometheus，供 Prometheus 抓取（§7.2）。
+          版本由 Spring Boot BOM 管理（与 actuator 同源），不显式写版本号。
+          生产是否对外暴露由 application-production.yml 的 management.endpoints.web.exposure.include
+          控制（默认只 health,info，这里追加 prometheus）。
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

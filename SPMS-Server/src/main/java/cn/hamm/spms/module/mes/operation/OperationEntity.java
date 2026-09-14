@@ -2,7 +2,8 @@ package cn.hamm.spms.module.mes.operation;
 
 import cn.hamm.airpower.core.annotation.Meta;
 import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.airpower.core.annotation.Export;
+import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -29,17 +30,19 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.OperationC
 @DynamicUpdate
 @Table(name = "operation")
 @Description("工序")
-public class OperationEntity extends BaseEntity<OperationEntity> {
+public class OperationEntity extends TenantAwareEntity<OperationEntity> {
     @Description("工序名称")
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "工序名称不能为空")
     @Column(columnDefinition = "varchar(255) default '' comment '工序名称'", unique = true)
     @Meta
+    @Export
     private String name;
 
     @Description("工序编码")
     @Column(columnDefinition = "varchar(255) default '' comment '工序编码'", unique = true)
     @Meta
     @AutoGenerateCode(OperationCode)
+    @Export
     private String code;
 
 }

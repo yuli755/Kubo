@@ -20,6 +20,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  dependency-review:
+    name: Dependency review (PR gate)
+    # 供应链安全门禁：PR 上检查「新增依赖」是否带已知漏洞（CVE/GHSA）。
+    # 与 web/server 的存量测试互补——那些只验证「改完还能跑」，这里验证「新引进来的是干净的」。
+    # 用 GitHub 依赖图谱做比对，不下载 NVD 数据库，几秒出结果，挂在每次 PR 上零负担。
+    # 前提：public 仓库免费；private 仓库需 GitHub Advanced Security（免费版不含）。若当前仓库
+    # 是 private 且未开通 GHAS，本 job 会以 license 错误失败——届时按需降级为 dependabot.yml 的
+    # 自动告警（仅持续监控、不阻断 PR）。
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@v4
+        with:
+          # high 及以上（high/critical）的新增漏洞依赖即阻断合入；moderate/low 只提示不阻断，
+          # 避免「低危升级把 PR 卡死」拖慢正常依赖升级（Dependabot PR 尤其常见）。
+          fail-on-severity: high
+          # 补依赖变更说明：让审阅者一眼看到本次 PR 增删了哪些依赖、各自是什么许可证/风险。
+          comment-summary-in-pr: always
+
   web:
     name: Web (lint / typecheck / test / build / size)
     runs-on: ubuntu-latest
@@ -51,6 +77,11 @@ jobs:
       - name: Permission codes match backend controllers
         run: pnpm perms:check
 
+      # 每个 HTTP 端点都必须有显式 @Permission（类级或方法级），不得依赖 airpower「无注解=无需登录」隐式默认
+      # —— 历史真实漏洞：OauthController.unBindThird 匿名可删任意用户第三方登录绑定
+      - name: Every HTTP endpoint has explicit @Permission
+        run: pnpm auth:check
+
       # 两类"文本级但没人管"的问题：中文被 U+FFFD 污染（不影响编译，只在页面上显形）、
       # Java 源码里的单反斜杠转义（影响编译，但沙箱没有 JDK —— 见 docs §18.2 与 §19.9）
       - name: Source text integrity (encoding / Java literals / gate self-test)
@@ -58,6 +89,25 @@ jobs:
 
       - name: Migration DDL vs JPA entity drift
         run: pnpm ddl:check
+
+      # 迁移脚本的 MySQL 8 方言「静态」完整性（DELIMITER/存储过程/幂等性/动态 SQL 配平）：
+      # 不连库、读文件就能判定的确定性错误在提交前拦住，真库 job（migrations）只验证真正需要
+      # 真库验证的东西（information_schema 反向核对、连跑两遍判幂等）。沙箱无 MySQL，此步本地可跑。
+      - name: Migration dialect syntax integrity (static)
+        run: pnpm migration:check
+
+      # 监控/告警配置（prometheus/alerts/alertmanager/docker-compose）的静态完整性：
+      # YAML 语法、alertmanager 有处可送、target 指向真实存在的服务、alerts 不引用未暴露的愿景指标。
+      # 历史版本是「愿景态半成品」（k8s 服务发现 + 空 alertmanager + 引用未埋点指标），
+      # 沙箱无 Prometheus/Alertmanager，此步本地可跑、拦住读文件就能判定的错。
+      - name: Monitoring & alerting config integrity (static)
+        run: pnpm monitoring:check
+
+      # 备份/恢复演练脚本的静态完整性：恢复脚本必须带「拒绝生产库」护栏、必须 fail-fast、
+      # 备份必须 gzip -t 校验。沙箱无 docker/MySQL，真实恢复行为靠隔离环境跑脚本，此步拦
+      # 「读文件就能看出来的错」（见 docs/恢复演练DR-Runbook.md）。
+      - name: Backup & restore drill scripts integrity (static)
+        run: pnpm drill:check
 
       - name: Build
         run: pnpm build
@@ -204,6 +254,24 @@ jobs:
           # 只读依赖树里传递进来的实际版本；下一格核对版本族看这一行，不照记忆写。
           jsql_ver=$(echo "$tree" | grep -oE "com\.github\.jsqlparser:jsqlparser:jar:[0-9][^:]*" | head -1 | awk -F: '{print $NF}')
           echo "::notice title=jsqlparser 本体版本（依赖树实测）::${jsql_ver:-不在依赖树里 ⇒ 接任何 InnerInterceptor 前必须显式补}"
+
+      - name: Dependency analysis report (informational)
+        # 依赖瘦身的前置侦察（P3 #2）：dependency:analyze 输出「声明了却没用」与「用了却未声明」两类，
+        # 是后续剪依赖的输入。刻意**不设为门禁**：analyze 插件对 Lombok/反射/运行期才加载的依赖有已知误报，
+        # 拿它当红灯会把正常依赖升级卡死。报告以 artifact 上传（Actions 日志正文在 blob 上取不到，
+        # 本仓踩过「CI 红了但读不到为什么红」），供人工对照剪。
+        run: |
+          chmod +x ./mvnw || true
+          ./mvnw -B -s settings.xml dependency:analyze > target/dependency-analyze.txt 2>&1 || true
+          echo "dependency:analyze 报告已写入 target/dependency-analyze.txt（非门禁，失败不阻断）"
+
+      - name: Upload dependency analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-analyze-report
+          path: SPMS-Server/target/dependency-analyze.txt
+          if-no-files-found: ignore
   # ============================================================================
   # 迁移脚本的真实方言门禁（§19.11 第 2 项里"今天就能自动化"的那一半）
   # 为什么不用 Testcontainers：那要往 pom 里加 testcontainers + mysql-connector 依赖，

@@ -5,6 +5,7 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import Components from 'unplugin-vue-components/vite'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { airpowerCssStripPlugin } from './infra/plugins/airpower-css-strip'
 import { airpowerElementPlusShimPlugin } from './infra/plugins/airpower-element-plus-shim'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -23,6 +24,10 @@ export default defineConfig({
     // 会触发 element-plus 全量 80 组件进入 bundle（详见插件文件头注释）。
     // 此处在构建期将其替换为最小 shim（仅 v-loading 指令 + locale），恢复树摇。
     airpowerElementPlusShimPlugin(),
+    // airpower 整包 web.css 内嵌了 element-plus 全量样式（341 KB，与项目按需引入重复）。
+    // 此处在构建期剥离 element 部分，仅保留 airpower 自身样式（详见插件文件头注释），
+    // vendor-airpower.css 52.2 KB → 4.5 KB（gzip）。
+    airpowerCssStripPlugin(),
     // vueDevTools() — 已禁用：开发模式底部注入的悬浮按钮影响页面预览
     // vueDevTools(),
 
@@ -51,19 +56,10 @@ export default defineConfig({
       workbox: {
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB (echarts 约 2.77 MiB)
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^\/api\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'kubo-api-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 300,
-              },
-            },
-          },
-        ],
+        // 刻意**不**对 /api/ 做 runtimeCaching：API 响应是「按当前用户租户 + 行级/列级权限过滤后的
+        // 业务数据」，落到浏览器 Cache Storage 后（原 NetworkFirst + 5min）会在共享浏览器上把上一
+        // 个用户的可见数据喂给下一个用户（离线兜底时），是跨租户泄露面。PWA 的离线价值只保留在
+        // 「静态壳」（上面 globPatterns 预缓存的 js/css/html），动态数据一律走网络、不落缓存。
       },
     }),
   ],
@@ -96,12 +92,15 @@ export default defineConfig({
     minify: 'terser',
     terserOptions: {
       compress: {
+        // keep_classnames: 保留类名——airpower 的 class-transformer 反射用
+        // `constructor.name === Transformer.name` 做类名字符串比较，类名必须保留。
+        // keep_fnames: 普通函数名对反射无意义，去掉可省约 30 KB（实测）。
         keep_classnames: true,
-        keep_fnames: true,
+        keep_fnames: false,
       },
       mangle: {
         keep_classnames: true,
-        keep_fnames: true,
+        keep_fnames: false,
       },
     },
     cssMinify: 'esbuild',
@@ -124,6 +123,12 @@ export default defineConfig({
             if (id.includes('@tanstack/vue-query') || id.includes('@tanstack/query-core')) {
               return 'vendor-query'
             }
+            // axios 单独成 chunk：airpower 的 Http 也依赖 axios，若不拆出，axios 会被
+            // 归入 vendor-airpower，导致首屏仅因 `@/api/axios` 引用 axios 就整包加载
+            // airpower 单体（~100 KB gzip）。拆出后首屏只按需加载 vendor-axios（~13 KB）。
+            if (id.includes('axios')) {
+              return 'vendor-axios'
+            }
             if (id.includes('@airpower/web') || id.includes('@airpower/core')) {
               return 'vendor-airpower'
             }
@@ -134,9 +139,16 @@ export default defineConfig({
     },
   },
   server: {
-    open: true,
+    // 不自动拉起浏览器：在无图形环境（WSL/远程容器/CI）下 `open: true` 会因缺少
+    // xdg-open 等 opener 直接崩溃退出（spawn xdg-open ENOENT），导致 `pnpm dev` 起不来。
+    // Vite 启动后会在终端打印本地/网络地址，手动访问即可。
+    open: false,
     host: '0.0.0.0',
     port: 3000,
+    // 允许任意 Host 访问（开发服务器）。默认只放行 localhost/绑定地址，会导致
+    // 云端预览、反向代理、隧道（ngrok / cloud dev 环境 / e2b 等）访问时被 403 拒绝。
+    // 仅影响 dev server，不影响生产构建产物。
+    allowedHosts: true,
     https: false,
     proxy: {
       '/api': {

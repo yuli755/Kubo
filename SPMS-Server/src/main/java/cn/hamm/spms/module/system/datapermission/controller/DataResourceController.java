@@ -158,6 +158,22 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
         return Json.data(service.denyLogs(resourceKey));
     }
 
+    /**
+     * 最近的操作审计事件（谁在何时把哪条记录改成了什么）
+     *
+     * <p>与 {@code deny-logs} 互补且同一权限面（{@code dataResource}）：都是跨角色的「谁改过/谁被拒过」，
+     * 不能对业务角色开放。取不到表 / 没有记录时返回空数组，前端按「取不到」显示，
+     * 不把空结果读成「从没改过」。</p>
+     *
+     * @param resourceKey 资源标识；省略则返回全量最近记录
+     * @return 最近操作审计（最多 200 条，最新在前）
+     */
+    @GetMapping("operation-logs")
+    @Description("通用操作审计事件")
+    public Json getOperationLogs(String resourceKey) {
+        return Json.data(service.operationLogs(resourceKey));
+    }
+
     @Autowired
     private DataOwnershipMigrationService ownershipMigrationService;
 

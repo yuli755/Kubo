@@ -3,6 +3,7 @@ import type { IJson } from '@airpower/web'
 import { ACopy, ADialog, DialogProps, WebConfig } from '@airpower/web'
 import { computed } from 'vue'
 import { OpenLogEntity } from '@/model/open/log/OpenLogEntity'
+import { reportError } from '@/utils/errorHandler'
 
 const props = defineProps(DialogProps.withParam(new OpenLogEntity()))
 
@@ -36,7 +37,7 @@ const json = computed(() => {
     return JSON.parse(props.param.request) || {}
   }
   catch (e) {
-    console.error(e)
+    reportError(e, 'open-log-parse-request')
     return { error: '数据格式异常，无法解析' }
   }
 })
@@ -46,7 +47,7 @@ const responseJson = computed(() => {
     return JSON.parse(props.param.response) || {}
   }
   catch (e) {
-    console.error(e)
+    reportError(e, 'open-log-parse-response')
     return { error: '数据格式异常，无法解析' }
   }
 })
@@ -104,7 +105,7 @@ const responseJson = computed(() => {
   flex: 1;
 
   .key {
-    color: #999;
+    color: var(--el-text-color-secondary);
   }
 
   .value {

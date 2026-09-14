@@ -56,6 +56,13 @@ export class DeviceEntity extends BaseEntity {
   })
   uuid!: string
 
+  /**
+   * ### 采集端 API-Key
+   * 设备侧认证密钥：后端写端可入、读端永不回显（WRITE_ONLY）。
+   * 前端仅在调用采集端读出口（实时监控/历史）时按需获取并随请求提交，不落表单/列表。
+   */
+  apiKey!: string
+
   @Search({
     width: 120,
   })

@@ -6,18 +6,24 @@
   "packageManager": "pnpm@9.0.0",
   "author": "Hamm",
   "scripts": {
+    "dev": "vite",
     "s": "vite",
     "lint": "eslint --fix",
     "lint:ci": "eslint .",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "size": "node infra/scripts/check-bundle-size.mjs",
     "perms:check": "node infra/scripts/check-permission-codes.mjs",
+    "auth:check": "node infra/scripts/check-endpoint-auth.mjs",
     "text:check": "node infra/scripts/check-source-text.mjs",
     "ddl:check": "node infra/scripts/check-ddl-entity-drift.mjs",
+    "migration:check": "node infra/scripts/check-migration-dialect.mjs",
+    "monitoring:check": "node infra/scripts/check-monitoring-config.mjs",
+    "drill:check": "node infra/scripts/check-backup-drill.mjs",
     "perms:report": "node infra/scripts/check-permission-codes.mjs --verbose",
-    "check": "pnpm lint:ci && pnpm typecheck && pnpm test && pnpm perms:check && pnpm text:check && pnpm ddl:check && pnpm build && pnpm size",
+    "check": "pnpm lint:ci && pnpm typecheck && pnpm test:coverage && pnpm perms:check && pnpm auth:check && pnpm text:check && pnpm ddl:check && pnpm migration:check && pnpm monitoring:check && pnpm drill:check && pnpm build && pnpm size",
     "build": "vite build --mode production",
     "production": "vite build --mode production",
     "api:generate": "node infra/scripts/generate-api.mjs",
@@ -29,7 +35,7 @@
     "@element-plus/icons-vue": "^2.3.2",
     "@kubo/shared": "workspace:^",
     "@tanstack/vue-query": "^5.101.4",
-    "axios": "1.13.2",
+    "axios": "1.20.0",
     "echarts": "^6.0.0",
     "element-plus": "^2.12.0",
     "flatted": "^3.4.4",
@@ -42,6 +48,7 @@
     "@antfu/eslint-config": "^6.7.1",
     "@types/node": "22",
     "@vitejs/plugin-vue": "^6.0.3",
+    "@vitest/coverage-v8": "2.1.9",
     "@vue/test-utils": "^2.5.0",
     "eslint": "^9.39.2",
     "globals": "^16.5.0",
@@ -56,5 +63,10 @@
     "vite-plugin-vue-devtools": "^8.0.5",
     "vitest": "^2.1.9",
     "vue-tsc": "^3.1.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "axios": "1.20.0"
+    }
   }
 }

@@ -7,6 +7,7 @@
  * @see https://vite-pwa-org.netlify.app/
  */
 import { registerSW } from 'virtual:pwa-register'
+import { reportError } from '@/utils/errorHandler'
 
 /** Service Worker 注册结果 */
 export interface SWRegistrationResult {
@@ -48,7 +49,7 @@ export function registerPWA(
       }, 60 * 60 * 1000)
     },
     onRegisterError(error) {
-      console.error('Service Worker 注册失败:', error)
+      reportError(error, 'pwa-register')
     },
   })
 

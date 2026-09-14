@@ -1,5 +1,7 @@
 server:
-  port: 8081
+  # 与 vite.config.mts 的 /api 代理、README/STARTUP/LOGIN 文档保持一致：后端统一 8080。
+  # （历史此处曾写 8081，属某台开发机的遗留值，会导致 `pnpm dev` 代理到 8080 时连不上后端。）
+  port: 8080
 spring:
   jpa:
     show-sql: true
@@ -13,10 +15,10 @@ spring:
   data:
     redis:
       host: localhost
-      # 对齐本地 Docker 容器 devops-redis 的端口映射 (16379 -> 6379)
-      port: 16379
+      # 与 STARTUP.md 的 `docker run -d --name kubo-redis -p 6379:6379 redis:alpine` 对齐：
+      # 本地 Redis 默认 6379、无密码。
+      port: 6379
       database: 0
-      password: devops_redis_pwd # 对齐 devops-redis 容器 --requirepass
 
 app:
   is-dev-mode: true

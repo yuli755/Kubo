@@ -7,6 +7,7 @@ import { DeviceService } from '@/hook/asset/useDevice'
 import { AlarmStatusEnum } from '@/model/asset/device/AlarmStatusEnum'
 import { DeviceEntity } from '@/model/asset/device/DeviceEntity'
 import { DeviceStatusEnum } from '@/model/asset/device/DeviceStatusEnum'
+import { reportError } from '@/utils/errorHandler'
 import { DeviceMonitor } from '../../asset/device/component'
 
 const deviceList = ref<DeviceEntity[]>([])
@@ -23,7 +24,7 @@ async function getDeviceList() {
     polling.markSuccess()
   }
   catch (error) {
-    console.error('获取设备列表失败:', error)
+    reportError(error, 'device-list')
     // polling 在下方 usePolling(...) 创建；回调只在挂载后执行，无 TDZ 风险
     // eslint-disable-next-line ts/no-use-before-define
     polling.markFail()
@@ -191,7 +192,7 @@ function showMonitor(device: DeviceEntity) {
     min-width: 360px;
 
     .device-card {
-      background-color: #f8f8f8;
+      background-color: var(--kubo-color-muted-bg);
       margin: 5px;
       border-radius: 10px;
       padding: 20px;
@@ -225,7 +226,7 @@ function showMonitor(device: DeviceEntity) {
 
         .device-code {
           font-size: 14px;
-          color: #999;
+          color: var(--el-text-color-secondary);
         }
       }
 
@@ -243,7 +244,7 @@ function showMonitor(device: DeviceEntity) {
 
           span {
             font-size: 12px;
-            color: #999;
+            color: var(--el-text-color-secondary);
             font-weight: normal;
             margin-left: -5px;
           }

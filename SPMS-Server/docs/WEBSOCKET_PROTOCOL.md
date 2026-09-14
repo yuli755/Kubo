@@ -1,18 +1,37 @@
 # Kubo 平台 WebSocket 协议规范文档
 
+> ⚠️ **文档勘误（2026-09-10）：本文正文描述的「STOMP over WebSocket」选型与实际代码实现背离，从未落地。**
+> 代码实际采用 airpower **原生 WebSocket + 自定义 JSON**（非 STOMP），协议事实以代码为准，见下方「§0 实际实现」。
+> 本文 STOMP 专属章节（CONNECT/SUBSCRIBE/ACK 帧、目标地址、STOMP 速查表）仅作**历史设计参考**，
+> 不要再据此实现 STOMP 客户端；与协议无关的通用机制（心跳、指数退避重连、安全考量、监控指标）仍适用。
+
 > **版本**：v1.0
-> **状态**：🟢 已定稿，强制执行
+> **状态**：⚠️ 选型章节与实现背离（历史设计稿），实际协议见 §0
 > **适用范围**：全平台实时通信 (设备遥测、报警推送、工单流转、协作通知)
-> **协议选型**：**STOMP over WebSocket** (基于标准 STOMP 1.2 协议)
+> **实际协议**：**原生 WebSocket + 自定义 JSON**（airpower `WebSocketHandler` / `AppWebSocketHandler`）
 
 ---
 
-## 1. 协议选型决策 (ADR-005)
+## 0. 实际实现（代码为准）
+
+| 项 | 实际实现 |
+|----|----------|
+| 端点 | `ws(s)://<host>/websocket?accessToken=<token>`（token 走查询参数：浏览器原生 WebSocket 不支持自定义请求头） |
+| 认证 | 后端 `afterConnectionEstablished` 读 `session.getUri().getQuery()` → `AccessTokenUtil.verify(query, secret)`，取出 `payloadId`（即 userId） |
+| 心跳 | 客户端发文本帧 `PING`，后端 `handleTextMessage` 命中 `getPing()`（默认 `PING`）后回 `PONG` |
+| 业务消息 | 文本帧为 `WebSocketPayload` 的 JSON `{ type, data }`，后端 `Json.parse` 后交 `onWebSocketPayload(payload, session)` |
+| 频道订阅 | 后端 `subscribe(channel, session)` / `unsubscribe(channel, session)`；客户端发 `{ type: 'subscribe'\|'unsubscribe', data: channel }` |
+| 前端实现 | `src/websocket/WebSocketManager.ts`（心跳 + 指数退避重连 + 0–30% 抖动，最多 10 次） |
+| 后端实现 | `cn.hamm.spms.common.AppWebSocketHandler`（extends airpower `cn.hamm.airpower.websocket.WebSocketHandler`） |
+
+---
+
+## 1. 协议选型决策 (ADR-005) —— ⚠️ 历史设计，未按此落地
 
 | 备选方案 | 评估 | 决策 |
 |----------|------|------|
-| **STOMP over WebSocket** | 标准化、生态成熟、Spring 原生支持、支持心跳/ACK/事务 | ✅ **选中** |
-| 原生 WebSocket + 自定义 JSON | 灵活但需自行实现心跳/重连/ACK/分片 | ❌ 维护成本高 |
+| **原生 WebSocket + 自定义 JSON** | 灵活、airpower 原生支持；前端 `WebSocketManager` 已实现心跳/重连，无需 STOMP | ✅ **实际实现** |
+| **STOMP over WebSocket** | 标准化、生态成熟、Spring 原生支持 | ❌ 未落地（本文正文历史设计） |
 | Socket.io | 自动重连/房间/降级，但非标准、需 Node 服务端 | ❌ 技术栈不匹配 |
 | gRPC Streaming | 强类型、高性能，但浏览器需 gRPC-Web 代理 | ❌ 复杂度高 |
 | Server-Sent Events (SSE) | 单向、简单、自动重连 | ⚠️ 仅作补单/导出进度等单向场景补充 |
@@ -494,6 +513,10 @@ type BusinessMessage = AlarmMessage | WorkOrderMessage | InventoryMessage
 | **消息加密** | 敏感业务消息字段级加密 (AES-GCM) |
 | **审计日志** | 连接/订阅/消息发送/ACK 全链路审计 (脱敏) |
 | **防重放** | 消息 ID 幂等校验 + 时间戳窗口 (5min) |
+
+> ⚠️ 上表是**设计愿景**，当前代码**未全部落地**：实际已实现的是握手 JWT 鉴权、个人频道隔离、
+> 房间频道「加入流程」门控、消息出口锁定发送者自己的房间；JSON Schema 校验 / 多维限流 /
+> AES-GCM / 防重放 / 全链路审计均未实现。详见 `异步运行时面安全审计.md` §1（含鉴权链表与差距表）。
 
 ---
 
