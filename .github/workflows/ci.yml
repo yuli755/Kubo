@@ -57,7 +57,7 @@ jobs:
       # pnpm/action-setup@v4 对"两处都指定版本"直接报错退出（本仓的 web job 因此从未跑起来过）。
       - uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
