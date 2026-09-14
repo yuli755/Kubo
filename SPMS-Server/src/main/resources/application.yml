@@ -111,6 +111,12 @@ mybatis-plus:
 # 注意 enforce 的前提是迁移脚本已执行且实体已映射 tenant_id/creator_id，
 # 否则这里会把"列不存在"直接变成查不到数据 —— 这正是用来暴露空转的机制。
 kubo:
+  security:
+    # C-1（阶段D）：AccessTokenSecretGuard 现在对所有 profile 无条件校验密钥强度，
+    # 不再依赖 SPRING_PROFILES_ACTIVE 是否被正确注入。本开关仅限本地开发；
+    # 部署环境必须删除本行或置 false（application-production.yml 已显式置 false），
+    # 否则默认弱密钥启动即 fail-fast。
+    allow-weak-default-secret: true
   data-permission:
     mode: off
     tenant-required: false

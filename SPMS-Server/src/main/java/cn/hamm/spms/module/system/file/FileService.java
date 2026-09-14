@@ -50,9 +50,10 @@ public class FileService extends BaseService<FileEntity, FileRepository> {
      *
      * @param multipartFile 文件
      * @param fileCategory  文件类别
+     * @param creatorId     上传人ID（匿名上传为 null）
      * @return 存储的文件信息
      */
-    public FileEntity upload(@NotNull MultipartFile multipartFile, @NotNull FileCategory fileCategory) {
+    public FileEntity upload(@NotNull MultipartFile multipartFile, @NotNull FileCategory fileCategory, Long creatorId) {
         // 上传文件的绝对路径
         final String absoluteDirectory = appConfig.getFileDirectory();
         // 判断文件大小和类型
@@ -69,7 +70,14 @@ public class FileService extends BaseService<FileEntity, FileRepository> {
         try {
             // 获取文件的MD5
             String hashMd5 = DigestUtils.md5DigestAsHex(multipartFile.getBytes());
-            FileEntity file = repository.getByCategoryAndHashMd5(fileCategory.getKey(), hashMd5);
+            // 阶段 D-4：秒传只在同一属主内复用。跨用户直接返回他人文件行等于
+            // 泄露他人上传过的文件名与存在性（构造同内容探针即可确认），且让两条
+            // 上传链路共享同一行的生命周期。未命中时新建行；物理文件按
+            // hashMd5 命名，重复落盘是幂等覆盖，无副作用。
+            FileEntity file = repository.getListByCategoryAndHashMd5(fileCategory.getKey(), hashMd5).stream()
+                    .filter(exist -> Objects.equals(exist.getCreatorId(), creatorId))
+                    .findFirst()
+                    .orElse(null);
             if (Objects.nonNull(file)) {
                 return file;
             }
@@ -95,6 +103,7 @@ public class FileService extends BaseService<FileEntity, FileRepository> {
                     .setCategory(fileCategory.getKey())
                     .setName(multipartFile.getOriginalFilename())
                     .setHashMd5(hashMd5)
+                    .setCreatorId(creatorId)
                     .setUrl(relativeFilePath);
             return addAndGet(file);
         } catch (Exception e) {

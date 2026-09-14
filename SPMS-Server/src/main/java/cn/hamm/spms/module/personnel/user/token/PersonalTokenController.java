@@ -79,6 +79,23 @@ public class PersonalTokenController extends BaseController<PersonalTokenEntity,
         throw new IllegalStateException("请使用deleteMy");
     }
 
+    /**
+     * 阶段 D-3：通用的 update/getDetail 没有属主过滤，拿到 id 就能改/读任何人的
+     * 令牌行（IDOR，全靠没给角色授 personalToken_update 权限侥幸兜底）。
+     * 令牌是个人凭据，属主校验不能是「指望不授权」。
+     */
+    @Override
+    protected PersonalTokenEntity beforeAppUpdate(@NotNull PersonalTokenEntity entity, @NotNull PersonalTokenEntity exist) {
+        FORBIDDEN_EDIT.whenNotEquals(exist.getUser().getId(), getCurrentUserId(), "你没有权限修改此令牌");
+        return entity;
+    }
+
+    @Override
+    protected PersonalTokenEntity afterGetDetail(PersonalTokenEntity entity) {
+        FORBIDDEN_EDIT.whenNotEquals(entity.getUser().getId(), getCurrentUserId(), "你没有权限查看此令牌");
+        return entity;
+    }
+
     @Description("启用我的令牌")
     @Permission(authorize = false)
     @PostMapping("enableMy")

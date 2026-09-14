@@ -41,4 +41,41 @@ class AccessTokenSecretGuardTest {
         assertDoesNotThrow(() -> AccessTokenSecretGuard.validate("a".repeat(32)));
         assertDoesNotThrow(() -> AccessTokenSecretGuard.validate("0f1e2d3c4b5a69788796a5b4c3d2e1f0"));
     }
+
+    /**
+     * C-1 回归：守卫不再挂 @Profile("production")。忘设 SPRING_PROFILES_ACTIVE 的
+     * 部署（即默认 profile + 弱默认密钥）必须在启动阶段 fail-fast，
+     * 只有显式 allow-weak-default-secret=true（本地开发）才放行。
+     */
+    private static AccessTokenSecretGuard guard(String secret, boolean allowWeak) throws Exception {
+        AccessTokenSecretGuard guard = new AccessTokenSecretGuard();
+        java.lang.reflect.Field secretField = AccessTokenSecretGuard.class.getDeclaredField("accessTokenSecret");
+        secretField.setAccessible(true);
+        secretField.set(guard, secret);
+        java.lang.reflect.Field allowField = AccessTokenSecretGuard.class.getDeclaredField("allowWeakDefaultSecret");
+        allowField.setAccessible(true);
+        allowField.setBoolean(guard, allowWeak);
+        return guard;
+    }
+
+    @Test
+    @DisplayName("未放行 + 默认弱密钥：run 拒绝启动（profile 缺省也拦得住）")
+    void shouldFailFastWithoutOptOut() throws Exception {
+        AccessTokenSecretGuard guard = guard("1234567890", false);
+        assertThrows(IllegalStateException.class, () -> guard.run(null));
+    }
+
+    @Test
+    @DisplayName("本地显式放行：run 放行弱默认密钥")
+    void shouldAllowWithOptOut() throws Exception {
+        AccessTokenSecretGuard guard = guard("1234567890", true);
+        assertDoesNotThrow(() -> guard.run(null));
+    }
+
+    @Test
+    @DisplayName("未放行 + 强密钥：run 正常通过")
+    void shouldPassWithStrongSecret() throws Exception {
+        AccessTokenSecretGuard guard = guard("0f1e2d3c4b5a69788796a5b4c3d2e1f0", false);
+        assertDoesNotThrow(() -> guard.run(null));
+    }
 }

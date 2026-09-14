@@ -24,5 +24,10 @@ COPY --from=build /app/target/*.jar app.jar
 # 暴露端口
 EXPOSE 8080
 
+# C-1（阶段D）：AccessTokenSecretGuard 对所有 profile 无条件校验 JWT 密钥，
+# 未注入 AIRPOWER_API_ACCESS_TOKEN_SECRET（≥32 字符强随机，如 openssl rand -hex 32）
+# 容器会启动即退出，不再静默使用默认弱密钥。需要生产语义请一并注入
+# SPRING_PROFILES_ACTIVE=production（关闭包体日志 / api-docs，放行开关显式置 false）。
+# 本地跑容器调试才可临时 -e KUBO_SECURITY_ALLOW_WEAK_DEFAULT_SECRET=true，严禁固化进镜像层。
 # 运行应用
 ENTRYPOINT ["java", "-jar", "app.jar"]

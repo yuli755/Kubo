@@ -71,6 +71,10 @@ springdoc:
 # 生产先跑观察模式：只记录差异，不改变结果。
 # 观察窗口内 binding 指标必须归零，才按资源逐个进入 enforce（见施工图 §8）。
 kubo:
+  security:
+    # C-1（阶段D）：生产绝不放行弱默认 JWT 密钥；未注入
+    # AIRPOWER_API_ACCESS_TOKEN_SECRET 时 AccessTokenSecretGuard 直接拒绝启动。
+    allow-weak-default-secret: false
   data-permission:
     mode: shadow
     tenant-required: false
