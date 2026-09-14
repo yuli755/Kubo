@@ -139,10 +139,18 @@ public class PermissionService extends BaseService<PermissionEntity, PermissionR
 
     /**
      * 确保权限治理所需的系统权限存在。
+     *
+     * <p>四个身份与 {@code SystemPermissionIdentities} 一一对应：少种任何一个，
+     * 对应特权（绕过/归属迁移/死信管理）就无法授予非 root 角色，只能靠代码里的
+     * isRootUser 兜底，"平台管理员"这一层形同虚设。与
+     * {@code docs/database/migration/20260909_...consolidated.sql} +
+     * {@code 20260914_system_permission_identities.sql} 保持同一份口径。</p>
      */
     public void ensureDataPermissionSystemPermissions() {
         ensureSystemPermission(SystemPermissionIdentities.ROOT, "系统超级权限");
         ensureSystemPermission(SystemPermissionIdentities.DATA_PERMISSION_BYPASS, "绕过数据权限");
+        ensureSystemPermission(SystemPermissionIdentities.DATA_PERMISSION_OWNERSHIP, "迁移数据归属");
+        ensureSystemPermission(SystemPermissionIdentities.DATA_PERMISSION_OUTBOX, "权限变更死信管理");
     }
 }
 

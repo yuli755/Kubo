@@ -174,4 +174,12 @@ public class DataPolicyService extends BaseService<DataPolicyEntity, DataPolicyR
         DataResourceEntity resource = resourceRepository.findById(resourceId).orElse(null);
         return resource != null ? resource.getResourceKey() : null;
     }
+
+    /**
+     * 某资源某动作是否已登记指定主体的策略（初始化幂等守卫专用，理由见
+     * {@code DataPolicyRepository#existsByResourceIdAndActionNameAndSubjectType}）
+     */
+    public boolean existsPolicy(Long resourceId, String actionName, String subjectType) {
+        return repository.existsByResourceIdAndActionNameAndSubjectType(resourceId, actionName, subjectType);
+    }
 }

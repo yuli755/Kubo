@@ -156,16 +156,18 @@
             <version>${mybatis-plus.version}</version>
         </dependency>
 
-        <!-- API 文档: SpringDoc OpenAPI 3 + Knife4j UI -->
+        <!-- API 文档: SpringDoc OpenAPI 3。版本必须匹配 Spring Boot 3.4：2.6.0 只适配 Boot 3.2/3.3，
+             在 Boot 3.4 上构建文档时抛异常，被全局异常处理器包成 500，/v3/api-docs 只剩
+             {code,message,data} 包装。原 knife4j 4.5.0 starter 按 springdoc 2.3.0 编译，它重写的
+             /v3/api-docs 控制器是当年 500 的直接源头，已移除。
+             必须用 -api 而不是 -ui：UI starter 的 SwaggerWebMvcConfigurer 无视
+             springdoc.swagger-ui.enabled，始终注册 /swagger-ui/**/*index.html 这类「** 后挂片段」
+             模式，Spring 6.2 的 PathPatternParser 判为非法、resourceHandlerMapping 创建失败、整机起不来
+             （2.8.15 / 2.9.1 实测）。消费 /v3/api-docs JSON 即可，见 docs/API_DOCS_GUIDE.md。 -->
         <dependency>
             <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.6.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.github.xiaoymin</groupId>
-            <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
-            <version>4.5.0</version>
+            <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+            <version>2.9.1</version>
         </dependency>
     </dependencies>
     <build>
@@ -190,7 +192,11 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
                 <configuration>
-                    <argLine>--add-opens java.base/java.lang=ALL-UNNAMED -Dmockito.mock-maker=org.mockito.internal.creation.bytebuddy.SubclassByteBuddyMockMaker</argLine>
+                    <!-- 必须显式限堆：不设时 fork JVM 按物理内存 1/4 预留，Windows 提交限制
+                         （页面文件）不足时 fork 直接以「Error occurred in starting fork」死亡。
+                         SerialGC + 限 CodeCache/Metaspace 把 fork 提交量压到 ~0.5GB，
+                         紧张的开发机也能跑完整套（Spring 上下文 metaspace 实测 <300m）。 -->
+                    <argLine>--add-opens java.base/java.lang=ALL-UNNAMED -Xmx512m -XX:+UseSerialGC -XX:MaxMetaspaceSize=512m -XX:ReservedCodeCacheSize=128m</argLine>
                 </configuration>
             </plugin>
         </plugins>

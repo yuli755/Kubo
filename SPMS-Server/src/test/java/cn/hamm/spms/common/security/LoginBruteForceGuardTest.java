@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -51,9 +51,10 @@ class LoginBruteForceGuardTest {
 
     @BeforeEach
     void setUp() {
-        // 生产路径：Redis 可用（getRedisTemplate 非 null），opsForValue 委托给 mock
-        given(redisHelper.getRedisTemplate()).willReturn(redisTemplate);
-        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        // 生产路径：Redis 可用（getRedisTemplate 非 null），opsForValue 委托给 mock。
+        // lenient：部分用例（如 assertNotLocked / resolveClientIp）不走 opsForValue，严格模式下会误报 UnnecessaryStubbing。
+        org.mockito.Mockito.lenient().when(redisHelper.getRedisTemplate()).thenReturn(redisTemplate);
+        org.mockito.Mockito.lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
 
     @Test
@@ -71,7 +72,8 @@ class LoginBruteForceGuardTest {
 
         guard.recordFailure("a@b.com", "1.2.3.4");
 
-        verify(redisHelper).set(eq("kubo:login:lock:a@b.com"), any(), anyInt());
+        // RedisHelper#set(String, Object, long) 的 TTL 形参是 long，int 匹配器匹配不上
+        verify(redisHelper).set(eq("kubo:login:lock:a@b.com"), any(), anyLong());
         verify(redisHelper).delete("kubo:login:fail:a@b.com");
     }
 
@@ -82,7 +84,7 @@ class LoginBruteForceGuardTest {
 
         guard.recordFailure("a@b.com", "1.2.3.4");
 
-        verify(redisHelper, never()).set(anyString(), any(), anyInt());
+        verify(redisHelper, never()).set(anyString(), any(), anyLong());
     }
 
     @Test

@@ -73,6 +73,15 @@ public class UserController extends BaseController<UserEntity, UserService, User
     private UserTenantService userTenantService;
 
     @Autowired
+    private cn.hamm.spms.common.security.AccessTokenRevocationService accessTokenRevocationService;
+
+    @Autowired
+    private cn.hamm.airpower.api.config.ApiConfig apiConfig;
+
+    @Autowired
+    private cn.hamm.airpower.curd.config.AccessConfig accessConfig;
+
+    @Autowired
     private TenantRepository tenantRepository;
 
     @Autowired
@@ -254,6 +263,19 @@ public class UserController extends BaseController<UserEntity, UserService, User
         // 移除 cookie
         cookie.setMaxAge(0);
         httpServletResponse.addCookie(cookie);
+        // 吊销访问令牌：cookie 清了，但前端走的是 Authorization 头里的自包含令牌，
+        // 不拉黑的话被盗令牌在有效期内仍能直连 API。取令牌方式与框架 preHandle 一致
+        // （先 Authorization 头，再同名 query 参数），并剥离 Bearer 前缀。
+        String rawToken = httpServletRequest.getHeader(apiConfig.getAuthorizeHeader());
+        if (!StringUtils.hasText(rawToken)) {
+            rawToken = httpServletRequest.getParameter(apiConfig.getAuthorizeHeader());
+        }
+        if (rawToken != null && rawToken.startsWith("Bearer ")) {
+            rawToken = rawToken.substring(7).trim();
+        }
+        if (StringUtils.hasText(rawToken)) {
+            accessTokenRevocationService.revoke(rawToken, accessConfig.getAuthorizeExpireSecond());
+        }
         return Json.success("退出登录成功");
     }
 

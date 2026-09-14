@@ -13,6 +13,15 @@ import java.util.List;
  */
 @Repository
 public interface DataPolicyRepository extends BaseRepository<DataPolicyEntity> {
+    /**
+     * 判断某资源某动作是否已登记指定主体的策略。
+     *
+     * <p>存在的理由：用实体当查询条件的 {@code filter(new DataPolicyEntity()....)} 会把实体
+     * <b>字段默认值</b>（versionNo/priority/enabled/conditionJson）一并拼进 WHERE，
+     * 初始化守卫因此永远查不到已存在的行，重跑即重复插入。</p>
+     */
+    boolean existsByResourceIdAndActionNameAndSubjectType(Long resourceId, String actionName, String subjectType);
+
     List<DataPolicyEntity> findByResourceIdAndActionNameAndEnabledTrueOrderByPriorityDesc(Long resourceId, String actionName);
 
     /**

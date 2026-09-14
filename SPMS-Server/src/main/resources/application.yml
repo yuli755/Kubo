@@ -50,6 +50,9 @@ spring:
     resources:
       add-mappings: false
   mvc:
+    # 勿在这里再加 spring.mvc.pathmatch.matching-strategy：Boot 3.4 虽然仍解析该 PROPERTY，
+    # 但 Spring 6.2 的资源注册表一律按 PathPatternParser 解析模式，ant_path_matcher 救不了
+    # （springdoc 旧版 /swagger-ui/**/*swagger-initializer.js 就是这样崩的，已靠升级 springdoc 解决）。
     view:
       suffix: .html
       prefix: /
@@ -74,18 +77,17 @@ springdoc:
     groups:
       enabled: false
   swagger-ui:
-    enabled: true
-    path: /doc.html
-    tags-sorter: alpha
-    operations-sorter: alpha
-    try-it-out-enabled: true
-    filter: true
-    deep-linking: true
-    display-request-duration: true
-    doc-expansion: none
+    # 内置 UI 不可用，且 pom 已改用 springdoc-openapi-starter-webmvc-api（不含 UI 模块）。
+    # 勿换回 -ui starter：它的 SwaggerWebMvcConfigurer 无视本开关，始终注册
+    # /swagger-ui/**/*index.html 这类「** 后挂片段」模式，Spring 6.2 的 PathPatternParser
+    # 判为非法 → resourceHandlerMapping 创建失败、容器起不来（2.8.15 / 2.9.1 实测崩溃）。
+    # OpenAPI JSON（/v3/api-docs）不受影响，消费方式见 docs/API_DOCS_GUIDE.md。
+    enabled: false
   packages-to-scan: cn.hamm.spms
+  # 真实路由是 /<模块>/<动作>（@Api("user") → /user/login），`/api` 前缀只存在于 Vite
+  # dev 代理的 rewrite 里。曾经的 `/api/**` 过滤器把整份 schema 筛成了空 paths。
   paths-to-match:
-    - /api/**
+    - /**
   default-consumes-media-type: application/json
   default-produces-media-type: application/json
   writer-with-default-pretty-printer: true

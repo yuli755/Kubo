@@ -7,15 +7,23 @@ import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublis
 import cn.hamm.spms.module.system.datapermission.repository.DataFieldPolicyRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * <h1>数据字段权限策略管理服务</h1>
+ *
+ * <p><b>为什么用类内缓存而不是 {@code @Cacheable}：</b>Spring 缓存注解会把本 Bean 变成
+ * CGLIB 代理，而框架 {@code RootService#getFirstParameterizedTypeClass} 直接
+ * {@code (ParameterizedType) getClass().getGenericSuperclass()} —— 代理类的父类是裸类，
+ * 强转直接 ClassCastException，且 CurdService 的 add/update/delete 全是 final 无法绕开。
+ * 也就是说"缓存注解 + CurdService"组合下所有 CRUD 写入必炸。缓存失效路径本来就是
+ * {@code DataPermissionEventListener} 收到 Redis 广播后调 {@code clearCache/clearAllCache}
+ * （每个节点各自清），换成类内 Map 后语义完全一致。</p>
  *
  * @author Hamm.cn
  */
@@ -25,6 +33,13 @@ import java.util.List;
 public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, DataFieldPolicyRepository> implements DataFieldPolicyProvider {
     private final DataPermissionEventPublisher eventPublisher;
     private final DataResourceRepository resourceRepository;
+
+    /**
+     * 类内读缓存：key 与原 Spring 缓存键一致（{@code resourceKey:fieldName:roleCode}、
+     * {@code list:resourceKey:action}、{@code all:resourceKey}）。空列表同样缓存
+     * （"这个资源压根没配策略"是最常见的情况）。
+     */
+    private final ConcurrentHashMap<String, List<DataFieldPolicyEntity>> policyCache = new ConcurrentHashMap<>();
 
     public DataFieldPolicyService(DataPermissionEventPublisher eventPublisher, DataResourceRepository resourceRepository) {
         this.eventPublisher = eventPublisher;
@@ -40,11 +55,11 @@ public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, D
      * @return 策略列表（按优先级降序）
      */
     @Override
-    @Cacheable(value = "datapermission:field-policies", key = "#resourceKey + ':' + #fieldName + ':' + #roleCode")
     public List<DataFieldPolicyEntity> getPoliciesByResourceFieldRole(
             String resourceKey, String fieldName, String roleCode) {
-        return repository.findByResourceKeyAndFieldNameAndRoleCodeAndEnabledTrue(
-                resourceKey, fieldName, roleCode);
+        return policyCache.computeIfAbsent(resourceKey + ":" + fieldName + ":" + roleCode,
+                k -> repository.findByResourceKeyAndFieldNameAndRoleCodeAndEnabledTrue(
+                        resourceKey, fieldName, roleCode));
     }
 
     /**
@@ -56,15 +71,16 @@ public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, D
      * {@code publishFieldPolicyEvent} → {@code clearAllCache()} 失效，不会读到脏数据。</p>
      */
     @Override
-    @Cacheable(value = "datapermission:field-policies", key = "'list:' + #resourceKey + ':' + #actionName")
     public List<DataFieldPolicyEntity> getEnabledPoliciesByResourceAndAction(String resourceKey, String actionName) {
-        DataResourceEntity resource = resourceRepository.getByResourceKey(resourceKey);
-        if (resource == null || resource.getId() == null) {
-            return java.util.Collections.emptyList();
-        }
-        List<DataFieldPolicyEntity> policies = repository.findByResourceIdAndActionNameAndEnabledTrueOrderByPriorityDesc(
-                resource.getId(), actionName);
-        return policies != null ? policies : java.util.Collections.emptyList();
+        return policyCache.computeIfAbsent("list:" + resourceKey + ":" + actionName, k -> {
+            DataResourceEntity resource = resourceRepository.getByResourceKey(resourceKey);
+            if (resource == null || resource.getId() == null) {
+                return Collections.emptyList();
+            }
+            List<DataFieldPolicyEntity> policies = repository.findByResourceIdAndActionNameAndEnabledTrueOrderByPriorityDesc(
+                    resource.getId(), actionName);
+            return policies != null ? policies : Collections.emptyList();
+        });
     }
 
     /**
@@ -75,14 +91,15 @@ public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, D
      * 所以盘点结果不会比读侧遮蔽更"陈旧"——两边看到的是同一份缓存语义。</p>
      */
     @Override
-    @Cacheable(value = "datapermission:field-policies", key = "'all:' + #resourceKey")
     public List<DataFieldPolicyEntity> getEnabledPoliciesByResource(String resourceKey) {
-        DataResourceEntity resource = resourceRepository.getByResourceKey(resourceKey);
-        if (resource == null || resource.getId() == null) {
-            return java.util.Collections.emptyList();
-        }
-        List<DataFieldPolicyEntity> policies = repository.findByResourceIdAndEnabledTrueOrderByPriorityDesc(resource.getId());
-        return policies != null ? policies : java.util.Collections.emptyList();
+        return policyCache.computeIfAbsent("all:" + resourceKey, k -> {
+            DataResourceEntity resource = resourceRepository.getByResourceKey(resourceKey);
+            if (resource == null || resource.getId() == null) {
+                return Collections.emptyList();
+            }
+            List<DataFieldPolicyEntity> policies = repository.findByResourceIdAndEnabledTrueOrderByPriorityDesc(resource.getId());
+            return policies != null ? policies : Collections.emptyList();
+        });
     }
 
     @Override
@@ -121,20 +138,26 @@ public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, D
     }
 
     /**
-     * 清理指定资源的字段策略缓存
+     * 清理指定资源的字段策略缓存（原实现即 allEntries 全清，这里保持一致）
      */
-    @Override
-    @CacheEvict(value = "datapermission:field-policies", allEntries = true)
     public void clearCache(String resourceKey) {
+        policyCache.clear();
         log.debug("清理字段脱敏策略缓存: {}", resourceKey);
     }
 
     /**
      * 清理所有字段策略缓存
      */
-    @Override
-    @CacheEvict(value = "datapermission:field-policies", allEntries = true)
     public void clearAllCache() {
+        policyCache.clear();
         log.debug("清理所有字段脱敏策略缓存");
+    }
+
+    /**
+     * 某资源某字段是否已登记脱敏策略（初始化幂等守卫专用，理由见
+     * {@code DataFieldPolicyRepository#existsByResourceIdAndFieldName}）
+     */
+    public boolean existsPolicy(Long resourceId, String fieldName) {
+        return repository.existsByResourceIdAndFieldName(resourceId, fieldName);
     }
 }

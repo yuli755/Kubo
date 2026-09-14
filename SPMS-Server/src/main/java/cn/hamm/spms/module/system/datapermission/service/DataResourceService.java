@@ -686,9 +686,23 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
     }
 
     /**
+     * 按资源标识取数（存在性守卫专用）。
+     *
+     * <p>存在的理由：用实体当查询条件的 {@code filter(new DataResourceEntity().setResourceKey(..))}
+     * 会把实体字段默认值（tenantColumn/status/versionNo）一并拼进 WHERE，初始化守卫因此
+     * 永远查不到已存在的行，重跑即撞唯一键。</p>
+     *
+     * @param resourceKey 资源标识
+     * @return 已登记的资源；未登记或入参为 null 时返回 null
+     */
+    public DataResourceEntity getByResourceKey(String resourceKey) {
+        return resourceKey == null ? null : repository.getByResourceKey(resourceKey);
+    }
+
+    /**
      * 单个资源的放开前置检查（<b>只报数，不拦阻</b>：放开与否仍是配置动作）
      *
-     * @param resourceKey 资源标识；为 null / 未登记时返回一份"全红"结果而不是抛异常
+     * @param resourceKey 资源标识；为 null / 未登记时返回一份"全红"结论而不是抛异常
      * @return 结论
      */
     public Readiness readiness(String resourceKey) {

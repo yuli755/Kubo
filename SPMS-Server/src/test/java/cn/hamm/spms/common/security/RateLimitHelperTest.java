@@ -45,8 +45,9 @@ class RateLimitHelperTest {
 
     @BeforeEach
     void setUp() {
-        given(redisHelper.getRedisTemplate()).willReturn(redisTemplate);
-        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        // lenient：降级放行类用例（Redis 不可用 / 取不到 IP）不会消费这两个存根，严格模式下会误报 UnnecessaryStubbing。
+        org.mockito.Mockito.lenient().when(redisHelper.getRedisTemplate()).thenReturn(redisTemplate);
+        org.mockito.Mockito.lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
 
     @Test

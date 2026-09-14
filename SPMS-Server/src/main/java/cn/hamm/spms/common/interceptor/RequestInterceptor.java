@@ -71,6 +71,42 @@ public class RequestInterceptor extends CurdRequestInterceptor {
     @Autowired
     private cn.hamm.spms.module.factory.storage.StorageHierarchyIndex storageHierarchyIndex;
 
+    @Autowired
+    private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private cn.hamm.spms.common.security.AccessTokenRevocationService accessTokenRevocationService;
+
+    /**
+     * 加载启用用户并<b>在只读事务内</b>初始化权限上下文需要的懒集合。
+     *
+     * <p>airpower 的 service 查询在非事务下走独立会话，返回实体是游离态；
+     * 在事务外遍历 {@code roleList} 会抛 LazyInitializationException
+     * （真实环境表现为每个鉴权请求 500，单测因 mock 普通 Set 而测不出）。
+     * 这里用编程式事务（不给 UserService 引入 CGLIB 代理——它的 final
+     * 方法会在未注入字段的代理实例上执行）完成集合 hydrate。</p>
+     */
+    private UserEntity loadUserWithInitializedAssociations(long userId) {
+        boolean includeFactory = dataPermissionProperties != null && dataPermissionProperties.isFactoryDimensionEnabled();
+        return transactionTemplate.execute(status -> {
+            UserEntity user = userService.getWithEnable(userId);
+            // JPA 加载后集合恒为空集而非 null；这里的判空与 ensurePermissionContext 的防御口径一致
+            if (user.getRoleList() != null) {
+                user.getRoleList().size();
+            }
+            if (user.getDepartmentList() != null) {
+                user.getDepartmentList().size();
+            }
+            if (user.getStorageList() != null) {
+                user.getStorageList().size();
+            }
+            if (includeFactory && user.getFactoryList() != null) {
+                user.getFactoryList().size();
+            }
+            return user;
+        });
+    }
+
     /**
      * 验证指定的用户是否有指定权限标识的权限
      *
@@ -86,7 +122,7 @@ public class RequestInterceptor extends CurdRequestInterceptor {
             HttpServletRequest request
     ) {
         long userId = verifiedToken.getPayloadId();
-        UserEntity existUser = userService.getWithEnable(userId);
+        UserEntity existUser = loadUserWithInitializedAssociations(userId);
         ensurePermissionContext(existUser, request);
         // 导出走文件流、不经过 Jackson，是列级脱敏的已知旁路：在这里统一收口
         // （为什么放拦截器而不是各 controller：BaseController 全局排掉了 Curd.Export，
@@ -107,6 +143,16 @@ public class RequestInterceptor extends CurdRequestInterceptor {
 
     @Override
     public AccessTokenUtil.VerifiedToken getVerifiedToken(String accessToken) {
+        // 框架按「Authorization 头 = 裸令牌」设计，但前端 axios 与 OpenAPI 契约（Bearer securityScheme）
+        // 都带 "Bearer " 前缀。在这里统一剥掉，两种写法都能验证；否则所有 Bearer 请求都会被判「身份令牌无效」。
+        if (accessToken != null && accessToken.startsWith("Bearer ")) {
+            accessToken = accessToken.substring(7).trim();
+        }
+        // 登出吊销：签名有效但已被 /user/logout 拉黑的令牌在这里拦下（自包含令牌自身无状态，
+        // 不查名单的话注销只是"客户端不记事"，服务端仍认）。
+        if (accessTokenRevocationService != null && accessTokenRevocationService.isRevoked(accessToken)) {
+            UNAUTHORIZED.show("登录状态已失效，请重新登录");
+        }
         AccessTokenUtil.VerifiedToken verifiedToken = super.getVerifiedToken(accessToken);
         Object tokenType = verifiedToken.getPayload(UserTokenType.TYPE);
         FORBIDDEN.whenNull(tokenType, "无效的令牌类型");

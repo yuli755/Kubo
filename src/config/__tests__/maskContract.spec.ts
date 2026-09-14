@@ -53,7 +53,12 @@ function collect(dir: string, ext: string, out: string[] = []): string[] {
   return out
 }
 
-const read = (path: string): string => readFileSync(path, 'utf-8')
+// 归一化换行：Windows 工作区 checkout 出 CRLF，而下面的判据全是 LF 语义的正则
+// （`row-write:\n` 之类）。在 CI（Linux）与本地（Windows）跑出同一结果，判据本身不变。
+const read = (path: string): string => readFileSync(path, 'utf-8').replace(/\r\n/g, '\n')
+
+/** 文件名提取：Windows 的 path.join 产出反斜杠，只按 '/' 切会把整条路径当成文件名 */
+const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
 
 /**
  * Java 源码里只看代码、不看注释
@@ -466,7 +471,7 @@ describe('mask contract · 脱敏实现只允许存在一处', () => {
       if (file.endsWith('DataResourceController.java')) {
         continue
       }
-      expect(read(file), `盘点端点不该出现在 ${file.split('/').pop()}`).not.toContain('dimension-binding-risks')
+      expect(read(file), `盘点端点不该出现在 ${baseName(file)}`).not.toContain('dimension-binding-risks')
     }
 
     // 前端不许重算：判 kind/subjectType 就是重抄风险类别，写属性名字面量就是抄实体形状
@@ -700,7 +705,7 @@ describe('mask contract · 界面文案与后端能力对齐', () => {
     // tip 里点名的后端类必须存在（引用一个不存在的类，比不写更误导）
     for (const cls of tip.match(/\b[A-Z][A-Za-z0-9]*Guard\b/g) ?? []) {
       const hit = collect(join(SERVER, 'module/system/datapermission'), '.java')
-        .some(file => file.endsWith(`/${cls}.java`))
+        .some(file => baseName(file) === `${cls}.java`)
       expect(hit, `tip 引用的 ${cls} 在后端找不到`).toBe(true)
     }
 
@@ -875,7 +880,7 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
      * 于是判据收窄成既能守文案又不误伤的形式：**读取点只许出现在开发初始化里**。
      * 谁哪天在判定路径上读它（拦截器、guard、specification），资源编辑器的说明即刻过期 ⇒ 用例先红。
      */
-    const ALLOWED_READER = /(?:^|\/)DevDataInitRunner\.java$/
+    const ALLOWED_READER = /(?:^|[\\/])DevDataInitRunner\.java$/
     const entity = join(SERVER, 'module/system/datapermission/entity/DataResourceEntity.java')
     expect(readJavaCode(entity), 'DataResourceEntity 里没有 supportedActions：字段已改名或移除，本用例要重写')
       .toContain('supportedActions')
@@ -1028,7 +1033,7 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
     const doc = read(DICT)
     for (const cls of doc.match(/\b(?:Export|Masked|Dimension|Column)[A-Za-z0-9]*(?:Guard|Service|Masker)\b/g) ?? []) {
       const hit = collect(join(SERVER, 'module/system/datapermission'), '.java')
-        .some(file => file.endsWith(`/${cls}.java`))
+        .some(file => baseName(file) === `${cls}.java`)
       expect(hit, `字典注释引用的 ${cls} 在后端找不到`).toBe(true)
     }
   })
@@ -1200,7 +1205,7 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
       if (file.endsWith('DataResourceController.java')) {
         continue
       }
-      expect(read(file), `状态端点不该出现在 ${file.split('/').pop()}（会把权限面从 dataResource 漂走）`)
+      expect(read(file), `状态端点不该出现在 ${baseName(file)}（会把权限面从 dataResource 漂走）`)
         .not
         .toContain('runtime-status')
     }
@@ -1348,7 +1353,7 @@ describe('mask contract · 逐资源放开的前置检查', () => {
       if (file.endsWith('DataResourceController.java')) {
         continue
       }
-      expect(read(file), `放开前置检查出现在 ${file.split('/').pop()}：诊断端点的权限面会从 dataResource 漂走`)
+      expect(read(file), `放开前置检查出现在 ${baseName(file)}：诊断端点的权限面会从 dataResource 漂走`)
         .not
         .toContain('enforce-readiness')
     }
@@ -1512,7 +1517,7 @@ describe('mask contract · 拒答语义与留痕口径', () => {
       if (!code.includes('assertThrows(RuntimeException.class')) {
         continue
       }
-      expect(code, `${file.split('/').pop()} 里有只断类型的 assertThrows：`
+      expect(code, `${baseName(file)} 里有只断类型的 assertThrows：`
       + '「资源未注册」与「策略没配」两种原因在断言里会长得一模一样')
         .toContain('getMessage()')
     }
@@ -1631,7 +1636,7 @@ describe('mask contract · 读侧 Mapper（P2 换轨的注册面）', () => {
     expect(xmls.length, 'resources/mapper 下没有 XML：这条门禁会空转').toBeGreaterThan(0)
     for (const entry of xmls) {
       const body = stripXmlComments(entry.source)
-      expect(body, `${entry.file.split('/').pop()} 里手写了归属列条件：那"谁能看哪些行"就有两份实现，`
+      expect(body, `${baseName(entry.file)} 里手写了归属列条件：那"谁能看哪些行"就有两份实现，`
       + '改策略时改一处漏一处，而漏的那处不报错、只多放行行')
         .not
         .toMatch(/(?:tenant|creator|department|factory|warehouse)_id\s*(?:=|in)\s/i)
@@ -1652,7 +1657,7 @@ describe('mask contract · 读侧 Mapper（P2 换轨的注册面）', () => {
       }
       const code = readJavaCode(file)
       if (code.includes('"#{') || factories.test(code)) {
-        offenders.push(file.split('/').pop() ?? file)
+        offenders.push(baseName(file))
       }
     }
     expect(offenders, '出现了第二处把片段写成 MyBatis 形式、或直接用 SQL 侧重建判据的地方：'
@@ -1691,7 +1696,7 @@ describe('mask contract · 归属判据合一', () => {
       .toContain('JpaPathResolver')
 
     // 分工必须还是两件事：判"适用"与判"拼什么条件"各自一处，且不许在第三个文件里出现第三种写法
-    const holders = collect(SERVER, '.java').filter(file => dimensionSubjectSwitch.test(readJavaCode(file))).map(file => file.split('/').pop() ?? file).sort()
+    const holders = collect(SERVER, '.java').filter(file => dimensionSubjectSwitch.test(readJavaCode(file))).map(file => baseName(file)).sort()
     expect(holders, '主体类型的 switch 出现在意料之外的文件里：合一之后它只该有两个住处（拼条件 = SubjectDimensionRules、判适用 = SubjectMatcher）')
       .toEqual(['DataPermissionSubjectMatcher.java', 'SubjectDimensionRules.java'].sort())
     // 反证：伪造一份"JPA 侧自己又 switch 了"的源码，判定必须为真
@@ -1713,7 +1718,7 @@ describe('mask contract · 归属判据合一', () => {
 
   it('恒假只有一个写法：兜底出口不许各抄字面量', () => {
     const files = collect(SERVER, '.java').filter(file => readJavaCode(file).includes('"1 = 0"'))
-    expect(files.map(file => file.split('/').pop()), '"1 = 0" 出现在多个文件里：哪一处写错成 "1 = 1"，'
+    expect(files.map(file => baseName(file)), '"1 = 0" 出现在多个文件里：哪一处写错成 "1 = 1"，'
     + '那个分支就静默放开全表，而 grep 只会先找到那个写对的地方')
       .toEqual(['RowPermissionPredicate.java'])
   })
@@ -1785,7 +1790,7 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
 
     const holders = collect(SERVER, '.java')
       .filter(file => !file.endsWith('RowParityRegistry.java') && readJavaCode(file).includes('new RowParityRegistry('))
-      .map(file => file.split('/').pop() ?? file)
+      .map(file => baseName(file))
     expect(holders, '`new RowParityRegistry(` 出现在第二个地方：注册面分裂，谁在跑对账就没人说得清')
       .toEqual(['MapperReadConfiguration.java'])
 
@@ -1813,7 +1818,7 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
     expect(implementors, '没有任何探针实现：这张表与整套对账判据就成了没人消费的机器，要么接上第一个资源，要么删掉')
       .toHaveLength(21)
     for (const file of implementors) {
-      expect(readJavaCode(file), `${file.split('/').pop()} 的 parityResourceKey 必须是 default 方法`)
+      expect(readJavaCode(file), `${baseName(file)} 的 parityResourceKey 必须是 default 方法`)
         .toMatch(/default\s+String\s+parityResourceKey\s*\(\)/)
     }
   })
@@ -1893,7 +1898,7 @@ describe('mask contract · 拒绝事件落库（B4）', () => {
       if (file.endsWith('DataResourceController.java')) {
         continue
       }
-      expect(read(file), `拒绝事件端点出现在 ${file.split('/').pop()}：这份「谁被拒过」的跨角色数据会从 dataResource 权限面漂走`)
+      expect(read(file), `拒绝事件端点出现在 ${baseName(file)}：这份「谁被拒过」的跨角色数据会从 dataResource 权限面漂走`)
         .not
         .toContain('deny-logs')
     }
@@ -1924,7 +1929,7 @@ describe('mask contract · 操作审计落库（P3）', () => {
       if (file.endsWith('DataResourceController.java')) {
         continue
       }
-      expect(read(file), `操作审计端点出现在 ${file.split('/').pop()}：这份「谁改过」的跨角色数据会从 dataResource 权限面漂走`)
+      expect(read(file), `操作审计端点出现在 ${baseName(file)}：这份「谁改过」的跨角色数据会从 dataResource 权限面漂走`)
         .not
         .toContain('operation-logs')
     }
@@ -1963,7 +1968,7 @@ describe('mask contract · 策略指向缺失/未启用资源盘点', () => {
       if (file.endsWith('DataResourceController.java')) {
         continue
       }
-      expect(read(file), `策略资源引用盘点出现在 ${file.split('/').pop()}：这份跨角色策略地图会从 dataResource 权限面漂走`)
+      expect(read(file), `策略资源引用盘点出现在 ${baseName(file)}：这份跨角色策略地图会从 dataResource 权限面漂走`)
         .not
         .toContain('policy-resource-risks')
     }
@@ -2068,7 +2073,7 @@ describe('mask contract · Outbox 同事务写入（P5 第一刀）', () => {
       if (file.endsWith('DataResourceController.java')) {
         continue
       }
-      expect(read(file), `死信处置端点出现在 ${file.split('/').pop()}：这份「哪些变更通知没送出去」的数据会从 dataResource 权限面漂走`)
+      expect(read(file), `死信处置端点出现在 ${baseName(file)}：这份「哪些变更通知没送出去」的数据会从 dataResource 权限面漂走`)
         .not
         .toContain('outbox-dead')
     }

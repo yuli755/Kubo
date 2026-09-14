@@ -23,6 +23,13 @@ export default defineConfig({
     // 默认 node 环境（纯函数最快）；需要 DOM 的用例在文件头写 `// @vitest-environment jsdom`
     environment: 'node',
     include: ['src/**/*.spec.ts', 'packages/shared/**/*.spec.ts'],
+    // 冷启动时模块链首次编译可能超过默认 5s（appConfig 首次 import airpower shim 实测 ~3s，
+    // CI 上依赖包未预热会更慢），抬高到 15s 消除平台相关的偶发超时。
+    testTimeout: 15000,
+    // vitest 4 defaults to `forks`：每个 worker 是完整 Node 进程，Windows 提交限制（页面文件）
+    // 紧张时 worker 会被 OOM 静默杀掉（表现：Worker exited unexpectedly + 用例数缺失）。
+    // threads 共享主进程堆，jsdom 环境同样支持，代价更低也更稳。
+    pool: 'threads',
     // 组件测试需要 element-plus 的解析器时，按需在具体用例里注册，避免全局开销
     coverage: {
       provider: 'v8',

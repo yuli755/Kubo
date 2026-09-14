@@ -95,6 +95,13 @@ class RequestInterceptorPermissionContextTest {
         injectField(interceptor, "systemPermissionService", systemPermissionService);
         injectField(interceptor, "tenantContextResolver", tenantContextResolver);
         injectField(interceptor, "exportBypassGuard", exportBypassGuard);
+        // 编程式事务模板：测试里没有真实事务，直通执行回调即可
+        injectField(interceptor, "transactionTemplate", new org.springframework.transaction.support.TransactionTemplate() {
+            @Override
+            public <T> T execute(org.springframework.transaction.support.TransactionCallback<T> action) {
+                return action.doInTransaction(null);
+            }
+        });
         // 默认：服务端解析出的租户为 1（具体语义见 TenantContextResolverTest）
         lenient().when(tenantContextResolver.resolve(any(UserEntity.class), any(HttpServletRequest.class))).thenReturn(1L);
         PermissionContextHolder.clear();

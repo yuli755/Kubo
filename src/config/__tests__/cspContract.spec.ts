@@ -23,7 +23,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const NGINX = join(ROOT, 'nginx.conf')
 const INDEX = join(ROOT, 'index.html')
 
-const read = (path: string): string => readFileSync(path, 'utf-8')
+// 归一化换行：Windows checkout 是 CRLF，而 nginx.conf 里的 sha256 是对 LF 版脚本算的。
+// 不归一化会让同一份 index.html 在 Windows 上算出不同 hash —— 门禁应当在两平台等价。
+const read = (path: string): string => readFileSync(path, 'utf-8').replace(/\r\n/g, '\n')
 
 /** 提取 index.html 里的内联 <script> 内容（首个，即防闪烁脚本） */
 function inlineScriptBody(html: string): string {

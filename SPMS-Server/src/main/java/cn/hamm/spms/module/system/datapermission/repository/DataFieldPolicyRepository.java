@@ -15,6 +15,12 @@ import java.util.List;
  */
 @Repository
 public interface DataFieldPolicyRepository extends BaseRepository<DataFieldPolicyEntity> {
+    /**
+     * 判断某资源某字段是否已登记脱敏策略（同 {@code DataPolicyRepository#existsBy...} 的理由：
+     * 实体默认值会污染 filter 查询条件，初始化守卫必须走显式存在性查询）
+     */
+    boolean existsByResourceIdAndFieldName(Long resourceId, String fieldName);
+
     List<DataFieldPolicyEntity> findByResourceIdAndActionNameAndEnabledTrueOrderByPriorityDesc(Long resourceId, String actionName);
 
     /**

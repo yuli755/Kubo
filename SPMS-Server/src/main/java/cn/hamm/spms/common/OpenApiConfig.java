@@ -17,7 +17,8 @@ import java.util.List;
  * <h1>OpenAPI 3 配置</h1>
  * <p>
  * SpringDoc OpenAPI 3 配置，生成标准 OpenAPI 3.1 规范文档
- * 支持 Knife4j UI 界面访问
+ * 内置 Swagger UI 因 Spring 6.2 路径模式不兼容已关闭（见 application.yml springdoc.swagger-ui 注释），
+ * 文档消费方式：/v3/api-docs JSON → 前端 codegen / 外部 OpenAPI 工具
  * </p>
  *
  * @author Hamm.cn

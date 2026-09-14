@@ -100,6 +100,9 @@ public class DevDataInitRunner implements CommandLineRunner {
     @Autowired
     private Environment environment;
 
+    @Autowired
+    private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+
     @Override
     public void run(String... args) {
         AppConfig appConfig = Configs.getAppConfig();
@@ -142,7 +145,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         DataPolicyService dataPolicyService = SystemServices.getDataPolicyService();
 
         // 注册 wms.inventory 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("wms.inventory")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("wms.inventory") == null) {
             DataResourceEntity inventoryResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("wms.inventory")
@@ -167,7 +170,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 wms.input 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("wms.input")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("wms.input") == null) {
             DataResourceEntity inputResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("wms.input")
@@ -190,7 +193,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 wms.output 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("wms.output")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("wms.output") == null) {
             DataResourceEntity outputResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("wms.output")
@@ -213,7 +216,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 wms.move 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("wms.move")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("wms.move") == null) {
             DataResourceEntity moveResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("wms.move")
@@ -238,7 +241,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 mes.order 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("mes.order")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("mes.order") == null) {
             DataResourceEntity orderResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("mes.order")
@@ -262,7 +265,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 mes.plan 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("mes.plan")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("mes.plan") == null) {
             DataResourceEntity planResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("mes.plan")
@@ -285,7 +288,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 mes.picking 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("mes.picking")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("mes.picking") == null) {
             DataResourceEntity pickingResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("mes.picking")
@@ -308,7 +311,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 mes.bom 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("mes.bom")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("mes.bom") == null) {
             DataResourceEntity bomResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("mes.bom")
@@ -331,7 +334,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 mes.routing 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("mes.routing")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("mes.routing") == null) {
             DataResourceEntity routingResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("mes.routing")
@@ -354,7 +357,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 mes.operation 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("mes.operation")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("mes.operation") == null) {
             DataResourceEntity operationResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("mes.operation")
@@ -377,7 +380,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 channel.sale 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("channel.sale")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("channel.sale") == null) {
             DataResourceEntity saleResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("channel.sale")
@@ -400,7 +403,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 channel.purchase 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("channel.purchase")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("channel.purchase") == null) {
             DataResourceEntity purchaseResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("channel.purchase")
@@ -423,7 +426,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 channel.supplier 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("channel.supplier")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("channel.supplier") == null) {
             DataResourceEntity supplierResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("channel.supplier")
@@ -446,7 +449,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 channel.customer 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("channel.customer")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("channel.customer") == null) {
             DataResourceEntity customerResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("channel.customer")
@@ -469,7 +472,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 channel.salePrice 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("channel.salePrice")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("channel.salePrice") == null) {
             DataResourceEntity salePriceResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("channel.salePrice")
@@ -492,7 +495,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 channel.purchasePrice 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("channel.purchasePrice")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("channel.purchasePrice") == null) {
             DataResourceEntity purchasePriceResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("channel.purchasePrice")
@@ -515,7 +518,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 asset.contract 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("asset.contract")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("asset.contract") == null) {
             DataResourceEntity contractResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("asset.contract")
@@ -538,7 +541,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 asset.device 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("asset.device")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("asset.device") == null) {
             DataResourceEntity deviceResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("asset.device")
@@ -561,7 +564,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 asset.material 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("asset.material")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("asset.material") == null) {
             DataResourceEntity materialResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("asset.material")
@@ -584,7 +587,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 factory.storage 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("factory.storage")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("factory.storage") == null) {
             DataResourceEntity storageResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("factory.storage")
@@ -607,7 +610,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 factory.structure 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("factory.structure")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("factory.structure") == null) {
             DataResourceEntity structureResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("factory.structure")
@@ -630,7 +633,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 personnel.user 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("personnel.user")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("personnel.user") == null) {
             DataResourceEntity userResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("personnel.user")
@@ -653,7 +656,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 personnel.role 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("personnel.role")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("personnel.role") == null) {
             DataResourceEntity roleResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("personnel.role")
@@ -676,7 +679,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 注册 personnel.department 数据资源
-        if (dataResourceService.filter(new DataResourceEntity().setResourceKey("personnel.department")).isEmpty()) {
+        if (dataResourceService.getByResourceKey("personnel.department") == null) {
             DataResourceEntity departmentResource = dataResourceService.addAndGet(
                     new DataResourceEntity()
                             .setResourceKey("personnel.department")
@@ -728,22 +731,17 @@ public class DevDataInitRunner implements CommandLineRunner {
      * 为指定资源补充 CREATE/UPDATE/DELETE 策略（若不存在且资源支持该动作）
      */
     private void addWritePoliciesForResource(DataPolicyService dataPolicyService, DataResourceService dataResourceService, String resourceKey) {
-        List<DataResourceEntity> resources = dataResourceService.filter(
-                new DataResourceEntity().setResourceKey(resourceKey));
-        if (resources.isEmpty()) {
+        DataResourceEntity resource = dataResourceService.getByResourceKey(resourceKey);
+        if (resource == null) {
             return;
         }
-        DataResourceEntity resource = resources.get(0);
         if (resource.getSupportedActions() == null || !resource.getSupportedActions().contains("CREATE")) {
             return;
         }
         long resourceId = resource.getId();
         for (DataPermissionAction action : List.of(DataPermissionAction.CREATE, DataPermissionAction.UPDATE, DataPermissionAction.DELETE)) {
             String policyCode = resourceKey.replace('.', '_') + '_' + action.name().toLowerCase();
-            if (dataPolicyService.filter(new DataPolicyEntity()
-                    .setResourceId(resourceId)
-                    .setActionName(action.name())
-                    .setSubjectType(DataPermissionSubjectType.SYSTEM.name())).isEmpty()) {
+            if (!dataPolicyService.existsPolicy(resourceId, action.name(), DataPermissionSubjectType.SYSTEM.name())) {
                 dataPolicyService.addAndGet(new DataPolicyEntity()
                         .setPolicyCode(policyCode)
                         .setResourceId(resourceId)
@@ -761,14 +759,11 @@ public class DevDataInitRunner implements CommandLineRunner {
         DataResourceService dataResourceService = SystemServices.getDataResourceService();
 
         // 为 channel.salePrice 的 price 字段创建脱敏策略（试点：非 ROOT 角色默认部分遮蔽）
-        List<DataResourceEntity> salePriceResources = dataResourceService.filter(
-                new DataResourceEntity().setResourceKey("channel.salePrice"));
-        if (!salePriceResources.isEmpty()) {
-            DataResourceEntity salePriceResource = salePriceResources.get(0);
-            if (dataFieldPolicyService.filter(
-                    new DataFieldPolicyEntity().setResourceId(salePriceResource.getId()).setFieldName("price")).isEmpty()) {
+        DataResourceEntity salePriceResource = dataResourceService.getByResourceKey("channel.salePrice");
+        if (salePriceResource != null) {
+            if (!dataFieldPolicyService.existsPolicy(salePriceResource.getId(), "price")) {
                 dataFieldPolicyService.addAndGet(new DataFieldPolicyEntity()
-                        .setResourceId(salePriceResource.getId())
+                        .setResource(salePriceResource)
                         .setFieldName("price")
                         .setRoleCode("default")
                         .setActionName("QUERY")
@@ -781,14 +776,11 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 为 channel.purchasePrice 的 price 字段创建脱敏策略
-        List<DataResourceEntity> purchasePriceResources = dataResourceService.filter(
-                new DataResourceEntity().setResourceKey("channel.purchasePrice"));
-        if (!purchasePriceResources.isEmpty()) {
-            DataResourceEntity purchasePriceResource = purchasePriceResources.get(0);
-            if (dataFieldPolicyService.filter(
-                    new DataFieldPolicyEntity().setResourceId(purchasePriceResource.getId()).setFieldName("price")).isEmpty()) {
+        DataResourceEntity purchasePriceResource = dataResourceService.getByResourceKey("channel.purchasePrice");
+        if (purchasePriceResource != null) {
+            if (!dataFieldPolicyService.existsPolicy(purchasePriceResource.getId(), "price")) {
                 dataFieldPolicyService.addAndGet(new DataFieldPolicyEntity()
-                        .setResourceId(purchasePriceResource.getId())
+                        .setResource(purchasePriceResource)
                         .setFieldName("price")
                         .setRoleCode("default")
                         .setActionName("QUERY")
@@ -801,14 +793,11 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
 
         // 为 asset.material 的 purchasePrice / salePrice 字段创建脱敏策略
-        List<DataResourceEntity> materialResources = dataResourceService.filter(
-                new DataResourceEntity().setResourceKey("asset.material"));
-        if (!materialResources.isEmpty()) {
-            DataResourceEntity materialResource = materialResources.get(0);
-            if (dataFieldPolicyService.filter(
-                    new DataFieldPolicyEntity().setResourceId(materialResource.getId()).setFieldName("purchasePrice")).isEmpty()) {
+        DataResourceEntity materialResource = dataResourceService.getByResourceKey("asset.material");
+        if (materialResource != null) {
+            if (!dataFieldPolicyService.existsPolicy(materialResource.getId(), "purchasePrice")) {
                 dataFieldPolicyService.addAndGet(new DataFieldPolicyEntity()
-                        .setResourceId(materialResource.getId())
+                        .setResource(materialResource)
                         .setFieldName("purchasePrice")
                         .setRoleCode("default")
                         .setActionName("QUERY")
@@ -818,10 +807,9 @@ public class DevDataInitRunner implements CommandLineRunner {
                         .setEnabled(true)
                 );
             }
-            if (dataFieldPolicyService.filter(
-                    new DataFieldPolicyEntity().setResourceId(materialResource.getId()).setFieldName("salePrice")).isEmpty()) {
+            if (!dataFieldPolicyService.existsPolicy(materialResource.getId(), "salePrice")) {
                 dataFieldPolicyService.addAndGet(new DataFieldPolicyEntity()
-                        .setResourceId(materialResource.getId())
+                        .setResource(materialResource)
                         .setFieldName("salePrice")
                         .setRoleCode("default")
                         .setActionName("QUERY")
@@ -835,12 +823,25 @@ public class DevDataInitRunner implements CommandLineRunner {
     }
 
     private void initRootAuthorization() {
+        transactionTemplate.executeWithoutResult(status -> initRootAuthorizationInTransaction());
+    }
+
+    private void initRootAuthorizationInTransaction() {
         UserService userService = PersonnelServices.getUserService();
         RoleService roleService = PersonnelServices.getRoleService();
         PermissionService permissionService = SystemServices.getPermissionService();
         UserEntity rootUser = userService.getMaybeNull(1L);
         if (rootUser == null) {
             return;
+        }
+        // 先把既有角色集合"取平"成游离 Set：下面任何一次写操作都可能让持久化上下文
+        // 里的实体失效（框架 CurdService 内部各自提交/清理会话），懒集合必须在读的时候
+        // 就展开，不能留到写完再 .size()。
+        Set<Long> existingRoleIds = new HashSet<>();
+        if (rootUser.getRoleList() != null) {
+            for (RoleEntity r : rootUser.getRoleList()) {
+                existingRoleIds.add(r.getId());
+            }
         }
         RoleEntity rootRole = roleService.filter(new RoleEntity().setCode("SYSTEM_ROOT"))
                 .stream()
@@ -850,12 +851,17 @@ public class DevDataInitRunner implements CommandLineRunner {
                         .setCode("SYSTEM_ROOT")));
         rootRole.setPermissionList(new HashSet<>(permissionService.filter(new PermissionEntity())));
         roleService.updateToDatabase(rootRole);
-        Set<RoleEntity> roles = rootUser.getRoleList() == null
-                ? new HashSet<>()
-                : new HashSet<>(rootUser.getRoleList());
-        roles.add(rootRole);
-        rootUser.setRoleList(roles);
-        userService.updateToDatabase(rootUser);
+        if (existingRoleIds.contains(rootRole.getId())) {
+            return;
+        }
+        existingRoleIds.add(rootRole.getId());
+        Set<RoleEntity> roles = new HashSet<>();
+        for (Long roleId : existingRoleIds) {
+            roles.add(roleService.get(roleId));
+        }
+        UserEntity freshUser = userService.getMaybeNull(1L);
+        freshUser.setRoleList(roles);
+        userService.updateToDatabase(freshUser);
     }
     private void initParameters() {
         ParameterService parameterService = IotServices.getParameterService();

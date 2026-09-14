@@ -2,7 +2,7 @@
 
 ## 概述
 
-本项目使用 **SpringDoc OpenAPI 3** + **Knife4j** 自动生成后端 API 文档，并使用 **openapi-typescript-codegen** 自动生成前端 TypeScript 类型和 API 客户端代码。
+本项目使用 **SpringDoc OpenAPI 3** 自动生成后端 API 文档，并使用 **openapi-typescript-codegen** 自动生成前端 TypeScript 类型和 API 客户端代码。
 
 ## 架构图
 
@@ -15,7 +15,12 @@ graph LR
     D -->|生成| F[Axios API 客户端]
     E --> G[前端业务代码]
     F --> G
-    B -->|UI| H[Knife4j / Swagger UI]
+    C -->|导入| I[外部工具 Bruno/Postman/Swagger Editor]
+```
+
+> 内置 Swagger UI 已关闭：springdoc 的 UI webjar 向 Spring 6.2 的资源注册表注册
+> `/swagger-ui/**/*swagger-initializer.js` 这类「`**` 后挂片段」的模式，PathPatternParser 判为非法，
+> 容器直接起不来（springdoc 2.8.15 / 2.9.1 均实测崩溃）。OpenAPI JSON 不受影响。
 ```
 
 ## 后端配置
@@ -23,17 +28,13 @@ graph LR
 ### 依赖 (pom.xml)
 
 ```xml
-<!-- SpringDoc OpenAPI 3 + Swagger UI -->
+<!-- SpringDoc OpenAPI 3：版本必须匹配 Spring Boot 3.4。2.6.0 只适配 Boot 3.2/3.3，
+     在 Boot 3.4 上构建文档会抛异常；曾经的 knife4j 4.5.0 starter 按 springdoc 2.3.0 编译，
+     它重写的 /v3/api-docs 控制器是当年 500 的直接源头，已移除。UI 见上方说明。 -->
 <dependency>
     <groupId>org.springdoc</groupId>
     <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-    <version>2.6.0</version>
-</dependency>
-<!-- Knife4j UI 增强 -->
-<dependency>
-    <groupId>com.github.xiaoymin</groupId>
-    <artifactId>knife4j-spring-boot-starter</artifactId>
-    <version>4.5.0</version>
+    <version>2.9.1</version>
 </dependency>
 ```
 
@@ -45,12 +46,12 @@ springdoc:
     enabled: true
     path: /v3/api-docs
   swagger-ui:
-    enabled: true
-    path: /doc.html
-    try-it-out-enabled: true
+    enabled: false   # Spring 6.2 与 UI webjar 模式不兼容，见上文；勿擅自开启，否则容器起不来
   packages-to-scan: cn.hamm.spms
+  # 真实路由是 /<模块>/<动作>（@Api("user") → /user/login），/api 前缀只存在于
+  # Vite dev 代理的 rewrite 里；曾经写 /api/** 会把整份 schema 筛成空 paths。
   paths-to-match:
-    - /api/**
+    - /**
 ```
 
 ### Controller 注解示例
@@ -84,10 +85,10 @@ public class PermissionEntity extends BaseEntity<PermissionEntity> {
 
 ## 访问文档
 
-| 环境 | OpenAPI JSON | Swagger UI | Knife4j UI |
-|------|-------------|------------|------------|
-| 本地开发 | http://localhost:8080/v3/api-docs | http://localhost:8080/doc.html | http://localhost:8080/doc.html |
-| 生产环境 | https://api.kubo.example.com/v3/api-docs | 关闭 | 关闭 |
+| 环境 | OpenAPI JSON | 内置 UI |
+|------|-------------|---------|
+| 本地开发 | http://localhost:8080/v3/api-docs | 已关闭（Spring 6.2 模式不兼容），用外部工具导入 JSON |
+| 生产环境 | https://api.kubo.example.com/v3/api-docs | 关闭 |
 
 ## 前端类型生成
 

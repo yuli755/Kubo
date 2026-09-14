@@ -67,7 +67,9 @@ class CsvFormulaSanitizerTest {
     @Test
     @DisplayName("含危险值时在副本上转义，原实体不被改动")
     void sanitizesOnCopyWithoutMutatingOriginal() {
-        Pojo original = new Pojo().setName("=SUM(A1)").setCode("C1").setRemark("正常备注");
+        Pojo original = new Pojo().setName("=SUM(A1)").setCode("C1");
+        // setRemark 定义在父类 Base，chain=true 时返回 Base，不能接在链尾
+        original.setRemark("正常备注");
         List<Pojo> result = CsvFormulaSanitizer.sanitize(List.of(original));
 
         Pojo sanitized = result.get(0);
@@ -82,7 +84,9 @@ class CsvFormulaSanitizerTest {
     @Test
     @DisplayName("继承层次的 String 字段（父类 remark）也被转义")
     void sanitizesInheritedFields() {
-        Pojo original = new Pojo().setName("正常").setRemark("+8613800138000");
+        Pojo original = new Pojo().setName("正常");
+        // 同上：父类 setter 链尾返回 Base，需单独调用
+        original.setRemark("+8613800138000");
         Pojo sanitized = CsvFormulaSanitizer.sanitize(List.of(original)).get(0);
         assertEquals("'+8613800138000", sanitized.getRemark());
         assertEquals("+8613800138000", original.getRemark());

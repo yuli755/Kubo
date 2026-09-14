@@ -5,6 +5,7 @@ import cn.hamm.airpower.redis.RedisHelper;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;
 import cn.hamm.spms.module.system.datapermission.service.JpaPermissionRuleProvider;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -13,6 +14,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -37,13 +40,33 @@ public class DataPermissionEventListener implements ApplicationRunner, MessageLi
 
     private static final String CHANNEL = "spms:datapermission:changes";
 
+    /**
+     * 订阅容器。必须在独立线程里 subscribe：Connection#subscribe 会阻塞当前线程直到退订，
+     * 直接在 ApplicationRunner 主线程调用会永久卡死后续的 CommandLineRunner
+     * （包括 DevDataInitRunner 的数据初始化与 ApplicationReadyEvent）。
+     */
+    private volatile RedisMessageListenerContainer listenerContainer;
+
     @Override
     public void run(ApplicationArguments args) {
-        // 启动时订阅频道
+        // 启动时订阅频道（异步：容器自带监听线程，不阻塞启动主线程）
         RedisTemplate<String, Object> redisTemplate = redisHelper.getRedisTemplate();
-        if (redisTemplate != null) {
-            redisTemplate.getConnectionFactory().getConnection().subscribe(this, CHANNEL.getBytes());
+        if (redisTemplate != null && redisTemplate.getConnectionFactory() != null) {
+            RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+            container.setConnectionFactory(redisTemplate.getConnectionFactory());
+            container.addMessageListener(this, new ChannelTopic(CHANNEL));
+            container.afterPropertiesSet();
+            container.start();
+            listenerContainer = container;
             log.info("已订阅数据权限变更频道: {}", CHANNEL);
+        }
+    }
+
+    @PreDestroy
+    public void shutdownSubscription() {
+        if (listenerContainer != null) {
+            listenerContainer.stop();
+            listenerContainer = null;
         }
     }
 
