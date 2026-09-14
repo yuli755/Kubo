@@ -71,7 +71,12 @@ public class UserEntity extends TenantAwareEntity<UserEntity> implements IUserAc
 
     @Description("邮箱")
     @SensitiveField(resourceKey = "personnel.user")
-    @Column(columnDefinition = "varchar(255) default '' comment '邮箱'", unique = true)
+    // 唯一列严禁 default ''（审核项 A-3）：Hibernate 动态 INSERT 会省略 null 字段，MySQL 随即补列默认值——
+    // 默认值若是 '' 就等于"每个未填邮箱的用户都抢占同一个空串"，第二个未填邮箱的用户必撞唯一键，
+    // 且 DataIntegrityViolation 被框架报成「删除失败，数据正在使用中」，排查极易跑错方向。
+    // NULL 在唯一索引里天然允许多行共存，才是"未填写"的正确表示。存量数据修正见
+    // docs/database/migration/20260915_user_email_phone_unique_null_default.sql。
+    @Column(columnDefinition = "varchar(255) comment '邮箱'", unique = true)
     @NotBlank(groups = {WhenSendEmail.class}, message = "邮箱不能为空")
     @Email(groups = {WhenResetMyPassword.class, WhenSendEmail.class}, message = "邮箱格式不正确")
     @Search
@@ -79,7 +84,8 @@ public class UserEntity extends TenantAwareEntity<UserEntity> implements IUserAc
 
     @Description("手机号")
     @SensitiveField(resourceKey = "personnel.user")
-    @Column(columnDefinition = "varchar(255) default '' comment '手机号'", unique = true)
+    // 同 email：unique + default '' 会让第二个未填手机号的用户无法创建（A-3）
+    @Column(columnDefinition = "varchar(255) comment '手机号'", unique = true)
     @Phone(groups = {WhenResetMyPassword.class, WhenSendSms.class}, message = "手机格式不正确")
     @Search
     private String phone;

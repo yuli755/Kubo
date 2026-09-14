@@ -91,6 +91,77 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
     private DataPermissionSpecification dataPermissionSpecification;
 
     /**
+     * 落库前统一保证「凡有 password 必加盐散列」（审核项 A-1 / A-4）
+     *
+     * <p>密码加盐散列是认证的地基：/user/add、/user/update 走通用 Curd 落库，历史上把请求体里的
+     * password 原样写进库（明文 + 空盐）。后果有两层——
+     * ① 凭据以明文躺在数据库，任何一次备份/读权限泄露即等于全员密码泄露；
+     * ② 登录做 {@code encodePassword(input, salt)} 比对，salt 为空直接抛「盐为空」，
+     * 用 /user/add 建的账号根本无法登录（功能级 Bug，黑盒探针实测）。</p>
+     *
+     * <p>三道闸门的分工：{@link #beforeAdd} / {@link #beforeUpdate} 在「仅提交值」实体上
+     * 归一裸密码（A-4 的关键：/user/update 轮换密码时框架 null-忽略合并会带入库里的<b>旧盐</b>，
+     * "盐为空"判据在落库点失明，必须赶在合并前散列）；本方法是兜底网，覆盖
+     * addToDatabase/updateToDatabase 直存路径。内部流程（resetPassword、modifyPassword、
+     * register 系列、DevDataInitRunner）自带「盐 + 40 位十六进制散列」成对凭据，
+     * 凭形状识别跳过，不会被二次散列。</p>
+     *
+     * @param entity 待落库实体
+     * @return 处理后的实体
+     */
+    @Override
+    protected @NotNull UserEntity beforeAppSaveToDatabase(@NotNull UserEntity entity) {
+        if (StringUtils.hasText(entity.getPassword()) && !isPreHashedPair(entity)) {
+            applyFreshPassword(entity);
+        }
+        return entity;
+    }
+
+    @Override
+    protected @NotNull UserEntity beforeUpdate(@NotNull UserEntity entity) {
+        UserEntity result = super.beforeUpdate(entity);
+        normalizeSubmittedPassword(result);
+        return result;
+    }
+
+    /**
+     * 请求侧密码归一：提交实体里出现「非散列形状」的密码即视为裸密码，换成服务端盐 + 散列
+     *
+     * <p>beforeAdd/beforeUpdate 收到的是"仅提交值"实体（框架在 beforeUpdate 之后才做
+     * null 忽略式合并），此时不信任客户端盐：裸密码（无论是否自带盐）一律重新加盐散列，
+     * 客户端盐作废。</p>
+     */
+    private void normalizeSubmittedPassword(@NotNull UserEntity entity) {
+        if (StringUtils.hasText(entity.getPassword()) && !isPreHashedPair(entity)) {
+            applyFreshPassword(entity);
+        }
+    }
+
+    /**
+     * 生成服务端随机盐并就地散列
+     */
+    private void applyFreshPassword(@NotNull UserEntity entity) {
+        String salt = RandomUtil.randomString(PASSWORD_SALT_LENGTH);
+        entity.setSalt(salt);
+        entity.setPassword(PermissionUtil.encodePassword(entity.getPassword(), salt));
+    }
+
+    /**
+     * 是否「服务端已散列凭据对」：salt 非空 + password 为 40 位十六进制散列形状
+     *
+     * <p>两半都要认：只看 password 形状会给"裸密码恰好是 40 位十六进制"的用户放行明文
+     * （encodePassword 的输出必然配一个服务端盐）。盐按「非空」而非定长判断：历史上
+     * modifyPassword 生成过非定长盐，存量行的盐长不统一，按形状一刀切会把老凭据二次散列。
+     * 用于区分内部流程已散列好的凭据（DevDataInitRunner/register 走公开 add 时自带
+     * 盐 + 散列成对提交，绝不能二次散列）与外部提交的裸密码。</p>
+     */
+    private static boolean isPreHashedPair(@NotNull UserEntity entity) {
+        String password = entity.getPassword();
+        return StringUtils.hasText(entity.getSalt())
+                && password != null && password.matches("[0-9a-f]{40}");
+    }
+
+    /**
      * 获取新的验证码
      *
      * @return 验证码
@@ -214,7 +285,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
                 existUser.getPassword(),
                 "原密码输入错误，修改密码失败"
         );
-        String salt = RandomUtil.randomString();
+        String salt = RandomUtil.randomString(PASSWORD_SALT_LENGTH);
         existUser.setSalt(salt);
         existUser.setPassword(PermissionUtil.encodePassword(newPassword, salt));
         updateToDatabase(existUser);
@@ -497,15 +568,17 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
 
     @Override
     protected @NotNull UserEntity beforeAdd(@NotNull UserEntity user) {
-        UserEntity existUser = repository.getByEmail(user.getEmail());
+        // 经 BaseService.beforeAdd：掩码写入拒绝 + 数据权限（CREATE）。此前直挂子类钩子
+        // 不调 super，等于新增用户绕过了行级写保护与掩码防护。
+        UserEntity result = super.beforeAdd(user);
+        UserEntity existUser = repository.getByEmail(result.getEmail());
         FORBIDDEN_EXIST.whenNotNull(existUser, "邮箱已经存在，请勿重复添加用户");
-        if (!StringUtils.hasLength(user.getPassword())) {
-            // 创建时没有设置密码的话 随机一个密码
-            String salt = RandomUtil.randomString(PASSWORD_SALT_LENGTH);
-            user.setPassword(PermissionUtil.encodePassword(RandomUtil.randomString(), salt));
-            user.setSalt(salt);
+        if (!StringUtils.hasLength(result.getPassword())) {
+            // 创建时没有设置密码的话 随机一个密码（随后统一走服务端加盐散列）
+            result.setPassword(RandomUtil.randomString());
         }
-        return user;
+        normalizeSubmittedPassword(result);
+        return result;
     }
 
     @Override

@@ -7,6 +7,7 @@ import cn.hamm.airpower.websocket.WebSocketHandler;
 import cn.hamm.airpower.websocket.WebSocketSupport;
 import cn.hamm.spms.common.AppWebSocketHandler;
 import cn.hamm.spms.common.Configs;
+import cn.hamm.spms.common.filter.BearerTokenNormalizationFilter;
 import cn.hamm.spms.common.filter.SecurityHeadersFilter;
 import cn.hamm.spms.common.interceptor.RequestInterceptor;
 import org.jetbrains.annotations.NotNull;
@@ -62,6 +63,23 @@ public class WebConfig implements WebMvcConfigurer, WebSocketConfigurer {
         registration.setFilter(new RequestFilter());
         registration.addUrlPatterns("/*");
         // 通过拦截器排除路径
+        return registration;
+    }
+
+    /**
+     * Bearer 令牌规范化过滤器（审核项 A-2）：把 {@code Authorization: Bearer x} 归一为裸令牌 x。
+     * 框架 {@code ApiController.getCurrentUserId()} 验的是请求头原文（final 方法，覆写不了），
+     * 不归一则所有 my* 接口对标准 Bearer 客户端一律 401。必须排在所有读 Authorization 的
+     * 过滤器/拦截器之前，故 order 取最小值段（SecurityHeadersFilter 是 0）。
+     *
+     * @return 过滤器注册对象
+     */
+    @Bean
+    public FilterRegistrationBean<BearerTokenNormalizationFilter> getBearerTokenNormalizationFilterRegistration() {
+        FilterRegistrationBean<BearerTokenNormalizationFilter> registration = new FilterRegistrationBean<>();
+        registration.setFilter(new BearerTokenNormalizationFilter());
+        registration.addUrlPatterns("/*");
+        registration.setOrder(Integer.MIN_VALUE + 100);
         return registration;
     }
 
