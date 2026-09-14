@@ -52,7 +52,7 @@ public class BaseBillController<
     @Description("驳回")
     @PostMapping("reject")
     public Json reject(@RequestBody @Validated(WhenReject.class) E bill) {
-        service.reject(bill.getId());
+        service.reject(bill.getId(), bill.getRejectReason());
         return Json.success("驳回成功");
     }
 

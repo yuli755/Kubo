@@ -251,8 +251,10 @@ public class PickingService extends AbstractBaseBillService<PickingEntity, Picki
             // 查询库存信息
             InventoryEntity inventory = inventoryService.getByMaterialIdAndStructureId(detail.getMaterial().getId(), pickingBill.getStructure().getId());
             if (Objects.nonNull(inventory)) {
-                inventory.setQuantity(NumberUtil.add(inventory.getQuantity(), detail.getFinishQuantity()));
-                inventoryService.updateToDatabase(inventory);
+                // 走 InventoryService 的加锁通道（updateWithLock → SELECT FOR UPDATE）。
+                // 原实现「读-改-裸写」无任何并发保护：两张领料单同时完成、命中同一条
+                // 线边库存时，后写的用陈旧值覆盖先写的，领进来的库存凭空消失（丢失更新）。
+                inventoryService.addInventoryQuantity(inventory.getId(), detail.getFinishQuantity());
                 return;
             }
             inventory = new InventoryEntity()

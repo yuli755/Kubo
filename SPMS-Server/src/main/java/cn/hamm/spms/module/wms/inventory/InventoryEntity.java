@@ -12,6 +12,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
@@ -31,7 +32,14 @@ import static jakarta.persistence.FetchType.EAGER;
 @Data
 @DynamicInsert
 @DynamicUpdate
-@Table(name = "inventory")
+@Table(name = "inventory", uniqueConstraints = {
+        // 一行库存 = 一个维度组合。此前库面无任何唯一键，并发「查无则建」会插出
+        // 重复行（实测并发入同一新仓两次产生 0~2 行不等），此后出库按单行读，
+        // 总量直接少算。storage 与 structure 互斥（NULL 不参与唯一比较），
+        // 两个索引各约束一种维度，见 migration/20260916_inventory_dimension_unique.sql。
+        @UniqueConstraint(name = "uk_inventory_material_storage", columnNames = {"material_id", "storage_id"}),
+        @UniqueConstraint(name = "uk_inventory_material_structure", columnNames = {"material_id", "structure_id"})
+})
 @Description("库存")
 public class InventoryEntity extends TenantAwareEntity<InventoryEntity> {
     @Description("物料信息")

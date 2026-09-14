@@ -20,11 +20,17 @@ import static cn.hamm.airpower.exception.Errors.DATA_NOT_FOUND;
 /**
  * <h1>Controller</h1>
  *
+ * <p>阶段 C-9：库存行只读。BaseController 默认放行 Add/Update/Delete，
+ * 实测 POST /inventory/update 可以把任意库存行直接改写成 999999——绕开全部
+ * 单据流与状态机，账实差异无从追溯。库存的增减只允许经入/出/转单据驱动
+ * （服务内部走 InventoryService，不经 HTTP），所以这里显式排除三个写口。
+ * 前端只用 getPage/getDetail/getCount/getStat/export，不受影响。</p>
+ *
  * @author Hamm.cn
  */
 @Api("inventory")
 @Description("库存")
-@Extends({GetDetail, GetPage, Curd.Export, Curd.QueryExport})
+@Extends(value = {GetDetail, GetPage, Curd.Export, Curd.QueryExport}, exclude = {Curd.Add, Curd.Update, Curd.Delete})
 public class InventoryController extends BaseController<InventoryEntity, InventoryService, InventoryRepository> {
 
     /**

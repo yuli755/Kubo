@@ -59,6 +59,11 @@ public class BaseBillDetailService<
     /**
      * 添加完成数量
      *
+     * <p>阶段 C-5：累计完成量不得超过单据数量。原实现只负责「够了就翻
+     * isFinished」，对超出部分照单全收——实测 10 件的入库单可以一笔画进
+     * 999 件库存。超发/超收要么是无输入法的误录，要么是绕开单据量的
+     * 库存注入，两种都必须拦。</p>
+     *
      * @param detailId 明细 ID
      * @param quantity 完成数量
      */
@@ -66,6 +71,8 @@ public class BaseBillDetailService<
         updateWithLock(detailId, detail -> {
             FORBIDDEN.when(detail.getIsFinished(), "该明细已标记完成，无法再添加明细完成数量");
             double finishQuantity = NumberUtil.add(detail.getFinishQuantity(), quantity);
+            FORBIDDEN.when(finishQuantity > detail.getQuantity(), String.format(
+                    "完成数量不得超过单据数量：累计 %s，单据数量 %s", finishQuantity, detail.getQuantity()));
             detail.setFinishQuantity(finishQuantity).setIsFinished(finishQuantity >= detail.getQuantity());
             log.info("添加完成数量:{} 是否完成:{}", finishQuantity, detail.getIsFinished());
         });

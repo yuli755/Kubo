@@ -101,6 +101,23 @@ public abstract class AbstractBaseBillService<
     }
 
     /**
+     * 单据是否允许录入明细完成数量
+     *
+     * <p>状态机闸门（阶段 C-1）：只认「已审核」态（入库执行中/出库执行中/移库中）。
+     * 两道事故都出在缺这道闸——
+     * ① AUDITING 单直接 addFinish，审批通过前库存已经动了，审核形同追认；
+     * ② Move 完成时自动生成的入/出库单状态即 DONE，但明细是 {@code isFinished=false}
+     * 的「未完成」态，对它们再发 addFinish 会把已经搬完的库存再搬一遍
+     * （实测：转移 10 件后对生成的出库单补录 5 件，源仓净损失 15 件）。</p>
+     *
+     * @param bill 单据
+     * @return 是否允许录入完成数量
+     */
+    public final boolean canAddFinish(@NotNull E bill) {
+        return getAuditedStatus().equalsKey(bill.getStatus());
+    }
+
+    /**
      * 添加明细完成数量
      *
      * @param sourceDetail 提交明细
@@ -110,6 +127,8 @@ public abstract class AbstractBaseBillService<
         D detail = detailService.get(detailId);
         Long billId = detail.getBillId();
         Double finishQuantity = sourceDetail.getQuantity();
+        E bill = get(billId);
+        FORBIDDEN.when(!canAddFinish(bill), "单据当前状态不允许录入完成数量（需先审核通过）");
         log.info("添加明细数量 {}，单据ID:{}, 明细数量:{}", ReflectUtil.getDescription(getFirstParameterizedTypeClass()), billId, finishQuantity);
         transactionHelper.run(() -> {
             detailService.addFinishQuantity(detailId, finishQuantity);
@@ -267,29 +286,47 @@ public abstract class AbstractBaseBillService<
     /**
      * 单据审核
      *
+     * <p>阶段 C-4：读状态与写状态必须落在同一把行锁里。原实现是无锁的
+     * 「查 → 判 → 写」，并发审核全部通过 canAudit（实测 6 路并发 3 路成功），
+     * 销售单双审会派生两张出库单——同一笔订单被备货两次。改为
+     * {@code transactionHelper.run + getForUpdate}（与 CodeRuleService 取号同款），
+     * 第二路会阻塞到第一路提交，再看到「已审核」态被 403 拦下。</p>
+     *
+     * <p>后置方法也从 TaskUtil.run（吞异常只记日志）挪进事务内直调：
+     * 派生单据创建失败时审核整体回滚，不再出现「状态改了、单没派出来」的静默分裂。</p>
+     *
      * @param billId 单据 ID
      */
     protected final void audit(long billId) {
-        E bill = get(billId);
-        FORBIDDEN.when(!canAudit(bill), "该单据状态无法审核");
-        bill = getEntityInstance(billId);
-        setAudited(bill);
-        updateToDatabase(bill);
-        TaskUtil.run(() -> afterBillAudited(billId));
+        transactionHelper.run(() -> {
+            E bill = getForUpdate(billId);
+            FORBIDDEN.when(!canAudit(bill), "该单据状态无法审核");
+            setAudited(bill);
+            updateToDatabase(bill);
+            afterBillAudited(billId);
+        });
     }
 
     /**
      * 单据驳回
      *
-     * @param billId 单据 ID
+     * <p>阶段 C-8 双缺陷：原实现先对实例 setReject，最后却
+     * {@code updateToDatabase(getEntityInstance(billId))}——把带着驳回态的那个
+     * 实例整个丢掉、更新了一个全新的空实例，实测驳回后 status 原封不动；
+     * 且控制器只传 id，请求体里的驳回原因从未落库。连同 C-4 的并发问题
+     * 一并按「行锁 + 同实例更新 + 原因入参」重写。</p>
+     *
+     * @param billId       单据 ID
+     * @param rejectReason 驳回原因（可空）
      */
-    protected final void reject(long billId) {
-        E bill = get(billId);
-        FORBIDDEN.when(!canReject(bill), "该单据状态无法驳回");
-        bill = getEntityInstance(billId);
-        setReject(bill);
-        bill.setRejectReason(bill.getRejectReason());
-        updateToDatabase(getEntityInstance(billId));
+    protected final void reject(long billId, String rejectReason) {
+        transactionHelper.run(() -> {
+            E bill = getForUpdate(billId);
+            FORBIDDEN.when(!canReject(bill), "该单据状态无法驳回");
+            setReject(bill);
+            bill.setRejectReason(rejectReason);
+            updateToDatabase(bill);
+        });
     }
 
     /**
