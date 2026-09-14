@@ -120,7 +120,7 @@ jobs:
 
       - name: Upload size report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bundle-size-report
           path: dist/size-report.json
@@ -267,7 +267,7 @@ jobs:
 
       - name: Upload dependency analysis
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dependency-analyze-report
           path: SPMS-Server/target/dependency-analyze.txt
