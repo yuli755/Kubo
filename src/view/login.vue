@@ -12,6 +12,7 @@ import { LoginAction } from '@/model/common/LoginAction'
 import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
 import { useUserStore } from '@/stores/user'
 import { reportError } from '@/utils/errorHandler'
+import { safeRedirect } from '@/utils/safeRedirect'
 import { isEmail, isMobilePhone, isNaturalNumber } from '@/utils/validators'
 
 const userStore = useUserStore()
@@ -44,9 +45,21 @@ const user = ref({
 
 const appKey = (route.query.appKey || '').toString()
 const scope = (route.query.scope || '').toString()
-const redirectUri = (route.query.redirectUri || '/console').toString()
+// 阶段 E-L1：authGuard 写入的是 ?redirect=（原代码只读 ?redirectUri=，登录后回跳被静默丢弃）。
+// OAuth 流程（后端 redirectLogin）用 ?redirectUri=；两者都读，优先 OAuth 参数。
+const redirectUri = (route.query.redirectUri || route.query.redirect || '/console').toString()
 
 const appInfo = ref(new OpenAppEntity())
+
+// 阶段 E-C2：?redirectUri=/?redirect= 完全由访问者控制（guest 路由），直接拼进
+// location 跳转会把登录后的会话送到攻击者域。只接受站内相对路径；
+// OAuth 内部应用例外——等于该 App 登记回调（appInfo.url，与后端精确匹配规则一致）。
+function trustedRedirect(): string {
+  if (appKey && appInfo.value.url && redirectUri === appInfo.value.url) {
+    return redirectUri
+  }
+  return safeRedirect(redirectUri)
+}
 
 // Loading 状态
 const isLoadingApp = ref(false)
@@ -103,7 +116,7 @@ async function loginRedirect(token: string) {
   if (appKey) {
     if (appInfo.value.isInternal) {
       const code = await UserService.create(isLoadingLogin).authorize(appKey, scope)
-      window.location.replace(`${redirectUri}?code=${code}`)
+      window.location.replace(`${trustedRedirect()}?code=${code}`)
       return
     }
     // OAuth 登录重定向
@@ -111,7 +124,7 @@ async function loginRedirect(token: string) {
     return
   }
   // 正常登录
-  window.location.replace(redirectUri)
+  window.location.replace(safeRedirect(redirectUri))
 }
 
 /**

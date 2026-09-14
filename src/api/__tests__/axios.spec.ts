@@ -11,14 +11,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * - 响应侧：统一响应格式 {code:200,data} 解包为 data；业务错误码（非 200/0）转 reject；
  *   blob/arraybuffer 下载响应原样透传（不被 JSON 解包破坏）。
  *
- * 401 刷新重试 / 跳转登录涉及 useUserStore.refreshToken 与 window.location，属登录态集成，
- * 由 `stores/user.spec.ts` 覆盖，这里不重复。
+ * 401 刷新重试 / 跳转登录在「阶段 E-M4 修复」后由本文件下方 describe 直接锁定
+ * （刷新单飞、重试仍 401 的登出兜底、认证接口豁免），stores/user.spec.ts 覆盖 store 侧。
  */
 
 // 可控的 user store 替身：拦截器在「请求时」取 useUserStore()，改这里即可切换登录态/租户
 const userStore = {
   token: '',
   tenantId: undefined as number | undefined,
+  refreshToken: vi.fn(async () => {}),
+  logout: vi.fn(async () => {}),
 }
 vi.mock('@/stores/user', () => ({
   useUserStore: () => userStore,
@@ -155,5 +157,98 @@ describe('axios 请求层 · 响应拦截器', () => {
       adapter: adapterReturning(blob),
     })
     expect(resp.data).toBe(blob)
+  })
+})
+
+/**
+ * 阶段 E-M4：401 刷新单飞与会话终结兜底。
+ * 锁住三条不变量（均为原实现真实缺陷）：
+ * - 并发 401 只触发一次 /auth 刷新（刷新通常伴随轮换，重复刷新会连环失效）；
+ * - 刷新成功 → 重试原请求并成功返回；
+ * - 刷新失败 / 重试仍 401 → 登出 + replace('/login')，不把用户留在「已登录但处处 401」；
+ * - /user/login* 自身的 401（密码错误）绝不触发刷新流程。
+ */
+describe('axios 请求层 · 401 刷新与登出', () => {
+  const locationReplace = vi.fn()
+
+  beforeEach(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      writable: true,
+      value: { replace: locationReplace, href: 'http://localhost/' },
+    })
+    userStore.refreshToken = vi.fn(async () => {})
+    userStore.logout = vi.fn(async () => {})
+    locationReplace.mockClear()
+  })
+
+  /** 前 failTimes 次返回 401，之后成功返回 payload 的适配器 */
+  function flaky401Adapter(failTimes: number, payload: unknown = { code: 200, message: 'ok', data: 'retried' }) {
+    let calls = 0
+    return async (config: any) => {
+      calls += 1
+      if (calls <= failTimes) {
+        const err: any = new Error('Request failed with status code 401')
+        err.isAxiosError = true
+        err.config = config
+        err.response = { status: 401, data: { message: 'unauthorized' }, headers: {}, config }
+        throw err
+      }
+      return { data: payload, status: 200, statusText: 'OK', headers: {}, config }
+    }
+  }
+
+  it('401 → 刷新成功 → 自动重试原请求', async () => {
+    const data = await request.get('/need-token', { adapter: flaky401Adapter(1) })
+    expect(data).toBe('retried')
+    expect(userStore.refreshToken).toHaveBeenCalledTimes(1)
+    expect(userStore.logout).not.toHaveBeenCalled()
+    expect(locationReplace).not.toHaveBeenCalled()
+  })
+
+  it('并发 401 共享同一次刷新（single-flight）', async () => {
+    let refreshCalls = 0
+    let resolveRefresh: () => void = () => {}
+    userStore.refreshToken = vi.fn(() => {
+      refreshCalls += 1
+      return new Promise<void>((resolve) => {
+        resolveRefresh = resolve
+      })
+    })
+    const a = request.get('/c1', { adapter: flaky401Adapter(1) })
+    const b = request.get('/c2', { adapter: flaky401Adapter(1) })
+    // 两个请求都已撞上 401 并汇入同一次刷新
+    await new Promise(r => setTimeout(r, 10))
+    expect(refreshCalls).toBe(1)
+    resolveRefresh()
+    expect(await a).toBe('retried')
+    expect(await b).toBe('retried')
+  })
+
+  it('刷新失败 → 登出并 replace 到 /login，原请求 reject', async () => {
+    userStore.refreshToken = vi.fn(async () => {
+      throw new Error('refresh rejected')
+    })
+    await expect(request.get('/dead', { adapter: flaky401Adapter(1) })).rejects.toBeDefined()
+    expect(userStore.logout).toHaveBeenCalledTimes(1)
+    expect(locationReplace).toHaveBeenCalledWith('/login')
+  })
+
+  it('刷新成功但重试仍 401 → 判定会话终结，不再无限刷新', async () => {
+    // failTimes=99：刷新后重试仍然 401（例如服务端已吊销会话）
+    await expect(request.get('/revoked', { adapter: flaky401Adapter(99) })).rejects.toBeDefined()
+    // 只刷新一次；第二次 401 走兜底登出
+    expect(userStore.refreshToken).toHaveBeenCalledTimes(1)
+    expect(userStore.logout).toHaveBeenCalledTimes(1)
+    expect(locationReplace).toHaveBeenCalledWith('/login')
+  })
+
+  it('登录接口自身的 401（密码错误）不触发刷新/登出/跳转', async () => {
+    await expect(
+      request.post('/user/login', {}, { adapter: flaky401Adapter(99) }),
+    ).rejects.toBeDefined()
+    expect(userStore.refreshToken).not.toHaveBeenCalled()
+    expect(userStore.logout).not.toHaveBeenCalled()
+    expect(locationReplace).not.toHaveBeenCalled()
   })
 })

@@ -6,6 +6,7 @@ import { UserEntity } from '@/model/personnel/user/UserEntity'
 import { UserService } from '@/model/personnel/user/UserService'
 import { FileCategory } from '@/model/system/file/FileCategory'
 import { FileEntity } from '@/model/system/file/FileEntity'
+import { useUserStore } from '@/stores/user'
 import UserAccount from './user/UserAccount.vue'
 
 defineProps({
@@ -19,7 +20,26 @@ function onUserAccount() {
   DialogUtil.show(UserAccount)
 }
 
+const isLoggingOut = ref(false)
 const isLoading = ref(false)
+
+/**
+ * 阶段 E-C1：AUser 内置退出按钮只删 Authorization 键就跳登录页，
+ * 不调 /user/logout（服务端 Cookie/吊销名单不更新），本地快照还会复活会话。
+ * 这里提供走 userStore.logout() 的完整登出：吊销服务端会话 → 清本地态 → 整页跳转。
+ */
+async function onLogout() {
+  if (isLoggingOut.value) {
+    return
+  }
+  isLoggingOut.value = true
+  try {
+    await useUserStore().logout()
+  }
+  finally {
+    window.location.replace('/login')
+  }
+}
 
 async function onUploadAvatar(file: FileEntity) {
   AppConfig.currentUser.value = await UserService.create(isLoading).getMyInfo()
@@ -129,6 +149,13 @@ async function onUploadAvatar(file: FileEntity) {
       >
         账号安全
       </div>
+      <div
+        class="item"
+        :class="{ disabled: isLoggingOut }"
+        @click="onLogout"
+      >
+        {{ isLoggingOut ? '正在退出…' : '退出登录' }}
+      </div>
     </div>
   </AUser>
 </template>
@@ -220,6 +247,11 @@ async function onUploadAvatar(file: FileEntity) {
     font-size: 14px;
     color: var(--el-text-color-primary);
     transition: all 0.2s;
+
+    &.disabled {
+      cursor: not-allowed;
+      color: var(--el-text-color-disabled);
+    }
 
     &:hover {
       background: var(--kubo-color-muted-bg);

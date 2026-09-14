@@ -77,13 +77,13 @@ export function useOutputFinish() {
  * # WMS 出库单添加完成数量 Mutation
  *
  * 对应后端 `BaseBillController.addFinish`（`/output/addFinish`）。
- * 当前明细视图仍由 `useBillDetail` 串接 airpower `OutputService.addDetailFinishQuantity`，
- * 本 hook 作为新 API 层封装预留，便于后续迁移。
+ * 阶段 E-H1：出库确认编辑器（OutputAddFinishEditor）使用本 hook，
+ * 载荷须含后端业务校验所需的 `inventory.id` 与本次 `quantity`。
  */
 export function useOutputAddFinish() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: { id: number, finishQuantity: number }) => outputApi.addDetailFinishQuantity(data),
+    mutationFn: (data: { id: number, quantity: number, inventory: { id: number } }) => outputApi.addDetailFinishQuantity(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wms:output'] })
     },

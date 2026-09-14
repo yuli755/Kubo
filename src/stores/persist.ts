@@ -53,6 +53,11 @@ export interface PersistOptions {
     serialize: (state: StateTree) => string
     deserialize: (raw: string) => StateTree
   }
+  /**
+   * 恢复前的校验/改写钩子：返回要 patch 的状态；返回 null 表示放弃恢复，
+   * 插件同时删除持久化副本（用于"外部已登出但快照残留"的场景，见 user store）。
+   */
+  onRestore?: (state: StateTree) => StateTree | null
 }
 
 export function createPersistPlugin(options: PersistOptions = {}) {
@@ -75,7 +80,15 @@ export function createPersistPlugin(options: PersistOptions = {}) {
       const raw = storage.getItem(key)
       if (raw) {
         const state = serializer.deserialize(raw)
-        store.$patch(state)
+        const restored = merged.onRestore ? merged.onRestore(state) : state
+        if (restored) {
+          store.$patch(restored)
+        }
+        else {
+          // 钩子判定快照不可信（如会话已从外部注销）：放弃恢复并删除副本，
+          // 否则 $subscribe 会立刻把死状态写回去，等于没清。
+          storage.removeItem(key)
+        }
       }
     }
     catch {

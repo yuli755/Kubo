@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { FormInstance } from 'element-plus'
 import { ADialog, AInput, DialogProps, DialogUtil } from '@airpower/web'
+import { ElMessage } from 'element-plus'
 import { ref } from 'vue'
 import { InventoryEntity } from '@/model/wms/inventory/InventoryEntity'
 import { InventoryTypeEnum } from '@/model/wms/inventory/InventoryTypeEnum'
@@ -21,14 +22,25 @@ const { mutateAsync: addFinishMutate } = useOutputAddFinish()
 
 async function onSubmit() {
   const form = formData.value.copy()
-  form.expose('id', 'quantity', 'billId', 'inventory')
-  form.inventory.exposeOnlyId()
-  await addFinishMutate({ id: form.id, finishQuantity: form.quantity })
+  // 阶段 E-H1：后端 OutputService.afterDetailFinishAdded 从载荷读取 inventory.id（扣减来源）
+  // 与 quantity（本次累加数量）。旧写法传 finishQuantity 且不带库存，「确认出库」必然失败。
+  if (!form.inventory || !form.inventory.id) {
+    ElMessage.warning('请选择库存来源')
+    return
+  }
+  await addFinishMutate({
+    id: form.id,
+    quantity: form.quantity,
+    inventory: { id: form.inventory.id },
+  })
   props.onConfirm()
 }
 
 const quantity = ref(formData.value.quantity - formData.value.finishQuantity)
 const material = ref(formData.value.material.copy())
+// 默认填「待出数量」，与入库确认编辑器对齐：部分出库后再次确认时，
+// 默认值若仍是明细总量会直接触发「完成数量不得超过单据数量」。
+formData.value.quantity = quantity.value
 formData.value.expose('id', 'quantity')
 
 async function selectInventory() {

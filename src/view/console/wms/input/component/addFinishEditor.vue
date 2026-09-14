@@ -2,6 +2,7 @@
 import type { FormInstance } from 'element-plus'
 
 import { ADialog, AInput, DialogProps, DialogUtil } from '@airpower/web'
+import { ElMessage } from 'element-plus'
 import { ref } from 'vue'
 import { InputDetailService, useInputAddFinish } from '@/hook/wms/useInput'
 import { InputDetailEntity } from '@/model/wms/input/InputDetailEntity'
@@ -19,9 +20,18 @@ const { mutateAsync: addFinishMutate } = useInputAddFinish()
 
 async function onSubmit() {
   const form = formData.value.copy()
-  form.expose('id', 'quantity', 'billId', 'storage')
-  formData.value.storage.exposeOnlyId()
-  await addFinishMutate({ id: form.id, finishQuantity: form.quantity })
+  // 阶段 E-H1：后端 InputService.afterDetailFinishAdded 从载荷读取 storage.id（入库目标）
+  // 与 quantity（本次累加数量）。旧写法传 finishQuantity（绑定到实体历史完成量字段）
+  // 且不带仓库，「确认入库」必然 403「请传入入库仓库」。
+  if (!form.storage || !form.storage.id) {
+    ElMessage.warning('请选择目标仓库')
+    return
+  }
+  await addFinishMutate({
+    id: form.id,
+    quantity: form.quantity,
+    storage: { id: form.storage.id },
+  })
   props.onConfirm()
 }
 

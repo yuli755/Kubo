@@ -44,8 +44,15 @@ export const inputApi = {
     return request.post('/input/setBillDetailsAllFinished', data)
   },
 
-  /** 添加完成数量 */
-  addDetailFinishQuantity(data: { id: number, finishQuantity: number }): Promise<void> {
+  /**
+   * 添加完成数量
+   *
+   * 阶段 E-H1：后端 `InputService.afterDetailFinishAdded` 从提交载荷读取
+   * `quantity`（本次累加的完成数量）与 `storage.id`（入库目标仓库），
+   * 缺仓库直接 403「请传入入库仓库」。旧签名传 `finishQuantity` 会被绑定到
+   * 实体的历史完成量字段，本次数量恒为 null 且仓库缺失，入库确认功能从未真正可用。
+   */
+  addDetailFinishQuantity(data: { id: number, quantity: number, storage: { id: number } }): Promise<void> {
     return request.post('/input/addFinish', data)
   },
 }

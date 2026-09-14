@@ -220,21 +220,23 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
 
     @Override
     protected void afterDetailFinishAdded(long detailId, @NotNull MoveDetailEntity moveDetail) {
-        moveDetail = detailService.get(detailId);
+        // 阶段 E-H1：本次移动数量 = 本次提交的增量（与 detailService.addFinishQuantity
+        // 累加的完成量一致），不能取库中明细总量——部分录入时明细未完成、addFinish
+        // 可重复调用，按总量搬运会把同一批库存反复搬（与阶段 C-1 补录事故同类）。
+        double moveDetailQuantity = moveDetail.getQuantity();
+        // 来源库存、单据归属以库中明细为准（提交载荷可能只含 id/quantity）
+        MoveDetailEntity existDetail = detailService.get(detailId);
 
         // 查询移库单
-        MoveEntity bill = get(moveDetail.getBillId());
+        MoveEntity bill = get(existDetail.getBillId());
 
         // 目标存储文字
         StorageEntity storage = bill.getStorage();
 
-        // 本次移动数量
-        Double moveDetailQuantity = moveDetail.getQuantity();
-
         InventoryService inventoryService = WmsServices.getInventoryService();
 
         // 来源库存信息
-        InventoryEntity from = moveDetail.getInventory();
+        InventoryEntity from = existDetail.getInventory();
 
         // 物料信息
         MaterialEntity material = from.getMaterial();

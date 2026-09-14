@@ -44,8 +44,14 @@ export const moveApi = {
     return request.post('/move/setBillDetailsAllFinished', data)
   },
 
-  /** 添加完成数量 */
-  addDetailFinishQuantity(data: { id: number, finishQuantity: number }): Promise<void> {
+  /**
+   * 添加完成数量
+   *
+   * 阶段 E-H1：后端 `MoveService.afterDetailFinishAdded` 以库中明细为准取
+   * 来源库存，载荷只需 `id` 与本次 `quantity`（旧字段名 finishQuantity 会
+   * 被绑定到历史完成量，本次数量恒为 null）。
+   */
+  addDetailFinishQuantity(data: { id: number, quantity: number }): Promise<void> {
     return request.post('/move/addFinish', data)
   },
 }

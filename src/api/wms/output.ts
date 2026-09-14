@@ -44,8 +44,14 @@ export const outputApi = {
     return request.post('/output/setBillDetailsAllFinished', data)
   },
 
-  /** 添加完成数量 */
-  addDetailFinishQuantity(data: { id: number, finishQuantity: number }): Promise<void> {
+  /**
+   * 添加完成数量
+   *
+   * 阶段 E-H1：后端 `OutputService.afterDetailFinishAdded` 从提交载荷读取
+   * `quantity`（本次累加的完成数量）与 `inventory.id`（出库来源库存），
+   * 缺库存会直接 NPE（500）。旧签名传 `finishQuantity` 同理不可用。
+   */
+  addDetailFinishQuantity(data: { id: number, quantity: number, inventory: { id: number } }): Promise<void> {
     return request.post('/output/addFinish', data)
   },
 }

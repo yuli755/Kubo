@@ -40,6 +40,38 @@ export interface ApiResponse<T = unknown> {
   timestamp: string
 }
 
+// —— 阶段 E-M4：401 刷新单飞（single-flight）与会话终结兜底 ——
+// 原实现对每个撞上 401 的请求各自发起刷新：页面并发 N 个请求 → N 次
+// /auth/refreshToken 调用（刷新常伴随轮换/失效，后到的会连环报「刷新失败」）；
+// 且刷新成功但重试仍 401 时直接落到 reject，用户「已登录」但处处失败，卡死在假会话里。
+let refreshPromise: Promise<void> | null = null
+let sessionExpiredHandling = false
+
+function refreshAccessToken(): Promise<void> {
+  if (!refreshPromise) {
+    refreshPromise = useUserStore().refreshToken().finally(() => {
+      refreshPromise = null
+    })
+  }
+  return refreshPromise
+}
+
+async function handleSessionExpired(): Promise<void> {
+  if (sessionExpiredHandling) {
+    return
+  }
+  sessionExpiredHandling = true
+  try {
+    await useUserStore().logout()
+  }
+  finally {
+    // replace 不留历史，避免「后退」回到过期页面
+    window.location.replace('/login')
+    // 浏览器里 replace 后本页即卸载，重置只为可测试/异常降级场景留口子
+    sessionExpiredHandling = false
+  }
+}
+
 // 创建 axios 实例
 function createAxiosInstance(): AxiosInstance {
   const instance = axios.create({
@@ -141,24 +173,33 @@ function createAxiosInstance(): AxiosInstance {
 
       // 处理特定状态码
       switch (status) {
-        case 401:
-          // Token 过期，尝试刷新
-          if (!originalRequest._retry) {
+        case 401: {
+          // 认证接口自身（/user/login* /user/refresh /user/logout）的 401 是业务
+          // 结果，不走刷新/登出流程：否则密码输错也会触发刷新 + 登出跳转，登录页变死循环。
+          const url = originalRequest?.url || ''
+          const isAuthEndpoint = ['/user/login', '/user/refresh', '/user/logout']
+            .some(prefix => url.startsWith(prefix))
+          if (isAuthEndpoint) {
+            break
+          }
+          if (!originalRequest?._retry) {
             originalRequest._retry = true
             try {
-              const userStore = useUserStore()
-              await userStore.refreshToken()
-              // 重试原请求
+              // 并发 401 共享同一次刷新；失败由 catch 统一收口
+              await refreshAccessToken()
+              // 重试原请求（请求拦截器会带上新 token）
               return instance(originalRequest)
             }
             catch {
-              // 刷新失败，跳转登录
-              const userStore = useUserStore()
-              userStore.logout()
-              window.location.href = '/login'
+              await handleSessionExpired()
             }
           }
+          else {
+            // 刷新并重试后仍 401：会话确凿失效，不能再把用户留在「看似已登录」的状态
+            await handleSessionExpired()
+          }
           break
+        }
 
         case 403:
           ElMessage.error(data?.message || '没有权限访问')

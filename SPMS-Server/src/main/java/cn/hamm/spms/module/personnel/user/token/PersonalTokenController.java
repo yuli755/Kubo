@@ -3,7 +3,6 @@ package cn.hamm.spms.module.personnel.user.token;
 import cn.hamm.airpower.api.annotation.Api;
 import cn.hamm.airpower.core.Json;
 import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.ExposeAll;
 import cn.hamm.airpower.curd.annotation.Extends;
 import cn.hamm.airpower.curd.base.Curd;
 import cn.hamm.airpower.curd.model.query.QueryListRequest;
@@ -32,7 +31,11 @@ public class PersonalTokenController extends BaseController<PersonalTokenEntity,
     @Description("获取我的私人令牌列表")
     @Permission(authorize = false)
     @PostMapping("getMyList")
-    @ExposeAll(PersonalTokenEntity.class)
+    // 阶段 E-M1：@ExposeAll(PersonalTokenEntity.class) 会绕过实体上的
+    // @Desensitize（airpower RootModel 对「列入 exposeAll 的类」跳过脱敏），
+    // 导致列表接口把可用凭据明文返回、可被 shoulder-surfing / 截图 / XSS 收割。
+    // 去掉后 token 按 head6+尾2 脱敏；完整值仍只在 createMy 一次性返回，
+    // 与前端「后续将不再显示令牌」的文案约定一致。
     public Json getMyList() {
         UserEntity user = new UserEntity().setId(getCurrentUserId());
         List<PersonalTokenEntity> list = service.filter(new PersonalTokenEntity().setUser(user));

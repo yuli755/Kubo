@@ -77,13 +77,12 @@ export function useMoveFinish() {
  * # WMS 移库单添加完成数量 Mutation
  *
  * 对应后端 `BaseBillController.addFinish`（`/move/addFinish`）。
- * 当前明细视图仍由 `useBillDetail` 串接 airpower `MoveService.addDetailFinishQuantity`，
- * 本 hook 作为新 API 层封装预留，便于后续迁移。
+ * 阶段 E-H1：来源库存由后端按明细 ID 从库中读取，载荷只需 `id` 与本次 `quantity`。
  */
 export function useMoveAddFinish() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: { id: number, finishQuantity: number }) => moveApi.addDetailFinishQuantity(data),
+    mutationFn: (data: { id: number, quantity: number }) => moveApi.addDetailFinishQuantity(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wms:move'] })
     },

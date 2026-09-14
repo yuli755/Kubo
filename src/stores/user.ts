@@ -2,7 +2,6 @@ import type { TenantOption } from '@kubo/shared'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { airpowerToken } from '@/utils/airpowerCompat'
-
 /**
  * # 用户状态 Store
  *
@@ -114,6 +113,11 @@ export const useUserStore = defineStore(
       refreshTokenValue.value = ''
       airpowerToken.remove()
       localStorage.removeItem('kubo:user')
+      // 阶段 E-M5：身份切换后跨用户缓存必须清零。react-query 缓存 key 不带
+      // 用户身份（['wms:input','list'] 等），脱敏策略缓存按"登出/切租户应调用"
+      // 的文档约定在此收口；否则低权限账号在同一标签页复用上一账号的读缓存。
+      void import('@/query/queryClient').then(({ queryClient }) => queryClient.clear())
+      void import('@/composables/useMaskPolicy').then(({ clearMaskPolicyCache }) => clearMaskPolicyCache())
       // 断开 WebSocket 连接（延迟导入避免循环依赖）
       import('@/websocket/WebSocketManager').then(({ webSocketManager }) => {
         webSocketManager.disconnect()
@@ -144,7 +148,23 @@ export const useUserStore = defineStore(
     persist: {
       key: 'kubo:user',
       storage: 'local',
-      pick: ['token', 'refreshTokenValue', 'tenantId', 'tenantList', 'userInfo'],
+      // 阶段 E-H3：userInfo（getMyInfo 的 @ExposeAll 明文 PII：邮箱/手机号/实名）
+      // 不再落 localStorage —— Console 每次挂载都会重新拉取，home 页有兜底；
+      // 持久化只会把 PII 留在 XSS/物理接触可读的地方，且随 C-1 场景穿越登出。
+      pick: ['token', 'refreshTokenValue', 'tenantId', 'tenantList'],
+      /**
+       * 阶段 E-C1：@airpower/web 内置退出按钮只删 `Authorization` 键 + 跳登录页，
+       * 既不调 /user/logout 也不清 kubo:user。若放任恢复，下一个页面加载会从
+       * 快照复活 token/refreshToken —— 共享电脑上的"注销"形同虚设。
+       * 规则：Authorization 键已不存在（被内置登出删除，或从未登录）而快照里
+       * 还有 token → 判定会话已注销，丢弃快照。
+       */
+      onRestore: (state) => {
+        if (!airpowerToken.get() && ((state as { token?: string }).token || (state as { refreshTokenValue?: string }).refreshTokenValue)) {
+          return null
+        }
+        return state
+      },
     },
   },
 )

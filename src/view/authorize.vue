@@ -26,6 +26,20 @@ const scopeNeed = ref([] as string[])
 const isLoading = ref(false)
 
 /**
+ * 阶段 E-C2：`?redirectUri=` 由访问者直接控制（/authorize 是 guest 路由，
+ * 可以绕过 /open/authorize 的入口校验直接打开本页）。携带授权 code 跳转到
+ * 任意值等于把第三方应用的 code 送给攻击者域。规则与后端
+ * OauthController.isValidRedirectUri 对齐：只认该 App 登记的回调地址
+ * （OpenAppEntity.url）完全一致；对不上就留在本站 /console。
+ */
+async function validatedRedirectUri(): Promise<string> {
+  if (!appInfo.value.url) {
+    await getAppInfo()
+  }
+  return appInfo.value.url && redirectUri === appInfo.value.url ? redirectUri : '/console'
+}
+
+/**
  * ### 获取当前应用信息
  */
 async function getAppInfo() {
@@ -39,11 +53,13 @@ async function getScopeList() {
 
 async function onConfirm() {
   const result = await UserService.create(isLoading).authorize(appKey, scope)
-  window.location.href = `${redirectUri}?code=${result}`
+  const target = await validatedRedirectUri()
+  window.location.href = `${target}?code=${result}`
 }
 
-function onCancel() {
-  window.location.href = `${redirectUri}?error=cancel`
+async function onCancel() {
+  const target = await validatedRedirectUri()
+  window.location.href = `${target}?error=cancel`
 }
 
 async function init() {
