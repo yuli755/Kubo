@@ -371,6 +371,97 @@ class RequestInterceptorPermissionContextTest {
         }
     }
 
+    @Nested
+    @org.junit.jupiter.api.DisplayName("权限标识大小写口径（B-1 回归）")
+    class IdentityCaseNormalization {
+        /**
+         * 框架按 URL 派生的标识实体名全小写（material_getPage），库里登记的是实体类名
+         * （Material_getPage）。getPermissionByIdentity 靠库内 CI 排序规则能查到行，
+         * 但 has() 必须拿库里登记的 identity 去比对——直接拿框架传来的原始串比对，
+         * Java 的 equals 区分大小写，所有非 root 用户都会被误判 403（B-1）。
+         */
+        @Test
+        void grantsWhenStoredIdentityDiffersFromUrlDerivedOnlyInCase() throws Exception {
+            UserEntity user = createUser(24L, "审计员", false);
+            given(verifiedToken.getPayloadId()).willReturn(24L);
+            given(userService.getWithEnable(24L)).willReturn(user);
+            // 库里登记的是 PascalCase；框架传来的请求标识是小写
+            given(permissionService.getPermissionByIdentity("material_getPage"))
+                    .willReturn(new PermissionEntity().setIdentity("Material_getPage").setName("物料-分页查询"));
+            given(systemPermissionService.has(user, "Material_getPage")).willReturn(true);
+
+            interceptor.checkUserPermission(verifiedToken, "material_getPage", request);
+
+            // 核心断言：has() 收到的是库中登记的 identity，而不是框架原始串
+            then(systemPermissionService).should().has(user, "Material_getPage");
+        }
+
+        @Test
+        void stillDeniesWhenIdentityTrulyAbsent() throws Exception {
+            UserEntity user = createUser(24L, "审计员", false);
+            given(verifiedToken.getPayloadId()).willReturn(24L);
+            given(userService.getWithEnable(24L)).willReturn(user);
+            given(permissionService.getPermissionByIdentity("material_delete"))
+                    .willReturn(new PermissionEntity().setIdentity("Material_delete").setName("物料-删除"));
+            // has() 按库中 identity 仍未命中 → 必须照常 403，修复不能放宽成「查到行就放行」
+            RuntimeException error = org.junit.jupiter.api.Assertions.assertThrows(
+                    RuntimeException.class,
+                    () -> interceptor.checkUserPermission(verifiedToken, "material_delete", request));
+            org.junit.jupiter.api.Assertions.assertTrue(String.valueOf(error.getMessage()).contains("无权访问"),
+                    "拒绝文案应指明无权访问，实际：" + error.getMessage());
+        }
+    }
+
+    @Nested
+    @org.junit.jupiter.api.DisplayName("上下文残留与重建（B-12 回归）")
+    class ContextLeakPrevention {
+        /**
+         * preHandle 链路里抛异常时 Spring 不会回调本拦截器的 afterCompletion。
+         * 鉴权在 ensurePermissionContext 之后抛出（403），若不在此处清上下文，
+         * 它会滞留在 Tomcat 线程上，被下一个复用线程的请求继承——上一个请求的
+         * userId/租户/bypass 位直接冒充本请求（B12 伪造 X-Tenant-Id 躲过校验即此因）。
+         */
+        @Test
+        void clearsContextWhenAuthorizationThrows() throws Exception {
+            UserEntity user = createUser(24L, "审计员", false);
+            given(verifiedToken.getPayloadId()).willReturn(24L);
+            given(userService.getWithEnable(24L)).willReturn(user);
+            given(permissionService.getPermissionByIdentity("material_delete"))
+                    .willReturn(new PermissionEntity().setIdentity("Material_delete").setName("物料-删除"));
+            // lenient 默认 has()=false → 走到 FORBIDDEN.show 抛出
+            org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                    () -> interceptor.checkUserPermission(verifiedToken, "material_delete", request));
+            assertTrue(PermissionContextHolder.current().isEmpty(),
+                    "鉴权抛出后线程上不得残留上下文，否则下个复用该线程的请求继承本请求身份");
+        }
+
+        /**
+         * 即使线程上已有「别的请求留下的」上下文，拦截器也必须按本请求用户重建，
+         * 而不是短路放行——陈旧上下文接管 = 跨请求越权。
+         */
+        @Test
+        void rebuildsContextOverStaleOne() throws Exception {
+            // 模拟残留：上个请求（userId=999、tenant=77、bypass）没清干净
+            PermissionContextHolder.open(new PermissionContext(
+                    999L, 77L, Set.of(), Set.of(), Set.of(), Set.of(), true));
+            UserEntity user = createUser(24L, "审计员", false);
+            given(verifiedToken.getPayloadId()).willReturn(24L);
+            given(userService.getWithEnable(24L)).willReturn(user);
+            given(permissionService.getPermissionByIdentity(anyString()))
+                    .willReturn(new PermissionEntity().setIdentity("Material_getPage").setName("物料-分页查询"));
+            given(systemPermissionService.has(user, "Material_getPage")).willReturn(true);
+            given(tenantContextResolver.resolve(user, request)).willReturn(7L);
+
+            interceptor.checkUserPermission(verifiedToken, "material_getPage", request);
+
+            PermissionContext context = PermissionContextHolder.require();
+            assertEquals(24L, context.userId(), "上下文必须按本请求用户重建，不得沿用残留值");
+            assertEquals(7L, context.tenantId(), "租户必须重新解析，残留值不算数");
+            assertFalse(context.bypassDataPermission(), "残留的 bypass 位不得带进本请求");
+            then(tenantContextResolver).should().resolve(user, request);
+        }
+    }
+
     private UserEntity createUser(long id, String nickname, boolean isRoot) {
         RoleEntity role = new RoleEntity().setCode("planner").setName("计划员");
         role.setId(100L);

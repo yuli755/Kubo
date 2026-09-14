@@ -147,6 +147,10 @@ public class UserEntity extends TenantAwareEntity<UserEntity> implements IUserAc
     /**
      * 获取是否超级管理员
      *
+     * <p>禁用态不参与：与 {@code SystemPermissionService.has} 同口径——停用携带
+     * {@code system:root} 的角色必须真实地摘掉 root（root 是所有校验的旁路开关，
+     * 「禁用即失效」不成立时收回超管只能靠删行，恢复语义也全部落空）。</p>
+     *
      * @return 结果
      */
     @Transient
@@ -154,9 +158,11 @@ public class UserEntity extends TenantAwareEntity<UserEntity> implements IUserAc
     public final boolean isRootUser() {
         return getRoleList() != null
                 && getRoleList().stream()
-                .filter(java.util.Objects::nonNull)
+                .filter(role -> role != null && !Boolean.TRUE.equals(role.getIsDisabled()))
                 .flatMap(role -> role.getPermissionList() == null ? java.util.stream.Stream.empty() : role.getPermissionList().stream())
-                .anyMatch(permission -> permission != null && SystemPermissionIdentities.ROOT.equals(permission.getIdentity()));
+                .anyMatch(permission -> permission != null
+                        && !Boolean.TRUE.equals(permission.getIsDisabled())
+                        && SystemPermissionIdentities.ROOT.equals(permission.getIdentity()));
     }
 }
 

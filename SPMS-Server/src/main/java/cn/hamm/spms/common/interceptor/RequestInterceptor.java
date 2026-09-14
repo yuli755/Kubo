@@ -124,21 +124,35 @@ public class RequestInterceptor extends CurdRequestInterceptor {
         long userId = verifiedToken.getPayloadId();
         UserEntity existUser = loadUserWithInitializedAssociations(userId);
         ensurePermissionContext(existUser, request);
-        // 导出走文件流、不经过 Jackson，是列级脱敏的已知旁路：在这里统一收口
-        // （为什么放拦截器而不是各 controller：BaseController 全局排掉了 Curd.Export，
-        //  只有个别实体通过 @Extends 加回来，逐个加钩子必然漏；旁路漏一个就等于没做）
-        exportBypassGuard.guard(request);
-        if (existUser.isRootUser()) {
-            return;
+        // 上下文已打开、鉴权还没过：preHandle 链路里抛异常时 Spring 不会回调本拦截器的
+        // afterCompletion，Context 会滞留在 Tomcat 线程上，下个复用该线程的请求直接继承
+        // 上一个请求的身份/租户/bypass 位（B-12 伪造 X-Tenant-Id 因残留上下文躲过校验即此因）。
+        // 因此本方法内后续任何抛出都必须先把上下文清掉再往上抛。
+        try {
+            // 导出走文件流、不经过 Jackson，是列级脱敏的已知旁路：在这里统一收口
+            // （为什么放拦截器而不是各 controller：BaseController 全局排掉了 Curd.Export，
+            //  只有个别实体通过 @Extends 加回来，逐个加钩子必然漏；旁路漏一个就等于没做）
+            exportBypassGuard.guard(request);
+            if (existUser.isRootUser()) {
+                return;
+            }
+            PermissionEntity needPermission = permissionService.getPermissionByIdentity(permissionIdentity);
+            FORBIDDEN.whenNull(needPermission, "权限不存在");
+            // 必须用库中登记的 identity 比对，不能直接拿框架传来的原始串：
+            // 框架按请求 URL 派生权限标识（实体名全小写，如 material_getPage），
+            // 而权限登记用实体类名（Material_getPage）。库里查得到是因为 MySQL 默认排序规则
+            // 不区分大小写；has() 是 Java 内存里的字符串 equals，区分大小写，直接比对必然全假——
+            // 表现就是所有非 root 用户 403「你无权访问」，root 因旁路从未暴露该缺陷。
+            if (systemPermissionService.has(existUser, needPermission.getIdentity())) {
+                return;
+            }
+            FORBIDDEN.show(String.format(
+                    "你无权访问 %s (%s)", needPermission.getName(), needPermission.getIdentity()
+            ));
+        } catch (RuntimeException ex) {
+            PermissionContextHolder.clear();
+            throw ex;
         }
-        PermissionEntity needPermission = permissionService.getPermissionByIdentity(permissionIdentity);
-        FORBIDDEN.whenNull(needPermission, "权限不存在");
-        if (systemPermissionService.has(existUser, permissionIdentity)) {
-            return;
-        }
-        FORBIDDEN.show(String.format(
-                "你无权访问 %s (%s)", needPermission.getName(), needPermission.getIdentity()
-        ));
     }
 
     @Override
@@ -179,14 +193,14 @@ public class RequestInterceptor extends CurdRequestInterceptor {
      * @param request 请求对象
      */
     private void ensurePermissionContext(@NotNull UserEntity user, HttpServletRequest request) {
-        if (PermissionContextHolder.current().isPresent()) {
-            return;
-        }
-
+        // 不做「线程上已有上下文就直接放行」的短路：拦截器是请求侧的权威来源，线程上残留的
+        // 可能是上个请求异常时没来得及清理的旧上下文（Spring 对 preHandle 自身抛异常的
+        // 拦截器不回调 afterCompletion）。让陈旧值冒充本请求的上下文，等于用别人的
+        // userId/租户/bypass 位跑本请求；按本请求用户无条件重建才安全。
         Set<String> roleCodes = Set.of();
         if (user.getRoleList() != null) {
             roleCodes = user.getRoleList().stream()
-                    .filter(Objects::nonNull)
+                    .filter(role -> role != null && !Boolean.TRUE.equals(role.getIsDisabled()))
                     .map(RoleEntity::getCode)
                     .filter(StringUtils::hasText)
                     .collect(Collectors.toSet());
