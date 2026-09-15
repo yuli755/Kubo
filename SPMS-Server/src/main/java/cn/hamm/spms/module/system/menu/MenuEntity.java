@@ -66,6 +66,13 @@ public class MenuEntity extends BaseEntity<MenuEntity> implements ITree<MenuEnti
     @Meta
     private Integer orderNo;
 
+    @Description("权限标识")
+    @Search
+    @Column(columnDefinition = "varchar(255) default '' comment '权限标识，如 Material_getPage；非空时前端路由守卫将要求当前用户拥有该权限'")
+    @Length(max = 200, message = "权限标识最多允许{max}个字符")
+    @Meta
+    private String permission;
+
     @Description("树子集节点数组")
     @Transient
     @Meta

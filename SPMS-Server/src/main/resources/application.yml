@@ -117,6 +117,10 @@ kubo:
     # 部署环境必须删除本行或置 false（application-production.yml 已显式置 false），
     # 否则默认弱密钥启动即 fail-fast。
     allow-weak-default-secret: true
+    # F-1（阶段F）：仅当直连对端（getRemoteAddr）命中本白名单（逗号分隔 CIDR 或精确 IP）
+    # 时才采信 X-Forwarded-For / X-Real-IP。nginx 反代部署必须配置代理自身地址/网段
+    # （如 127.0.0.1/32 或 10.0.0.0/8），否则攻击者可伪造该头绕过登录失败锁定与公开端点限流。
+    trusted-proxies: ""
   data-permission:
     mode: off
     tenant-required: false

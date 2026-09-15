@@ -242,6 +242,16 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
         MaterialEntity material = from.getMaterial();
 
         transactionHelper.run(() -> {
+            // 阶段 F-3：锁序约定——来源/目标两行一律按「行 ID 升序」取锁：目标行 ID 较小时
+            // 先对其做 FOR UPDATE 预占，再锁来源行。交叉移库（A→B 与 B→A 并发）下两个事务
+            // 各自先锁自己的来源行，会形成互等死锁窗口；全局统一按 ID 升序取锁即消除互等。
+            // （数量变更本身已改为数据库端原子算术 UPDATE，见 InventoryService，不再依赖
+            // 锁内读-改-写，锁只负责串行化两行的处理顺序。）
+            InventoryEntity orderedTarget = inventoryService.getByMaterialIdAndStorageId(material.getId(), storage.getId());
+            if (Objects.nonNull(orderedTarget) && orderedTarget.getId() < from.getId()) {
+                inventoryService.getForUpdate(orderedTarget.getId());
+            }
+
             // 扣除来源库存
             inventoryService.reduceInventoryQuantity(from.getId(), moveDetailQuantity);
 

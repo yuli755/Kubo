@@ -2,7 +2,6 @@ package cn.hamm.spms.module.wms.inventory;
 
 import cn.hamm.airpower.core.CollectionUtil;
 import cn.hamm.airpower.core.DictionaryUtil;
-import cn.hamm.airpower.core.NumberUtil;
 import cn.hamm.airpower.core.TreeUtil;
 import cn.hamm.airpower.curd.base.CurdEntity;
 import cn.hamm.airpower.curd.helper.ExportHelper;
@@ -355,24 +354,29 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
     /**
      * 添加库存数量
      *
+     * <p>阶段 F-3：改为数据库端原子#acquire UPDATE（quantity = quantity + ?）。
+     * 原 updateWithLock 读-改-写实测在交叉移库并发下会丢失数量写入
+     * （SQL 日志显示只更新了 update_time），算术 UPDATE 无读窗口，任意交错下总量守恒。</p>
+     *
      * @param inventoryId 库存ID
      * @param quantity    数量
      */
     public void addInventoryQuantity(long inventoryId, double quantity) {
-        updateWithLock(inventoryId, exist -> exist.setQuantity(NumberUtil.add(exist.getQuantity(), quantity)));
+        int rows = repository.increaseQuantityById(inventoryId, quantity, System.currentTimeMillis());
+        Errors.FORBIDDEN.when(rows == 0, "库存记录不存在或已被删除");
     }
 
     /**
      * 减少库存数量
      *
+     * <p>阶段 F-3：同 {@link #addInventoryQuantity}——负库存守卫移至 WHERE 条件，
+     * 扣减与校验在同一条语句内完成，并发下不存在"读到旧值再扣穿"的窗口。</p>
+     *
      * @param inventoryId 库存ID
      * @param quantity    数量
      */
     public void reduceInventoryQuantity(long inventoryId, double quantity) {
-        updateWithLock(inventoryId, exist -> {
-            double subtract = NumberUtil.subtract(exist.getQuantity(), quantity);
-            Errors.FORBIDDEN_EDIT.when(subtract < 0, "库存数量不足");
-            exist.setQuantity(subtract);
-        });
+        int rows = repository.decreaseQuantityById(inventoryId, quantity, System.currentTimeMillis());
+        Errors.FORBIDDEN_EDIT.when(rows == 0, "库存数量不足");
     }
 }

@@ -38,6 +38,9 @@ public class RateLimitHelper {
     @Autowired
     private RedisHelper redisHelper;
 
+    @Autowired
+    private ClientIpResolver clientIpResolver;
+
     /**
      * 判断 key 在窗口内是否允许放行。
      *
@@ -71,31 +74,13 @@ public class RateLimitHelper {
                              @NotNull String keyPrefix,
                              int limit,
                              int windowSeconds) {
-        String ip = resolveClientIp(request);
+        // 阶段 F-1：IP 判定收敛到 ClientIpResolver（可信代理白名单门控），
+        // 防止伪造 X-Forwarded-For 绕过公开端点限流
+        String ip = clientIpResolver.resolve(request);
         if (!StringUtils.hasText(ip)) {
             // 取不到 IP 时无法按 IP 限流，放行（防误伤，同错误上报口径）
             return true;
         }
         return allow(keyPrefix + ip, limit, windowSeconds);
-    }
-
-    /**
-     * 解析客户端 IP（nginx 反代后取 X-Forwarded-For 首个 / X-Real-IP，直连取 remoteAddr）。
-     */
-    @NotNull
-    public static String resolveClientIp(HttpServletRequest request) {
-        if (request == null) {
-            return "";
-        }
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwarded)) {
-            return forwarded.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (StringUtils.hasText(realIp)) {
-            return realIp.trim();
-        }
-        String remoteAddr = request.getRemoteAddr();
-        return remoteAddr == null ? "" : remoteAddr;
     }
 }

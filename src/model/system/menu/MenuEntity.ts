@@ -81,6 +81,10 @@ export class MenuEntity extends BaseEntity implements IMenu {
   parent!: this
 
   /** 菜单绑定的权限标识（后端返回，用于注入路由 meta.permission） */
+  @Form()
+  @Field({
+    label: '权限标识',
+  })
   permission?: string
 
   /** 路由元数据（运行时由 applyMenuPermissions 写入） */

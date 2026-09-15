@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -17,7 +18,6 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -42,6 +42,13 @@ class RateLimitHelperTest {
 
     @InjectMocks
     private RateLimitHelper rateLimitHelper;
+
+    /**
+     * 阶段 F-1：限流 IP 判定已收敛到 ClientIpResolver（可信代理门控）。
+     * spy 白名单仅 127.0.0.1，与下面用例的"可信对端才采信 XFF"语义对齐。
+     */
+    @Spy
+    private ClientIpResolver clientIpResolver = new ClientIpResolver("127.0.0.1");
 
     @BeforeEach
     void setUp() {
@@ -80,9 +87,11 @@ class RateLimitHelperTest {
     }
 
     @Test
-    @DisplayName("按 IP 限流：X-Forwarded-For 取首个 IP")
+    @DisplayName("按 IP 限流：可信对端时 X-Forwarded-For 取首个 IP")
     void resolvesForwardedForIp() {
         HttpServletRequest request = org.mockito.Mockito.mock(HttpServletRequest.class);
+        // 阶段 F-1：仅当直连对端可信（spy 白名单含 127.0.0.1）才采信 XFF
+        given(request.getRemoteAddr()).willReturn("127.0.0.1");
         given(request.getHeader("X-Forwarded-For")).willReturn("203.0.113.7, 10.0.0.1");
         given(valueOperations.increment("kubo:device:rate:203.0.113.7")).willReturn(1L);
 
@@ -94,7 +103,6 @@ class RateLimitHelperTest {
     @DisplayName("按 IP 限流：取不到 IP 时降级放行")
     void allowsWhenIpUnresolvable() {
         HttpServletRequest request = org.mockito.Mockito.mock(HttpServletRequest.class);
-        given(request.getHeader(anyString())).willReturn(null);
         given(request.getRemoteAddr()).willReturn(null);
 
         assertTrue(rateLimitHelper.allowByIp(request, "kubo:device:rate:", 3000, 60));

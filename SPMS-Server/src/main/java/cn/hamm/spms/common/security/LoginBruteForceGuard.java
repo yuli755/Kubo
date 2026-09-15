@@ -64,9 +64,13 @@ public class LoginBruteForceGuard {
     @Autowired
     private RedisHelper redisHelper;
 
+    @Autowired
+    private ClientIpResolver clientIpResolver;
+
     /**
-     * 从请求解析客户端真实 IP（nginx 反代后取 {@code X-Forwarded-For} 首个 / {@code X-Real-IP}，
-     * 直连取 {@code getRemoteAddr()}）。
+     * 从请求解析客户端真实 IP（阶段 F-1：收敛到 {@link ClientIpResolver}，
+     * 仅当直连对端在 {@code kubo.security.trusted-proxies} 白名单内才采信
+     * X-Forwarded-For/X-Real-IP，防止伪造头绕过 IP 维度锁定）。
      *
      * @param request HTTP 请求
      * @return 客户端 IP，取不到返回 {@code null}
@@ -76,15 +80,8 @@ public class LoginBruteForceGuard {
         if (request == null) {
             return null;
         }
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwarded)) {
-            return forwarded.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (StringUtils.hasText(realIp)) {
-            return realIp.trim();
-        }
-        return request.getRemoteAddr();
+        String ip = clientIpResolver.resolve(request);
+        return StringUtils.hasText(ip) ? ip : null;
     }
 
     /**

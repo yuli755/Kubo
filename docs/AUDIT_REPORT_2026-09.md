@@ -13,9 +13,10 @@
 | C | WMS 核心事务 | auditC 12/12 | `ed98fdc1` | 单据可重复执行、并发审核竞态、超发、库存行直改等 7 项 |
 | D | 系统配置与公共能力 | auditD 10/10 | `16a691ba` | 令牌过期/上限/IDOR、文件属主、弱密钥守卫加固 |
 | E | 前端模块（守卫/store/请求层/编辑器） | auditE 6/6 | `b73d6129` | 登出复活、开放重定向、addFinish 载荷、令牌脱敏、401 风暴 |
+| F | 后端遗留项专项（登录限流/异常语义/移库并发/菜单权限） | auditF 5/5 | 本次提交 | XFF 伪造绕过锁定、4034 误报、交叉移库丢失更新（根因级）、menu.permission 落地 |
 
-最终基线：后端 JUnit 646/646；前端 vitest 289/289、vue-tsc 0 错、eslint 0 错；
-auditA–E 合计 67 项黑盒场景全部 PASS。
+最终基线：后端 JUnit 660/660；前端 vitest 289/289、vue-tsc 0 错、eslint 0 错；
+auditA–F 合计 72 项黑盒场景全部 PASS。
 
 ---
 
@@ -75,11 +76,26 @@ auditA–E 合计 67 项黑盒场景全部 PASS。
 
 ---
 
+## 阶段 F：后端遗留项专项（报告记录项 1/7/8/9 的针对性修复）
+
+| ID | 级别 | 问题 | 修复 |
+|---|---|---|---|
+| F-1 | 高 | 登录防爆破锁定与公开端点限流无条件信任 `X-Forwarded-For`/`X-Real-IP`：每次请求伪造一个 IP，IP 维度计数永不达阈值，锁定/限流形同虚设 | 新增 `ClientIpResolver`：仅当直连对端命中 `kubo.security.trusted-proxies`（CIDR/精确 IP，默认空=永不采信）才使用转发头；`LoginBruteForceGuard`/`RateLimitHelper` 统一接入；自实现 IPv4 CIDR 匹配；新增 6 条单测 + 守卫回归 2 条；auditF F01：5 次失败（每次换伪造 XFF）第 6 次即锁，换 IP 仍在锁定期 |
+| F-2 | 中 | 唯一键/外键/列长等约束异常被框架统一映射为 4034「删除失败，数据正在使用中」，误导排障 | 新增 `DataIntegrityViolationAdvice`（`@Order(HIGHEST_PRECEDENCE)` 抢在框架 ExceptionInterceptor 前）：Duplicate→4031、外键引用→4034、子行缺失→403、列长/非空→4002，均带列名与原始原因；7 条单测；auditF F02：重复 code 现返回 4031「单位编码…已经存在」 |
+| F-3 | 严重 | 交叉移库（A→B 与 B→A 并发）丢失更新：一轮审计先按「锁序」修（ID 升序预锁）后探针仍复现总量 +10；SQL 日志证明单侧事务的数量写入只更新了 `update_time`——airpower `updateWithLock` 的「FOR UPDATE 读 → 实体改 → 回写」在并发+REPEATABLE_READ 下数量写入可整体丢失 | 根因级修复：`InventoryService.addInventoryQuantity/reduceInventoryQuantity` 改为数据库端原子算术 UPDATE（`quantity = quantity ± ?`，负库存守卫进 WHERE），彻底消除读-改-写窗口；`MoveService` 保留按库存行 ID 升序的 `getForUpdate` 预锁（防交叉行锁死锁）；auditF F03 三轮竞速 6/6 成功且总量守恒；auditC 12/12（含 C06/C07 负库存守卫）回归通过 |
+| F-4 | 中 | 前端路由守卫 `permissionGuard` 与 `applyMenuPermissions` 早已接通 `menu.permission → meta.permission`，但后端 menu 表无 permission 列，守卫恒过（记录项 1） | `MenuEntity` 新增 `permission` 列（`@Meta`，默认空串=不校验，存量行为不变）；迁移 `20260914_menu_permission.sql`（幂等）；菜单编辑器表单增加「权限标识」字段；auditF F04：`/menu/update` 写入 `Unit_getPage` 后 `getMyMenuList` 原样返回，前端守卫即可按 `permissionStore.hasAny` 拦截 |
+
+配套：`ClientIpResolver`/`DataIntegrityViolationAdvice` 新增 13 条单测、
+`RateLimitHelperTest`/`LoginBruteForceGuardTest` 按可信代理语义改写，
+后端全量 660/660。
+
+---
+
 ## 仅记录、未改动（建议后续迭代处理）
 
-1. **meta.permission 死守卫（H）**：路由 meta.permission 检查依赖
-   `MenuEntity.permission`，后端无此字段 → 守卫恒过。需要后端加字段+登记
-   流程后，前端守卫才有意义（`v-permission` 同属「仅控显示」，服务端鉴权已兜底）。
+1. **meta.permission 死守卫（H）**：✅ 已在阶段 F-4 修复（menu.permission 列 + 迁移
+   + 菜单表单字段，守卫按 `permissionStore.hasAny` 实拦；`v-permission` 仍仅控显示，
+   服务端鉴权兜底）。
 2. **v-mask 死设施（M）**：`useMaskPolicy` 已接入登出清理，但列级脱敏渲染器
    尚未接进业务表格，属半成品基础设施。
 3. **URL 携带 token（M）**：WebSocket 查询串与 airpower `window.open` 导出下载
@@ -90,12 +106,13 @@ auditA–E 合计 67 项黑盒场景全部 PASS。
 5. **缺失路由（低）**：登录页文案链接 `/forgot-password`、`/privacy`、`/terms` 无对应路由（404）。
 6. **errorReportClient 无脱敏（低）**：错误上报体未做敏感字段 redaction，接入
    外部上报服务前必须补。
-7. **X-Forwarded-For 伪造（后端，低）**：登录失败锁定按 XFF 取 IP，可伪造绕过；
-   需在网关层固定可信代理或改用直连 IP。
-8. **4034 误报（后端，低）**：唯一键/约束冲突被框架统一报「删除失败，数据正在
-   使用中」，误导排障（A-3 已消除一例诱因）。
-9. **移库死锁窗口（后端，低）**：多明细移库按明细顺序逐行加锁，交叉移库理论上
-   可死锁；MySQL 会死锁检测回滚其一（可见失败），可按需引入按库存行 ID 排序加锁。
+7. **X-Forwarded-For 伪造（后端，低）**：✅ 已在阶段 F-1 修复（可信代理白名单门控，
+   默认空白名单=永不采信转发头；nginx 反代部署必须配置 `kubo.security.trusted-proxies`）。
+8. **4034 误报（后端，低）**：✅ 已在阶段 F-2 修复（约束异常按类型映射
+   4031/4034/403/4002 并带列名）。
+9. **移库死锁窗口（后端，低）**：✅ 已在阶段 F-3 修复并超出原判断——真正的根因是
+   锁内读-改-写的丢失更新；现数量变更为数据库端原子 UPDATE，另按库存行 ID 升序
+   预锁消除交叉死锁。
 10. **盘点模块缺失（业务）**：库存只有单据流，无盘点/盈亏调整单据，账实不符无
     合规修正通道。
 
@@ -107,8 +124,14 @@ auditA–E 合计 67 项黑盒场景全部 PASS。
 - [ ] 正确设置 `SPRING_PROFILES_ACTIVE=production`（密钥守卫现已与 profile 无关，
       但数据源/日志仍依赖它）。
 - [ ] 执行迁移：`20260914_file_creator_id.sql`（file.creator_id + 索引，幂等）、
-      A-3 空串清洗、C-3 库存唯一键迁移；base profile 为 `ddl-auto=validate`，
-      先迁移后发版。
+      A-3 空串清洗、C-3 库存唯一键迁移；**F 阶段新增**：
+      `20260914_menu_permission.sql`（menu.permission 列，幂等）。base profile 为
+      `ddl-auto=validate`，先迁移后发版。
+- [ ] **F-1**：如有 nginx 等反向代理，把代理机 IP/网段写入
+      `kubo.security.trusted-proxies`（逗号分隔 CIDR）；不配置则所有请求按代理
+      出口 IP 归并计数（安全但共享 IP 的用户会互相挤占限流/锁定额度）。
+- [ ] **F-4**：按需为敏感菜单在「系统管理→菜单管理」填写权限标识（如
+      `Unit_getPage`），留空 = 不校验，存量菜单行为不变。
 
 ## 复现与回归入口
 
@@ -123,6 +146,7 @@ node SPMS-Server/target/auditB.cjs   # B RBAC/数据权限
 node SPMS-Server/target/auditC.cjs   # C WMS 事务（含并发）
 node SPMS-Server/target/auditD.cjs   # D 令牌/文件/配置
 node SPMS-Server/target/auditE.cjs   # E 前端契约后端侧回归
+node SPMS-Server/target/auditF.cjs   # F 安全遗留项专项（XFF/约束语义/交叉移库/菜单权限）
 ```
 
 > 探针脚本位于 git-ignored 的 `SPMS-Server/target/`，重启构建后需从 git 历史

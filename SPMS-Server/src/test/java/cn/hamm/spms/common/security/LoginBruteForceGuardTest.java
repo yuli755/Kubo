@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -45,6 +46,10 @@ class LoginBruteForceGuardTest {
 
     @Mock
     private ValueOperations<String, Object> valueOperations;
+
+    /** 阶段 F-1：真实解析器，仅 127.0.0.1 是可信代理（其余对端不采信转发头） */
+    @Spy
+    private ClientIpResolver clientIpResolver = new ClientIpResolver("127.0.0.1");
 
     @InjectMocks
     private LoginBruteForceGuard guard;
@@ -109,11 +114,24 @@ class LoginBruteForceGuardTest {
     }
 
     @Test
-    @DisplayName("解析 X-Forwarded-For 取第一个 IP")
+    @DisplayName("对端为可信代理：解析 X-Forwarded-For 取第一个 IP")
     void resolveClientIpTakesFirstForwarded() {
         HttpServletRequest request = org.mockito.Mockito.mock(HttpServletRequest.class);
+        given(request.getRemoteAddr()).willReturn("127.0.0.1");
         given(request.getHeader("X-Forwarded-For")).willReturn("1.2.3.4, 5.6.7.8");
 
         assertEquals("1.2.3.4", guard.resolveClientIp(request));
+    }
+
+    @Test
+    @DisplayName("阶段 F-1：对端非可信代理时伪造 XFF 无效，取直连地址")
+    void resolveClientIpIgnoresSpoofedForwardedFromUntrustedPeer() {
+        HttpServletRequest request = org.mockito.Mockito.mock(HttpServletRequest.class);
+        given(request.getRemoteAddr()).willReturn("203.0.113.9");
+        // lenient：修复后这些头对非可信对端根本不会被读取，保留存根仅用于证明"即使伪造了也无效"
+        org.mockito.Mockito.lenient().when(request.getHeader("X-Forwarded-For")).thenReturn("1.2.3.4, 5.6.7.8");
+        org.mockito.Mockito.lenient().when(request.getHeader("X-Real-IP")).thenReturn("8.8.8.8");
+
+        assertEquals("203.0.113.9", guard.resolveClientIp(request));
     }
 }

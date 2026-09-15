@@ -43,6 +43,7 @@ const {
       <AFormField field="component" />
       <AFormField field="orderNo" />
       <AFormField field="icon" />
+      <AFormField field="permission" />
     </el-form>
   </ADialog>
 </template>
