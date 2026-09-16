@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
  * 只需改本类的 {@link #sendCode(String, String)}（调用方 {@code UserService} 无需改动）：
  * </p>
  * <ol>
- *   <li>引入服务商 SDK（如阿里云 {@code aliyun-sdk-dysmsapi}，仓库已引同生态 {@code aliyun-sdk-oss}）；</li>
+ *   <li>引入服务商 SDK（如 {@code aliyun-sdk-dysmsapi}）或直接调 HTTP 接口；</li>
  *   <li>短信签名 / 模板 ID 走 {@code application.yml} 外置配置（与 S2 凭据外置同口径，不硬编码）；</li>
  *   <li>accessKey/secret 走环境变量注入，禁止写进仓库。</li>
  * </ol>

@@ -4,7 +4,6 @@ import cn.hamm.airpower.core.FileUtil;
 import cn.hamm.airpower.core.exception.ServiceException;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.common.AppConfig;
-import cn.hamm.spms.common.aliyun.oss.AliyunOssHelper;
 import cn.hamm.spms.module.system.file.enums.FileCategory;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -30,20 +29,6 @@ import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
 public class FileService extends BaseService<FileEntity, FileRepository> {
     @Autowired
     private AppConfig appConfig;
-
-    @Autowired
-    private AliyunOssHelper aliyunOssHelper;
-
-    /**
-     * 上传到阿里云 OSS
-     *
-     * @param multipartFile 文件
-     * @param savedFilePath 文件路径
-     * @throws IOException 文件写入失败
-     */
-    private void saveToAliyunOss(@NotNull MultipartFile multipartFile, @NotNull String savedFilePath) throws IOException {
-        aliyunOssHelper.upload(savedFilePath, multipartFile.getInputStream().readAllBytes());
-    }
 
     /**
      * 文件上传
@@ -88,14 +73,11 @@ public class FileService extends BaseService<FileEntity, FileRepository> {
             // 保存的相对文件路径
             String relativeFilePath = relativeDirectory + fileName;
 
-            switch (appConfig.getUploadPlatform()) {
-                case LOCAL -> FileUtil.saveFile(absoluteDirectory + relativeDirectory,
-                        fileName,
-                        multipartFile.getBytes()
-                );
-                case ALIYUN_OSS -> saveToAliyunOss(multipartFile, relativeFilePath);
-                default -> throw new ServiceException("暂不支持该平台");
-            }
+            // 只有本地存储一种落地方式：对象存储（阿里云 OSS）已随栈外依赖一并移除，
+            // 生产配置本来就是 `upload-platform: local`（application-production.yml）。
+            // 将来要上对象存储，用 S3 协议客户端（MinIO/OSS 都兼容）重开一个分支，
+            // 而不是把云厂商 SDK 再引回来。
+            FileUtil.saveFile(absoluteDirectory + relativeDirectory, fileName, multipartFile.getBytes());
 
             file = new FileEntity().setExtension(extension)
                     .setSize(multipartFile.getSize())

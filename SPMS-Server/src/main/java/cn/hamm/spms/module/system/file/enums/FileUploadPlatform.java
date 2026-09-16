@@ -15,9 +15,7 @@ public enum FileUploadPlatform implements IDictionary {
     /**
      * 本地上传
      */
-    LOCAL(0, "本地上传"),
-
-    ALIYUN_OSS(1, "阿里云 OSS 上传");
+    LOCAL(0, "本地上传");
 
     private final int key;
     private final String label;
