@@ -180,42 +180,6 @@ const RESOURCE_SPECS: Record<string, ResourceSpec> = {
     statusPool: [1, 2, 3],
     namePool: ['6061 铝板', '304 不锈钢管', 'M8 内六角螺栓', '环氧树脂胶'],
   },
-  order: {
-    label: '生产订单',
-    codePrefix: 'PO',
-    statusPool: [1, 2, 3, 4, 5],
-    namePool: ['A 型机架批量生产', '减速箱壳体加工', '控制柜装配订单', '定制夹具试制'],
-  },
-  plan: {
-    label: '生产计划',
-    codePrefix: 'PL',
-    statusPool: [1, 2, 3, 4],
-    namePool: ['9 月第一周生产计划', '9 月第二周生产计划', '紧急插单计划'],
-  },
-  bom: {
-    label: '物料清单',
-    codePrefix: 'BOM',
-    statusPool: [1, 2],
-    namePool: ['A 型机架 BOM', '减速箱壳体 BOM', '控制柜装配 BOM'],
-  },
-  routing: {
-    label: '工艺路线',
-    codePrefix: 'RT',
-    statusPool: [1, 2],
-    namePool: ['机架加工工艺路线 v2', '壳体加工工艺路线', '装配工艺路线'],
-  },
-  operation: {
-    label: '工序',
-    codePrefix: 'OP',
-    statusPool: [1, 2],
-    namePool: ['粗铣', '精铣', '钻孔攻丝', '热处理', '表面喷涂', '终检'],
-  },
-  picking: {
-    label: '领料单',
-    codePrefix: 'LL',
-    statusPool: [1, 2, 3, 4],
-    namePool: ['PO 工单领料', '试制组领料', '返工补料'],
-  },
   material: {
     label: '物料',
     codePrefix: 'WL',
@@ -305,7 +269,7 @@ const RESOURCE_SPECS: Record<string, ResourceSpec> = {
     label: '菜单',
     codePrefix: 'M',
     statusPool: [1, 2],
-    namePool: ['入库单管理', '库存查询', '生产订单', '数据权限'],
+    namePool: ['入库单管理', '库存查询', '库存盘点', '数据权限'],
   },
   unit: {
     label: '计量单位',
@@ -323,7 +287,7 @@ const RESOURCE_SPECS: Record<string, ResourceSpec> = {
     label: '编号规则',
     codePrefix: 'CR',
     statusPool: [1, 2],
-    namePool: ['入库单编号规则', '出库单编号规则', '生产订单编号规则'],
+    namePool: ['入库单编号规则', '出库单编号规则', '移库单编号规则'],
   },
   log: {
     label: '操作日志',

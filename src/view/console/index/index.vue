@@ -40,10 +40,6 @@ const modules = ref<IJson[]>([
   {
     title: 'MES生产管理',
     actions: [
-      { name: '生产准备', desc: '管理工艺、工序、配料单等生产信息准备', path: '/console/mes/routing' },
-      { name: '生产计划', desc: '可关联客户的销售单，提前指定生产计划', path: '/console/mes/plan' },
-      { name: '生产订单', desc: '可关联生产计划，可直接下单生产', path: '/console/mes/order' },
-      { name: '生产管控', desc: '控制适当的领料、投料，规范生产过程', path: '/console/mes/picking' },
     ],
   },
   {

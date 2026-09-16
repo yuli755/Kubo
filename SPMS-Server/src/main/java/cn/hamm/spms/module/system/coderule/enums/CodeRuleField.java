@@ -61,21 +61,6 @@ public enum CodeRuleField implements IDictionary {
     SaleBillCode(9, "销售单号", "SL"),
 
     /**
-     * 生产计划号
-     */
-    PlanBillCode(10, "生产计划号", "PL"),
-
-    /**
-     * 生产订单号
-     */
-    OrderBillCode(11, "生产订单号", "ODR"),
-
-    /**
-     * 领料单号
-     */
-    PickingBillCode(12, "领料单号", "PK"),
-
-    /**
      * 退料单号
      */
     RestoreBillCode(13, "退料单号", "RET"),
@@ -96,24 +81,9 @@ public enum CodeRuleField implements IDictionary {
     MoveBillCode(16, "移库单号", "MV"),
 
     /**
-     * 工序编码
-     */
-    OperationCode(18, "工序编码", "OP", YEAR),
-
-    /**
      * 部门编码
      */
     DepartmentCode(19, "部门编码", "DP", NEVER),
-
-    /**
-     * BOM 编码
-     */
-    BomCode(20, "配方编码", "BOM", NEVER),
-
-    /**
-     * 工艺编码
-     */
-    RoutingCode(21, "工艺编码", "RT", NEVER),
 
     /**
      * 合同编码

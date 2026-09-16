@@ -5,7 +5,6 @@ import { vPermission } from '@/directives'
 import { StructureService } from '@/hook/factory/useStructure'
 import { StructureEntity } from '@/model/factory/structure/StructureEntity'
 
-import { OperationSelector } from '@/view/console/mes/operation/component'
 import { DepartmentSelector } from '@/view/console/personnel/department/component'
 
 const props = defineProps(DialogProps.withParam(new StructureEntity()))
@@ -18,10 +17,6 @@ const {
   isLoading,
   onSubmit,
 } = useEditor(props, StructureService)
-
-async function selectOperation() {
-  formData.value.operationList = await DialogUtil.selectList(OperationSelector, formData.value.operationList)
-}
 
 async function selectDepartment() {
   formData.value.departmentList = await DialogUtil.selectList(DepartmentSelector, formData.value.departmentList)
@@ -54,26 +49,6 @@ async function selectDepartment() {
         >
           {{ formData.parent.name }}({{ formData.parent.code }})
         </el-form-item>
-      </AGroup>
-      <AGroup title="可执行工序">
-        <div class="list">
-          <AButton
-            v-permission="[Permissions.Factory.Structure.add, Permissions.Factory.Structure.update]"
-            icon="ADD"
-            @click="selectOperation()"
-          >
-            添加工序
-          </AButton>
-          <el-tag
-            v-for="(operation, index) in formData.operationList"
-            :key="operation.id"
-            closable
-            size="large"
-            @close="formData.operationList.splice(index, 1)"
-          >
-            {{ operation.name }}
-          </el-tag>
-        </div>
       </AGroup>
       <AGroup title="所属部门">
         <div class="list">

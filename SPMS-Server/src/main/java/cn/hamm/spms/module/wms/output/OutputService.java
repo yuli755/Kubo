@@ -13,7 +13,6 @@ import cn.hamm.spms.base.bill.AbstractBaseBillService;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.channel.ChannelServices;
-import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
@@ -125,9 +124,6 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
         if (bill.getMove() != null && bill.getMove().getId() != null) {
             bill.setMove(WmsServices.getMoveService().getMapperDetail(bill.getMove().getId()));
         }
-        if (bill.getPicking() != null && bill.getPicking().getId() != null) {
-            bill.setPicking(MesServices.getPickingService().getMapperDetail(bill.getPicking().getId()));
-        }
         return bill;
     }
 
@@ -222,7 +218,6 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
         OutputType outputType = DictionaryUtil.getDictionary(OutputType.class, outputBill.getType());
         switch (outputType) {
             case SALE -> ChannelServices.getSaleService().setBillFinished(outputBill.getSale().getId());
-            case PICKING -> MesServices.getPickingService().setBillFinished(outputBill.getPicking().getId());
             default -> {
             }
         }
@@ -255,13 +250,6 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
                         outputDetailQuantity,
                         ChannelServices.getSaleService(),
                         detail -> FORBIDDEN.whenNotEquals(
-                                detail.getMaterial().getId(),
-                                materialId,
-                                "物料信息不匹配"));
-                case PICKING -> MesServices.getPickingDetailService().updateDetailQuantity(
-                        bill.getPicking().getId(),
-                        outputDetailQuantity,
-                        MesServices.getPickingService(), detail -> FORBIDDEN.whenNotEquals(
                                 detail.getMaterial().getId(),
                                 materialId,
                                 "物料信息不匹配"));

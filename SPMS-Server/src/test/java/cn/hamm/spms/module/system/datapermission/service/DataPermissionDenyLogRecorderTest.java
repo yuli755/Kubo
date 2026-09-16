@@ -79,9 +79,9 @@ class DataPermissionDenyLogRecorderTest {
     @Test
     @DisplayName("无权限上下文时身份为空但不丢档位：内部调用被拒同样留档")
     void eventWithoutContextKeepsMode() {
-        given(properties.effectiveMode("mes.order")).willReturn(DataPermissionProperties.Mode.SHADOW);
+        given(properties.effectiveMode("wms.input")).willReturn(DataPermissionProperties.Mode.SHADOW);
         DataPermissionDenyLogRecorder.DenyEvent event =
-                recorder().toEvent("mes.order", DataPermissionAudit.REASON_ROW_NOT_WRITABLE, "id=1");
+                recorder().toEvent("wms.input", DataPermissionAudit.REASON_ROW_NOT_WRITABLE, "id=1");
 
         assertNull(event.userId());
         assertNull(event.tenantId());

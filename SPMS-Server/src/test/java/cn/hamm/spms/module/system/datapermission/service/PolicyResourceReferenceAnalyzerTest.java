@@ -78,7 +78,7 @@ class PolicyResourceReferenceAnalyzerTest {
                 byId(
                         resource(1L, "wms.input", "DRAFT"),
                         resource(2L, "wms.output", "DISABLED"),
-                        resource(3L, "mes.order", "ENABLED")));
+                        resource(3L, "asset.material", "ENABLED")));
         assertEquals(2, risks.size());
         assertEquals("p-draft", risks.get(0).policyCode());
         assertEquals(PolicyResourceReferenceAnalyzer.KIND_RESOURCE_NOT_ENABLED, risks.get(0).kind());

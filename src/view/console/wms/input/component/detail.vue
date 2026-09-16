@@ -12,7 +12,6 @@ import { InputEntity } from '@/model/wms/input/InputEntity'
 import { InputStatusEnum } from '@/model/wms/input/InputStatusEnum'
 import { InputTypeEnum } from '@/model/wms/input/InputTypeEnum'
 import { PurchaseDetail } from '@/view/console/channel/purchase/component'
-import { OrderDetail } from '@/view/console/mes/order/component'
 import { InputAddFinishEditor } from '.'
 import { MoveDetail } from '../../move/component'
 
@@ -72,14 +71,6 @@ async function onAddFinish(detail: InputDetailEntity) {
         >
           <el-link @click="DialogUtil.show(MoveDetail, formData.move)">
             {{ formData.move.billCode }}
-          </el-link>
-        </el-form-item>
-        <el-form-item
-          v-if="InputTypeEnum.PRODUCTION.equalsKey(formData.type)"
-          label="生产订单"
-        >
-          <el-link @click="DialogUtil.show(OrderDetail, formData.order)">
-            {{ formData.order.billCode }}
           </el-link>
         </el-form-item>
       </AGroup>

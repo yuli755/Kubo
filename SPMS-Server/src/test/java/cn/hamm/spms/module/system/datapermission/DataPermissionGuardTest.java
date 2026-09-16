@@ -106,10 +106,10 @@ class DataPermissionGuardTest {
         @Test
         void appliesToOneActionAtLeast() {
             PermissionContextHolder.open(context(false));
-            given(dataPermissionService.getPolicies(eq("mes.order"), any(), any()))
+            given(dataPermissionService.getPolicies(eq("wms.input"), any(), any()))
                     .willReturn(List.of(policy()));
 
-            assertDoesNotThrow(() -> guard.enforce("mes.order", DataPermissionAction.DELETE));
+            assertDoesNotThrow(() -> guard.enforce("wms.input", DataPermissionAction.DELETE));
         }
     }
 

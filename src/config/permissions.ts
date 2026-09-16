@@ -36,55 +36,6 @@ const Crud = {
   publish: 'publish',
 } as const
 
-/** 生产执行 (MES) 模块 */
-const Mes = {
-  Order: {
-    add: `Order_${Crud.add}`,
-    update: `Order_${Crud.update}`,
-    getDetail: `Order_${Crud.getDetail}`,
-    audit: `Order_${Crud.audit}`,
-    reject: `Order_${Crud.reject}`,
-    export: `Order_${Crud.export}`,
-    start: 'Order_start',
-    pause: 'Order_pause',
-    addOrderDetail: 'Order_addOrderDetail',
-    finish: 'Order_setBillDetailsAllFinished',
-  },
-  Plan: {
-    add: `Plan_${Crud.add}`,
-    update: `Plan_${Crud.update}`,
-    getDetail: `Plan_${Crud.getDetail}`,
-    audit: `Plan_${Crud.audit}`,
-    reject: `Plan_${Crud.reject}`,
-    export: `Plan_${Crud.export}`,
-  },
-  Picking: {
-    add: `Picking_${Crud.add}`,
-    update: `Picking_${Crud.update}`,
-    getDetail: `Picking_${Crud.getDetail}`,
-    audit: `Picking_${Crud.audit}`,
-    reject: `Picking_${Crud.reject}`,
-    export: `Picking_${Crud.export}`,
-  },
-  Bom: {
-    add: `Bom_${Crud.add}`,
-    update: `Bom_${Crud.update}`,
-    delete: `Bom_${Crud.delete}`,
-    publish: `Bom_${Crud.publish}`,
-  },
-  Operation: {
-    add: `Operation_${Crud.add}`,
-    update: `Operation_${Crud.update}`,
-    delete: `Operation_${Crud.delete}`,
-  },
-  Routing: {
-    add: `Routing_${Crud.add}`,
-    update: `Routing_${Crud.update}`,
-    delete: `Routing_${Crud.delete}`,
-    publish: `Routing_${Crud.publish}`,
-  },
-} as const
-
 /** 仓储 (WMS) 模块 */
 const Wms = {
   Input: {
@@ -286,11 +237,10 @@ const System = {
  * 按业务模块分组，使用时直接引用：
  * ```ts
  * import { Permissions } from '@/config/permissions'
- * Permissions.Mes.Order.audit // → "Order_audit"
+ * Permissions.Wms.Input.audit // → "Input_audit"
  * ```
  */
 export const Permissions = {
-  Mes,
   Wms,
   Channel,
   Asset,
@@ -301,8 +251,7 @@ export const Permissions = {
 
 /** 权限码类型（用于需要提取所有权限码的场景） */
 export type PermissionCode
-  = | (typeof Permissions.Mes)[keyof typeof Permissions.Mes][keyof (typeof Permissions.Mes)[keyof typeof Permissions.Mes]]
-    | (typeof Permissions.Wms)[keyof typeof Permissions.Wms][keyof (typeof Permissions.Wms)[keyof typeof Permissions.Wms]]
+  = | (typeof Permissions.Wms)[keyof typeof Permissions.Wms][keyof (typeof Permissions.Wms)[keyof typeof Permissions.Wms]]
     | (typeof Permissions.Channel)[keyof typeof Permissions.Channel][keyof (typeof Permissions.Channel)[keyof typeof Permissions.Channel]]
     | (typeof Permissions.Asset)[keyof typeof Permissions.Asset][keyof (typeof Permissions.Asset)[keyof typeof Permissions.Asset]]
     | (typeof Permissions.Personnel)[keyof typeof Permissions.Personnel][keyof (typeof Permissions.Personnel)[keyof typeof Permissions.Personnel]]

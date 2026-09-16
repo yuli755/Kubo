@@ -138,7 +138,6 @@ WHERE u.`id` = 1
         AND x.`role_list_id` = r.`id`
   );
 
-
 -- ########## 阶段 2/9：多租户地基（原 20260906_multitenant_foundation.sql）##########
 -- ============================================================================
 -- Kubo 真多租产地基 + 数据权限归属列
@@ -254,27 +253,9 @@ INSERT INTO `user_tenant` (`user_id`, `tenant_id`, `is_default`)
 SELECT u.`id`, 1, b'1' FROM `user` u
  WHERE NOT EXISTS (SELECT 1 FROM `user_tenant` ut WHERE ut.`user_id` = u.`id`);
 
-
 -- ---------------------------------------------------------------------------
 -- 2. 业务表：加列 + 索引 + 唯一域降级 + 存量回填
 -- ---------------------------------------------------------------------------
--- [T1] mes.bom  ← BomEntity.java
-CALL kubo_mt_add_column('bom', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
-CALL kubo_mt_add_column('bom', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
-CALL kubo_mt_add_index('bom', 'idx_bom_tenant', 'tenant_id');
--- ⚠️ @ManyToMany 无标量列（中间表）：details → 只能服务端解析成 ID 集合再注入 IN
-CALL kubo_mt_replace_unique('bom', 'code');  -- 原唯一列 code → (tenant_id, code)
-UPDATE `bom` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `bom` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
-
--- [T2] mes.bomDetail  ← BomDetailEntity.java
-CALL kubo_mt_add_column('bom_detail', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
-CALL kubo_mt_add_column('bom_detail', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
-CALL kubo_mt_add_index('bom_detail', 'idx_bom_detail_tenant', 'tenant_id');
--- 可用归属列：material_id
-UPDATE `bom_detail` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `bom_detail` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
-
 -- [T1] asset.contract  ← ContractEntity.java
 CALL kubo_mt_add_column('contract', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
 CALL kubo_mt_add_column('contract', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
@@ -307,7 +288,6 @@ CALL kubo_mt_add_index('department', 'idx_department_tenant', 'tenant_id');
 CALL kubo_mt_replace_unique('department', 'code');  -- 原唯一列 code → (tenant_id, code)
 UPDATE `department` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 UPDATE `department` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
-
 
 -- [T1] wms.input  ← InputEntity.java
 CALL kubo_mt_add_column('input', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
@@ -369,31 +349,6 @@ CALL kubo_mt_add_index('move_detail', 'idx_move_detail_tenant', 'tenant_id');
 UPDATE `move_detail` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 UPDATE `move_detail` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
 
--- [T1] mes.operation  ← OperationEntity.java
-CALL kubo_mt_add_column('operation', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
-CALL kubo_mt_add_column('operation', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
-CALL kubo_mt_add_index('operation', 'idx_operation_tenant', 'tenant_id');
-CALL kubo_mt_replace_unique('operation', 'code');  -- 原唯一列 code → (tenant_id, code)
-CALL kubo_mt_replace_unique('operation', 'name');  -- 原唯一列 name → (tenant_id, name)
-UPDATE `operation` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `operation` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
-
--- [T2] mes.orderDetail  ← OrderDetailEntity.java
-CALL kubo_mt_add_column('order_detail', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
-CALL kubo_mt_add_column('order_detail', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
-CALL kubo_mt_add_index('order_detail', 'idx_order_detail_tenant', 'tenant_id');
-UPDATE `order_detail` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `order_detail` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
-
--- [T1] mes.order  ← OrderEntity.java
-CALL kubo_mt_add_column('orders', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
-CALL kubo_mt_add_column('orders', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
-CALL kubo_mt_add_index('orders', 'idx_orders_tenant', 'tenant_id');
--- 可用归属列：customer_id, material_id, plan_id
-CALL kubo_mt_replace_unique('orders', 'bill_code');  -- 原唯一列 bill_code → (tenant_id, bill_code)
-UPDATE `orders` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `orders` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
-
 -- [T1] wms.output  ← OutputEntity.java
 CALL kubo_mt_add_column('output', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
 CALL kubo_mt_add_column('output', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
@@ -411,7 +366,6 @@ CALL kubo_mt_add_index('output_detail', 'idx_output_detail_tenant', 'tenant_id')
 UPDATE `output_detail` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 UPDATE `output_detail` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
 
-
 -- [T4] asset.participant  ← ParticipantEntity.java
 CALL kubo_mt_add_column('participant', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
 CALL kubo_mt_add_column('participant', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
@@ -427,40 +381,6 @@ CALL kubo_mt_add_index('personal_token', 'idx_personal_token_tenant', 'tenant_id
 CALL kubo_mt_replace_unique('personal_token', 'token');  -- 原唯一列 token → (tenant_id, token)
 UPDATE `personal_token` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 UPDATE `personal_token` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
-
--- [T1] mes.picking  ← PickingEntity.java
-CALL kubo_mt_add_column('picking', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
-CALL kubo_mt_add_column('picking', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
-CALL kubo_mt_add_index('picking', 'idx_picking_tenant', 'tenant_id');
--- 可用归属列：order_id, structure_id
-CALL kubo_mt_replace_unique('picking', 'bill_code');  -- 原唯一列 bill_code → (tenant_id, bill_code)
-UPDATE `picking` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `picking` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
-
--- [T2] mes.pickingDetail  ← PickingDetailEntity.java
-CALL kubo_mt_add_column('picking_detail', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
-CALL kubo_mt_add_column('picking_detail', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
-CALL kubo_mt_add_index('picking_detail', 'idx_picking_detail_tenant', 'tenant_id');
--- 可用归属列：material_id
-UPDATE `picking_detail` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `picking_detail` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
-
--- [T1] mes.plan  ← PlanEntity.java
-CALL kubo_mt_add_column('plan', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
-CALL kubo_mt_add_column('plan', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
-CALL kubo_mt_add_index('plan', 'idx_plan_tenant', 'tenant_id');
--- 可用归属列：customer_id
-CALL kubo_mt_replace_unique('plan', 'bill_code');  -- 原唯一列 bill_code → (tenant_id, bill_code)
-UPDATE `plan` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `plan` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
-
--- [T2] mes.planDetail  ← PlanDetailEntity.java
-CALL kubo_mt_add_column('plan_detail', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
-CALL kubo_mt_add_column('plan_detail', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
-CALL kubo_mt_add_index('plan_detail', 'idx_plan_detail_tenant', 'tenant_id');
--- 可用归属列：material_id
-UPDATE `plan_detail` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `plan_detail` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
 
 -- [T1] channel.purchase  ← PurchaseEntity.java
 CALL kubo_mt_add_column('purchase', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
@@ -495,23 +415,6 @@ CALL kubo_mt_replace_unique('room', 'code');  -- 原唯一列 code → (tenant_i
 CALL kubo_mt_replace_unique('room', 'name');  -- 原唯一列 name → (tenant_id, name)
 UPDATE `room` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 UPDATE `room` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
-
--- [T1] mes.routing  ← RoutingEntity.java
-CALL kubo_mt_add_column('routing', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
-CALL kubo_mt_add_column('routing', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
-CALL kubo_mt_add_index('routing', 'idx_routing_tenant', 'tenant_id');
--- 可用归属列：bom_id, material_id
-CALL kubo_mt_replace_unique('routing', 'code');  -- 原唯一列 code → (tenant_id, code)
-UPDATE `routing` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `routing` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
-
--- [T4] mes.routingOperation  ← RoutingOperationEntity.java
-CALL kubo_mt_add_column('routing_operation', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
-CALL kubo_mt_add_column('routing_operation', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
-CALL kubo_mt_add_index('routing_operation', 'idx_routing_operation_tenant', 'tenant_id');
--- 可用归属列：bom_id, operation_id, routing_id
-UPDATE `routing_operation` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `routing_operation` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
 
 -- [T1] channel.sale  ← SaleEntity.java
 CALL kubo_mt_add_column('sale', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
@@ -596,8 +499,6 @@ UPDATE `user_third_login` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
 -- ---------------------------------------------------------------------------
 -- 3. 执行后校验（任一非 0 都不得开启 enforce；建议做成 CI 检查）
 -- ---------------------------------------------------------------------------
-SELECT 'bom' tbl, COUNT(*) bad_tenant FROM `bom` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'bom_detail' tbl, COUNT(*) bad_tenant FROM `bom_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'contract' tbl, COUNT(*) bad_tenant FROM `contract` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'contract_document' tbl, COUNT(*) bad_tenant FROM `contract_document` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'customer' tbl, COUNT(*) bad_tenant FROM `customer` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
@@ -609,23 +510,14 @@ SELECT 'material' tbl, COUNT(*) bad_tenant FROM `material` WHERE `tenant_id` IS 
 SELECT 'member' tbl, COUNT(*) bad_tenant FROM `member` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'move' tbl, COUNT(*) bad_tenant FROM `move` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'move_detail' tbl, COUNT(*) bad_tenant FROM `move_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'operation' tbl, COUNT(*) bad_tenant FROM `operation` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'order_detail' tbl, COUNT(*) bad_tenant FROM `order_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'orders' tbl, COUNT(*) bad_tenant FROM `orders` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'output' tbl, COUNT(*) bad_tenant FROM `output` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'output_detail' tbl, COUNT(*) bad_tenant FROM `output_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'participant' tbl, COUNT(*) bad_tenant FROM `participant` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'personal_token' tbl, COUNT(*) bad_tenant FROM `personal_token` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'picking' tbl, COUNT(*) bad_tenant FROM `picking` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'picking_detail' tbl, COUNT(*) bad_tenant FROM `picking_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'plan' tbl, COUNT(*) bad_tenant FROM `plan` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'plan_detail' tbl, COUNT(*) bad_tenant FROM `plan_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'purchase' tbl, COUNT(*) bad_tenant FROM `purchase` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'purchase_detail' tbl, COUNT(*) bad_tenant FROM `purchase_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'purchase_price' tbl, COUNT(*) bad_tenant FROM `purchase_price` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'room' tbl, COUNT(*) bad_tenant FROM `room` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'routing' tbl, COUNT(*) bad_tenant FROM `routing` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'routing_operation' tbl, COUNT(*) bad_tenant FROM `routing_operation` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'sale' tbl, COUNT(*) bad_tenant FROM `sale` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'sale_detail' tbl, COUNT(*) bad_tenant FROM `sale_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'sale_price' tbl, COUNT(*) bad_tenant FROM `sale_price` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
@@ -643,7 +535,6 @@ SELECT 'user_third_login' tbl, COUNT(*) bad_tenant FROM `user_third_login` WHERE
 --    · 索引：ALTER TABLE <表> DROP INDEX uk_<表>_tenant_<col>; 仅在确认无跨租户重复后重建单列唯一
 --    · 严禁在 ddl-auto=validate 环境 DROP COLUMN（会让启动失败）
 -- ---------------------------------------------------------------------------
-
 
 -- ########## 阶段 3/9：规则内核（原 20260907_data_permission_rule_kernel.sql）##########
 -- ============================================================================
@@ -713,7 +604,6 @@ CREATE TABLE IF NOT EXISTS `data_permission_diff_log` (
 -- RENAME TABLE `data_permission_diff_log` TO `data_permission_diff_log_disabled`;
 -- ---------------------------------------------------------------------------
 
-
 -- ########## 阶段 4/9：拒绝审计（原 20260908_data_permission_deny_log.sql）##########
 -- ============================================================================
 -- 数据权限（阶段 B4 · §19.31）：拒绝事件落库审计表
@@ -755,7 +645,6 @@ CREATE TABLE IF NOT EXISTS `data_permission_deny_log` (
 -- 回滚（只回滚结构，不删数据）
 -- RENAME TABLE `data_permission_deny_log` TO `data_permission_deny_log_disabled`;
 -- ---------------------------------------------------------------------------
-
 
 -- ########## 阶段 5/9：ORM 对账（原 20260908_data_permission_orm_parity.sql）##########
 -- ============================================================================
@@ -804,7 +693,6 @@ CREATE TABLE IF NOT EXISTS `data_permission_orm_parity_log` (
 -- RENAME TABLE `data_permission_orm_parity_log` TO `data_permission_orm_parity_log_disabled`;
 -- ---------------------------------------------------------------------------
 
-
 -- ########## 阶段 6/9：证据留存（原 20260909_data_permission_evidence_retention.sql）##########
 -- ============================================================================
 -- 数据权限（阶段 P2 · §19.37）：证据留存清理索引
@@ -848,7 +736,6 @@ DROP PROCEDURE kubo_dp_add_evidence_time_index;
 -- ALTER TABLE `data_permission_orm_parity_log` DROP INDEX `idx_dp_parity_create_time`;
 -- ---------------------------------------------------------------------------
 
-
 -- ########## 阶段 7/9：工厂归属列（原 20260909_factory_owner_columns.sql）##########
 -- ============================================================================
 -- D13-B 工厂维度：给既有部署回填 wms.inventory / wms.move 的工厂归属列登记
@@ -875,7 +762,6 @@ SET `owner_columns` = CASE
     ELSE `owner_columns`
 END
 WHERE `resource_key` IN ('wms.inventory', 'wms.move');
-
 
 -- ########## 阶段 8/9：归属迁移特权（原 20260909_system_permission_ownership.sql）##########
 -- ============================================================================
@@ -909,7 +795,6 @@ WHERE r.`code` = 'SYSTEM_ROOT'
       WHERE x.`role_entity_id` = r.`id`
         AND x.`permission_list_id` = p.`id`
   );
-
 
 -- ########## 阶段 9/9：用户-工厂关系（原 20260909_user_factory.sql）##########
 -- ============================================================================

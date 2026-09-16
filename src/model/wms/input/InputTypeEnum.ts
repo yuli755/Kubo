@@ -14,7 +14,4 @@ export class InputTypeEnum extends WebEnum {
 
   static readonly PURCHASE = new InputTypeEnum(3, '采购入库')
     .setColor(WebColor.WARNING)
-
-  static readonly PRODUCTION = new InputTypeEnum(4, '生产入库')
-    .setColor(WebColor.SUCCESS)
 }

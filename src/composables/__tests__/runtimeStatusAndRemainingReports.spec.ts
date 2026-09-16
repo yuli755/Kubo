@@ -122,9 +122,9 @@ describe('reports · 灰度状态总览 useDataPermissionRuntimeStatus', () => {
       resources: [
         { resourceKey: 'asset.material', notes: ['n1'] },
         { resourceKey: 'wms.inventory', notes: ['n2'] },
-        { resourceKey: 'mes.order', notes: ['n3'] },
-        { resourceKey: 'mes.plan', notes: ['n4'] },
-        { resourceKey: 'mes.routing', notes: [] },
+        { resourceKey: 'wms.input', notes: ['n3'] },
+        { resourceKey: 'wms.output', notes: ['n4'] },
+        { resourceKey: 'asset.material', notes: [] },
       ],
     }))
     const state = scope.run(() => useDataPermissionRuntimeStatus())!
@@ -135,7 +135,7 @@ describe('reports · 灰度状态总览 useDataPermissionRuntimeStatus', () => {
     expect(state.notePreview).toEqual([
       'asset.material：n1',
       'wms.inventory：n2',
-      'mes.order：n3',
+      'wms.input：n3',
     ])
   })
 
@@ -182,13 +182,13 @@ describe('reports · 导出可见性 useExportVisibility', () => {
   it('同 resourceKey 命中缓存：不再发起第二次请求', async () => {
     getMyExportVisibility.mockResolvedValue({ price: true })
     const scopeA = effectScope()
-    scopeA.run(() => useExportVisibility('mes.order'))!
+    scopeA.run(() => useExportVisibility('wms.input'))!
     await flushPromises()
     scopeA.stop()
 
     getMyExportVisibility.mockClear()
     const scopeB = effectScope()
-    const state = scopeB.run(() => useExportVisibility('mes.order'))!
+    const state = scopeB.run(() => useExportVisibility('wms.input'))!
     await flushPromises()
 
     expect(getMyExportVisibility).not.toHaveBeenCalled()

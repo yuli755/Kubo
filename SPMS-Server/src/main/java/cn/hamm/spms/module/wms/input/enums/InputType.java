@@ -26,11 +26,6 @@ public enum InputType implements IDictionary {
      * 采购入库
      */
     PURCHASE(3, "采购入库"),
-
-    /**
-     * 生产入库
-     */
-    PRODUCTION(4, "生产入库"),
     ;
 
     private final int key;

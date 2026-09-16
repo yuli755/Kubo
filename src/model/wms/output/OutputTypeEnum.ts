@@ -14,7 +14,4 @@ export class OutputTypeEnum extends WebEnum {
 
   static readonly SALE = new OutputTypeEnum(3, '销售出库')
     .setColor(WebColor.SUCCESS)
-
-  static readonly PICKING = new OutputTypeEnum(4, '领料出库')
-    .setColor(WebColor.NORMAL)
 }

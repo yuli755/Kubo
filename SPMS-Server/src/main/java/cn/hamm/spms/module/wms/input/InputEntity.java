@@ -9,7 +9,6 @@ import cn.hamm.spms.base.bill.AbstractBaseBillEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.channel.purchase.PurchaseEntity;
 import cn.hamm.spms.module.factory.structure.StructureEntity;
-import cn.hamm.spms.module.mes.order.OrderEntity;
 import cn.hamm.spms.module.wms.input.detail.InputDetailEntity;
 import cn.hamm.spms.module.wms.input.enums.InputStatus;
 import cn.hamm.spms.module.wms.input.enums.InputType;
@@ -71,8 +70,6 @@ public class InputEntity extends AbstractBaseBillEntity<InputEntity, InputDetail
 
     @Description("生产订单")
     @ManyToOne(fetch = EAGER)
-    private OrderEntity order;
-
     @Description("移库单")
     @ManyToOne(fetch = EAGER)
     private MoveEntity move;

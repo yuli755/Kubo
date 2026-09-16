@@ -52,14 +52,6 @@ export function demoMenuTree(): DemoMenuNode[] {
       icon: 'DataBoard',
       orderNo: 1,
     },
-    group(100, '生产执行 MES', 'SetUp', 10, [
-      listPage(101, '生产订单', 'mes', 'order', 'Tickets', 1),
-      listPage(102, '生产计划', 'mes', 'plan', 'Calendar', 2),
-      listPage(103, '物料清单', 'mes', 'bom', 'Files', 3),
-      listPage(104, '工艺路线', 'mes', 'routing', 'Guide', 4),
-      listPage(105, '工序管理', 'mes', 'operation', 'Operation', 5),
-      listPage(106, '领料单', 'mes', 'picking', 'ShoppingCart', 6),
-    ]),
     group(200, '仓储管理 WMS', 'Box', 20, [
       listPage(201, '入库单', 'wms', 'input', 'Download', 1),
       listPage(202, '出库单', 'wms', 'output', 'Upload', 2),

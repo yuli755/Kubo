@@ -3,7 +3,6 @@ import { Field, Form, Model, Search, Table, Type } from '@airpower/web'
 import { AbstractBaseBillEntity } from '@/base/bill/AbstractBaseBillEntity'
 import { PurchaseEntity } from '@/model/channel/purchase/PurchaseEntity'
 import { StorageEntity } from '@/model/factory/storage/StorageEntity'
-import { OrderEntity } from '@/model/mes/order/OrderEntity'
 import { MoveEntity } from '../move/MoveEntity'
 import { InputDetailEntity } from './InputDetailEntity'
 import { InputStatusEnum } from './InputStatusEnum'
@@ -72,12 +71,6 @@ export class InputEntity extends AbstractBaseBillEntity<InputDetailEntity> {
   })
   @Type(MoveEntity)
   move!: MoveEntity
-
-  @Field({
-    label: '生产订单',
-  })
-  @Type(OrderEntity)
-  order!: OrderEntity
 
   getAuditingStatus(): WebEnum {
     return InputStatusEnum.AUDITING

@@ -9,7 +9,6 @@ import cn.hamm.airpower.curd.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.factory.structure.enums.StructureType;
-import cn.hamm.spms.module.mes.operation.OperationEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -68,8 +67,4 @@ public class StructureEntity extends TenantAwareEntity<StructureEntity> implemen
     @Description("树子集节点数组")
     @Transient
     private List<StructureEntity> children;
-
-    @Description("可执行工序")
-    @ManyToMany(fetch = FetchType.LAZY)
-    private Set<OperationEntity> operationList;
 }

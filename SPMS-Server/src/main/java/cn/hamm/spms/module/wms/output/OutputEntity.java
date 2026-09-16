@@ -8,7 +8,6 @@ import cn.hamm.airpower.curd.annotation.Search;
 import cn.hamm.spms.base.bill.AbstractBaseBillEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.channel.sale.SaleEntity;
-import cn.hamm.spms.module.mes.picking.PickingEntity;
 import cn.hamm.spms.module.wms.move.MoveEntity;
 import cn.hamm.spms.module.wms.output.detail.OutputDetailEntity;
 import cn.hamm.spms.module.wms.output.enums.OutputStatus;

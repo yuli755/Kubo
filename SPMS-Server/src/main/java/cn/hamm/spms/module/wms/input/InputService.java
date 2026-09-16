@@ -15,7 +15,6 @@ import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.channel.ChannelServices;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
-import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
@@ -200,9 +199,6 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
             bill.setStructure(cn.hamm.spms.module.factory.FactoryServices.getStructureService()
                     .get(bill.getStructure().getId()));
         }
-        if (bill.getOrder() != null && bill.getOrder().getId() != null) {
-            bill.setOrder(MesServices.getOrderService().getMapperDetail(bill.getOrder().getId()));
-        }
         if (bill.getMove() != null && bill.getMove().getId() != null) {
             bill.setMove(WmsServices.getMoveService().getMapperDetail(bill.getMove().getId()));
         }
@@ -254,7 +250,6 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
         );
         switch (inputType) {
             case PURCHASE -> ChannelServices.getPurchaseService().setBillFinished(inputBill.getPurchase().getId());
-            case PRODUCTION -> MesServices.getOrderService().setBillFinished(inputBill.getOrder().getId());
             default -> {
             }
         }

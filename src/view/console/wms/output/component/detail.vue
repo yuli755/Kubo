@@ -21,7 +21,6 @@ import { OutputStatusEnum } from '@/model/wms/output/OutputStatusEnum'
 
 import { OutputTypeEnum } from '@/model/wms/output/OutputTypeEnum'
 import { SaleDetail } from '@/view/console/channel/sale/component'
-import { PickingDetail } from '@/view/console/mes/picking/component'
 import { OutputAddFinishEditor } from '.'
 import { MoveDetail } from '../../move/component'
 
@@ -81,14 +80,6 @@ async function onAddFinish(detail: OutputDetailEntity, billId: number) {
         >
           <el-link @click="DialogUtil.show(MoveDetail, formData.move)">
             {{ formData.move.billCode }}
-          </el-link>
-        </el-form-item>
-        <el-form-item
-          v-if="OutputTypeEnum.PICKING.equalsKey(formData.type)"
-          label="领料单号"
-        >
-          <el-link @click="DialogUtil.show(PickingDetail, formData.picking)">
-            {{ formData.picking.billCode }}
           </el-link>
         </el-form-item>
       </AGroup>

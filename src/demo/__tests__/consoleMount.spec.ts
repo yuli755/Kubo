@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import axios from 'axios'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -65,6 +65,10 @@ async function mountConsole() {
 
     },
   })
+  // 预热路由页 chunk：路由组件是 `import.meta.glob` 的懒加载，若解析动作落在测试收尾之后，
+  // vitest 会报 EnvironmentTeardownError（"Cannot load ... after the environment was torn down"）。
+  // 模块缓存之后这行是零成本的。
+  await import('@/view/console/index/index.vue')
   // init() 是异步的：等四个假接口返回 + 路由动态注册 + 渲染落地
   await vi.waitFor(() => {
     expect(wrapper.find('.console-loading').exists()).toBe(false)
@@ -112,7 +116,9 @@ describe('演示模式 · 控制台冒烟', () => {
     axios.defaults.adapter = createDemoAdapter([0, 0])
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    // 先让待决的微任务（含异步组件解析）落地，再恢复 mock，避免它们跑到环境销毁之后
+    await flushPromises()
     vi.restoreAllMocks()
   })
 

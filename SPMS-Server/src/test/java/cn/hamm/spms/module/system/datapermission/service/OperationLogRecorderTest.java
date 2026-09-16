@@ -83,11 +83,11 @@ class OperationLogRecorderTest {
     void eventWithoutContextKeepsAudit() {
         SampleTarget after = new SampleTarget();
         OperationLogRecorder.OperationLogEvent event =
-                recorder().toEvent("mes.bom", OperationLogRecorder.ACTION_CREATE, 1L, null, after);
+                recorder().toEvent("wms.output", OperationLogRecorder.ACTION_CREATE, 1L, null, after);
 
         assertNull(event.userId());
         assertNull(event.tenantId());
-        assertEquals("mes.bom", event.resourceKey());
+        assertEquals("wms.output", event.resourceKey());
         assertEquals(OperationLogRecorder.ACTION_CREATE, event.action());
         assertNull(event.beforeSnapshot());
         assertNotNull(event.afterSnapshot());

@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest'
  * 2. **前端写的 `resourceKey` 必须是后端注册过的数据资源**。写错一个字母，
  *    `my-mask` 永远返回 `null` = "该字段无需脱敏"，脱敏静默失效（fail-open）。
  * 3. **只有后端真的提供 export 端点的实体才允许开 `showExport`**。`BaseController`
- *    全局 `@Extends(exclude = {Curd.Export, Curd.QueryExport})`，二十个读侧换轨资源
+ *    全局 `@Extends(exclude = {Curd.Export, Curd.QueryExport})`，十四个读侧换轨资源
  *    （material / inventory / input / output / move / order / plan / picking / purchase / sale /
  *    customer / supplier / purchasePrice / salePrice / bom / operation / routing / contract /
  *    storage / structure）
@@ -230,18 +230,12 @@ describe('mask contract · 前后端脱敏口径', () => {
       'wms/input',
       'wms/output',
       'wms/move',
-      'mes/order',
-      'mes/plan',
-      'mes/picking',
       'channel/purchase',
       'channel/sale',
       'channel/customer',
       'channel/supplier',
       'channel/purchaseprice',
       'channel/saleprice',
-      'mes/bom',
-      'mes/operation',
-      'mes/routing',
       'factory/storage',
       'factory/structure',
     ]))
@@ -1815,7 +1809,7 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
 
     const implementors = collect(SERVER, '.java').filter(file => /implements[^;]*RowParityCounter|extends[^;]*RowParityCounter/.test(readJavaCode(file)))
     expect(implementors, '没有任何探针实现：这张表与整套对账判据就成了没人消费的机器，要么接上第一个资源，要么删掉')
-      .toHaveLength(20)
+      .toHaveLength(14)
     for (const file of implementors) {
       expect(readJavaCode(file), `${baseName(file)} 的 parityResourceKey 必须是 default 方法`)
         .toMatch(/default\s+String\s+parityResourceKey\s*\(\)/)
@@ -2168,20 +2162,6 @@ describe('mask contract · F3 数据层收敛（system + personnel + wms + facto
     expect(offenders, 'channel 模块视图仍直接 import @/model/*Service：F3 已迁但被回退').toEqual([])
     for (const hook of ['useCustomer', 'usePurchase', 'usePurchasePrice', 'useSale', 'useSalePrice', 'useSupplier']) {
       expect(read(join(ROOT, 'src', 'hook', 'channel', `${hook}.ts`)), `${hook} 没转发 Service 类：视图又得回头 import @/model`)
-        .toMatch(/export\s*\{[^}]*Service[^}]*\}\s*from\s*['"]@\/model\//)
-    }
-  })
-
-  it('mes 模块视图不再直接 import @/model/*Service（由 hook 转发）', () => {
-    const offenders: string[] = []
-    for (const file of [...collect(join(ROOT, 'src', 'view', 'console', 'mes'), '.vue'), ...collect(join(ROOT, 'src', 'view', 'console', 'mes'), '.ts')]) {
-      if (/from\s+['"]@\/model\/[^'"]*Service['"]/.test(read(file))) {
-        offenders.push(file)
-      }
-    }
-    expect(offenders, 'mes 模块视图仍直接 import @/model/*Service：F3 已迁但被回退').toEqual([])
-    for (const hook of ['useBom', 'useOperation', 'useOrder', 'usePicking', 'usePlan', 'useRouting']) {
-      expect(read(join(ROOT, 'src', 'hook', 'mes', `${hook}.ts`)), `${hook} 没转发 Service 类：视图又得回头 import @/model`)
         .toMatch(/export\s*\{[^}]*Service[^}]*\}\s*from\s*['"]@\/model\//)
     }
   })

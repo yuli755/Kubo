@@ -188,8 +188,8 @@ class DataPermissionGuardCudTest {
     void resolverMapsServiceClassToResourceKey() {
         assertEquals("wms.input", DataPermissionResourceResolver.resolve(
                 cn.hamm.spms.module.wms.input.InputService.class));
-        assertEquals("mes.order", DataPermissionResourceResolver.resolve(
-                cn.hamm.spms.module.mes.order.OrderService.class));
+        assertEquals("wms.output", DataPermissionResourceResolver.resolve(
+                cn.hamm.spms.module.wms.output.OutputService.class));
     }
 
     private DataPolicyEntity policy(String code, long resourceId, DataPermissionAction action) {

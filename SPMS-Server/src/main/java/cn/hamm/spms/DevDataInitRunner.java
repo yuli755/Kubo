@@ -23,16 +23,6 @@ import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.factory.storage.StorageService;
 import cn.hamm.spms.module.factory.structure.StructureEntity;
 import cn.hamm.spms.module.factory.structure.StructureService;
-import cn.hamm.spms.module.mes.MesServices;
-import cn.hamm.spms.module.mes.bom.BomEntity;
-import cn.hamm.spms.module.mes.bom.BomService;
-import cn.hamm.spms.module.mes.bom.detail.BomDetailEntity;
-import cn.hamm.spms.module.mes.bom.enums.BomType;
-import cn.hamm.spms.module.mes.operation.OperationEntity;
-import cn.hamm.spms.module.mes.operation.OperationService;
-import cn.hamm.spms.module.mes.routing.RoutingEntity;
-import cn.hamm.spms.module.mes.routing.RoutingService;
-import cn.hamm.spms.module.mes.routing.operation.RoutingOperationEntity;
 import cn.hamm.spms.module.personnel.PersonnelServices;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;
 import cn.hamm.spms.module.personnel.department.DepartmentService;
@@ -220,145 +210,6 @@ public class DevDataInitRunner implements CommandLineRunner {
                     new DataPolicyEntity()
                             .setPolicyCode("wms_move_tenant_isolation")
                             .setResourceId(moveResource.getId())
-                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
-                            .setActionName("QUERY")
-                            .setConditionJson("{}")
-                            .setPriority(100)
-                            .setEnabled(true)
-            );
-        }
-
-        // 注册 mes.order 数据资源
-        if (dataResourceService.getByResourceKey("mes.order") == null) {
-            DataResourceEntity orderResource = dataResourceService.addAndGet(
-                    new DataResourceEntity()
-                            .setResourceKey("mes.order")
-                            .setTableName("order_table")
-                            .setTableAlias("t")
-                            .setTenantColumn("tenant_id")
-                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
-                            .setStatus("ENABLED")
-            );
-            // 创建默认租户隔离策略
-            dataPolicyService.addAndGet(
-                    new DataPolicyEntity()
-                            .setPolicyCode("mes_order_tenant_isolation")
-                            .setResourceId(orderResource.getId())
-                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
-                            .setActionName("QUERY")
-                            .setConditionJson("{}")
-                            .setPriority(100)
-                            .setEnabled(true)
-            );
-        }
-
-        // 注册 mes.plan 数据资源
-        if (dataResourceService.getByResourceKey("mes.plan") == null) {
-            DataResourceEntity planResource = dataResourceService.addAndGet(
-                    new DataResourceEntity()
-                            .setResourceKey("mes.plan")
-                            .setTableName("plan")
-                            .setTableAlias("t")
-                            .setTenantColumn("tenant_id")
-                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
-                            .setStatus("ENABLED")
-            );
-            dataPolicyService.addAndGet(
-                    new DataPolicyEntity()
-                            .setPolicyCode("mes_plan_tenant_isolation")
-                            .setResourceId(planResource.getId())
-                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
-                            .setActionName("QUERY")
-                            .setConditionJson("{}")
-                            .setPriority(100)
-                            .setEnabled(true)
-            );
-        }
-
-        // 注册 mes.picking 数据资源
-        if (dataResourceService.getByResourceKey("mes.picking") == null) {
-            DataResourceEntity pickingResource = dataResourceService.addAndGet(
-                    new DataResourceEntity()
-                            .setResourceKey("mes.picking")
-                            .setTableName("picking")
-                            .setTableAlias("t")
-                            .setTenantColumn("tenant_id")
-                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
-                            .setStatus("ENABLED")
-            );
-            dataPolicyService.addAndGet(
-                    new DataPolicyEntity()
-                            .setPolicyCode("mes_picking_tenant_isolation")
-                            .setResourceId(pickingResource.getId())
-                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
-                            .setActionName("QUERY")
-                            .setConditionJson("{}")
-                            .setPriority(100)
-                            .setEnabled(true)
-            );
-        }
-
-        // 注册 mes.bom 数据资源
-        if (dataResourceService.getByResourceKey("mes.bom") == null) {
-            DataResourceEntity bomResource = dataResourceService.addAndGet(
-                    new DataResourceEntity()
-                            .setResourceKey("mes.bom")
-                            .setTableName("bom")
-                            .setTableAlias("t")
-                            .setTenantColumn("tenant_id")
-                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
-                            .setStatus("ENABLED")
-            );
-            dataPolicyService.addAndGet(
-                    new DataPolicyEntity()
-                            .setPolicyCode("mes_bom_tenant_isolation")
-                            .setResourceId(bomResource.getId())
-                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
-                            .setActionName("QUERY")
-                            .setConditionJson("{}")
-                            .setPriority(100)
-                            .setEnabled(true)
-            );
-        }
-
-        // 注册 mes.routing 数据资源
-        if (dataResourceService.getByResourceKey("mes.routing") == null) {
-            DataResourceEntity routingResource = dataResourceService.addAndGet(
-                    new DataResourceEntity()
-                            .setResourceKey("mes.routing")
-                            .setTableName("routing")
-                            .setTableAlias("t")
-                            .setTenantColumn("tenant_id")
-                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
-                            .setStatus("ENABLED")
-            );
-            dataPolicyService.addAndGet(
-                    new DataPolicyEntity()
-                            .setPolicyCode("mes_routing_tenant_isolation")
-                            .setResourceId(routingResource.getId())
-                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
-                            .setActionName("QUERY")
-                            .setConditionJson("{}")
-                            .setPriority(100)
-                            .setEnabled(true)
-            );
-        }
-
-        // 注册 mes.operation 数据资源
-        if (dataResourceService.getByResourceKey("mes.operation") == null) {
-            DataResourceEntity operationResource = dataResourceService.addAndGet(
-                    new DataResourceEntity()
-                            .setResourceKey("mes.operation")
-                            .setTableName("operation")
-                            .setTableAlias("t")
-                            .setTenantColumn("tenant_id")
-                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
-                            .setStatus("ENABLED")
-            );
-            dataPolicyService.addAndGet(
-                    new DataPolicyEntity()
-                            .setPolicyCode("mes_operation_tenant_isolation")
-                            .setResourceId(operationResource.getId())
                             .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
                             .setActionName("QUERY")
                             .setConditionJson("{}")
@@ -670,12 +521,6 @@ public class DevDataInitRunner implements CommandLineRunner {
         addWritePoliciesForResource(dataPolicyService, dataResourceService, "wms.input");
         addWritePoliciesForResource(dataPolicyService, dataResourceService, "wms.output");
         addWritePoliciesForResource(dataPolicyService, dataResourceService, "wms.move");
-        addWritePoliciesForResource(dataPolicyService, dataResourceService, "mes.order");
-        addWritePoliciesForResource(dataPolicyService, dataResourceService, "mes.plan");
-        addWritePoliciesForResource(dataPolicyService, dataResourceService, "mes.picking");
-        addWritePoliciesForResource(dataPolicyService, dataResourceService, "mes.bom");
-        addWritePoliciesForResource(dataPolicyService, dataResourceService, "mes.routing");
-        addWritePoliciesForResource(dataPolicyService, dataResourceService, "mes.operation");
         addWritePoliciesForResource(dataPolicyService, dataResourceService, "channel.sale");
         addWritePoliciesForResource(dataPolicyService, dataResourceService, "channel.purchase");
         addWritePoliciesForResource(dataPolicyService, dataResourceService, "channel.supplier");
@@ -907,10 +752,6 @@ public class DevDataInitRunner implements CommandLineRunner {
         StorageService storageService = FactoryServices.getStorageService();
         StructureService structureService = FactoryServices.getStructureService();
 
-        OperationService operationService = MesServices.getOperationService();
-        BomService bomService = MesServices.getBomService();
-        RoutingService routingService = MesServices.getRoutingService();
-
         // 幂等：检查单位是否已存在
         UnitEntity unit = unitService.filter(new UnitEntity().setName("台")).stream().findFirst().orElse(null);
         if (Objects.isNull(unit)) {
@@ -983,65 +824,6 @@ public class DevDataInitRunner implements CommandLineRunner {
             }
         }
 
-        // 幂等：工序
-        if (operationService.filter(new OperationEntity()).isEmpty()) {
-            operationService.addAndGet(new OperationEntity().setName("键盘安装"));
-            operationService.addAndGet(new OperationEntity().setName("屏幕组装"));
-            operationService.addAndGet(new OperationEntity().setName("系统安装"));
-        }
-        OperationEntity operationKeyboard = operationService.filter(new OperationEntity().setName("键盘安装")).stream().findFirst().orElse(null);
-        OperationEntity operationScreen = operationService.filter(new OperationEntity().setName("屏幕组装")).stream().findFirst().orElse(null);
-        OperationEntity operationSystem = operationService.filter(new OperationEntity().setName("系统安装")).stream().findFirst().orElse(null);
-
-        // 幂等：物料(键盘/屏幕)
-        if (materialService.filter(new MaterialEntity()).size() == 1) { // 只有 MacBook Pro M4 Max
-            materialService.addAndGet(new MaterialEntity().setName("键盘").setMaterialType(MaterialType.PURCHASE.getKey()).setUnit(unit));
-            materialService.addAndGet(new MaterialEntity().setName("屏幕").setMaterialType(MaterialType.PURCHASE.getKey()).setUnit(unit));
-        }
-        MaterialEntity materialKeyboard = materialService.filter(new MaterialEntity().setName("键盘")).stream().findFirst().orElse(null);
-        MaterialEntity materialScreen = materialService.filter(new MaterialEntity().setName("屏幕")).stream().findFirst().orElse(null);
-
-        // 幂等：BOM
-        if (bomService.filter(new BomEntity()).isEmpty()) {
-            bomService.addAndGet(new BomEntity().setName("笔记本电脑清单").setType(BomType.NORMAL.getKey()).setDetails(
-                    new HashSet<>(Arrays.asList(
-                            new BomDetailEntity().setMaterial(materialKeyboard).setQuantity(1D),
-                            new BomDetailEntity().setMaterial(materialScreen).setQuantity(1D)
-                    ))
-            ));
-
-            bomService.addAndGet(new BomEntity().setName("键盘安装清单").setType(BomType.OPERATION.getKey()).setDetails(
-                    new HashSet<>(Collections.singletonList(
-                            new BomDetailEntity().setMaterial(materialKeyboard).setQuantity(1D)
-                    ))
-            ));
-            bomService.addAndGet(new BomEntity().setName("屏幕组装清单").setType(BomType.OPERATION.getKey()).setDetails(
-                    new HashSet<>(Collections.singletonList(
-                            new BomDetailEntity().setMaterial(materialScreen).setQuantity(1D)
-                    ))
-            ));
-        }
-        BomEntity bomComputer = bomService.filter(new BomEntity().setName("笔记本电脑清单")).stream().findFirst().orElse(null);
-        BomEntity bomKeyboard = bomService.filter(new BomEntity().setName("键盘安装清单")).stream().findFirst().orElse(null);
-        BomEntity bomIdScreen = bomService.filter(new BomEntity().setName("屏幕组装清单")).stream().findFirst().orElse(null);
-
-        // 幂等：工艺路线
-        if (routingService.filter(new RoutingEntity()).isEmpty()) {
-            routingService.addAndGet(new RoutingEntity().setBom(bomComputer)
-                    .setName("笔记本安装")
-                    .setMaterial(material)
-                    .setDetails(Arrays.asList(
-                            new RoutingOperationEntity().setBom(bomKeyboard)
-                                    .setIsAutoNext(true)
-                                    .setOperation(operationKeyboard),
-                            new RoutingOperationEntity().setBom(bomIdScreen)
-                                    .setIsAutoNext(true)
-                                    .setOperation(operationScreen),
-                            new RoutingOperationEntity().setOperation(operationSystem)
-                    ))
-            );
-        }
-
         // 幂等：产线结构
         if (structureService.filter(new StructureEntity()).isEmpty()) {
             StructureEntity structure = new StructureEntity().setName("笔记本电脑产线");
@@ -1051,11 +833,6 @@ public class DevDataInitRunner implements CommandLineRunner {
                 structureService.addAndGet(new StructureEntity()
                         .setParentId(structure.getId())
                         .setName(String.format("工位%s", (i + 1)))
-                        .setOperationList(new HashSet<>(Arrays.asList(
-                                operationKeyboard,
-                                operationScreen,
-                                operationSystem
-                        )))
                 );
             }
         }

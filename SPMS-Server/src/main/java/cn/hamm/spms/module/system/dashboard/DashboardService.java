@@ -9,10 +9,6 @@ import cn.hamm.spms.module.channel.purchaseprice.PurchasePriceEntity;
 import cn.hamm.spms.module.channel.sale.SaleEntity;
 import cn.hamm.spms.module.channel.saleprice.SalePriceEntity;
 import cn.hamm.spms.module.channel.supplier.SupplierEntity;
-import cn.hamm.spms.module.mes.MesServices;
-import cn.hamm.spms.module.mes.order.OrderEntity;
-import cn.hamm.spms.module.mes.picking.PickingEntity;
-import cn.hamm.spms.module.mes.plan.PlanEntity;
 import cn.hamm.spms.module.wms.WmsServices;
 import cn.hamm.spms.module.wms.input.InputEntity;
 import cn.hamm.spms.module.wms.inventory.InventoryEntity;
@@ -50,9 +46,6 @@ public class DashboardService {
                 item("wms.output", "出库单", WmsServices.getOutputService().getMapperCount(new OutputEntity())),
                 item("wms.inventory", "库存", WmsServices.getInventoryService().getMapperCount(new InventoryEntity())),
                 item("wms.move", "库存移动", WmsServices.getMoveService().getMapperCount(new MoveEntity())),
-                item("mes.order", "生产订单", MesServices.getOrderService().getMapperCount(new OrderEntity())),
-                item("mes.plan", "生产计划", MesServices.getPlanService().getMapperCount(new PlanEntity())),
-                item("mes.picking", "生产领料", MesServices.getPickingService().getMapperCount(new PickingEntity())),
                 item("channel.customer", "客户", ChannelServices.getCustomerService().getMapperCount(new CustomerEntity())),
                 item("channel.supplier", "供应商", ChannelServices.getSupplierService().getMapperCount(new SupplierEntity())),
                 item("channel.purchasePrice", "采购单价", ChannelServices.getPurchasePriceService().getMapperCount(new PurchasePriceEntity())),
