@@ -66,7 +66,7 @@ export function demoMenuTree(): DemoMenuNode[] {
       listPage(305, '销售单', 'channel', 'sale', 'Sell', 5),
       listPage(306, '销售价', 'channel', 'salePrice', 'Money', 6),
     ]),
-    group(400, '资产与设备', 'Monitor', 40, [
+    group(400, '资产管理', 'Monitor', 40, [
       listPage(402, '物料主数据', 'asset', 'material', 'Box', 2),
       listPage(403, '合同管理', 'asset', 'contract', 'Document', 3),
     ]),
