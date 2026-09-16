@@ -936,7 +936,7 @@ public class DevDataInitRunner implements CommandLineRunner {
                         .setEmail("admin@hamm.com")
                         .setPassword(PermissionUtil.encodePassword("Aa123456", salt))
                         .setSalt(salt))
-                .setDepartmentList(Set.of(department)));
+                .setDepartmentList(Set.of(department));
     }
 
     private void initConfigs() {
