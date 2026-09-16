@@ -43,7 +43,6 @@ export function useTanStackTable<E extends BaseEntity, S extends AbstractBaseSer
   // eslint-disable-next-line new-cap
   const service = new serviceClass() as S
   const EntityClass = service.entityClass
-  // eslint-disable-next-line new-cap
   const entity: E = new EntityClass()
   const userStore = useUserStore()
 

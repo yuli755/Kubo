@@ -1,20 +1,24 @@
+import type { Pinia } from 'pinia'
+import type { MenuItem } from '@/router/appRouter'
 // @vitest-environment jsdom
-import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query'
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { flushPromises, mount } from '@vue/test-utils'
 import axios from 'axios'
 import { createPinia, setActivePinia } from 'pinia'
-import type { Pinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { MenuItem } from '@/router/appRouter'
 import { demoMenuTree } from '@/demo/fixtures/menu'
 import { demoPermissions } from '@/demo/fixtures/permissions'
 import { createDemoAdapter } from '@/demo/mock/adapter'
 
 /**
- * 探针（用完即删）：逐个挂载菜单里的每个路由页组件，找出渲染期抛错的页面。
+ * 逐页冒烟探针：逐个挂载菜单里的每个路由页组件，找出渲染期**硬错误**的页面。
  *
- * 为什么不走 Console：Console 的 onErrorCaptured 会把整页换成一个**粘住**的错卡，
- * 后续页面会被上一页的错卡污染；而 app 级 errorHandler 对每个独立挂载都清零。
+ * 为什么不走 Console：`Console.vue` 的 `onErrorCaptured` 会把整页换成一个**粘住**的错卡，
+ * 后一页会被前一页的错卡污染；独立挂载 + app 级 `errorHandler` 才能一页一账。
+ *
+ * 判定口径：`errorHandler` / `console.error` = 硬错误（判失败）；
+ * `console.warn` 只记录（底座替换期的 prop 类型告警等噪音不该拦 CI）。
+ * 报告落盘 `/tmp/probe-report.txt` 便于排查。
  */
 
 if (typeof window !== 'undefined' && !window.matchMedia) {
@@ -32,9 +36,29 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
 
 const views = import.meta.glob('/src/view/**/*.vue') as Record<string, (() => Promise<{ default: unknown }>) | undefined>
 
-/** 环境噪音：vitest 不加载 unplugin-vue-components；权限告警在裸挂载时必然出现（真实 Console 会先拉权限） */
-const NOISE = /Failed to resolve (?:component|directive)|injection "(?:Symbol\(pinia\)|Symbol\(router\))" not found|RouterLink|\[AButton\]|\[ATable\]|\[ALink\]/
-const capturedErrors: string[] = []
+/** 渲染期抛错（判失败） */
+const errors: string[] = []
+/** 渲染期告警（只记录） */
+const warnings: string[] = []
+
+/** 环境噪音：vitest 不加载 unplugin-vue-components 的自动导入 */
+const NOISE = /Failed to resolve (?:component|directive)|injection "(?:Symbol\(pinia\)|Symbol\(router\))" not found/
+
+/** 安全字符串化：告警参数里可能有不可字符串化的对象，直接 `String()` 会自己抛错 */
+function safeText(value: unknown): string {
+  if (typeof value === 'string') {
+    return value
+  }
+  if (value instanceof Error) {
+    return `[Error] ${value.message}\n${(value.stack || '').split('\n').slice(1, 7).join('\n')}`
+  }
+  try {
+    return JSON.stringify(value) ?? Object.prototype.toString.call(value)
+  }
+  catch {
+    return Object.prototype.toString.call(value)
+  }
+}
 
 function leaves(nodes: MenuItem[]): MenuItem[] {
   const out: MenuItem[] = []
@@ -42,7 +66,8 @@ function leaves(nodes: MenuItem[]): MenuItem[] {
     const children = (node as MenuItem & { children?: MenuItem[] }).children
     if (children && children.length) {
       out.push(...leaves(children))
-    } else if (node.path && node.component) {
+    }
+    else if (node.path && node.component) {
       out.push(node)
     }
   }
@@ -57,7 +82,8 @@ async function mountPage(pinia: Pinia, path: string) {
   await router.push(path)
   await router.isReady()
 
-  const key = `/src/view${path}/list.vue`  // 列表页统一 list.vue；工作台是 index.vue，下面单独兜
+  // 列表页统一 list.vue，工作台是 index.vue
+  const key = `/src/view${path}/list.vue`
   const loader = views[key] || views[`/src/view${path}/index.vue`]
   if (!loader) {
     throw new Error(`未找到视图文件：${key}`)
@@ -71,7 +97,7 @@ async function mountPage(pinia: Pinia, path: string) {
         router,
         [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }],
       ],
-      config: { errorHandler: (err: unknown) => capturedErrors.push(String(err)) },
+      config: { errorHandler: (err: unknown) => errors.push(`[errorHandler] ${safeText(err)}`) },
     },
   })
   await flushPromises()
@@ -80,16 +106,20 @@ async function mountPage(pinia: Pinia, path: string) {
   return wrapper
 }
 
-describe('probe · 全菜单逐页冒烟', () => {
+describe('探针 · 全菜单逐页冒烟', () => {
   beforeEach(() => {
-    capturedErrors.length = 0
+    errors.length = 0
+    warnings.length = 0
     vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
-      capturedErrors.push(args.map(String).join(' '))
+      const text = args.map(safeText).join(' ')
+      if (!NOISE.test(text)) {
+        errors.push(text)
+      }
     })
     vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
-      const text = args.map(String).join(' ')
+      const text = args.map(safeText).join(' ')
       if (!NOISE.test(text)) {
-        capturedErrors.push(`[warn] ${text}`)
+        warnings.push(text)
       }
     })
     axios.defaults.adapter = createDemoAdapter([0, 0])
@@ -100,33 +130,39 @@ describe('probe · 全菜单逐页冒烟', () => {
     const report: string[] = []
     const failed: string[] = []
     for (const page of pages) {
-      capturedErrors.length = 0
+      errors.length = 0
+      warnings.length = 0
       const pinia = createPinia()
       setActivePinia(pinia)
-      // 真实 Console 先拿权限再渲染页面；裸挂载不种权限就会满屏「权限不足」告警
+      // 真实 Console 先拉权限再渲染页面；裸挂载不种权限就会满屏「权限不足」告警
       const { usePermissionStore } = await import('@/stores/permission')
       usePermissionStore().setPermissions(demoPermissions())
       try {
         const wrapper = await mountPage(pinia, page.path!)
         const html = wrapper.html()
-        if (capturedErrors.length) {
+        if (errors.length) {
           failed.push(page.name)
-          report.push(`❌ ${page.name} (${page.path}) → ${capturedErrors.slice(0, 2).join(' || ').replace(/\s+/g, ' ').slice(0, 320)}`)
-        } else if (html.length < 120) {
+          report.push(`❌ ${page.name} (${page.path})\n${errors.slice(0, 1).join('\n').slice(0, 1200)}`)
+        }
+        else if (html.length < 120) {
           failed.push(page.name)
           report.push(`⚠ ${page.name} (${page.path}) → 渲染几乎为空 (${html.length} 字符)`)
-        } else {
-          report.push(`✅ ${page.name} (${page.path}) [${html.length}]`)
+        }
+        else {
+          const noise = warnings.length ? `（告警 ${warnings.length} 条，例：${warnings[0].slice(0, 140)}）` : ''
+          report.push(`✅ ${page.name} (${page.path}) [${html.length}]${noise}`)
         }
         wrapper.unmount()
-      } catch (error) {
+      }
+      catch (error) {
         failed.push(page.name)
-        const stack = error instanceof Error ? (error.stack || '').split('\n').slice(1, 6).join(' ⏎ ') : ''
-        report.push(`💥 ${page.name} (${page.path}) → ${String(error).replace(/\s+/g, ' ').slice(0, 200)} ⇐ ${stack.replace(/\s+/g, ' ').slice(0, 400)}`)
+        report.push(`💥 ${page.name} (${page.path}) → ${safeText(error).slice(0, 600)}`)
       }
       await flushPromises()
     }
-    console.log(`\n==== 逐页结果 (${pages.length} 页) ====\n${report.join('\n')}\n==================`)
+    // 探针的输出走文件，不用 console（CI 只允许 warn/error）
+    const { writeFileSync } = await import('node:fs')
+    writeFileSync('/tmp/probe-report.txt', report.join('\n\n'))
     expect(failed).toEqual([])
   }, 600000)
 })

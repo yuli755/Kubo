@@ -310,6 +310,21 @@ const RESOURCE_SPECS: Record<string, ResourceSpec> = {
   },
 }
 
+/**
+ * 关联对象字段：实体里形如 `material!: MaterialEntity` 的字段，后端返回的是**嵌套对象**
+ * （列表列的 formatter 会写 `row.material.code`）。缺了这一层，列表页渲染时就会
+ * `Cannot read properties of undefined (reading 'code')` 整页报错 —— 这是演示数据最容易
+ * 漏掉的形状问题，因此独立成表统一生成。
+ */
+const RELATION_FIELDS: Array<[string, string]> = [
+  ['material', 'WL'],
+  ['supplier', 'GYS'],
+  ['customer', 'KH'],
+  ['storage', 'WH'],
+  ['structure', 'KW'],
+  ['unit', 'DW'],
+]
+
 const GENERIC_NAMES = ['示例名称一', '示例名称二', '示例名称三', '示例名称四', '示例名称五']
 
 /** 32 位字符串散列（FNV-1a 变体），用于派生稳定种子 */
@@ -443,7 +458,28 @@ export function buildRow(resourceKey: string, index: number): Row {
     Object.assign(row, spec.fixed)
   }
 
+  // 关联对象（物料/供应商/客户/仓库/库位/单位）：列表列的 formatter 直接读 `row.x.code|name`
+  for (const [relation, prefix] of RELATION_FIELDS) {
+    row[relation] = buildRelation(relation, prefix, index, random)
+  }
+  // 物料的计量单位也是嵌套的（`row.material.unit.name`）
+  const material = row.material as Row
+  material.unit = buildRelation('unit', 'DW', index, random)
+
   return row
+}
+
+/** 生成一个关联对象：`{ id, code, name }`（名称优先取对应文本池，保持语义可信） */
+function buildRelation(relation: string, prefix: string, index: number, random: () => number): Row {
+  const poolKey = `${relation}Name`
+  const pool = findPool(poolKey)
+  const name = pool?.length ? pickFrom(pool, random) : `${relation}-${index}`
+  return {
+    id: (index % 37) + 1,
+    code: `${prefix}${pad(1000 + ((index * 7) % 9000), 4)}`,
+    name,
+    label: name,
+  }
 }
 
 /** 按字段名启发式生成值：优先文本池 → 数值池 → 日期 → 布尔 → 兜底 */
