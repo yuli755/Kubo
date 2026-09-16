@@ -93,10 +93,10 @@ class RateLimitHelperTest {
         // 阶段 F-1：仅当直连对端可信（spy 白名单含 127.0.0.1）才采信 XFF
         given(request.getRemoteAddr()).willReturn("127.0.0.1");
         given(request.getHeader("X-Forwarded-For")).willReturn("203.0.113.7, 10.0.0.1");
-        given(valueOperations.increment("kubo:device:rate:203.0.113.7")).willReturn(1L);
+        given(valueOperations.increment("kubo:api:rate:203.0.113.7")).willReturn(1L);
 
-        assertTrue(rateLimitHelper.allowByIp(request, "kubo:device:rate:", 3000, 60));
-        verify(valueOperations).increment("kubo:device:rate:203.0.113.7");
+        assertTrue(rateLimitHelper.allowByIp(request, "kubo:api:rate:", 3000, 60));
+        verify(valueOperations).increment("kubo:api:rate:203.0.113.7");
     }
 
     @Test
@@ -105,6 +105,6 @@ class RateLimitHelperTest {
         HttpServletRequest request = org.mockito.Mockito.mock(HttpServletRequest.class);
         given(request.getRemoteAddr()).willReturn(null);
 
-        assertTrue(rateLimitHelper.allowByIp(request, "kubo:device:rate:", 3000, 60));
+        assertTrue(rateLimitHelper.allowByIp(request, "kubo:api:rate:", 3000, 60));
     }
 }

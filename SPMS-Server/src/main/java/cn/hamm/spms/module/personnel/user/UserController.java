@@ -14,8 +14,6 @@ import cn.hamm.airpower.curd.permission.Permission;
 import cn.hamm.airpower.redis.RedisHelper;
 import cn.hamm.spms.base.BaseController;
 import cn.hamm.spms.common.security.LoginBruteForceGuard;
-import cn.hamm.spms.module.open.thirdlogin.UserThirdLoginEntity;
-import cn.hamm.spms.module.open.thirdlogin.UserThirdLoginService;
 import cn.hamm.spms.module.personnel.user.enums.UserLoginType;
 import cn.hamm.spms.module.system.menu.MenuEntity;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
@@ -65,9 +63,6 @@ public class UserController extends BaseController<UserEntity, UserService, User
 
     @Autowired
     private UserService userService;
-
-    @Autowired
-    private UserThirdLoginService userThirdLoginService;
 
     @Autowired
     private UserTenantService userTenantService;
@@ -194,17 +189,6 @@ public class UserController extends BaseController<UserEntity, UserService, User
         return "user_menu_" + userId;
     }
 
-    @Description("获取我绑定的社交账号")
-    @Permission(authorize = false)
-    @PostMapping("getMyThirdList")
-    public Json getMyThirdList() {
-        UserEntity user = service.get(getCurrentUserId());
-        List<UserThirdLoginEntity> list = userThirdLoginService.filter(new UserThirdLoginEntity().setUser(user));
-        return Json.data(list.stream()
-                .map(item -> item.setUser(null))
-                .toList()
-        );
-    }
 
     @Description("修改我的密码")
     @Permission(authorize = false)

@@ -23,7 +23,7 @@ export interface ErrorReport {
   message: string
   stack?: string
   source: 'vue' | 'promise' | 'window' | 'manual'
-  /** 业务上下文（如 login / websocket / device-monitor），帮助定位错误来源 */
+  /** 业务上下文（如 login / 单据提交 / 查询），帮助定位错误来源 */
   context?: string
   time: number
 }

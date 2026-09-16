@@ -4,8 +4,6 @@ import cn.hamm.airpower.curd.model.query.QueryListRequest;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.asset.contract.ContractController;
 import cn.hamm.spms.module.asset.contract.ContractService;
-import cn.hamm.spms.module.asset.device.DeviceController;
-import cn.hamm.spms.module.asset.device.DeviceService;
 import cn.hamm.spms.module.asset.material.MaterialController;
 import cn.hamm.spms.module.asset.material.MaterialService;
 import cn.hamm.spms.module.channel.customer.CustomerController;
@@ -66,18 +64,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * <h1>二十一资源 count/stat 接线自检</h1>
+ * <h1>二十资源 count/stat 接线自检</h1>
  *
- * <p>二十一个资源运行时测试逐资源断言了 Mapper 的 {@code statByPermission} 与 service 的
+ * <p>二十个资源运行时测试逐资源断言了 Mapper 的 {@code statByPermission} 与 service 的
  * {@code getMapperCount/getMapperStat} 同值；本类补的是<b>全量接线</b>这一面：开关打开时，
- * 二十一个 Controller 都暴露 {@code getCount/getStat} 端点、二十一个 Service 都有同名的公开方法且返回
- * 类型统一（{@code long} / {@link ReadStat}）、二十一个 Service 都报告 {@code isMapperReadEnabled()==true}、
- * 二十一个 Controller 都覆写了 {@code export(QueryListRequest)}（导出换轨的入口）、二十一个读侧 Mapper XML
+ * 二十个 Controller 都暴露 {@code getCount/getStat} 端点、二十个 Service 都有同名的公开方法且返回
+ * 类型统一（{@code long} / {@link ReadStat}）、二十个 Service 都报告 {@code isMapperReadEnabled()==true}、
+ * 二十个 Controller 都覆写了 {@code export(QueryListRequest)}（导出换轨的入口）、二十个读侧 Mapper XML
  * 只注册 SELECT 语句（写路径不许混入读侧 Mapper）。任何一处漏接或漂移都会在这里红，
  * 而不是等真实前端联调才暴露。</p>
  *
  * <p>本类只反射/扫资源、不查数据、不开权限上下文，因此不 seed、不依赖 data_policy；档位钉在
- * {@code mapper-read.enabled=true}（这是二十一个运行时测试已证明能启动的组合），web 环境用 MOCK。</p>
+ * {@code mapper-read.enabled=true}（这是二十个运行时测试已证明能启动的组合），web 环境用 MOCK。</p>
  *
  * @author Hamm.cn
  */
@@ -89,7 +87,7 @@ import static org.junit.jupiter.api.Assertions.fail;
         "kubo.data-permission.mode=enforce",
         "kubo.data-permission.mapper-read.enabled=true"
 }, webEnvironment = SpringBootTest.WebEnvironment.MOCK)
-@DisplayName("二十一资源 count/stat 接线自检")
+@DisplayName("二十资源 count/stat 接线自检")
 class CountStatWiringTest {
 
     @Autowired
@@ -126,8 +124,6 @@ class CountStatWiringTest {
     private OperationController operationController;
     @Autowired
     private RoutingController routingController;
-    @Autowired
-    private DeviceController deviceController;
     @Autowired
     private ContractController contractController;
     @Autowired
@@ -170,8 +166,6 @@ class CountStatWiringTest {
     @Autowired
     private RoutingService routingService;
     @Autowired
-    private DeviceService deviceService;
-    @Autowired
     private ContractService contractService;
     @Autowired
     private StorageService storageService;
@@ -179,7 +173,7 @@ class CountStatWiringTest {
     private StructureService structureService;
 
     @Test
-    @DisplayName("二十一个 Controller 都暴露 getCount/getStat 端点")
+    @DisplayName("二十个 Controller 都暴露 getCount/getStat 端点")
     void allControllersExposeCountAndStatEndpoints() {
         assertEndpoint(materialController, "getCount");
         assertEndpoint(materialController, "getStat");
@@ -215,8 +209,6 @@ class CountStatWiringTest {
         assertEndpoint(operationController, "getStat");
         assertEndpoint(routingController, "getCount");
         assertEndpoint(routingController, "getStat");
-        assertEndpoint(deviceController, "getCount");
-        assertEndpoint(deviceController, "getStat");
         assertEndpoint(contractController, "getCount");
         assertEndpoint(contractController, "getStat");
         assertEndpoint(storageController, "getCount");
@@ -226,7 +218,7 @@ class CountStatWiringTest {
     }
 
     @Test
-    @DisplayName("二十一个 Service 都有 getMapperCount/getMapperStat，返回类型统一")
+    @DisplayName("二十个 Service 都有 getMapperCount/getMapperStat，返回类型统一")
     void allServicesExposeUniformCountStatMethods() {
         assertServiceMethods(materialService);
         assertServiceMethods(inventoryService);
@@ -245,14 +237,13 @@ class CountStatWiringTest {
         assertServiceMethods(bomService);
         assertServiceMethods(operationService);
         assertServiceMethods(routingService);
-        assertServiceMethods(deviceService);
         assertServiceMethods(contractService);
         assertServiceMethods(storageService);
         assertServiceMethods(structureService);
     }
 
     @Test
-    @DisplayName("二十一个 Service 在开关打开时都报告 isMapperReadEnabled=true")
+    @DisplayName("二十个 Service 在开关打开时都报告 isMapperReadEnabled=true")
     void allServicesReportMapperReadEnabled() {
         assertTrue(materialService.isMapperReadEnabled());
         assertTrue(inventoryService.isMapperReadEnabled());
@@ -271,14 +262,13 @@ class CountStatWiringTest {
         assertTrue(bomService.isMapperReadEnabled());
         assertTrue(operationService.isMapperReadEnabled());
         assertTrue(routingService.isMapperReadEnabled());
-        assertTrue(deviceService.isMapperReadEnabled());
         assertTrue(contractService.isMapperReadEnabled());
         assertTrue(storageService.isMapperReadEnabled());
         assertTrue(structureService.isMapperReadEnabled());
     }
 
     @Test
-    @DisplayName("二十一个 Controller 都覆写了 export(QueryListRequest)（导出换轨入口）")
+    @DisplayName("二十个 Controller 都覆写了 export(QueryListRequest)（导出换轨入口）")
     void allControllersOverrideExportMethod() {
         assertOverridesExport(materialController);
         assertOverridesExport(inventoryController);
@@ -297,14 +287,13 @@ class CountStatWiringTest {
         assertOverridesExport(bomController);
         assertOverridesExport(operationController);
         assertOverridesExport(routingController);
-        assertOverridesExport(deviceController);
         assertOverridesExport(contractController);
         assertOverridesExport(storageController);
         assertOverridesExport(structureController);
     }
 
     @Test
-    @DisplayName("二十一个读侧 Mapper XML 只注册 SELECT 语句，写语句不许混入")
+    @DisplayName("二十个读侧 Mapper XML 只注册 SELECT 语句，写语句不许混入")
     void readMapperXmlRegistersOnlySelectStatements() throws IOException {
         Resource[] resources = new PathMatchingResourcePatternResolver()
                 .getResources("classpath*:mapper/**/*Mapper.xml");

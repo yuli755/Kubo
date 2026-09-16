@@ -65,7 +65,7 @@ public class RateLimitHelper {
      * 按客户端 IP 限流（自动带 key 前缀拼 IP）。
      *
      * @param request       请求（取客户端 IP）
-     * @param keyPrefix     key 前缀（如 {@code kubo:device:rate:}）
+     * @param keyPrefix     key 前缀（如 {@code kubo:api:rate:}）
      * @param limit         窗口内最大放行次数
      * @param windowSeconds 窗口时长（秒）
      * @return 允许放行返回 true

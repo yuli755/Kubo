@@ -14,9 +14,9 @@ import { describe, expect, it } from 'vitest'
  * 2. **前端写的 `resourceKey` 必须是后端注册过的数据资源**。写错一个字母，
  *    `my-mask` 永远返回 `null` = "该字段无需脱敏"，脱敏静默失效（fail-open）。
  * 3. **只有后端真的提供 export 端点的实体才允许开 `showExport`**。`BaseController`
- *    全局 `@Extends(exclude = {Curd.Export, Curd.QueryExport})`，二十一个读侧换轨资源
+ *    全局 `@Extends(exclude = {Curd.Export, Curd.QueryExport})`，二十个读侧换轨资源
  *    （material / inventory / input / output / move / order / plan / picking / purchase / sale /
- *    customer / supplier / purchasePrice / salePrice / bom / operation / routing / device / contract /
+ *    customer / supplier / purchasePrice / salePrice / bom / operation / routing / contract /
  *    storage / structure）
  *    都已把 `Curd.Export` 加回来并覆写了 `export(QueryListRequest)`；导出走文件流不经过 Jackson，
  *    是脱敏的已知旁路，前端别在没加回来的实体上随手开。
@@ -225,7 +225,6 @@ describe('mask contract · 前后端脱敏口径', () => {
     }
     expect([...exportCapable]).toEqual(expect.arrayContaining([
       'asset/material',
-      'asset/device',
       'asset/contract',
       'wms/inventory',
       'wms/input',
@@ -1816,7 +1815,7 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
 
     const implementors = collect(SERVER, '.java').filter(file => /implements[^;]*RowParityCounter|extends[^;]*RowParityCounter/.test(readJavaCode(file)))
     expect(implementors, '没有任何探针实现：这张表与整套对账判据就成了没人消费的机器，要么接上第一个资源，要么删掉')
-      .toHaveLength(21)
+      .toHaveLength(20)
     for (const file of implementors) {
       expect(readJavaCode(file), `${baseName(file)} 的 parityResourceKey 必须是 default 方法`)
         .toMatch(/default\s+String\s+parityResourceKey\s*\(\)/)
@@ -2088,7 +2087,7 @@ describe('mask contract · Outbox 同事务写入（P5 第一刀）', () => {
   })
 })
 
-describe('mask contract · F3 数据层收敛（system + personnel + wms + factory + open + iot + asset + channel + mes 模块已迁，全部清零）', () => {
+describe('mask contract · F3 数据层收敛（system + personnel + wms + factory + asset + channel + mes 模块已迁，全部清零）', () => {
   it('system 模块视图不再直接 import @/model/*Service（由 hook 转发）', () => {
     const offenders: string[] = []
     for (const file of [...collect(join(ROOT, 'src', 'view', 'console', 'system'), '.vue'), ...collect(join(ROOT, 'src', 'view', 'console', 'system'), '.ts')]) {
@@ -2145,34 +2144,6 @@ describe('mask contract · F3 数据层收敛（system + personnel + wms + facto
     }
   })
 
-  it('open 模块视图不再直接 import @/model/*Service（由 hook 转发）', () => {
-    const offenders: string[] = []
-    for (const file of [...collect(join(ROOT, 'src', 'view', 'console', 'open'), '.vue'), ...collect(join(ROOT, 'src', 'view', 'console', 'open'), '.ts')]) {
-      if (/from\s+['"]@\/model\/[^'"]*Service['"]/.test(read(file))) {
-        offenders.push(file)
-      }
-    }
-    expect(offenders, 'open 模块视图仍直接 import @/model/*Service：F3 已迁但被回退').toEqual([])
-    for (const hook of ['useApp', 'useOpenLog', 'useNotify']) {
-      expect(read(join(ROOT, 'src', 'hook', 'open', `${hook}.ts`)), `${hook} 没转发 Service 类：视图又得回头 import @/model`)
-        .toMatch(/export\s*\{[^}]*Service[^}]*\}\s*from\s*['"]@\/model\//)
-    }
-  })
-
-  it('iot 模块视图不再直接 import @/model/*Service（由 hook 转发）', () => {
-    const offenders: string[] = []
-    for (const file of [...collect(join(ROOT, 'src', 'view', 'console', 'iot'), '.vue'), ...collect(join(ROOT, 'src', 'view', 'console', 'iot'), '.ts')]) {
-      if (/from\s+['"]@\/model\/[^'"]*Service['"]/.test(read(file))) {
-        offenders.push(file)
-      }
-    }
-    expect(offenders, 'iot 模块视图仍直接 import @/model/*Service：F3 已迁但被回退').toEqual([])
-    for (const hook of ['useParameter']) {
-      expect(read(join(ROOT, 'src', 'hook', 'iot', `${hook}.ts`)), `${hook} 没转发 Service 类：视图又得回头 import @/model`)
-        .toMatch(/export\s*\{[^}]*Service[^}]*\}\s*from\s*['"]@\/model\//)
-    }
-  })
-
   it('asset 模块视图不再直接 import @/model/*Service（由 hook 转发）', () => {
     const offenders: string[] = []
     for (const file of [...collect(join(ROOT, 'src', 'view', 'console', 'asset'), '.vue'), ...collect(join(ROOT, 'src', 'view', 'console', 'asset'), '.ts')]) {
@@ -2181,7 +2152,7 @@ describe('mask contract · F3 数据层收敛（system + personnel + wms + facto
       }
     }
     expect(offenders, 'asset 模块视图仍直接 import @/model/*Service：F3 已迁但被回退').toEqual([])
-    for (const hook of ['useContract', 'useDevice', 'useMaterial']) {
+    for (const hook of ['useContract', 'useMaterial']) {
       expect(read(join(ROOT, 'src', 'hook', 'asset', `${hook}.ts`)), `${hook} 没转发 Service 类：视图又得回头 import @/model`)
         .toMatch(/export\s*\{[^}]*Service[^}]*\}\s*from\s*['"]@\/model\//)
     }

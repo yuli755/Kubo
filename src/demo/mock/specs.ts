@@ -47,7 +47,6 @@ const BASE_FIELDS = [
   'model',
   'brand',
   'materialName',
-  'deviceName',
   'customerName',
   'supplierName',
   'storageName',
@@ -98,7 +97,6 @@ const BASE_FIELDS = [
 /** 文本池：按键名片段取用，避免「所有数据都叫测试数据」 */
 const TEXT_POOLS: Array<[string, string[]]> = [
   ['materialName', ['6061 铝板', '304 不锈钢管', 'ABS 工程塑料', 'M8 内六角螺栓', '环氧树脂胶', '碳纤维预浸料']],
-  ['deviceName', ['CNC 加工中心 #3', '注塑机 A12', '激光切割机 L2', '三坐标测量仪', 'AGV 搬运车 R7']],
   ['customerName', ['华东精密制造有限公司', '云港智能装备股份', '天工模具有限公司', '宏远汽车零部件', '启元电子科技']],
   ['supplierName', ['宝钢材料贸易有限公司', '恒信五金供应站', '南方化工原料公司', '快捷物流耗材']],
   ['storageName', ['原料一库', '半成品暂存区', '成品立体库', '危化品专库', '线边周转仓']],
@@ -217,13 +215,6 @@ const RESOURCE_SPECS: Record<string, ResourceSpec> = {
     codePrefix: 'LL',
     statusPool: [1, 2, 3, 4],
     namePool: ['PO 工单领料', '试制组领料', '返工补料'],
-  },
-  device: {
-    label: '设备',
-    codePrefix: 'SB',
-    statusPool: [1, 2, 3],
-    namePool: ['CNC 加工中心 #3', '注塑机 A12', '激光切割机 L2', '三坐标测量仪'],
-    numbers: { runHours: [120, 9600] },
   },
   material: {
     label: '物料',
@@ -352,12 +343,6 @@ const RESOURCE_SPECS: Record<string, ResourceSpec> = {
     codePrefix: 'NT',
     statusPool: [1, 2],
     namePool: ['库存低于安全线', '设备离线告警', '单据审核提醒'],
-  },
-  parameter: {
-    label: 'IoT 参数',
-    codePrefix: 'IOT',
-    statusPool: [1, 2],
-    namePool: ['主轴温度', '振动幅度', '环境湿度', '能耗功率'],
   },
 }
 

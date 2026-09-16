@@ -6,8 +6,6 @@ import cn.hamm.airpower.curd.permission.PermissionUtil;
 import cn.hamm.spms.common.AppConfig;
 import cn.hamm.spms.common.Configs;
 import cn.hamm.spms.module.asset.AssetServices;
-import cn.hamm.spms.module.asset.device.DeviceEntity;
-import cn.hamm.spms.module.asset.device.DeviceService;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.asset.material.MaterialService;
 import cn.hamm.spms.module.asset.material.enums.MaterialType;
@@ -25,10 +23,6 @@ import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.factory.storage.StorageService;
 import cn.hamm.spms.module.factory.structure.StructureEntity;
 import cn.hamm.spms.module.factory.structure.StructureService;
-import cn.hamm.spms.module.iot.IotServices;
-import cn.hamm.spms.module.iot.parameter.ParameterEntity;
-import cn.hamm.spms.module.iot.parameter.ParameterService;
-import cn.hamm.spms.module.iot.report.enums.ReportDataType;
 import cn.hamm.spms.module.mes.MesServices;
 import cn.hamm.spms.module.mes.bom.BomEntity;
 import cn.hamm.spms.module.mes.bom.BomService;
@@ -79,8 +73,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static cn.hamm.spms.module.iot.report.ReportConstant.*;
-
 /**
  * <h1>初始化</h1>
  *
@@ -120,7 +112,6 @@ public class DevDataInitRunner implements CommandLineRunner {
         initRootUser();
         initCodeRules();
         initConfigs();
-        initParameters();
         permissionService.loadPermission();
         permissionService.ensureDataPermissionSystemPermissions();
         initDataPermissionResources();
@@ -537,29 +528,6 @@ public class DevDataInitRunner implements CommandLineRunner {
             );
         }
 
-        // 注册 asset.device 数据资源
-        if (dataResourceService.getByResourceKey("asset.device") == null) {
-            DataResourceEntity deviceResource = dataResourceService.addAndGet(
-                    new DataResourceEntity()
-                            .setResourceKey("asset.device")
-                            .setTableName("device")
-                            .setTableAlias("t")
-                            .setTenantColumn("tenant_id")
-                            .setSupportedActions("QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT")
-                            .setStatus("ENABLED")
-            );
-            dataPolicyService.addAndGet(
-                    new DataPolicyEntity()
-                            .setPolicyCode("asset_device_tenant_isolation")
-                            .setResourceId(deviceResource.getId())
-                            .setSubjectType(DataPermissionSubjectType.SYSTEM.name())
-                            .setActionName("QUERY")
-                            .setConditionJson("{}")
-                            .setPriority(100)
-                            .setEnabled(true)
-            );
-        }
-
         // 注册 asset.material 数据资源
         if (dataResourceService.getByResourceKey("asset.material") == null) {
             DataResourceEntity materialResource = dataResourceService.addAndGet(
@@ -715,7 +683,6 @@ public class DevDataInitRunner implements CommandLineRunner {
         addWritePoliciesForResource(dataPolicyService, dataResourceService, "channel.salePrice");
         addWritePoliciesForResource(dataPolicyService, dataResourceService, "channel.purchasePrice");
         addWritePoliciesForResource(dataPolicyService, dataResourceService, "asset.contract");
-        addWritePoliciesForResource(dataPolicyService, dataResourceService, "asset.device");
         addWritePoliciesForResource(dataPolicyService, dataResourceService, "asset.material");
         addWritePoliciesForResource(dataPolicyService, dataResourceService, "factory.storage");
         addWritePoliciesForResource(dataPolicyService, dataResourceService, "factory.structure");
@@ -860,39 +827,6 @@ public class DevDataInitRunner implements CommandLineRunner {
         freshUser.setRoleList(roles);
         userService.updateToDatabase(freshUser);
     }
-    private void initParameters() {
-        ParameterService parameterService = IotServices.getParameterService();
-        ParameterEntity parameter;
-
-        parameter = parameterService.getByCode(REPORT_KEY_OF_STATUS);
-        if (Objects.isNull(parameter)) {
-            parameterService.addAndGet(new ParameterEntity()
-                    .setCode(REPORT_KEY_OF_STATUS)
-                    .setLabel("运行状态")
-                    .setDataType(ReportDataType.STATUS.getKey())
-                    .setIsSystem(true)
-            );
-        }
-        parameter = parameterService.getByCode(REPORT_KEY_OF_ALARM);
-        if (Objects.isNull(parameter)) {
-            parameterService.addAndGet(new ParameterEntity()
-                    .setCode(REPORT_KEY_OF_ALARM)
-                    .setLabel("报警状态")
-                    .setDataType(ReportDataType.STATUS.getKey())
-                    .setIsSystem(true)
-            );
-        }
-        parameter = parameterService.getByCode(REPORT_KEY_OF_PART_COUNT);
-        if (Objects.isNull(parameter)) {
-            parameterService.addAndGet(new ParameterEntity()
-                    .setCode(REPORT_KEY_OF_PART_COUNT)
-                    .setLabel("实时产量")
-                    .setDataType(ReportDataType.NUMBER.getKey())
-                    .setIsSystem(true)
-            );
-        }
-    }
-
     private void initCodeRules() {
         CodeRuleService codeRuleService = SystemServices.getCodeRuleService();
         CodeRuleField[] codeRuleFields = CodeRuleField.class.getEnumConstants();
@@ -963,7 +897,6 @@ public class DevDataInitRunner implements CommandLineRunner {
 
     @SuppressWarnings("AlibabaMethodTooLong")
     private void initDevData() {
-        DeviceService deviceService = AssetServices.getDeviceService();
         MaterialService materialService = AssetServices.getMaterialService();
         UnitService unitService = SystemServices.getUnitService();
         CustomerService customerService = ChannelServices.getCustomerService();
@@ -977,14 +910,6 @@ public class DevDataInitRunner implements CommandLineRunner {
         OperationService operationService = MesServices.getOperationService();
         BomService bomService = MesServices.getBomService();
         RoutingService routingService = MesServices.getRoutingService();
-
-        // 幂等：检查设备是否已存在
-        if (deviceService.filter(new DeviceEntity()).isEmpty()) {
-            int deviceCount = 2;
-            for (int i = 0; i < deviceCount; i++) {
-                deviceService.addAndGet(new DeviceEntity().setCode("Simulator00" + (i + 1)).setName("设备" + (i + 1)));
-            }
-        }
 
         // 幂等：检查单位是否已存在
         UnitEntity unit = unitService.filter(new UnitEntity().setName("台")).stream().findFirst().orElse(null);

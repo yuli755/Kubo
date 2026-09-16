@@ -48,8 +48,6 @@ public class MenuService extends BaseService<MenuEntity, MenuRepository> {
         add(secondMenu);
         secondMenu = new MenuEntity().setName("合同管理").setPath("/console/asset/contract/list").setParentId(firstMenu.getId());
         add(secondMenu);
-        secondMenu = new MenuEntity().setName("设备管理").setPath("/console/asset/device/list").setParentId(firstMenu.getId());
-        add(secondMenu);
 
         // 渠道管理
         firstMenu = new MenuEntity().setName("渠道管理").setOrderNo(77).setParentId(ROOT_ID);
@@ -98,15 +96,6 @@ public class MenuService extends BaseService<MenuEntity, MenuRepository> {
         secondMenu = new MenuEntity().setName("生产配方").setPath("/console/mes/bom/list").setParentId(firstMenu.getId());
         add(secondMenu);
 
-        // 物联网
-        firstMenu = new MenuEntity().setName("设备物联").setOrderNo(44).setParentId(TreeUtil.ROOT_ID);
-        firstMenu = addAndGet(firstMenu);
-
-        secondMenu = new MenuEntity().setName("设备概览").setPath("/console/iot/monitor/preview").setParentId(firstMenu.getId());
-        add(secondMenu);
-        secondMenu = new MenuEntity().setName("参数管理").setPath("/console/iot/parameter/list").setParentId(firstMenu.getId());
-        add(secondMenu);
-
         // 系统管理
         firstMenu = new MenuEntity().setName("系统管理").setOrderNo(3).setParentId(ROOT_ID);
         firstMenu = addAndGet(firstMenu);
@@ -144,10 +133,6 @@ public class MenuService extends BaseService<MenuEntity, MenuRepository> {
         secondMenu = new MenuEntity().setName("菜单管理").setPath("/console/system/menu/list").setParentId(firstMenu.getId());
         add(secondMenu);
         secondMenu = new MenuEntity().setName("系统配置").setPath("/console/system/config/list").setParentId(firstMenu.getId());
-        add(secondMenu);
-        secondMenu = new MenuEntity().setName("应用管理").setPath("/console/open/app/list").setParentId(firstMenu.getId());
-        add(secondMenu);
-        secondMenu = new MenuEntity().setName("通知管理").setPath("/console/open/notify/list").setParentId(firstMenu.getId());
         add(secondMenu);
         secondMenu = new MenuEntity().setName("MCP工具").setPath("/console/system/mcp/tools").setParentId(firstMenu.getId());
         add(secondMenu);

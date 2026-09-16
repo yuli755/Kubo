@@ -3,43 +3,6 @@
  */
 
 // ──────────────────────────────────────────
-// 设备 (Device)
-// ──────────────────────────────────────────
-
-export interface DeviceEntity {
-  id: number
-  createTime: string
-  updateTime: string
-  isPublished: boolean
-  isDeleted: boolean
-
-  name: string
-  code: string
-  uuid: string
-  isReporting: boolean
-  partCount: string
-  status: number
-  alarm: number
-  rate: number
-  parameters?: { id: number, name: string, code: string }[]
-}
-
-export interface DeviceQuery {
-  page?: number
-  pageSize?: number
-  filter?: { name?: string, code?: string, uuid?: string, status?: number }
-}
-
-export interface CollectionEntity {
-  id: number
-  createTime: string
-  updateTime: string
-  deviceId: number
-  payload?: Record<string, unknown>
-  [key: string]: unknown
-}
-
-// ──────────────────────────────────────────
 // 物料 (Material)
 // ──────────────────────────────────────────
 

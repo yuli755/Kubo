@@ -1,5 +1,4 @@
 export * from './asset/useContract'
-export * from './asset/useDevice'
 export * from './asset/useMaterial'
 export * from './channel/useCustomer'
 export * from './channel/usePurchase'

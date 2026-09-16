@@ -96,11 +96,6 @@ public enum CodeRuleField implements IDictionary {
     MoveBillCode(16, "移库单号", "MV"),
 
     /**
-     * 设备编码
-     */
-    DeviceCode(17, "设备编码", "DE", MONTH),
-
-    /**
      * 工序编码
      */
     OperationCode(18, "工序编码", "OP", YEAR),

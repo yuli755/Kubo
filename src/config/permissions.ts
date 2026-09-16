@@ -161,12 +161,6 @@ const Channel = {
 
 /** 资产 (Asset) 模块 */
 const Asset = {
-  Device: {
-    getDetail: 'Device_getDetail',
-    add: `Device_${Crud.add}`,
-    update: `Device_${Crud.update}`,
-    delete: `Device_${Crud.delete}`,
-  },
   Material: {
     getPage: 'Material_getPage',
     getDetail: 'Material_getDetail',
@@ -286,35 +280,6 @@ const System = {
   },
 } as const
 
-/** 开放平台 (Open) 模块 */
-const Open = {
-  App: {
-    getDetail: 'OpenApp_getDetail',
-    add: `OpenApp_${Crud.add}`,
-    update: `OpenApp_${Crud.update}`,
-    disable: `OpenApp_${Crud.disable}`,
-    enable: `OpenApp_${Crud.enable}`,
-    resetSecret: 'OpenApp_resetSecret',
-    resetKeyPair: 'OpenApp_resetKeyPair',
-  },
-  Notify: {
-    add: `Notify_${Crud.add}`,
-    update: `Notify_${Crud.update}`,
-    delete: `Notify_${Crud.delete}`,
-    disable: `Notify_${Crud.disable}`,
-    enable: `Notify_${Crud.enable}`,
-  },
-} as const
-
-/** 物联网 (IoT) 模块 */
-const IoT = {
-  Parameter: {
-    add: `Parameter_${Crud.add}`,
-    update: `Parameter_${Crud.update}`,
-    delete: `Parameter_${Crud.delete}`,
-  },
-} as const
-
 /**
  * # 全局权限码常量
  *
@@ -332,8 +297,6 @@ export const Permissions = {
   Personnel,
   Factory,
   System,
-  Open,
-  IoT,
 } as const
 
 /** 权限码类型（用于需要提取所有权限码的场景） */
@@ -345,5 +308,3 @@ export type PermissionCode
     | (typeof Permissions.Personnel)[keyof typeof Permissions.Personnel][keyof (typeof Permissions.Personnel)[keyof typeof Permissions.Personnel]]
     | (typeof Permissions.Factory)[keyof typeof Permissions.Factory][keyof (typeof Permissions.Factory)[keyof typeof Permissions.Factory]]
     | (typeof Permissions.System)[keyof typeof Permissions.System][keyof (typeof Permissions.System)[keyof typeof Permissions.System]]
-    | (typeof Permissions.Open)[keyof typeof Permissions.Open][keyof (typeof Permissions.Open)[keyof typeof Permissions.Open]]
-    | (typeof Permissions.IoT)[keyof typeof Permissions.IoT][keyof (typeof Permissions.IoT)[keyof typeof Permissions.IoT]]

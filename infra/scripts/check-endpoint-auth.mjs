@@ -210,7 +210,7 @@ public class GenericController<
   // 5：生命周期钩子（无 @*Mapping）不该被当端点查
   const r5 = analyze(`
 class HookController extends ApiController {
-    protected DeviceEntity beforeAdd(DeviceEntity e) { return e; }
+    protected MaterialEntity beforeAdd(MaterialEntity e) { return e; }
 }
 `)
   if (!r5.c || r5.violations.length !== 0) {

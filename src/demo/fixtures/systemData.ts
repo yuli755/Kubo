@@ -20,7 +20,6 @@ export function demoOverview(): Array<{ resourceKey: string, label: string, coun
     { resourceKey: 'wms.inventory', label: '库存记录', count: 1042 },
     { resourceKey: 'channel.purchase', label: '采购单', count: 156 },
     { resourceKey: 'channel.sale', label: '销售单', count: 203 },
-    { resourceKey: 'asset.device', label: '设备台账', count: 86 },
     { resourceKey: 'asset.material', label: '物料主数据', count: 421 },
     { resourceKey: 'personnel.user', label: '用户', count: 57 },
   ]
@@ -48,7 +47,7 @@ export function demoRuntimeStatus(): Record<string, unknown> {
     denyUnregistered: true,
     rowWriteEnabled: true,
     hierarchyDepartmentEnabled: false,
-    unmanagedServiceKeys: ['iot.parameter', 'open.notify'],
+    unmanagedServiceKeys: [],
     resources: resources.map(([resourceKey, resourceStatus, effectiveMode, inEnforceList, rowWriteGuarded, queryPolicyCount, writePolicyCount], index) => ({
       resourceId: index + 1,
       resourceKey,
@@ -70,7 +69,6 @@ export function demoDenyLogs(): Array<Record<string, unknown>> {
     ['mes.order', 'row-not-writable', 'ENFORCE', 12, 'id=1042, action=UPDATE'],
     ['channel.purchase', 'write-without-policy', 'ENFORCE', 7, 'id=88, action=DELETE'],
     ['factory.structure', 'export-bypass', 'SHADOW', 12, 'action=EXPORT, fields=11'],
-    ['asset.device', 'unregistered-resource', 'OFF', 3, 'resourceKey=asset.device'],
   ]
   return items.map(([resourceKey, reason, mode, userId, detail], index) => ({
     id: index + 1,

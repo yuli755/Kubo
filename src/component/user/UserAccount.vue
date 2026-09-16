@@ -4,14 +4,12 @@ import { ref } from 'vue'
 
 import PersonalToken from '@/component/user/PersonalToken.vue'
 import ModifyPassword from './ModifyPassword.vue'
-import ThirdAccountList from './ThirdAccountList.vue'
 
 defineProps(DialogProps.create())
 
 enum TABS {
 
   modifyPassword = 'modifyPassword',
-  thirdAccount = 'thirdAccount',
   personalToken = 'personalToken',
 }
 
@@ -37,12 +35,6 @@ const active = ref(TABS.modifyPassword)
         label="修改密码"
       >
         <ModifyPassword v-if="active === TABS.modifyPassword" />
-      </el-tab-pane>
-      <el-tab-pane
-        :name="TABS.thirdAccount"
-        label="社交账号"
-      >
-        <ThirdAccountList v-if="active === TABS.thirdAccount" />
       </el-tab-pane>
       <el-tab-pane
         :name="TABS.personalToken"

@@ -308,16 +308,6 @@ CALL kubo_mt_replace_unique('department', 'code');  -- 原唯一列 code → (te
 UPDATE `department` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 UPDATE `department` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
 
--- [T1] asset.device  ← DeviceEntity.java
-CALL kubo_mt_add_column('device', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
-CALL kubo_mt_add_column('device', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
-CALL kubo_mt_add_index('device', 'idx_device_tenant', 'tenant_id');
--- ⚠️ @ManyToMany 无标量列（中间表）：parameters → 只能服务端解析成 ID 集合再注入 IN
-CALL kubo_mt_replace_unique('device', 'code');  -- 原唯一列 code → (tenant_id, code)
-CALL kubo_mt_replace_unique('device', 'name');  -- 原唯一列 name → (tenant_id, name)
-CALL kubo_mt_replace_unique('device', 'uuid');  -- 原唯一列 uuid → (tenant_id, uuid)
-UPDATE `device` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `device` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
 
 -- [T1] wms.input  ← InputEntity.java
 CALL kubo_mt_add_column('input', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
@@ -421,14 +411,6 @@ CALL kubo_mt_add_index('output_detail', 'idx_output_detail_tenant', 'tenant_id')
 UPDATE `output_detail` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 UPDATE `output_detail` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
 
--- [T4] iot.parameter  ← ParameterEntity.java
-CALL kubo_mt_add_column('parameter', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
-CALL kubo_mt_add_column('parameter', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
-CALL kubo_mt_add_index('parameter', 'idx_parameter_tenant', 'tenant_id');
-CALL kubo_mt_replace_unique('parameter', 'code');  -- 原唯一列 code → (tenant_id, code)
-CALL kubo_mt_replace_unique('parameter', 'label');  -- 原唯一列 label → (tenant_id, label)
-UPDATE `parameter` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `parameter` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
 
 -- [T4] asset.participant  ← ParticipantEntity.java
 CALL kubo_mt_add_column('participant', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
@@ -620,7 +602,6 @@ SELECT 'contract' tbl, COUNT(*) bad_tenant FROM `contract` WHERE `tenant_id` IS 
 SELECT 'contract_document' tbl, COUNT(*) bad_tenant FROM `contract_document` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'customer' tbl, COUNT(*) bad_tenant FROM `customer` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'department' tbl, COUNT(*) bad_tenant FROM `department` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'device' tbl, COUNT(*) bad_tenant FROM `device` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'input' tbl, COUNT(*) bad_tenant FROM `input` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'input_detail' tbl, COUNT(*) bad_tenant FROM `input_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'inventory' tbl, COUNT(*) bad_tenant FROM `inventory` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
@@ -633,7 +614,6 @@ SELECT 'order_detail' tbl, COUNT(*) bad_tenant FROM `order_detail` WHERE `tenant
 SELECT 'orders' tbl, COUNT(*) bad_tenant FROM `orders` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'output' tbl, COUNT(*) bad_tenant FROM `output` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'output_detail' tbl, COUNT(*) bad_tenant FROM `output_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'parameter' tbl, COUNT(*) bad_tenant FROM `parameter` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'participant' tbl, COUNT(*) bad_tenant FROM `participant` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'personal_token' tbl, COUNT(*) bad_tenant FROM `personal_token` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'picking' tbl, COUNT(*) bad_tenant FROM `picking` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;

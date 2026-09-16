@@ -1,8 +1,4 @@
 import { AbstractBaseService } from '@/base/AbstractBaseService'
-import { OauthCreateCodeRequest } from '@/model/open/oauth/OauthCreateCodeRequest'
-import { OauthScope } from '@/model/open/oauth/OauthScope'
-import { ThirdLoginRequest } from '@/model/open/thirdlogin/ThirdLoginRequest'
-import { UserThirdLoginEntity } from '@/model/open/thirdlogin/UserThirdLoginEntity'
 import { UserEntity } from '@/model/personnel/user/UserEntity'
 import { MenuEntity } from '@/model/system/menu/MenuEntity'
 
@@ -76,48 +72,10 @@ export class UserService extends AbstractBaseService<UserEntity> {
   }
 
   /**
-   * ### 获取我的三方账号
-   */
-  async getMyThirdList(): Promise<UserThirdLoginEntity[]> {
-    return this.api('getMyThirdList').requestModelList(undefined, UserThirdLoginEntity)
-  }
-
-  /**
    * ### 获取我的个人信息
    */
   async getMyInfo(): Promise<UserEntity> {
     return this.api('getMyInfo').requestModel(undefined, UserEntity)
-  }
-
-  async getScopeList(): Promise<OauthScope[]> {
-    return this.api('getScopeList', 'oauth2').requestModelList(undefined, OauthScope)
-  }
-
-  async authorize(appKey: string, scope: string): Promise<string> {
-    const postData = new OauthCreateCodeRequest()
-    postData.appKey = appKey
-    postData.scope = scope
-    const code = await this.api('createCode', 'oauth2').requestRaw(postData)
-    return code as unknown as string
-  }
-
-  async callbackCode(platform: string, code: string): Promise<string> {
-    const postData = new ThirdLoginRequest()
-    postData.platform = platform
-    postData.code = code
-    const result = await this.api('callback', 'oauth2').throwError().requestRaw(postData)
-    return result as unknown as string
-  }
-
-  async thirdBind(platform: string, code: string): Promise<void> {
-    const postData = new ThirdLoginRequest()
-    postData.platform = platform
-    postData.code = code
-    await this.api('thirdBind', 'oauth2').throwError().request(postData)
-  }
-
-  async unBindThird(data: UserThirdLoginEntity): Promise<void> {
-    await this.api('unBindThird', 'oauth2').throwError().request(data)
   }
 
   async updateMyInfo(user: UserEntity) {

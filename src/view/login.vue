@@ -3,12 +3,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, ref } from 'vue'
 import { authApi } from '@/api/system'
 import Logo from '@/component/login/Logo.vue'
-import ThirdLogin from '@/component/login/ThirdLogin.vue'
 import { useRoutePreload } from '@/composables/useRoutePreload'
-import { OpenAppService } from '@/hook/open/useApp'
-import { UserService } from '@/hook/personnel/useUser'
 import { LoginAction } from '@/model/common/LoginAction'
-import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
 import { useAppRoute } from '@/router/appRouter'
 import { useUserStore } from '@/stores/user'
 import { reportError } from '@/utils/errorHandler'
@@ -40,29 +36,19 @@ const user = ref({
   password: '',
   code: '',
   phone: '',
-  appKey: '',
 })
-
-const appKey = (route.query.appKey || '').toString()
-const scope = (route.query.scope || '').toString()
 // 阶段 E-L1：authGuard 写入的是 ?redirect=（原代码只读 ?redirectUri=，登录后回跳被静默丢弃）。
 // OAuth 流程（后端 redirectLogin）用 ?redirectUri=；两者都读，优先 OAuth 参数。
 const redirectUri = (route.query.redirectUri || route.query.redirect || '/console').toString()
 
-const appInfo = ref(new OpenAppEntity())
-
 // 阶段 E-C2：?redirectUri=/?redirect= 完全由访问者控制（guest 路由），直接拼进
-// location 跳转会把登录后的会话送到攻击者域。只接受站内相对路径；
-// OAuth 内部应用例外——等于该 App 登记回调（appInfo.url，与后端精确匹配规则一致）。
-function trustedRedirect(): string {
-  if (appKey && appInfo.value.url && redirectUri === appInfo.value.url) {
-    return redirectUri
-  }
-  return safeRedirect(redirectUri)
-}
+// location 跳转会把登录后的会话送到攻击者域。只接受站内相对路径。
+//
+// 注：原先还有一条「OAuth 内部应用可跳到登记回调」的例外，随开放平台（module/open、
+// /authorize 授权页）整体移除而删除——现在**只有** safeRedirect 一条路径，攻击面更小。
+const redirectTarget = computed(() => safeRedirect(redirectUri))
 
 // Loading 状态
-const isLoadingApp = ref(false)
 const isLoadingLogin = ref(false)
 const isEmailCodeLoading = ref(false)
 const isPhoneCodeLoading = ref(false)
@@ -92,16 +78,6 @@ const isButtonDisabled = computed(() => {
 })
 
 /**
- * ### 获取当前应用信息
- */
-async function getAppInfo() {
-  if (appKey) {
-    user.value.appKey = appKey
-    appInfo.value = await OpenAppService.create(isLoadingApp).getAppByKey(appKey)
-  }
-}
-
-/**
  * ### 处理登录重定向
  */
 async function loginRedirect(token: string) {
@@ -113,18 +89,8 @@ async function loginRedirect(token: string) {
     () => import('@/view/home.vue'),
   ])
 
-  if (appKey) {
-    if (appInfo.value.isInternal) {
-      const code = await UserService.create(isLoadingLogin).authorize(appKey, scope)
-      window.location.replace(`${trustedRedirect()}?code=${code}`)
-      return
-    }
-    // OAuth 登录重定向
-    window.location.replace(`/authorize${window.location.search}`)
-    return
-  }
-  // 正常登录
-  window.location.replace(safeRedirect(redirectUri))
+  // 正常登录（开放平台移除后不再有 OAuth 授权跳转分支）
+  window.location.replace(redirectTarget.value)
 }
 
 /**
@@ -264,19 +230,14 @@ function switchLoginAction(action: LoginAction) {
   // 切换方式时清空验证码
   user.value.code = ''
 }
-
-getAppInfo()
 </script>
 
 <template>
   <div class="login">
     <Logo />
-    <div
-      v-loading="isLoadingApp"
-      class="card"
-    >
+    <div class="card">
       <div class="app-name">
-        {{ appInfo.appName || '欢迎登录 Kubo' }}
+        欢迎登录 Kubo
       </div>
 
       <div class="body">
@@ -561,8 +522,6 @@ getAppInfo()
               {{ item }}
             </button>
           </div>
-
-          <ThirdLogin />
         </div>
       </div>
     </div>

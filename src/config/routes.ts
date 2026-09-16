@@ -14,31 +14,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/login',
     name: '登录',
     meta: { guest: true },
-    // 如需启用Oauth2登录 请使用 @airpower/view/login.vue
     component: () => import('@/view/login.vue'),
-  },
-  {
-    path: '/callback/:platform',
-    name: 'Oauth2登录回调',
-    meta: { guest: true },
-    component: () => import('@/view/callback.vue'),
-  },
-  {
-    path: '/bind/:platform',
-    name: '绑定',
-    meta: { guest: true },
-    component: () => import('@/view/bind.vue'),
   },
   {
     path: '/home',
     name: '首页',
     component: () => import('@/view/home.vue'),
-  },
-  {
-    path: '/authorize',
-    name: '授权',
-    meta: { guest: true },
-    component: () => import('@/view/authorize.vue'),
   },
   {
     path: '/403',

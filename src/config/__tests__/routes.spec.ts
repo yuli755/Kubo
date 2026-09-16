@@ -19,7 +19,7 @@ describe('routes · 访客路由 meta 契约', () => {
       .map(route => route.path)
       .sort()
 
-    expect(guestPaths).toEqual(['/authorize', '/bind/:platform', '/callback/:platform', '/login'])
+    expect(guestPaths).toEqual(['/login'])
   })
 
   it('业务页 /home 与根布局 console 必须鉴权（无 guest）', () => {

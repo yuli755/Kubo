@@ -13,7 +13,7 @@ import java.io.IOException;
  * <h1>安全响应头过滤器（S4 · 第一批：零风险头）</h1>
  *
  * <p>给所有 HTTP 响应注入「确定不会破坏前端」的安全头，收窄常见攻击面。刻意<b>不含 CSP</b>：
- * CSP 涉及前端内联脚本（index.html 防闪烁脚本）、ECharts 的 data URI 与 WebSocket 连接，
+ * CSP 涉及前端内联脚本（index.html 防闪烁脚本）、ECharts 的 data URI，
  * 配置错误会直接白屏，且本仓库前端由 Vite/Nginx 托管、后端 {@code add-mappings=false} 不托管
  * 静态资源，因此 CSP 应在前端托管层/真实环境回归后再收紧（见方案文档 S4 的「第二阶段」）。</p>
  *
@@ -25,7 +25,7 @@ import java.io.IOException;
  *   <li>{@code Permissions-Policy} —— 管理后台无需摄像头/麦克风/定位/支付，显式禁用。</li>
  * </ul>
  *
- * <p><b>注意</b>：{@code X-Frame-Options} 未在此注入 —— 后端只产出 JSON API 与 WebSocket，
+ * <p><b>注意</b>：{@code X-Frame-Options} 未在此注入 —— 后端只产出 JSON API，
  * 防点击劫持应加在前端 HTML 托管层（Nginx）；在 API 层加它既无意义，也非本过滤器职责。</p>
  *
  * @author Hamm.cn

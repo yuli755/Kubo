@@ -75,7 +75,6 @@ export function demoMenuTree(): DemoMenuNode[] {
       listPage(306, '销售价', 'channel', 'salePrice', 'Money', 6),
     ]),
     group(400, '资产与设备', 'Monitor', 40, [
-      listPage(401, '设备管理', 'asset', 'device', 'Cpu', 1),
       listPage(402, '物料主数据', 'asset', 'material', 'Box', 2),
       listPage(403, '合同管理', 'asset', 'contract', 'Document', 3),
     ]),
@@ -100,13 +99,6 @@ export function demoMenuTree(): DemoMenuNode[] {
         listPage(722, '行级策略', 'system/datapermission', 'policy', 'Filter', 2),
         listPage(723, '列级脱敏', 'system/datapermission', 'fieldPolicy', 'View', 3),
       ]),
-    ]),
-    group(800, '物联网 IoT', 'Connection', 80, [
-      listPage(801, '参数管理', 'iot', 'parameter', 'Odometer', 1),
-    ]),
-    group(900, '开放平台', 'Link', 90, [
-      listPage(901, '开放应用', 'open', 'app', 'Platform', 1),
-      listPage(902, '通知公告', 'open', 'notify', 'Bell', 2),
     ]),
   ]
 }
