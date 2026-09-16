@@ -31,8 +31,9 @@
  *     node scripts/gen-flyway-baseline.mjs --check /tmp/real.sql
  */
 
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -75,8 +76,10 @@ function walk(dir) {
   const out = []
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry)
-    if (statSync(full).isDirectory()) out.push(...walk(full))
-    else if (entry.endsWith('.java')) out.push(full)
+    if (statSync(full).isDirectory())
+      out.push(...walk(full))
+    else if (entry.endsWith('.java'))
+      out.push(full)
   }
   return out
 }
@@ -89,13 +92,17 @@ function snake(name) {
 /** 提取 `@Column(...)` 的参数文本（括号配对） */
 function columnArgs(source, at) {
   const open = source.indexOf('(', at)
-  if (open < 0) return ''
+  if (open < 0)
+    return ''
   let depth = 0
   for (let i = open; i < source.length; i++) {
-    if (source[i] === '(') depth++
+    if (source[i] === '(') {
+      depth++
+    }
     else if (source[i] === ')') {
       depth--
-      if (depth === 0) return source.slice(open + 1, i)
+      if (depth === 0)
+        return source.slice(open + 1, i)
     }
   }
   return ''
@@ -109,14 +116,15 @@ function columnArgs(source, at) {
  */
 function fieldNameAfter(source, at) {
   const window = source.slice(at, at + 800)
-  const match = window.match(/(?:private|protected)\s+[\w.<>,\s\[\]]+?\s+(\w+)\s*[;=]/)
+  const match = window.match(/(?:private|protected)\s[\w.<>,\s[\]]+?\s(\w+)\s*[;=]/)
   return match?.[1] ?? null
 }
 
 function parseEntity(file) {
   const source = readFileSync(file, 'utf8')
   const tableMatch = source.match(/@Table\(name\s*=\s*"([^"]+)"/)
-  if (!tableMatch) return null
+  if (!tableMatch)
+    return null
 
   const entity = {
     table: tableMatch[1],
@@ -129,9 +137,15 @@ function parseEntity(file) {
   }
 
   // 唯一约束（可多个）
-  for (const match of source.matchAll(/@UniqueConstraint\(name\s*=\s*"([^"]+)"\s*,\s*columnNames\s*=\s*\{?([^})]*)\}?\)/g)) {
-    const names = match[2].split(',').map(s => s.trim().replace(/^"|"$/g, '')).filter(Boolean)
-    if (names.length) entity.unique.push([match[1], names])
+  // 注解参数拆成两步匹配：一步抓括号内全部参数，再分别取 name / columnNames。
+  // 单条大正则里 `\s*` 与 `[^})]*` 会互相吞吐空白，ESLint 的 no-super-linear-backtracking 会拦。
+  for (const constraint of source.matchAll(/@UniqueConstraint\(([^)]*)\)/g)) {
+    const args = constraint[1]
+    const name = args.match(/name\s*=\s*"([^"]+)"/)?.[1]
+    const columns = args.match(/columnNames\s*=\s*\{?([^}]*)\}?/)?.[1]
+    const names = (columns ?? '').split(',').map(s => s.trim().replace(/^"|"$/g, '')).filter(Boolean)
+    if (name && names.length)
+      entity.unique.push([name, names])
   }
 
   // 列：@Column
@@ -160,7 +174,8 @@ function parseEntity(file) {
   const isBill = /extends\s+AbstractBaseBillEntity/.test(source)
   const isBillDetail = /extends\s+BaseBillDetailEntity/.test(source)
   const inherited = []
-  if (isBill) inherited.push(['reject_reason', "varchar(255) default '' comment '驳回原因'"])
+  if (isBill)
+    inherited.push(['reject_reason', 'varchar(255) default \'\' comment \'驳回原因\''])
   if (isBillDetail) {
     inherited.push(['bill_id', 'bigint UNSIGNED DEFAULT 0'])
     inherited.push(['is_finished', 'tinyint(1) DEFAULT 0'])
@@ -171,26 +186,25 @@ function parseEntity(file) {
   return entity
 }
 
-function renderColumn(name, definition, { primary = false, nullable = true, unique = false } = {}) {
+function renderColumn(name, definition, { unique = false } = {}) {
   const parts = [`\`${name}\``, definition]
-  if (unique) parts.push('UNIQUE')
+  if (unique)
+    parts.push('UNIQUE')
   return parts.join(' ')
 }
 
 function renderTable(entity) {
   const lines = []
-  const columns = [...BASE_COLUMNS.map(([name, definition, primary]) => ({ name, definition, primary })),
-    ...(entity.tenantAware ? TENANT_COLUMNS.map(([name, definition]) => ({ name, definition })) : []),
-    ...entity.inherited.map(([name, definition]) => ({ name, definition })),
-    ...entity.columns.map(column => ({
-      name: column.name,
-      definition: column.definition || TYPE_MAP[inferJavaType(entity, column.field)] || 'varchar(255)',
-      unique: column.unique,
-    }))]
+  const columns = [...BASE_COLUMNS.map(([name, definition]) => ({ name, definition })), ...(entity.tenantAware ? TENANT_COLUMNS.map(([name, definition]) => ({ name, definition })) : []), ...entity.inherited.map(([name, definition]) => ({ name, definition })), ...entity.columns.map(column => ({
+    name: column.name,
+    definition: column.definition || TYPE_MAP[inferJavaType(entity, column.field)] || 'varchar(255)',
+    unique: column.unique,
+  }))]
 
   const seen = new Set()
   for (const column of columns) {
-    if (seen.has(column.name)) continue
+    if (seen.has(column.name))
+      continue
     seen.add(column.name)
     lines.push(`    ${renderColumn(column.name, column.definition, { unique: column.unique })}`)
   }
@@ -205,7 +219,8 @@ function renderTable(entity) {
 function inferJavaType(entity, field) {
   const source = readFileSync(entity.file, 'utf8')
   const match = source.match(new RegExp(`(private|protected)\\s+([\\w.<>]+)\\s+${field}\\s*[;=]`))
-  if (!match) return 'String'
+  if (!match)
+    return 'String'
   const type = match[2].replace(/<.*>/, '')
   return type
 }
@@ -213,7 +228,8 @@ function inferJavaType(entity, field) {
 const entities = []
 for (const file of walk(JAVA_ROOT)) {
   const entity = parseEntity(file)
-  if (entity) entities.push(entity)
+  if (entity)
+    entities.push(entity)
 }
 entities.sort((a, b) => a.table.localeCompare(b.table))
 
@@ -242,7 +258,8 @@ if (checkIndex >= 0) {
       ...entity.columns.map(column => column.name),
     ])
     for (const name of declared) {
-      if (!real.has(name) && name !== 'id') console.log(`⚠️  ${entity.table}：实体有 \`${name}\`，真库没有`)
+      if (!real.has(name) && name !== 'id')
+        console.log(`⚠️  ${entity.table}：实体有 \`${name}\`，真库没有`)
     }
   }
   console.log(`\n实体 ${entities.length} 张表；真库 ${realTables.size} 张表`)
@@ -269,8 +286,9 @@ const ddl = `-- ================================================================
 
 SET NAMES utf8mb4;
 
-${entities.map(renderTable).join('\n\n')}`
-
+${entities.map(renderTable).join('\n\n')}
+`
+// 末尾固定补一个换行：writeFileSync(ddl) 写出的文本文件要符合 POSIX 习惯（git 也会提示 \ No newline）
 if (args.includes('--write')) {
   mkdirSync(dirname(OUTPUT), { recursive: true })
   writeFileSync(OUTPUT, ddl)

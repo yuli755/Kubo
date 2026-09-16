@@ -15,8 +15,9 @@
  * 用法：node scripts/java-syntax-check.mjs <文件或目录> [...]
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import process from 'node:process'
 
 /**
  * 字符串感知的词法扫描。
@@ -89,12 +90,13 @@ function scan(source) {
     if (c === '\'') {
       i++
       while (i < n && source[i] !== '\'') {
-        if (source[i] === '\\') i++
+        if (source[i] === '\\')
+          i++
         i++
       }
       i++
-      stripped += "''"
-      code += "''"
+      stripped += '\'\''
+      code += '\'\''
       continue
     }
     stripped += c
@@ -108,7 +110,8 @@ function balanceOf(text, open, close) {
   let depth = 0
   let min = 0
   for (const ch of text) {
-    if (ch === open) depth++
+    if (ch === open)
+      depth++
     if (ch === close) {
       depth--
       min = Math.min(min, depth)
@@ -124,8 +127,10 @@ function checkFile(file) {
 
   for (const [open, close, name] of [['{', '}', '花括号'], ['(', ')', '圆括号'], ['[', ']', '方括号']]) {
     const { depth, min } = balanceOf(stripped, open, close)
-    if (depth !== 0) problems.push(`${name}不配对（差 ${depth}）`)
-    if (min < 0) problems.push(`${name}出现提前闭合`)
+    if (depth !== 0)
+      problems.push(`${name}不配对（差 ${depth}）`)
+    if (min < 0)
+      problems.push(`${name}出现提前闭合`)
   }
 
   // 逐行引号计数（注释已剔除、字符串保留，故每行引号数必须为偶数）
@@ -138,25 +143,29 @@ function checkFile(file) {
 
   // 语句级：单行内括号已配平且无续行时，检查是否漏了分号
   const rawLines = code.split('\n')
-  const CONTINUATION = /^[.?:),]|^(?:&&|\|\||\+|-|\*|\/|==|!=|>=|<=)/
+  const CONTINUATION = /^[.?:),]|^(?:&&|\|\||[+\-*/]|==|!=|>=|<=)/
   for (const [index, line] of rawLines.entries()) {
     const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('*') || trimmed.startsWith('@')) continue
+    if (!trimmed || trimmed.startsWith('*') || trimmed.startsWith('@'))
+      continue
     const nextLine = (rawLines[index + 1] || '').trim()
-    if (CONTINUATION.test(nextLine)) continue
-    if (balanceOf(trimmed, '(', ')').depth !== 0) continue
+    if (CONTINUATION.test(nextLine))
+      continue
+    if (balanceOf(trimmed, '(', ')').depth !== 0)
+      continue
     if (/^(?:add|addAndGet|return|throw)\b/.test(trimmed) && !/[;{},]$/.test(trimmed)) {
       problems.push(`第 ${index + 1} 行语句可能缺少分号：${trimmed.slice(0, 80)}`)
     }
   }
 
   const classes = (stripped.match(/\bclass\s+\w+/g) || []).length
-  const methods = (stripped.match(/\b(?:public|private|protected)\s+[\w<>[\],\s]+\s+\w+\s*\(/g) || []).length
+  const methods = (stripped.match(/\b(?:public|private|protected)\s[\w<>[\],\s]+\s\w+\s*\(/g) || []).length
   return { problems, classes, methods }
 }
 
 function collect(target) {
-  if (statSync(target).isFile()) return [target]
+  if (statSync(target).isFile())
+    return [target]
   const files = []
   for (const entry of readdirSync(target)) files.push(...collect(join(target, entry)))
   return files.filter(f => f.endsWith('.java'))
