@@ -48,6 +48,8 @@ import { provideGlobalConfig as _provideGlobalConfig } from 'element-plus/es/com
 import { ElLoading as _ElLoading } from 'element-plus/es/components/loading/index.mjs'
 
 export { ElAlert } from 'element-plus/es/components/alert/index.mjs'
+// 以下三者为新壳 `KAppShell.vue`（侧栏滚动 / 顶部面包屑 / 移动端抽屉）新增使用
+export { ElBreadcrumb, ElBreadcrumbItem } from 'element-plus/es/components/breadcrumb/index.mjs'
 export { ElButton } from 'element-plus/es/components/button/index.mjs'
 export { ElCard } from 'element-plus/es/components/card/index.mjs'
 export { ElCheckTag } from 'element-plus/es/components/check-tag/index.mjs'
@@ -55,6 +57,7 @@ export { ElCheckTag } from 'element-plus/es/components/check-tag/index.mjs'
 export { ElCheckbox } from 'element-plus/es/components/checkbox/index.mjs'
 export { provideGlobalConfig } from 'element-plus/es/components/config-provider/src/hooks/use-global-config.mjs'
 export { ElDatePicker } from 'element-plus/es/components/date-picker/index.mjs'
+export { ElDrawer } from 'element-plus/es/components/drawer/index.mjs'
 // dropdown 子路径同时导出 ElDropdown / ElDropdownItem / ElDropdownMenu
 export { ElDropdown, ElDropdownItem, ElDropdownMenu } from 'element-plus/es/components/dropdown/index.mjs'
 export { ElEmpty } from 'element-plus/es/components/empty/index.mjs'
@@ -82,8 +85,9 @@ export { ElPopover } from 'element-plus/es/components/popover/index.mjs'
 export { ElProgress } from 'element-plus/es/components/progress/index.mjs'
 // radio 子路径同时导出 ElRadioGroup / ElRadioButton
 export { ElRadioButton, ElRadioGroup } from 'element-plus/es/components/radio/index.mjs'
-
 export { ElResult } from 'element-plus/es/components/result/index.mjs'
+
+export { ElScrollbar } from 'element-plus/es/components/scrollbar/index.mjs'
 // select 子路径同时导出 ElSelect / ElOption
 export { ElOption, ElSelect } from 'element-plus/es/components/select/index.mjs'
 export { ElSwitch } from 'element-plus/es/components/switch/index.mjs'

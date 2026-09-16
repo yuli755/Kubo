@@ -112,6 +112,11 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # 演示模式产物门禁：演示模式会替换请求适配器并预置登录态（等于绕过登录后的门），
+      # 必须先构图再扫产物（见 infra/scripts/check-demo-build.mjs 的三道闸说明）。
+      - name: Demo-mode artifact gate
+        run: pnpm demo:check
+
       # 双指标：首屏关键路径（index.html + 静态 import 闭包）与总量分别设预算。
       # 历史口径"所有产物 gzip < 800KB"含懒加载分包，导致无法判定达标与否；
       # 预算数字改动必须连同理由写进 docs/数据权限目标态落地施工图.md 的决策记录。

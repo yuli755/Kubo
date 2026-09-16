@@ -118,10 +118,6 @@ export const useUserStore = defineStore(
       // 的文档约定在此收口；否则低权限账号在同一标签页复用上一账号的读缓存。
       void import('@/query/queryClient').then(({ queryClient }) => queryClient.clear())
       void import('@/composables/useMaskPolicy').then(({ clearMaskPolicyCache }) => clearMaskPolicyCache())
-      // 断开 WebSocket 连接（延迟导入避免循环依赖）
-      import('@/websocket/WebSocketManager').then(({ webSocketManager }) => {
-        webSocketManager.disconnect()
-      })
       // 清除权限 store（延迟导入避免循环依赖）
       import('@/stores/permission').then(({ usePermissionStore }) => {
         usePermissionStore().clear()

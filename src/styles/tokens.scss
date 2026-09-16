@@ -32,6 +32,34 @@
   --el-color-primary-light-9: var(--kubo-color-primary-light-9);
   --el-color-primary-dark-2: var(--kubo-color-primary-dark-2);
 
+  /* ── 布局骨架（视觉方向 B：深色侧栏 + 浅色工作区，数据密集型） ──
+   *
+   * 顶栏/侧栏高度宽度只此一处，`KAppShell` 与后续 `KDataTable` 都从这里取值，
+   * 避免各页面自己写 56px / 200px 导致骨架对不齐。
+   */
+  --kubo-header-height: 56px;
+  --kubo-sider-width: 216px;
+  --kubo-sider-width-collapsed: 64px;
+
+  /* ── 面层色：**引用 EP 变量**，亮/暗两套由 EP 的 css-vars 自动接管 ──
+   *
+   * 直接写死 #f0f2f5 的话，`html.dark` 下要再维护一份；引用 `--el-bg-color-page`
+   * 后暗色模式自带对应值（EP dark 主题已定义），少一处会忘的同步点。
+   */
+  --kubo-color-bg-page: var(--el-bg-color-page); /* 工作区底色（比卡片略深，卡片才浮得起来） */
+  --kubo-color-bg-elevated: var(--el-bg-color); /* 顶栏 / 页脚 / 卡片 */
+  --kubo-color-border-subtle: var(--el-border-color-light);
+  --kubo-color-text-primary: var(--el-text-color-primary);
+  --kubo-color-text-secondary: var(--el-text-color-secondary);
+
+  /* ── 侧栏专用色：侧栏在亮/暗两种主题下都保持深色（方向 B 的识别特征）── */
+  --kubo-color-bg-sider: #001529;
+  --kubo-sider-text: rgb(255 255 255 / 72%);
+  --kubo-sider-text-active: #fff;
+  --kubo-sider-bg-hover: rgb(255 255 255 / 8%);
+  --kubo-sider-bg-active: var(--kubo-color-primary);
+  --kubo-sider-border: rgb(255 255 255 / 10%);
+
   /* ── 圆角 / 阴影 / 间距 / 动效（语义 token，业务组件从这里取值） ── */
   --kubo-radius-sm: 6px;
   --kubo-radius-base: 10px;
@@ -71,6 +99,9 @@
  * 2. `--kubo-*` 语义 token 的暗色映射。
  */
 html.dark {
+  /* 侧栏在暗色下再压深一档：与工作区（#0a0a0a 系）拉开层次，避免两者糊在一起 */
+  --kubo-color-bg-sider: #0b1220;
+
   /* 暗色下主色微调：加深主色、提亮浅色阶，保证文字/背景对比度 ≥ WCAG AA */
   --kubo-color-primary-light-7: #3a5a80;
   --kubo-color-primary-light-8: #2b3f57;

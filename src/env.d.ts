@@ -19,6 +19,14 @@ interface ImportMetaEnv extends Readonly<Record<string, string | boolean>> {
   VITE_APP_API_URL: string
 
   /**
+   * ### 旧壳 A/B 开关（改版期临时）
+   *
+   * `VITE_LEGACY_SHELL=true pnpm dev` 时走 airpower `AFrame` 旧壳做并排评审，
+   * 缺省（未设置）走新壳 `KAppShell`。消费方：`src/config/buildFlags.ts`。
+   */
+  VITE_LEGACY_SHELL?: string
+
+  /**
    * ### 是否开发模式
    */
   DEV: boolean

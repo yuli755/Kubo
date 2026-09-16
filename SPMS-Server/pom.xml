@@ -62,11 +62,6 @@
             <artifactId>airpower-email</artifactId>
             <version>${airpower.version}</version>
         </dependency>
-        <dependency>
-            <groupId>cn.hamm</groupId>
-            <artifactId>airpower-websocket</artifactId>
-            <version>${airpower.version}</version>
-        </dependency>
         <!-- WebAuthn 相关依赖 -->
         <dependency>
             <groupId>com.yubico</groupId>

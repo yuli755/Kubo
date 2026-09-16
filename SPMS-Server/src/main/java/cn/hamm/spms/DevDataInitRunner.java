@@ -20,9 +20,6 @@ import cn.hamm.spms.module.channel.saleprice.SalePriceEntity;
 import cn.hamm.spms.module.channel.saleprice.SalePriceService;
 import cn.hamm.spms.module.channel.supplier.SupplierEntity;
 import cn.hamm.spms.module.channel.supplier.SupplierService;
-import cn.hamm.spms.module.chat.ChatServices;
-import cn.hamm.spms.module.chat.room.RoomEntity;
-import cn.hamm.spms.module.chat.room.RoomService;
 import cn.hamm.spms.module.factory.FactoryServices;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.factory.storage.StorageService;
@@ -917,7 +914,6 @@ public class DevDataInitRunner implements CommandLineRunner {
     private void initRootUser() {
         UserService userService = PersonnelServices.getUserService();
         DepartmentService departmentService = PersonnelServices.getDepartmentService();
-        RoomService roomService = ChatServices.getRoomService();
 
         // 初始化用户
         UserEntity user = userService.getMaybeNull(1L);
@@ -940,23 +936,7 @@ public class DevDataInitRunner implements CommandLineRunner {
                         .setEmail("admin@hamm.com")
                         .setPassword(PermissionUtil.encodePassword("Aa123456", salt))
                         .setSalt(salt))
-                .setDepartmentList(Set.of(department))
-
-        ;
-        user = userService.getMaybeNull(1L);
-
-        roomService.add(new RoomEntity()
-                .setName("广场")
-                .setCode(666)
-                .setIsOfficial(true)
-                .setIsHot(true).setOwner(user)
-        );
-
-        roomService.addAndGet(new RoomEntity()
-                .setName("测试")
-                .setCode(888)
-                .setIsHot(true).setOwner(user)
-        );
+                .setDepartmentList(Set.of(department)));
     }
 
     private void initConfigs() {

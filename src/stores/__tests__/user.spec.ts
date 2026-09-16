@@ -21,14 +21,6 @@ vi.mock('@/api/system', () => ({
   authApi,
 }))
 
-const webSocketManager = {
-  disconnect: vi.fn(),
-}
-
-vi.mock('@/websocket/WebSocketManager', () => ({
-  webSocketManager,
-}))
-
 const permissionClear = vi.fn()
 
 vi.mock('@/stores/permission', () => ({
@@ -89,7 +81,7 @@ describe('useUserStore · 登录态不变量', () => {
     expect(store.tenantId).toBe(20)
   })
 
-  it('logout 清空本地状态、摘 token、断 WS、清权限', async () => {
+  it('logout 清空本地状态、摘 token、清权限', async () => {
     const store = useUserStore()
     store.setToken('t')
     store.setTenantId(9)
@@ -104,7 +96,6 @@ describe('useUserStore · 登录态不变量', () => {
     expect(localStorage.getItem('Authorization')).toBeNull()
     expect(localStorage.getItem('kubo:user')).toBeNull()
     // 异步副作用
-    await vi.waitFor(() => expect(webSocketManager.disconnect).toHaveBeenCalled())
     await vi.waitFor(() => expect(permissionClear).toHaveBeenCalled())
   })
 

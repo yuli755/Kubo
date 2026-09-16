@@ -3,6 +3,7 @@ import { ElLoading } from 'element-plus'
 import { createPinia } from 'pinia'
 import { createApp } from 'vue'
 import App from '@/App.vue'
+import { DEMO_ENABLED } from '@/config/buildFlags'
 import { routes } from '@/config/routes'
 import { directives } from '@/directives'
 import { initAuthGuard } from '@/guard/authGuard'
@@ -64,7 +65,24 @@ for (const [name, directive] of Object.entries(directives)) {
   app.directive(name, directive)
 }
 
-app.mount('#app')
+/**
+ * 启动：演示模式（`pnpm dev:demo`，仅本地预览）先安装 mock 请求适配器与预置登录态再挂载。
+ *
+ * 顺序不能反——`app.mount()` 会触发首次导航，若此时还没有登录态，authGuard 会把人送去登录页。
+ *
+ * ⚠️ `DEMO_ENABLED` 取自 `import.meta.env.MODE`（构建期被替换成字面量）：
+ * 生产构建恒为 `false`，因此这段 if 是死代码，动态 import 不产出 chunk ——
+ * 演示模式（含跳过登录）在物理上不可能进入生产产物（CI `pnpm demo:check` 复核）。
+ */
+async function bootstrap() {
+  if (DEMO_ENABLED) {
+    const { installDemoMode } = await import('@/demo')
+    await installDemoMode()
+  }
+  app.mount('#app')
+}
+
+bootstrap()
 
 // PWA: 注册 Service Worker（仅 production 环境生效）
 registerPWA()

@@ -34,6 +34,10 @@ export interface MenuItem {
   path?: string
   component?: string
   redirect?: string
+  /** 图标名（后端下发字符串，由 `@/component/shell/icons` 解析成组件） */
+  icon?: string
+  /** 排序号（越小越靠前；缺省按 0 处理） */
+  orderNo?: number
   children?: MenuItem[]
   meta?: RouteMeta
 }
