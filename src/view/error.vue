@@ -1,11 +1,11 @@
 <script lang="ts" setup>
 import { WebConfig } from '@airpower/web'
 import { onScopeDispose, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useAppRoute } from '@/router/appRouter'
 
 const isLoading = ref(true)
 const isError = ref(false)
-const route = useRoute()
+const route = useAppRoute()
 
 const errorCode = ref(WebConfig.successCode)
 

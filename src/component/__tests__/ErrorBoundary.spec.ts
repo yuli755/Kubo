@@ -22,8 +22,10 @@ vi.mock('@/utils/errorHandler', () => ({
   reportError,
 }))
 
-vi.mock('vue-router', () => ({
-  useRoute: () => ({ fullPath: '/home' }),
+// 组件已改用 `useAppRoute()`（见 appRouter 的说明：vue-router 的 useRoute 在
+// airpower 内联副本存在时注入不到，会返回 undefined）
+vi.mock('@/router/appRouter', () => ({
+  useAppRoute: () => ({ fullPath: '/home' }),
 }))
 
 /** 抛出渲染错误的子组件 */

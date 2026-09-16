@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { defineComponent } from 'vue'
 import { createAppRouter, getRouter, initVueRouter } from '@/router/appRouter'
 
 /**
- * `appRouter` 契约测试：锁「复刻 airpower RouterUtil 的动态菜单路由」关键语义——
- * 标题设置、getRouter 守卫、按菜单 id 去重、redirect 与 component 两种注册分支。
+ * `appRouter` 契约测试：锁薄封装层的关键语义——标题设置、getRouter 守卫、
+ * 按菜单 id 去重、redirect 与 component 两种注册分支。
+ *
+ * 底层实现是 airpower `RouterUtil`（路由实例必须由 airpower 创建，见 appRouter.ts 的说明），
+ * 因此「未创建路由」的分支不能靠 `vi.resetModules()` 造（airpower 是外部依赖，模块状态不随
+ * 之重置），而是直接把 `RouterUtil.router` 置空后再复原。
  */
 describe('appRouter · RouterUtil 复刻', () => {
   const Dummy = defineComponent({ template: '<div />' })
@@ -15,11 +19,17 @@ describe('appRouter · RouterUtil 复刻', () => {
     expect(getRouter()).toBe(router)
   })
 
-  it('未创建时 getRouter 抛错（独立模块实例）', async () => {
-    // 模块级 router 缓存在其它用例已被赋值，须用全新模块实例覆盖未初始化分支
-    vi.resetModules()
-    const fresh = await import('@/router/appRouter')
-    expect(() => fresh.getRouter()).toThrow('请先调用 createAppRouter 创建路由')
+  it('未创建时 getRouter 抛错', async () => {
+    const { RouterUtil } = await import('@airpower/web')
+    const backup = RouterUtil.router
+    // 模拟「还没 createAppRouter」：RouterUtil.router 为空
+    ;(RouterUtil as unknown as { router: unknown }).router = undefined
+    try {
+      expect(() => getRouter()).toThrow('请先调用 createAppRouter 创建路由')
+    }
+    finally {
+      RouterUtil.router = backup
+    }
   })
 
   it('beforeEach 按 meta.name 设置标题', async () => {

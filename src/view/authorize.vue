@@ -2,17 +2,17 @@
 import type { OauthScope } from '@/model/open/oauth/OauthScope'
 import { FeedbackUtil } from '@airpower/web'
 import { ref } from 'vue'
-import { useRoute } from 'vue-router'
 import Copyright from '@/component/login/Copyright.vue'
 import Logo from '@/component/login/Logo.vue'
 import { OpenAppService } from '@/hook/open/useApp'
 import { UserService } from '@/hook/personnel/useUser'
 import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
 import { UserEntity } from '@/model/personnel/user/UserEntity'
+import { useAppRoute } from '@/router/appRouter'
 
 const user = ref(new UserEntity())
 
-const route = useRoute()
+const route = useAppRoute()
 const appKey = (route.query.appKey || '').toString()
 const scope = (route.query.scope || '').toString()
 const redirectUri = (route.query.redirectUri || '/console').toString()

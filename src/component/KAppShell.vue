@@ -22,12 +22,11 @@ import type { UserEntity } from '@/model/personnel/user/UserEntity'
 import type { MenuItem } from '@/router/appRouter'
 import { Expand, Fold } from '@element-plus/icons-vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
 import TenantSwitcher from '@/component/TenantSwitcher.vue'
 import ThemeSwitcher from '@/component/ThemeSwitcher.vue'
 import UserCard from '@/component/UserCard.vue'
 import { isDemoRuntime } from '@/config/runtimeFlags'
-import { getRouter } from '@/router/appRouter'
+import { getRouter, useAppRoute } from '@/router/appRouter'
 import { resolveMenuIcon } from './shell/icons'
 import KAppMenuNode from './shell/KAppMenuNode.vue'
 
@@ -45,7 +44,7 @@ const props = withDefaults(defineProps<{
   bordered: false,
 })
 
-const route = useRoute()
+const route = useAppRoute()
 const router = getRouter()
 const collapsed = ref(localStorage.getItem('kubo:shell:collapsed') === 'true')
 const isNarrow = ref(false)

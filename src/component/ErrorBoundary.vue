@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { onErrorCaptured, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useAppRoute } from '@/router/appRouter'
 import { reportError } from '@/utils/errorHandler'
 
 /**
@@ -39,7 +39,7 @@ onErrorCaptured((err, _instance, info) => {
   return false
 })
 
-const route = useRoute()
+const route = useAppRoute()
 watch(
   () => route.fullPath,
   () => {

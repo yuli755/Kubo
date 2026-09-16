@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
 import { authApi } from '@/api/system'
 import Logo from '@/component/login/Logo.vue'
 import ThirdLogin from '@/component/login/ThirdLogin.vue'
@@ -10,13 +9,14 @@ import { OpenAppService } from '@/hook/open/useApp'
 import { UserService } from '@/hook/personnel/useUser'
 import { LoginAction } from '@/model/common/LoginAction'
 import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
+import { useAppRoute } from '@/router/appRouter'
 import { useUserStore } from '@/stores/user'
 import { reportError } from '@/utils/errorHandler'
 import { safeRedirect } from '@/utils/safeRedirect'
 import { isEmail, isMobilePhone, isNaturalNumber } from '@/utils/validators'
 
 const userStore = useUserStore()
-const route = useRoute()
+const route = useAppRoute()
 
 const { preload } = useRoutePreload()
 

@@ -2,11 +2,11 @@
 import type { IJson } from '@airpower/web'
 import { DateTimeUtil, FeedbackUtil } from '@airpower/web'
 import { ref } from 'vue'
-import { useRoute } from 'vue-router'
 import { UserService } from '@/hook/personnel/useUser'
+import { useAppRoute } from '@/router/appRouter'
 
 const isLoading = ref(true)
-const route = useRoute()
+const route = useAppRoute()
 
 async function init() {
   const platform = route.params.platform.toString()
