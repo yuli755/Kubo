@@ -77,7 +77,7 @@ interface BackendSeed {
  * 解析 `MenuService.initMenu()` 的种子。
  *
  * 种子有两种写法：列表页用 `listPage("名称", "路径", 父级)`（不写 component，靠
- * 「路径 == 视图路径」约定），工作台/MCP 这类非列表页用链式 `setName().setPath().setComponent()`。
+ * 「路径 == 视图路径」约定），工作台这类非列表页用链式 `setName().setPath().setComponent()`。
  */
 function backendSeeds(): BackendSeed[] {
   const source = readFileSync(MENU_SERVICE, 'utf8')

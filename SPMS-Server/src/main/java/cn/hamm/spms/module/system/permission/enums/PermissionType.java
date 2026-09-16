@@ -15,12 +15,7 @@ public enum PermissionType implements IDictionary {
     /**
      * API 权限
      */
-    API(0, "API 权限"),
-
-    /**
-     * MCP 权限
-     */
-    MCP(1, "MCP 权限");
+    API(0, "API 权限");
 
     private final int key;
     private final String label;

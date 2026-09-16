@@ -95,14 +95,13 @@ JOIN (
 JOIN `menu` g ON g.`parent_id` = @root AND g.`name` = c.grp
 SET m.`name` = c.name, m.`parent_id` = g.id, m.`order_no` = c.ord, m.`component` = '';
 
--- ── 5. 补插缺失页面（操作日志 / MCP 工具），权限标识留空（与现网一致） ────
+-- ── 5. 补插缺失页面（操作日志），权限标识留空（与现网一致） ──────────────
 INSERT INTO `menu` (`name`, `parent_id`, `order_no`, `path`, `component`, `is_published`, `is_disabled`)
 SELECT '操作日志', @g_system, 6, '/console/system/log/list', '', 1, 0 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `menu` WHERE `path` = '/console/system/log/list');
 
-INSERT INTO `menu` (`name`, `parent_id`, `order_no`, `path`, `component`, `is_published`, `is_disabled`)
-SELECT 'MCP 工具', @g_system, 7, '/console/system/mcp/tools', '/console/system/mcp/tools', 1, 0 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `menu` WHERE `path` = '/console/system/mcp/tools');
+-- MCP 工具菜单已随 airpower-ai 一并移除（本页从未实现前端交互）
+DELETE FROM `menu` WHERE `path` = '/console/system/mcp/tools';
 
 -- ── 6. 数据权限子分组（挂在系统管理下） ─────────────────────────────────
 INSERT INTO `menu` (`name`, `parent_id`, `order_no`, `path`, `component`, `is_published`, `is_disabled`)

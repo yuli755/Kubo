@@ -105,14 +105,6 @@ public class MenuService extends BaseService<MenuEntity, MenuRepository> {
         add(listPage("系统配置", "/console/system/config/list", group.getId()));
         add(listPage("编号规则", "/console/system/coderule/list", group.getId()));
         add(listPage("操作日志", "/console/system/log/list", group.getId()));
-        // 非列表页：路径与视图同名（src/view/console/system/mcp/tools.vue）
-        page = new MenuEntity()
-                .setName("MCP 工具")
-                .setPath("/console/system/mcp/tools")
-                .setComponent("/console/system/mcp/tools")
-                .setParentId(group.getId());
-        add(page);
-
         // 数据权限（资源登记 / 行级策略 / 列级脱敏策略）
         // 没有这三个页面时策略只能靠 SQL 或 DevDataInitRunner 硬编码来改，"灰度"就无从下手：
         // 观察 shadow 差异、按角色放开明文、给某个资源临时收口，都必须能在界面上完成。

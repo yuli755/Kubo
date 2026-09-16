@@ -43,12 +43,6 @@
 
         <dependency>
             <groupId>cn.hamm</groupId>
-            <artifactId>airpower-ai</artifactId>
-            <version>${airpower.version}</version>
-
-        </dependency>
-        <dependency>
-            <groupId>cn.hamm</groupId>
             <artifactId>airpower-email</artifactId>
             <version>${airpower.version}</version>
         </dependency>

@@ -1,7 +1,5 @@
 package cn.hamm.spms.module.system.permission;
 
-import cn.hamm.airpower.ai.mcp.McpService;
-import cn.hamm.airpower.ai.mcp.model.McpTool;
 import cn.hamm.airpower.core.TreeUtil;
 import cn.hamm.airpower.curd.permission.PermissionUtil;
 import cn.hamm.spms.Application;
@@ -25,56 +23,6 @@ import static cn.hamm.airpower.exception.Errors.FORBIDDEN_DELETE;
 @Service
 @Slf4j
 public class PermissionService extends BaseService<PermissionEntity, PermissionRepository> {
-    /**
-     * 通过标识获取一个权限
-     *
-     * @param identity 权限标识
-     * @return 权限
-     */
-    public PermissionEntity getPermissionByIdentity(String identity) {
-        return repository.getByIdentity(identity);
-    }
-
-    @Override
-    protected void beforeDelete(@NotNull PermissionEntity permission) {
-        FORBIDDEN_DELETE.when(permission.getIsSystem(), "系统内置权限无法被删除!");
-        TreeUtil.ensureNoChildrenBeforeDelete(permission.getId(), id -> filter(new PermissionEntity().setParentId(id)));
-    }
-
-    @Override
-    protected @NotNull List<PermissionEntity> afterGetList(@NotNull List<PermissionEntity> list) {
-        list.forEach(PermissionEntity::excludeNotMeta);
-        return list;
-    }
-
-    public void initMcpToolPermission(@NotNull List<McpTool> list) {
-        // 幂等：若父级 mcp:tools 权限已存在（如历史初始化残留），复用其 id，避免唯一约束冲突
-        final String parentIdentity = "mcp:tools";
-        PermissionEntity existParent = getPermissionByIdentity(parentIdentity);
-        long parentId;
-        if (Objects.isNull(existParent)) {
-            parentId = add(new PermissionEntity()
-                    .setName("MCP工具")
-                    .setIdentity(parentIdentity)
-                    .setType(PermissionType.MCP.getKey())
-                    .setIsSystem(true));
-        } else {
-            parentId = existParent.getId();
-        }
-        for (McpTool mcpTool : list) {
-            String identity = McpService.getPermissionIdentity(mcpTool);
-            // 幂等：子工具已存在则跳过
-            if (Objects.nonNull(getPermissionByIdentity(identity))) {
-                continue;
-            }
-            add(new PermissionEntity()
-                    .setName(mcpTool.getName())
-                    .setIdentity(identity)
-                    .setType(PermissionType.MCP.getKey())
-                    .setIsSystem(true)
-                    .setParentId(parentId));
-        }
-    }
 
     public void loadPermission() {
         List<PermissionEntity> permissions = PermissionUtil.scanPermission(Application.class.getPackageName(), PermissionEntity.class);

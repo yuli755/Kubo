@@ -1,6 +1,5 @@
 package cn.hamm.spms;
 
-import cn.hamm.airpower.ai.mcp.McpService;
 import cn.hamm.airpower.core.RandomUtil;
 import cn.hamm.airpower.curd.permission.PermissionUtil;
 import cn.hamm.spms.common.AppConfig;
@@ -87,7 +86,6 @@ public class DevDataInitRunner implements CommandLineRunner {
         AppConfig appConfig = Configs.getAppConfig();
         PermissionService permissionService = SystemServices.getPermissionService();
         MenuService menuService = SystemServices.getMenuService();
-        McpService.scanMcpMethods("cn.hamm.spms", "cn.hamm.airpower");
         if (!appConfig.getIsDevMode()) {
             log.info("非开发者模式，无需初始化数据");
             return;
@@ -98,7 +96,6 @@ public class DevDataInitRunner implements CommandLineRunner {
             log.info("已存在 init.lock 文件，无需初始化数据");
             return;
         }
-        permissionService.initMcpToolPermission(McpService.tools);
         initRootUser();
         initCodeRules();
         initConfigs();

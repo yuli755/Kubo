@@ -98,15 +98,6 @@ export function demoMenuTree(): DemoMenuNode[] {
       listPage(704, '系统配置', 'system', 'config', 'Tools', 4),
       listPage(705, '编号规则', 'system', 'coderule', 'Postcard', 5),
       listPage(706, '操作日志', 'system', 'log', 'Notebook', 6),
-      {
-        // 非列表页：路径与视图同名（`src/view/console/system/mcp/tools.vue`）
-        id: 707,
-        name: 'MCP 工具',
-        path: '/console/system/mcp/tools',
-        component: '/console/system/mcp/tools',
-        icon: 'Connection',
-        orderNo: 7,
-      },
       group(720, '数据权限', 'Lock', 8, [
         listPage(721, '数据资源', 'system/datapermission', 'resource', 'Coin', 1),
         listPage(722, '行级策略', 'system/datapermission', 'policy', 'Filter', 2),
