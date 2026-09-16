@@ -7,6 +7,15 @@ const isLoading = ref(true)
 const isError = ref(false)
 const route = useAppRoute()
 
+/**
+ * ⚠️ 本页**不得**写 `WebConfig.isTimeout`。
+ *
+ * 那是 airpower 的全局熔断开关：`RouterUtil.initVueRouter()` 开头判断
+ * `if (!WebConfig.isTimeout) registerRoute(...)` —— 一旦被置真，**动态菜单路由永久不再注册**
+ * （谁都不会把它复位），此后点任何菜单都落到 catch-all 的 404 页。
+ * 本页是 catch-all（404）兜底页，只要停留 `WebConfig.timeout`（5s）就会触发这个开关：
+ * 「进错一次页面 → 整个控制台再也点不开」。错误页只该管自己的展示状态。
+ */
 const errorCode = ref(WebConfig.successCode)
 
 const errorTitle = ref('')
@@ -22,10 +31,9 @@ const timer = setTimeout(() => {
   isLoading.value = false
   isError.value = true
   errorCode.value = GATEWAY_TIMEOUT
-  WebConfig.isTimeout = true
 }, WebConfig.timeout)
 
-// 组件卸载时清理超时计时器：避免用户离开后残留 timer 把全局 WebConfig.isTimeout 置真
+// 组件卸载时清理超时计时器（本页只改变自己的展示状态）
 onScopeDispose(() => clearTimeout(timer))
 
 watch(errorCode, () => {

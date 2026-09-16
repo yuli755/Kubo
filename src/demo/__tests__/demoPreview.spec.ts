@@ -68,13 +68,16 @@ describe('演示模式 · 菜单与视图文件一一对应', () => {
     ).toEqual([])
   })
 
-  it('菜单 path 与 component 同源（path=/console/a/b ⇒ component=/console/a/b/list）', () => {
+  it('菜单 path 与 component 同源（约定：component 缺省取 path，视图路径 == 路由路径）', () => {
     const walk = (nodes: ReturnType<typeof demoMenuTree>): void => {
       for (const node of nodes) {
-        if (node.path && node.component) {
+        if (node.path) {
+          // 列表页 component 可以省略（前端 registerRoute 会回落到 path 本身）；
+          // 一旦显式写了 component，就必须与 path 同源，否则菜单高亮/跳转会错位。
+          const component = node.component || node.path
           expect(
-            node.component.startsWith(node.path),
-            `${node.name}: component(${node.component}) 与 path(${node.path}) 不同源，菜单高亮/跳转会错位`,
+            component === node.path || component === `${node.path}/index`,
+            `${node.name}: component(${component}) 与 path(${node.path}) 不同源，菜单高亮/跳转会错位`,
           ).toBe(true)
         }
         if (node.children) {

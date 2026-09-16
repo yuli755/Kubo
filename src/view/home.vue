@@ -29,25 +29,25 @@ const entries = [
     title: '用户管理',
     desc: '账号、角色、权限配置',
     icon: User,
-    path: '/console/personnel/user',
+    path: '/console/personnel/user/list',
   },
   {
     title: '角色管理',
     desc: '角色与权限分配',
     icon: Avatar,
-    path: '/console/personnel/role',
+    path: '/console/personnel/role/list',
   },
   {
     title: '部门管理',
     desc: '组织架构维护',
     icon: OfficeBuilding,
-    path: '/console/personnel/department',
+    path: '/console/personnel/department/list',
   },
   {
     title: '系统配置',
     desc: '系统参数与规则配置',
     icon: Collection,
-    path: '/console/system/config',
+    path: '/console/system/config/list',
   },
 ]
 
@@ -75,7 +75,8 @@ async function init() {
  * ### 跳转到控制台
  */
 function goConsole() {
-  getRouter().push('/console')
+  // `/console` 由路由表重定向到工作台（`/console/index`）；显式写目标路径更直观
+  getRouter().push('/console/index')
 }
 
 function goPath(path: string) {

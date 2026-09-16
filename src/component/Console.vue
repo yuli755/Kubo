@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { MenuEntity } from '@/model/system/menu/MenuEntity'
-import { AFrame } from '@airpower/web'
+import { AFrame, WebConfig } from '@airpower/web'
 import { onErrorCaptured, ref } from 'vue'
 import { authApi } from '@/api/system'
 import KAppShell from '@/component/KAppShell.vue'
@@ -49,6 +49,11 @@ function applyMenuPermissions(menus: MenuEntity[]): MenuEntity[] {
 
 async function getMenuList() {
   menuList.value = applyMenuPermissions(await UserService.create(isLoading).getMyMenuList())
+  // ⚠️ 必须先复位 `WebConfig.isTimeout` 再注册路由：airpower 的 `initVueRouter()` 在
+  // `isTimeout === true` 时**直接跳过整个动态路由注册**，且没有任何地方会把它复位。
+  // 该标志原本只由 404 兜底页置真（已修），但为防存量构建/第三方写入，这里每次初始化
+  // 都显式复位一次 —— 否则「点任何菜单都进 404」且刷新也难自愈。
+  WebConfig.isTimeout = false
   initVueRouter(menuList.value, components, '/src/view', 'console')
   await reloadCurrentRoute()
 }

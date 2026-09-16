@@ -10,32 +10,32 @@ import { safeRedirect } from '@/utils/safeRedirect'
  */
 describe('safeRedirect 开放重定向防护', () => {
   it('站内相对路径原样放行', () => {
-    expect(safeRedirect('/console')).toBe('/console')
+    expect(safeRedirect('/console/index')).toBe('/console/index')
     expect(safeRedirect('/home?tab=1')).toBe('/home?tab=1')
     expect(safeRedirect('/console/wms/input/list')).toBe('/console/wms/input/list')
   })
 
   it('空值回退到默认页（含 undefined / null，调用方可能直传查询参数）', () => {
-    expect(safeRedirect('')).toBe('/console')
-    expect(safeRedirect(undefined)).toBe('/console')
-    expect(safeRedirect(null)).toBe('/console')
+    expect(safeRedirect('')).toBe('/console/index')
+    expect(safeRedirect(undefined)).toBe('/console/index')
+    expect(safeRedirect(null)).toBe('/console/index')
   })
 
   it('协议相对地址 `//evil.test` 按外域处理', () => {
-    expect(safeRedirect('//evil.test')).toBe('/console')
-    expect(safeRedirect('//evil.test/console')).toBe('/console')
+    expect(safeRedirect('//evil.test')).toBe('/console/index')
+    expect(safeRedirect('//evil.test/console')).toBe('/console/index')
   })
 
   it('绝对 URL 与危险协议一律回退', () => {
-    expect(safeRedirect('https://evil.test')).toBe('/console')
-    expect(safeRedirect('http://evil.test/console')).toBe('/console')
-    expect(safeRedirect('javascript:alert(1)')).toBe('/console')
-    expect(safeRedirect('data:text/html,<script>alert(1)</script>')).toBe('/console')
+    expect(safeRedirect('https://evil.test')).toBe('/console/index')
+    expect(safeRedirect('http://evil.test/console')).toBe('/console/index')
+    expect(safeRedirect('javascript:alert(1)')).toBe('/console/index')
+    expect(safeRedirect('data:text/html,<script>alert(1)</script>')).toBe('/console/index')
   })
 
   it('相对路径（不以 / 开头）也算非法，防止拼出当前目录之外的地址', () => {
-    expect(safeRedirect('console')).toBe('/console')
-    expect(safeRedirect('../admin')).toBe('/console')
+    expect(safeRedirect('console')).toBe('/console/index')
+    expect(safeRedirect('../admin')).toBe('/console/index')
   })
 
   it('fallback 可由调用方指定', () => {
@@ -44,7 +44,7 @@ describe('safeRedirect 开放重定向防护', () => {
   })
 
   it('非字符串输入先 toString 再判定（数字/对象不会绕过判据）', () => {
-    expect(safeRedirect(42)).toBe('/console')
-    expect(safeRedirect({ toString: () => '//evil.test' })).toBe('/console')
+    expect(safeRedirect(42)).toBe('/console/index')
+    expect(safeRedirect({ toString: () => '//evil.test' })).toBe('/console/index')
   })
 })

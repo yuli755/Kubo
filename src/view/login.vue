@@ -39,7 +39,7 @@ const user = ref({
 })
 // 阶段 E-L1：authGuard 写入的是 ?redirect=（原代码只读 ?redirectUri=，登录后回跳被静默丢弃）。
 // OAuth 流程（后端 redirectLogin）用 ?redirectUri=；两者都读，优先 OAuth 参数。
-const redirectUri = (route.query.redirectUri || route.query.redirect || '/console').toString()
+const redirectUri = (route.query.redirectUri || route.query.redirect || '/console/index').toString()
 
 // 阶段 E-C2：?redirectUri=/?redirect= 完全由访问者控制（guest 路由），直接拼进
 // location 跳转会把登录后的会话送到攻击者域。只接受站内相对路径。

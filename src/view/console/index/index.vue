@@ -22,19 +22,19 @@ const modules = ref<IJson[]>([
   {
     title: 'ERP资产管理',
     actions: [
-      { name: '人员和权限', desc: '统一管理人员、角色、权限等信息', path: '/console/personnel/user' },
-      { name: '采购和销售渠道', desc: '通过供应商、客户、单价、单据了解企业采购和销售的支出和收入', path: '/console/channel/customer' },
-      { name: '物料和设备', desc: '管理企业内部的物料、设备等资产', path: '/console/asset/material' },
-      { name: '企业和工厂模型', desc: '管理企业的组织架构、工厂的生产单元、仓库的存储结构', path: '/console/factory/storage' },
+      { name: '人员和权限', desc: '统一管理人员、角色、权限等信息', path: '/console/personnel/user/list' },
+      { name: '采购和销售渠道', desc: '通过供应商、客户、单价、单据了解企业采购和销售的支出和收入', path: '/console/channel/customer/list' },
+      { name: '物料和设备', desc: '管理企业内部的物料、设备等资产', path: '/console/asset/material/list' },
+      { name: '企业和工厂模型', desc: '管理企业的组织架构、工厂的生产单元、仓库的存储结构', path: '/console/factory/storage/list' },
     ],
   },
   {
     title: 'WMS仓储管理',
     actions: [
-      { name: '库存信息概览', desc: '实时查看仓库各个单位的存储情况', path: '/console/wms/inventory' },
-      { name: '多种入库方式', desc: '关联生产、采购以及其他方式的入库，来源一目了然', path: '/console/wms/input' },
-      { name: '库存盘点和移动', desc: '随时盘点库存、移动存储的物料', path: '/console/wms/move' },
-      { name: '多种出库方式', desc: '关联销售、生产领料等其他方式的出库', path: '/console/wms/output' },
+      { name: '库存信息概览', desc: '实时查看仓库各个单位的存储情况', path: '/console/wms/inventory/list' },
+      { name: '多种入库方式', desc: '关联生产、采购以及其他方式的入库，来源一目了然', path: '/console/wms/input/list' },
+      { name: '库存盘点和移动', desc: '随时盘点库存、移动存储的物料', path: '/console/wms/move/list' },
+      { name: '多种出库方式', desc: '关联销售、生产领料等其他方式的出库', path: '/console/wms/output/list' },
     ],
   },
   {
@@ -45,10 +45,10 @@ const modules = ref<IJson[]>([
   {
     title: '系统管理',
     actions: [
-      { name: '菜单管理', desc: '管理系统菜单结构与路由配置', path: '/console/system/menu' },
-      { name: '权限管理', desc: '管理系统权限标识与分配', path: '/console/system/permission' },
-      { name: '系统配置', desc: '管理系统参数与业务规则', path: '/console/system/config' },
-      { name: '编码规则', desc: '管理各业务模块的单据编码规则', path: '/console/system/coderule' },
+      { name: '菜单管理', desc: '管理系统菜单结构与路由配置', path: '/console/system/menu/list' },
+      { name: '权限管理', desc: '管理系统权限标识与分配', path: '/console/system/permission/list' },
+      { name: '系统配置', desc: '管理系统参数与业务规则', path: '/console/system/config/list' },
+      { name: '编码规则', desc: '管理各业务模块的单据编码规则', path: '/console/system/coderule/list' },
     ],
   },
 ])

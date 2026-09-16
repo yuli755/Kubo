@@ -7,6 +7,16 @@
  *
  * - `path`      → 路由绝对路径（`/console/...`，与 `src/config/routes.ts` 的 `console` 父路由对齐）；
  * - `component` → 相对 `src/view` 的组件路径（`/console/wms/input/list` → `src/view/console/wms/input/list.vue`）；
+ *
+ * ## ⚠️ 路径规则：**路由路径 == 视图路径**（与后端菜单种子同一条约定）
+ *
+ * 例：`/console/wms/input/list` ↔ `src/view/console/wms/input/list.vue`。
+ * 后端 `MenuService.initMenu()` 只写 `path`（不写 `component`），airpower 的
+ * `registerRoute()` 用 `component || path` 找组件 —— 两者相等时只维护一份路径，不会漂。
+ * 工作台是唯一例外：`path=/console/index` → `component=/console/index/index`。
+ *
+ * 这条约定由 `src/config/__tests__/menuContract.spec.ts` 双向守住：
+ * 既检查每个菜单能落到真实视图，也拿本文件与后端 `MenuService.initMenu()` 的种子对账。
  * - 分组节点不给 `path`/`component`，`registerRoute()` 会跳过注册、只用于展开收起。
  *
  * ⚠️ 增删页面时同步维护：**菜单缺项 = 演示时看不到该页**（不影响真实环境，真实环境走后端下发）。
@@ -27,11 +37,13 @@ function listPage(
   icon: string,
   orderNo: number,
 ): DemoMenuNode {
+  // 路径 == 视图路径：后端菜单种子只下发 path，前端靠这条约定定位组件
+  const routePath = `/console/${area}/${page}/list`
   return {
     id,
     name,
-    path: `/console/${area}/${page}`,
-    component: `/console/${area}/${page}/list`,
+    path: routePath,
+    component: routePath,
     icon,
     orderNo,
   }
@@ -86,7 +98,16 @@ export function demoMenuTree(): DemoMenuNode[] {
       listPage(704, '系统配置', 'system', 'config', 'Tools', 4),
       listPage(705, '编号规则', 'system', 'coderule', 'Postcard', 5),
       listPage(706, '操作日志', 'system', 'log', 'Notebook', 6),
-      group(720, '数据权限', 'Lock', 7, [
+      {
+        // 非列表页：路径与视图同名（`src/view/console/system/mcp/tools.vue`）
+        id: 707,
+        name: 'MCP 工具',
+        path: '/console/system/mcp/tools',
+        component: '/console/system/mcp/tools',
+        icon: 'Connection',
+        orderNo: 7,
+      },
+      group(720, '数据权限', 'Lock', 8, [
         listPage(721, '数据资源', 'system/datapermission', 'resource', 'Coin', 1),
         listPage(722, '行级策略', 'system/datapermission', 'policy', 'Filter', 2),
         listPage(723, '列级脱敏', 'system/datapermission', 'fieldPolicy', 'View', 3),

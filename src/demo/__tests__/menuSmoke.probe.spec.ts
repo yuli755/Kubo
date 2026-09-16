@@ -74,7 +74,7 @@ function leaves(nodes: MenuItem[]): MenuItem[] {
   return out
 }
 
-async function mountPage(pinia: Pinia, path: string) {
+async function mountPage(pinia: Pinia, path: string, component?: string) {
   await import('@/config/airpower-bootstrap')
   const { createAppRouter } = await import('@/router/appRouter')
   const { routes } = await import('@/config/routes')
@@ -82,9 +82,9 @@ async function mountPage(pinia: Pinia, path: string) {
   await router.push(path)
   await router.isReady()
 
-  // 列表页统一 list.vue，工作台是 index.vue
-  const key = `/src/view${path}/list.vue`
-  const loader = views[key] || views[`/src/view${path}/index.vue`]
+  // 路径规则：路由路径 == 视图路径（`component` 字段优先，其次 path 本身）
+  const key = `/src/view${component || path}.vue`
+  const loader = views[key] || views[`/src/view${path}/list.vue`] || views[`/src/view${path}/index.vue`]
   if (!loader) {
     throw new Error(`未找到视图文件：${key}`)
   }
@@ -138,7 +138,7 @@ describe('探针 · 全菜单逐页冒烟', () => {
       const { usePermissionStore } = await import('@/stores/permission')
       usePermissionStore().setPermissions(demoPermissions())
       try {
-        const wrapper = await mountPage(pinia, page.path!)
+        const wrapper = await mountPage(pinia, page.path!, page.component)
         const html = wrapper.html()
         if (errors.length) {
           failed.push(page.name)

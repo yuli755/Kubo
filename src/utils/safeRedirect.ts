@@ -14,7 +14,7 @@
  * @param uri - 待校验的跳转目标（任意来源）
  * @param fallback - 不合法时使用的站内默认页
  */
-export function safeRedirect(uri: unknown, fallback = '/console'): string {
+export function safeRedirect(uri: unknown, fallback = '/console/index'): string {
   const target = (uri ?? '').toString()
   if (!target) {
     return fallback
