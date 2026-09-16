@@ -35,20 +35,34 @@ export function useTanStackTable<E extends BaseEntity, S extends AbstractBaseSer
     queryKey: string[]
   },
 ): ITableResult<E, S> {
+  // ⚠️ 顺序不能反：airpower 的 Service 把 `entityClass` 声明为**实例字段**
+  // （`entityClass = MaterialEntity`），类对象上是 undefined —— 先取 `serviceClass.entityClass`
+  // 会得到 `new undefined()`，抛「serviceClass.entityClass is not a constructor」，
+  // 整个列表页被 Console 的错卡接住。官方 `useEditor` 同样是先 new 实例、再从实例取字段。
   // 传入的是"类本身"（参数名小写是约定，不是实例），因此 new 首字母小写是刻意的
   // eslint-disable-next-line new-cap
-  const entity: E = new (serviceClass as unknown as { entityClass: new () => E }).entityClass()
-  // eslint-disable-next-line new-cap
   const service = new serviceClass() as S
+  const EntityClass = service.entityClass
+  // eslint-disable-next-line new-cap
+  const entity: E = new EntityClass()
   const userStore = useUserStore()
 
   // ── 查询状态 ──
-  // QueryRequestPage 构造函数接受 ITransformerConstructor<E>，
-  // 运行时也接受实体实例（airpower 内部提取 constructor）
-  const request = ref<QueryRequestPage<E>>(new (QueryRequestPage as any)(entity))
-  const response = ref<QueryResponsePage<E>>(new (QueryResponsePage as any)()) as Ref<QueryResponsePage<E>>
+  // ⚠️ `ATable` 会直接读写 `request.value.filter`（搜索表单要 `Object.keys(filter)` 与 `filter.copy()`），
+  // 而 `QueryRequestPage` 只有在收到**实体类构造器**时才会 `new FilterClass()` 初始化 filter；
+  // 传实体实例会被它内部 try/catch 静默吞掉，filter 停在 undefined，ATable 一 setup 就抛
+  // `Cannot convert undefined or null to object` → 整页变错卡。这里必须传类。
+  // 断言成 Ref<QueryRequestPage<E>>：`ref()` 的深层解包会把 filter 变成 UnwrapRef<E>，
+  // 与 `ITableResult.request` 的声明不符（airpower 自己也是这么拆开写的）
+  const request = ref(new QueryRequestPage<E>(EntityClass)) as Ref<QueryRequestPage<E>>
+  if (option.defaultFilter) {
+    request.value.filter = option.defaultFilter
+  }
+  const response = ref<QueryResponsePage<E>>(new QueryResponsePage<E>())
   const selectList = ref<E[]>([])
   const isLoading = ref(false)
+  // airpower 的 HTTP 层通过 `service.loading` 显示请求态，与 useBaseTable 保持一致
+  service.loading = isLoading
 
   const resolvedRequest = computed(() => request.value)
   // 租户是查询身份的一部分；不把它放进 key 会让切换租户复用旧缓存。
