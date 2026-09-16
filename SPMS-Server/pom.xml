@@ -88,6 +88,19 @@
           读端点仍按施工图逐资源收口。`MybatisJpaCoexistenceTest` 继续验证默认关闭时两套 ORM
           能共存且回滚位有效。
         -->
+        <!-- 数据库迁移：此前是 9 个手工 SQL 脚本，靠人对着文档按顺序执行；现在收编为
+             db/migration 下的版本化迁移（V1 基线 + V2..V10 存量脚本），由 Flyway 记账。
+             存量库用 baseline-on-migrate 记为 baseline 1，不会重放 V1。 -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <!-- MySQL 方言支持：Flyway 10+ 拆成独立模块，缺了启动即报
+             "No database found to handle jdbc:mysql://..." -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>

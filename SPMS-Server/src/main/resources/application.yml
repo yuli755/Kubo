@@ -24,6 +24,22 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
       leak-detection-threshold: 60000
+  # 数据库迁移（Flyway）：schema 的唯一入口。
+  #  - baseline-on-migrate: 存量库（开发/生产）已有完整表结构，首次接入把当前状态
+  #    记为 baseline 1、**不执行 V1 基线**，只往后应用 V2+；全新库从 V1 开始跑。
+  #  - validate-on-migrate: 校验已应用迁移的校验和，防止有人改历史脚本造成
+  #    "新库与旧库结构不一致"这种最难查的问题。
+  #  - 与 ddl-auto: validate 并存是刻意的：JPA 校验是过渡期第二道网，
+  #    去 JPA（写路径换 MyBatis）之后这一行会一起删掉。
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 1
+    baseline-description: 存量库接入基线
+    validate-on-migrate: true
+    out-of-order: false
+    table: flyway_schema_history
   jpa:
     database-platform: org.hibernate.dialect.MySQL8Dialect
     hibernate:

@@ -1301,7 +1301,8 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
     expect(retention).toContain('cutoffEpochMillis')
     expect(diffRepository).toContain('delete from data_permission_diff_log where create_time < :cutoff')
     expect(parityRepository).toContain('delete from data_permission_orm_parity_log where create_time < :cutoff')
-    const migration = read(join(ROOT, 'SPMS-Server', 'docs', 'database', 'migration', '20260909_data_permission_migrations_consolidated.sql'))
+    // 迁移脚本 2026-09-17 收编进 Flyway，路径随之改变（见 docs/database/Flyway-S0·基线与存量脚本收编.md）
+    const migration = read(join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'db', 'migration', 'V2__data_permission_migrations.sql'))
     expect(migration).toContain('idx_dp_diff_create_time')
     expect(migration).toContain('idx_dp_parity_create_time')
     expect(migration).toContain('kubo_dp_add_evidence_time_index')
@@ -1726,7 +1727,8 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
   const READINESS = join(DPM, 'service', 'DataResourceService.java')
   const PARITY_ENTITY = join(DPM, 'entity', 'DataPermissionOrmParityEntity.java')
   const DIFF_ENTITY = join(DPM, 'entity', 'DataPermissionDiffEntity.java')
-  const MIGRATION_DIR = join(ROOT, 'SPMS-Server', 'docs', 'database', 'migration')
+  // 收编后的迁移目录（原 docs/database/migration 只留 README 指路）
+  const MIGRATION_DIR = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'db', 'migration')
   const TEST_SCHEMA = join(ROOT, 'SPMS-Server', 'src', 'test', 'resources', 'schema-test.sql')
   const YML = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'application.yml')
   const PARITY_TABLE = 'data_permission_orm_parity_log'
@@ -1735,7 +1737,11 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
     const migration = collect(MIGRATION_DIR, '.sql').filter(file => read(file).includes(`CREATE TABLE IF NOT EXISTS \`${PARITY_TABLE}\``))
     expect(migration, `迁移脚本里没有 ${PARITY_TABLE}：生产上是"实体在、表不在"，`
     + '启动期 ddl-auto=validate 直接崩，而 H2 那边因为另有手抄 schema 完全不会红')
-      .toHaveLength(1)
+      .not
+      .toHaveLength(0)
+    // 两处都该有，且角色不同：V1 基线负责全新库建表，V2 是历史脚本负责存量库（幂等，重复不会生效）
+    expect(migration.map(file => file.split('/').pop()).sort(), '对账表应同时出现在基线（全新库）与历史迁移（存量库）里')
+      .toEqual(['V1__baseline_schema.sql', 'V2__data_permission_migrations.sql'])
     expect(read(PARITY_ENTITY), '对账实体没把表名钉在 @Table 上：那三处同源就无从对起')
       .toContain(`@Table(name = "${PARITY_TABLE}")`)
     expect(read(TEST_SCHEMA), 'H2 测试 schema 里没有这张表：对账用例会在"表不存在"上红，'
@@ -1744,7 +1750,9 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
 
     // 实体声明的每一列都要在迁移脚本里出现（ddl:check 也查这件事，但它跑在 Web job；
     // 这里只查表名与列名是否同现于那份 CREATE TABLE，出错时 annotation 更早、更靠近改代码的人）
-    const ddl = read(migration[0])
+    const historical = migration.find(file => file.includes('V2__'))
+    expect(historical, 'V2 历史迁移里没有这张表的建表语句').toBeTruthy()
+    const ddl = read(historical!)
     const block = ddl.slice(ddl.indexOf(`CREATE TABLE IF NOT EXISTS \`${PARITY_TABLE}\``))
     const columns = [...readJavaCode(PARITY_ENTITY).matchAll(/@Column\(name = "([a-z_]+)"/g)].map(m => m[1])
     // 列数写死是有意的：加列时必须同时改迁移脚本、H2 手抄与这个数字，
