@@ -1,0 +1,271 @@
+<script lang="ts" setup generic="E extends IIdentifiableEntity">
+import type { FormInstance } from 'element-plus'
+import type { AbstractCurdService, IFormField, IIdentifiableEntity } from '@/framework'
+import { ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElOption, ElSelect, ElSwitch } from 'element-plus'
+import { computed, nextTick, ref, watch } from 'vue'
+import { FeedbackUtil, getFormConfigList, getModelName, WebValidator } from '@/framework'
+
+/**
+ * # KFormDialog —— 自研表单弹窗（替代 airpower `ADialog` + `useEditor` 的组合）
+ *
+ * ## 为什么要有它
+ * airpower 的写法是「`useEditor(props, ServiceClass)` 管状态 + `<ADialog>` 管壳 + `AFormField`
+ * 按字段渲染」，三者通过 `DialogProps.create/withParam/withId/withSelector` 这套静态方法串联，
+ * 调用方必须记住「弹窗怎么开、回调怎么接」。换底座时最该改的就是这里：**把协议收敛成一个组件**。
+ *
+ * ## 契约（页面怎么写）
+ * ```vue
+ * <KFormDialog
+ *   v-model="visible"
+ *   :service="UnitService"
+ *   :id="editingId"
+ *   @saved="() => table.reload()"
+ * />
+ * ```
+ * - `modelValue` 控制显隐；`:id` 有值 = 编辑（先拉详情），无值 = 新增；
+ * - 校验规则由 `@Form` 元数据经 `WebValidator.createRules` **自动生成**（不手写 rules）；
+ * - 提交成功 `emit('saved')`，页面只负责刷新列表 —— 不需要再接 `onCallback`。
+ *
+ * ## 字段渲染
+ * 目前支持 `@Form` 元数据覆盖的常见类型：字符串（含 textarea）、数字、布尔（开关）、
+ * 字典（下拉）。选择器（远程下拉/树选择）留到 F2 第二批，页面可先用 `#field-<name>` 插槽自定义。
+ */
+
+const props = withDefaults(defineProps<{
+  modelValue: boolean
+  /** 服务类（new 一个实例用于 `add/update/getDetail`） */
+  service: new () => AbstractCurdService<E>
+  /** 编辑的记录 id；不传为新增 */
+  id?: number | null
+  /** 弹窗标题（默认按实体名自动拼「新增/编辑」） */
+  title?: string
+  /** 提交成功后是否自动关闭 */
+  closeOnSaved?: boolean
+  /** 弹窗宽度 */
+  width?: string
+}>(), {
+  closeOnSaved: true,
+  width: '560px',
+})
+
+const emit = defineEmits<{
+  (event: 'update:modelValue', value: boolean): void
+  (event: 'saved', id: number): void
+  (event: 'closed'): void
+}>()
+
+/**
+ * 实例化服务类。
+ * 服务类来自 props（运行时名字），`new props.service()` 会被 `new-cap` 误判，
+ * 统一在参数名大写的 helper 里 new 一次。
+ */
+function createService(ServiceClass: new () => AbstractCurdService<E>): AbstractCurdService<E> {
+  return new ServiceClass()
+}
+
+const service = computed(() => createService(props.service))
+/**
+ * 实体构造器。
+ * 单独取一个 `EntityClass` 变量再 `new EntityClass()`：直接写 `new (x as ...)()`
+ * 会触发 `new-cap`（构造器名必须首字母大写），而这里的名字来自运行时。
+ */
+const EntityClass = computed(() => service.value.entityClass)
+
+const visible = computed({
+  get: () => props.modelValue,
+  set: value => emit('update:modelValue', value),
+})
+
+const formRef = ref<FormInstance>()
+const form = ref<Record<string, unknown>>({})
+const isLoading = ref(false)
+const isSubmitting = ref(false)
+
+/** 表单字段（来自 `@Form` 元数据，已剔除 `hide`） */
+const fields = computed<IFormField[]>(() => getFormConfigList(EntityClass.value) as IFormField[])
+
+/** 校验规则：由 `@Form` 元数据生成（必填、长度、正则…），页面不写 rules */
+/**
+ * 校验规则：由 `@Form` 元数据生成（必填、长度、正则…），页面不写 rules。
+ * 断言是边界收口：`createRules` 的返回类型是它自己的规则集，而 Element Plus 的 `FormRules`
+ * 结构兼容但有名义差异，硬转一次比在每个页面各写一遍 rules 划算。
+ */
+const rules = computed(() => WebValidator.createRules(EntityClass.value as never) as unknown as Record<string, unknown[]>)
+
+const title = computed(() => {
+  if (props.title)
+    return props.title
+  const name = getModelName(EntityClass.value)
+  return props.id ? `编辑${name}` : `新增${name}`
+})
+
+/**
+ * 控件类型：`@Form` 里是一组**布尔标志**（`switch` / `textarea` / `password` / `radio`…），
+ * 没有 `type` 字符串 —— 按标志优先级推导，顺序即优先级（多行 > 开关 > 下拉 > 普通输入）。
+ */
+function fieldType(field: IFormField): 'textarea' | 'switch' | 'select' | 'password' | 'number' | 'input' {
+  if (field.textarea)
+    return 'textarea'
+  if (field.switch)
+    return 'switch'
+  if (field.dictionary)
+    return 'select'
+  if (field.password)
+    return 'password'
+  if (field.number)
+    return 'number'
+  return 'input'
+}
+
+function resetForm() {
+  const Ctor = EntityClass.value
+  const instance = new Ctor() as Record<string, unknown>
+  const next: Record<string, unknown> = {}
+  for (const field of fields.value) {
+    next[field.key] = instance[field.key] ?? ''
+  }
+  form.value = next
+}
+
+async function loadDetail(id: number) {
+  isLoading.value = true
+  try {
+    const entity = await service.value.getDetail(id)
+    form.value = { ...(entity as unknown as Record<string, unknown>) }
+  }
+  finally {
+    isLoading.value = false
+  }
+}
+
+/**
+ * 打开时初始化：
+ * - 编辑：拉详情并回填；
+ * - 新增：按字段重置成空值（**不能复用上一次的表单对象**，否则新增会把上次编辑的残留带过去，
+ *   这是"新建出来一条脏数据"最常见的原因）。
+ */
+watch(
+  () => [props.modelValue, props.id] as const,
+  async ([opened, id]) => {
+    if (!opened)
+      return
+    await nextTick()
+    formRef.value?.clearValidate()
+    if (id) {
+      await loadDetail(id)
+    }
+    else {
+      resetForm()
+    }
+  },
+  { immediate: true },
+)
+
+async function onSubmit() {
+  const valid = await formRef.value?.validate().catch(() => false)
+  if (valid === false)
+    return
+
+  isSubmitting.value = true
+  try {
+    const Ctor = EntityClass.value
+    const entity = Object.assign(new Ctor(), form.value) as unknown as E
+    const id = props.id
+      ? await service.value.update({ ...entity, id: props.id } as E)
+      : await service.value.add(entity)
+    FeedbackUtil.toastSuccess(props.id ? '保存成功' : '新增成功')
+    emit('saved', Number(id))
+    if (props.closeOnSaved)
+      visible.value = false
+  }
+  finally {
+    isSubmitting.value = false
+  }
+}
+
+function onCancel() {
+  visible.value = false
+  emit('closed')
+}
+</script>
+
+<template>
+  <ElDialog
+    v-model="visible"
+    :title="title"
+    :width="width"
+    :close-on-click-modal="false"
+    append-to-body
+    destroy-on-close
+    @closed="emit('closed')"
+  >
+    <ElForm
+      ref="formRef"
+      v-loading="isLoading"
+      :model="form"
+      :rules="rules"
+      label-width="110px"
+      @submit.prevent="onSubmit"
+    >
+      <ElFormItem
+        v-for="field in fields"
+        :key="field.key"
+        :label="field.label"
+        :prop="field.key"
+      >
+        <!-- 页面可对任意字段覆盖控件（选择器/上传等），不必等框架支持 -->
+        <slot
+          :name="`field-${field.key}`"
+          :field="field"
+          :form="form"
+        >
+          <ElSwitch
+            v-if="fieldType(field) === 'switch' || typeof form[field.key] === 'boolean'"
+            v-model="form[field.key] as boolean"
+          />
+          <ElSelect
+            v-else-if="fieldType(field) === 'select'"
+            v-model="form[field.key] as string | number"
+            :placeholder="field.placeholder || `请选择${field.label}`"
+            clearable
+            class="k-form-dialog__control"
+          >
+            <ElOption
+              v-for="option in field.dictionary?.getList?.() ?? []"
+              :key="option.key"
+              :label="option.label"
+              :value="option.key"
+            />
+          </ElSelect>
+          <ElInput
+            v-else
+            v-model="form[field.key] as string"
+            :type="fieldType(field) === 'textarea' ? 'textarea' : 'text'"
+            :rows="3"
+            :placeholder="field.placeholder || `请输入${field.label}`"
+            clearable
+          />
+        </slot>
+      </ElFormItem>
+    </ElForm>
+
+    <template #footer>
+      <ElButton @click="onCancel">
+        取消
+      </ElButton>
+      <ElButton
+        type="primary"
+        :loading="isSubmitting"
+        @click="onSubmit"
+      >
+        保存
+      </ElButton>
+    </template>
+  </ElDialog>
+</template>
+
+<style scoped>
+.k-form-dialog__control {
+  width: 100%;
+}
+</style>

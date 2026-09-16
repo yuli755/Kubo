@@ -53,6 +53,8 @@ export interface ITableColumn extends IBaseField {
   /** 列标题（缺省取 `@Field` 的 label） */
   label?: string
   width?: number | string
+  /** 最小宽度（Element Plus `min-width`；列多时靠它撑开而不是挤成省略号） */
+  minWidth?: number | string
   /** 排序权重，越大越靠前 */
   order?: number
   /** 强制显示（列选择器中不可取消） */
@@ -145,6 +147,18 @@ export interface ISearchField extends IBaseField {
   /** 时间区间查询（对应后端 xxxStart / xxxEnd） */
   range?: boolean
   dictionary?: IWebEnumConstructor
+}
+
+/**
+ * 实体最小结构：只要求 `id`。
+ *
+ * ⚠️ 为什么不用 `RootEntity` 做约束：迁移期存在**两套实体基类** ——
+ * 存量 `@/base/BaseEntity`（继承 airpower 的 `RootEntity`）与新底座 `@/base/KEntity`
+ * （继承本仓 `RootEntity`）。两者的 `copy()` 泛型签名不同，用任一方做约束都会把另一方挡在门外。
+ * 新底座的组件只需要「有 id、能被 `fill` 填充」，所以按这个最小结构约束。
+ */
+export interface IIdentifiableEntity {
+  id: number
 }
 
 /** `@Model` 配置 */

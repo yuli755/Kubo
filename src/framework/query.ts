@@ -10,7 +10,7 @@
  */
 
 import type { RootEntity } from './entity'
-import type { ITransformerConstructor } from './types'
+import type { IIdentifiableEntity, ITransformerConstructor } from './types'
 import { RootModel } from './entity'
 
 /** 排序方向（后端枚举值） */
@@ -44,7 +44,7 @@ export class QuerySort extends RootModel {
  * ⚠️ 构造参数必须是**实体类构造器**：`filter` 要 `new FilterClass()` 初始化成一份空表单，
  * 表格的搜索区会直接读写 `request.filter`。传实例会被静默忽略（filter 停在 undefined）。
  */
-export class QueryRequest<E extends RootEntity = RootEntity> extends RootModel {
+export class QueryRequest<E extends IIdentifiableEntity = RootEntity> extends RootModel {
   filter!: E
   sort?: QuerySort
 
@@ -65,12 +65,12 @@ export class QueryRequest<E extends RootEntity = RootEntity> extends RootModel {
 }
 
 /** 分页查询请求 */
-export class QueryRequestPage<E extends RootEntity = RootEntity> extends QueryRequest<E> {
+export class QueryRequestPage<E extends IIdentifiableEntity = RootEntity> extends QueryRequest<E> {
   page: QueryPage = new QueryPage()
 }
 
 /** 分页响应 */
-export class QueryResponsePage<E extends RootEntity = RootEntity> extends RootModel {
+export class QueryResponsePage<E extends IIdentifiableEntity = RootEntity> extends RootModel {
   list: E[] = []
   page: QueryPage = new QueryPage()
   sort?: QuerySort

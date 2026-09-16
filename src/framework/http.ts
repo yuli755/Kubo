@@ -25,7 +25,7 @@
 import type { Ref } from 'vue'
 import type { RootEntity } from './entity'
 import type { QueryRequest } from './query'
-import type { IJson, ITransformerConstructor } from './types'
+import type { IIdentifiableEntity, IJson, ITransformerConstructor } from './types'
 import { request } from '@/api/axios'
 import { fill, RootModel, toJson } from './entity'
 import { FeedbackUtil } from './feedback'
@@ -143,7 +143,7 @@ export abstract class AbstractService extends RootModel {
  *
  * @param E 实体类型
  */
-export abstract class AbstractCurdService<E extends RootEntity> extends AbstractService {
+export abstract class AbstractCurdService<E extends IIdentifiableEntity> extends AbstractService {
   /** 该服务操作的实体类（请求/响应都经它转换） */
   abstract entityClass: ITransformerConstructor<E>
 
@@ -261,6 +261,6 @@ export abstract class AbstractCurdService<E extends RootEntity> extends Abstract
 }
 
 /** 兼容旧写法：`QueryRequestPage` 需要显式实体类 */
-export function createRequest<E extends RootEntity>(EntityClass: ITransformerConstructor<E>): QueryRequestPage<E> {
+export function createRequest<E extends IIdentifiableEntity>(EntityClass: ITransformerConstructor<E>): QueryRequestPage<E> {
   return new QueryRequestPage<E>(EntityClass)
 }
