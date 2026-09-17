@@ -31,10 +31,9 @@ import KTable from './KTable.vue'
  * />
  * ```
  *
- * ## 与旧选择器的互操作
- * 存量 `StorageSelector.vue` 等仍是 airpower 组件（`DialogProps.withParam`）。
- * 新页面要打开它们时用 `@/framework` 的 `DialogUtil.show/select/selectList` —— 那份实现
- * 的 props/events 与 `DialogProps` 契约一致，因此**可以混用**，不需要一次性全量重写。
+ * ## 与命令式选择器的关系
+ * 声明式用本组件（页面自己管 `v-model` 与选中值）；需要 `await` 拿返回值时用
+ * `@/framework` 的 `DialogUtil.select/selectList`（两者都走同一套 props/events 契约）。
  */
 
 const props = withDefaults(defineProps<{
