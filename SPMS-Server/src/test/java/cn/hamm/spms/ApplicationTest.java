@@ -1,7 +1,7 @@
 package cn.hamm.spms;
 
 import cn.hamm.spms.core.TaskUtil;
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.framework.redis.RedisHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.Disabled;

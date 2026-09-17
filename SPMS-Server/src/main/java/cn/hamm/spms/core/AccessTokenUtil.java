@@ -1,0 +1,291 @@
+package cn.hamm.spms.core;
+
+/*
+ * 来源：AirPower-Core 6.3.1（https://github.com/AirPowerTeam/AirPower-Core ，MIT License，Copyright (c) 2022 Hamm）
+ * 2026-09-18 后端 airpower 退场【core 层自持】：整模块搬入本仓，仅把包名 cn.hamm.airpower.core → cn.hamm.spms.core。
+ * 逻辑一字未改；本仓从此自己拥有这一层（上游变化不再自动进入）。改代码改这里。
+ *
+ * 为什么后来改成「整模块」而不是只搬调用闭包：框架层（curd/api/redis）也搬进来了，
+ * 它要用的核心类必须都在 —— 半套副本只会把「缺哪个类」变成编译期的猜谜（见 docs 的可行性矩阵）。
+ */
+
+import cn.hamm.spms.core.constant.Constant;
+import cn.hamm.spms.core.exception.ServiceException;
+import lombok.Data;
+import lombok.experimental.Accessors;
+import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+/**
+ * <h1>AccessToken 工具类</h1>
+ *
+ * @author Hamm.cn
+ */
+@Slf4j
+public class AccessTokenUtil {
+    /**
+     * 无效的令牌
+     */
+    private static final String ACCESS_TOKEN_INVALID = "身份令牌无效，请重新获取身份令牌";
+
+    /**
+     * 请先设置密钥环境变量
+     */
+    private static final String SET_ENV_TOKEN_SECRET_FIRST = "请在环境变量配置 airpower.accessTokenSecret";
+
+    /**
+     * 算法
+     */
+    private static final String HMAC_SHA_256 = "HmacSHA256";
+
+    /**
+     * Token 分隔符
+     */
+    private static final String TOKEN_DELIMITER = ".";
+
+    /**
+     * {@code HMAC-SHA-256}错误
+     */
+    private static final String HMAC_SHA_256_ERROR = "HMAC-SHA-256发生错误";
+
+    /**
+     * {@code Token} 由 {@code 3} 部分组成
+     */
+    private static final int TOKEN_PART_COUNT = 3;
+
+    /**
+     * 验证后的 Token
+     */
+    private VerifiedToken verifiedToken;
+
+    /**
+     * 禁止外部实例化
+     */
+    @Contract(pure = true)
+    private AccessTokenUtil() {
+    }
+
+    /**
+     * 创建实例
+     *
+     * @return AccessTokenUtil 实例
+     */
+    public static @NotNull AccessTokenUtil create() {
+        AccessTokenUtil accessTokenUtil = new AccessTokenUtil();
+        accessTokenUtil.verifiedToken = new VerifiedToken();
+        return accessTokenUtil;
+    }
+
+    /**
+     * 抛出异常
+     *
+     * @param message 错误信息
+     */
+    @Contract("_ -> fail")
+    private static void throwException(String message) {
+        throw new ServiceException(Json.UNAUTHORIZED_CODE, message);
+    }
+
+    /**
+     * 创建一个 AccessToken
+     *
+     * @param id TokenID
+     * @return AccessTokenUtil 实例
+     * @apiNote 不设置令牌过期时间
+     */
+    public AccessTokenUtil setPayloadId(Long id) {
+        return addPayload(Constant.ID, id);
+    }
+
+    /**
+     * 生成 {@code Token}
+     *
+     * @param secret 密钥
+     * @return AccessToken
+     */
+    public final String build(String secret) {
+        if (!StringUtil.hasText(secret)) {
+            throwException("身份令牌创建失败，" + SET_ENV_TOKEN_SECRET_FIRST);
+        }
+        if (verifiedToken.getPayloads().isEmpty()) {
+            throw new ServiceException("没有任何负载数据");
+        }
+        String payloadBase = Base64.getUrlEncoder().encodeToString(
+                Json.toString(verifiedToken.getPayloads()).getBytes(UTF_8)
+        );
+        String content = verifiedToken.getExpireTimestamps() +
+                TOKEN_DELIMITER +
+                hmacSha256(secret, verifiedToken.getExpireTimestamps() + TOKEN_DELIMITER + payloadBase) +
+                TOKEN_DELIMITER +
+                payloadBase;
+        return Base64.getUrlEncoder().encodeToString(content.getBytes(UTF_8));
+    }
+
+    /**
+     * 添加负载
+     *
+     * @param key   负载的 Key
+     * @param value 负载的 Value
+     * @return AccessTokenUtil 实例
+     */
+    @Contract("_, _ -> this")
+    public final AccessTokenUtil addPayload(String key, Object value) {
+        verifiedToken.getPayloads().put(key, value);
+        return this;
+    }
+
+    /**
+     * 移除负载
+     *
+     * @param key 负载 Key
+     * @return AccessTokenUtil 实例
+     */
+    @Contract("_ -> this")
+    public final AccessTokenUtil removePayload(String key) {
+        verifiedToken.getPayloads().remove(key);
+        return this;
+    }
+
+    /**
+     * 设置过期时间 {@code 毫秒}
+     *
+     * @param millisecond 过期毫秒
+     * @return AccessTokenUtil 实例
+     */
+    @Contract("_ -> this")
+    public final AccessTokenUtil setExpireMillisecond(long millisecond) {
+        if (millisecond <= 0) {
+            throw new ServiceException("过期毫秒数必须大于0");
+        }
+        verifiedToken.setExpireTimestamps(System.currentTimeMillis() + millisecond);
+        return this;
+    }
+
+    /**
+     * 设置过期时间 {@code 秒}
+     *
+     * @param second 秒数
+     * @return AccessTokenUtil 实例
+     */
+    @Contract("_ -> this")
+    public final AccessTokenUtil setExpireSecond(long second) {
+        if (second <= 0) {
+            throw new ServiceException("过期秒数必须大于0");
+        }
+        return setExpireMillisecond(second * DateTimeUtil.MILLISECONDS_PER_SECOND);
+    }
+
+    /**
+     * 验证 AccessToken 并返回 VerifiedToken
+     *
+     * @param accessToken AccessToken
+     * @param secret      密钥
+     * @return VerifiedToken
+     */
+    public final VerifiedToken verify(@NotNull String accessToken, String secret) {
+        if (!StringUtil.hasText(secret)) {
+            throwException(SET_ENV_TOKEN_SECRET_FIRST);
+        }
+        String source = "";
+        try {
+            source = new String(Base64.getUrlDecoder().decode(accessToken.getBytes(UTF_8)));
+        } catch (Exception exception) {
+            throwException(ACCESS_TOKEN_INVALID);
+        }
+        if (!StringUtil.hasText(source)) {
+            throwException(ACCESS_TOKEN_INVALID);
+        }
+        String[] list = source.split("\\" + TOKEN_DELIMITER);
+        if (list.length != TOKEN_PART_COUNT) {
+            throwException(ACCESS_TOKEN_INVALID);
+        }
+        //noinspection AlibabaUndefineMagicConstant
+        if (!hmacSha256(secret, list[0] + TOKEN_DELIMITER + list[2]).equals(list[1])) {
+            throwException(ACCESS_TOKEN_INVALID);
+        }
+        if (Long.parseLong(list[0]) < System.currentTimeMillis() &&
+                Long.parseLong(list[0]) != 0) {
+            throwException(ACCESS_TOKEN_INVALID);
+        }
+        Map<String, Object> payloads = Json.parse2Map(new String(
+                Base64.getUrlDecoder().decode(list[2].getBytes(UTF_8)))
+        );
+        return new VerifiedToken().setExpireTimestamps(Long.parseLong(list[0])).setPayloads(payloads);
+    }
+
+    /**
+     * HMacSha256 签名
+     *
+     * @param secret  密钥
+     * @param content 数据
+     * @return 签名
+     */
+    private @NotNull String hmacSha256(@NotNull String secret, @NotNull String content) {
+        try {
+            Mac mac = Mac.getInstance(HMAC_SHA_256);
+            SecretKeySpec secretKeySpec = new SecretKeySpec(secret.getBytes(UTF_8), HMAC_SHA_256);
+            mac.init(secretKeySpec);
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : mac.doFinal(content.getBytes(UTF_8))) {
+                hexString.append(String.format("%02x", b & 0xff));
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            log.error(HMAC_SHA_256_ERROR, e);
+            throw new ServiceException(HMAC_SHA_256_ERROR);
+        }
+    }
+
+    /**
+     * 已验证的身份令牌
+     *
+     * @author Hamm.cn
+     */
+    @Data
+    @Accessors(chain = true)
+    public static class VerifiedToken {
+        /**
+         * 负载数据
+         */
+        private Map<String, Object> payloads = new HashMap<>();
+
+        /**
+         * 过期时间 {@code 毫秒}
+         */
+        private long expireTimestamps = 0;
+
+        /**
+         * 获取负载
+         *
+         * @param key 负载的 Key
+         * @return 负载的 Value
+         */
+        public final @Nullable Object getPayload(String key) {
+            return payloads.get(key);
+        }
+
+        /**
+         * 获取负载的 {@code ID}
+         *
+         * @return {@code ID}
+         */
+        public final long getPayloadId() {
+            Object userId = getPayload(Constant.ID);
+            if (Objects.isNull(userId)) {
+                throwException(ACCESS_TOKEN_INVALID);
+            }
+            return Long.parseLong(userId.toString());
+        }
+    }
+}

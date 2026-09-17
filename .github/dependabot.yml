@@ -33,7 +33,8 @@ updates:
     # 2026-09-18 起后端**不再继承 cn.hamm:airpower 父 POM**（退场 B0）：Spring Boot 版本由
     # SPMS-Server/pom.xml 的 `springboot.version` 决定，`mvn` 的依赖版本表是 Spring Boot 官方 BOM，
     # 所以 spring-boot-*/mybatis-plus/springdoc 的版本都由本仓显式管，交给 Dependabot 报 patch/minor。
-    # 剩的唯一 airpower 依赖 `airpower-curd` 正在退场（B8 删除），自动升级只会制造噪音。
+    # `cn.hamm:airpower-curd` 已于 2026-09-18 删除（退场完成，pom 里再无 cn.hamm）。
+    # 下面这条 ignore 现在是**防回潮用的**：万一有人把 airpower 依赖加回来，至少不会有自动升级 PR 帮它续命。
     ignore:
       - dependency-name: cn.hamm:airpower-curd
         update-types: ['version-update:semver-major', 'version-update:semver-minor', 'version-update:semver-patch']

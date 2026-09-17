@@ -1,8 +1,8 @@
 package cn.hamm.spms.module.system.coderule;
 
 import cn.hamm.spms.core.DateTimeUtil;
-import cn.hamm.airpower.core.DictionaryUtil;
-import cn.hamm.airpower.core.ReflectUtil;
+import cn.hamm.spms.core.DictionaryUtil;
+import cn.hamm.spms.core.ReflectUtil;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;

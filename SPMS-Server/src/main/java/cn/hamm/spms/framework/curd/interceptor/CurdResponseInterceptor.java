@@ -1,0 +1,294 @@
+package cn.hamm.spms.framework.curd.interceptor;
+
+/*
+ * 来源：AirPower4J 6.4.3（https://github.com/AirPowerTeam/AirPower4J ，MIT License，Copyright (c) 2022 Hamm）
+ * 2026-09-18 后端 airpower 退场 —【框架层自持】整模块搬入本仓，只改包名：
+ *   cn.hamm.airpower.core  → cn.hamm.spms.core
+ *   cn.hamm.airpower.api   → cn.hamm.spms.framework.api
+ *   cn.hamm.airpower.curd  → cn.hamm.spms.framework.curd
+ *   cn.hamm.airpower.redis → cn.hamm.spms.framework.redis
+ * 代码逻辑一字未改（JPA→MyBatis-Plus 的持久化替换是紧随其后的独立一批，见 docs）。
+ * 从此这一层由本仓拥有：改代码改这里，不再有"上游"。
+ */
+
+import cn.hamm.spms.framework.api.ApiController;
+import cn.hamm.spms.framework.api.config.ApiConfig;
+import cn.hamm.spms.core.*;
+import cn.hamm.spms.core.annotation.DesensitizeIgnore;
+import cn.hamm.spms.core.annotation.ExposeAll;
+import cn.hamm.spms.core.constant.HttpConstant;
+import cn.hamm.spms.framework.curd.annotation.DisableRequestLog;
+import cn.hamm.spms.framework.curd.annotation.DisableResponseLog;
+import cn.hamm.spms.framework.curd.base.CurdController;
+import cn.hamm.spms.framework.curd.model.query.QueryPageResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.MethodParameter;
+import org.springframework.http.MediaType;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.server.ServerHttpRequest;
+import org.springframework.http.server.ServerHttpResponse;
+import org.springframework.http.server.ServletServerHttpRequest;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
+import org.springframework.web.util.ContentCachingRequestWrapper;
+
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+import static cn.hamm.spms.framework.curd.interceptor.CurdRequestInterceptor.REQUEST_CONTROLLER_KEY;
+import static cn.hamm.spms.framework.curd.interceptor.CurdRequestInterceptor.REQUEST_METHOD_KEY;
+
+/**
+ * <h1>全局拦截响应</h1>
+ *
+ * @author Hamm.cn
+ */
+@ControllerAdvice
+@Slf4j
+public class CurdResponseInterceptor implements ResponseBodyAdvice<Object> {
+    @Autowired
+    private ApiConfig apiConfig;
+
+    /**
+     * 是否支持
+     *
+     * @param returnType    请求方法
+     * @param converterType 转换器
+     */
+    @Contract(pure = true)
+    @Override
+    public final boolean supports(
+            @NotNull MethodParameter returnType,
+            @NotNull Class<? extends HttpMessageConverter<?>> converterType
+    ) {
+        return true;
+    }
+
+    /**
+     * 响应结果处理前置
+     *
+     * @param body                  输出数据
+     * @param returnType            请求方法
+     * @param selectedContentType   选择的数据类型
+     * @param selectedConverterType 选择的转换器
+     * @param request               请求
+     * @param response              响应
+     * @return 处理后的结果
+     */
+    @Override
+    public final Object beforeBodyWrite(
+            Object body,
+            @NotNull MethodParameter returnType,
+            @NotNull MediaType selectedContentType,
+            @NotNull Class<? extends HttpMessageConverter<?>> selectedConverterType,
+            @NotNull ServerHttpRequest request,
+            @NotNull ServerHttpResponse response
+    ) {
+        Method method = (Method) getShareData(REQUEST_METHOD_KEY);
+        ApiController controller = (ApiController) getShareData(REQUEST_CONTROLLER_KEY);
+        Object responseResult;
+        if (Objects.isNull(method)) {
+            responseResult = beforeResponseFinished(body, request, response);
+        } else {
+            responseResult = beforeResponseFinished(getResult(body, controller, method), request, response);
+        }
+        if (!apiConfig.getBodyTraceId()) {
+            // 不在 Body 中响应 那么在 Header 中响应
+            String traceId = TraceUtil.getTraceId();
+            response.getHeaders().set(HttpConstant.Header.TRACE_ID, traceId);
+        }
+        printRequestLog(method, request);
+        printResponseLog(method, Json.toString(responseResult));
+        return responseResult;
+    }
+
+    /**
+     * 打印响应日志
+     *
+     * @param method         请求的方法
+     * @param responseResult 响应的包体
+     */
+    private void printResponseLog(Method method, String responseResult) {
+        if (!apiConfig.getResponseLog()) {
+            return;
+        }
+        if (method != null) {
+            DisableResponseLog disableResponseLog = ReflectUtil.getAnnotation(DisableResponseLog.class, method);
+            if (Objects.nonNull(disableResponseLog) && disableResponseLog.value()) {
+                // 禁用日志
+                return;
+            }
+        }
+        log.info("响应包体 {}", responseResult);
+    }
+
+    /**
+     * 打印请求日志
+     *
+     * @param method  请求的方法
+     * @param request 请求
+     */
+    private void printRequestLog(Method method, @NotNull ServerHttpRequest request) {
+        if (!apiConfig.getRequestLog()) {
+            return;
+        }
+        if (method != null) {
+            DisableRequestLog disableRequestLog = ReflectUtil.getAnnotation(DisableRequestLog.class, method);
+            if (Objects.nonNull(disableRequestLog) && disableRequestLog.value()) {
+                // 禁用日志
+                return;
+            }
+        }
+        log.info("请求包体 {}", getRequestBody(((ServletServerHttpRequest) request).getServletRequest()));
+    }
+
+    /**
+     * 获取响应结果
+     *
+     * @param result     响应结果
+     * @param controller 控制器实例
+     * @param method     请求的方法
+     * @return 处理后的数据
+     */
+    @Contract("null, _, _ -> null")
+    private <M extends RootModel<M>> Object getResult(Object result, ApiController controller, Method method) {
+        if (!(result instanceof Json json)) {
+            // 返回不是JsonData 原样返回
+            return result;
+        }
+        if (apiConfig.getBodyTraceId()) {
+            json.setTraceId(TraceUtil.getTraceId());
+        }
+        Object data = json.getData();
+        if (Objects.isNull(data)) {
+            return json;
+        }
+
+        // 获取暴露所有字段的类列表
+        @NotNull List<Class<? extends RootModel<?>>> whiteList;
+        ExposeAll exposeAll = ReflectUtil.getAnnotation(ExposeAll.class, method);
+        if (Objects.nonNull(exposeAll)) {
+            whiteList = Arrays.stream(exposeAll.value()).toList();
+        } else {
+            whiteList = new ArrayList<>();
+            try {
+                Class<M> entityClass = null;
+                // 如果没有标记 自动读取实体类
+                if (controller instanceof CurdController<?, ?, ?> curdController) {
+                    //noinspection unchecked
+                    entityClass = (Class<M>) curdController.getEntityClass();
+                }
+                if (Objects.nonNull(entityClass)) {
+                    whiteList.add(entityClass);
+                }
+            } catch (Exception e) {
+                log.error(e.getMessage(), e);
+            }
+        }
+
+        // 是否需要忽略脱敏
+        DesensitizeIgnore desensitizeIgnore = ReflectUtil.getAnnotation(DesensitizeIgnore.class, method);
+        boolean isDesensitize = Objects.isNull(desensitizeIgnore);
+
+        Object object = filterModelValue(data, whiteList, isDesensitize);
+        json.setData(object);
+        // 其他数据 原样返回
+        return json;
+    }
+
+    /**
+     * 响应结束前置方法
+     *
+     * @param body 响应体
+     * @return 响应体
+     * @apiNote 如无其他操作，请直接返回 body 参数即可
+     */
+    @SuppressWarnings("unused")
+    protected Object beforeResponseFinished(Object body, ServerHttpRequest request, ServerHttpResponse response) {
+        return body;
+    }
+
+    /**
+     * 获取共享数据
+     *
+     * @param key KEY
+     * @return VALUE
+     */
+    protected final @Nullable Object getShareData(String key) {
+        RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+        if (Objects.isNull(requestAttributes)) {
+            return null;
+        }
+        return requestAttributes.getAttribute(key, RequestAttributes.SCOPE_REQUEST);
+    }
+
+    /**
+     * 获取请求体
+     *
+     * @param request 请求
+     * @return 请求体
+     */
+    protected String getRequestBody(HttpServletRequest request) {
+        String requestBody = "";
+        // 判断是否是包装过的请求
+        if (request instanceof ContentCachingRequestWrapper wrappedRequest) {
+            byte[] bodyBytes = wrappedRequest.getContentAsByteArray();
+            requestBody = new String(bodyBytes, StandardCharsets.UTF_8);
+        }
+        return requestBody;
+    }
+
+    /**
+     * 模型数据过滤
+     *
+     * @param data          数据
+     * @param classList     暴露所有字段的类列表
+     * @param isDesensitize 是否需要脱敏
+     * @param <M>           数据类型
+     * @return 处理后的数据
+     */
+    private <M extends RootModel<M>> @NotNull Object filterModelValue(
+            @NotNull Object data,
+            @NotNull List<Class<? extends RootModel<?>>> classList,
+            boolean isDesensitize
+    ) {
+        if (data instanceof QueryPageResponse) {
+            // 如果 data 分页对象
+            @SuppressWarnings("unchecked")
+            QueryPageResponse<M> queryPageResponse = (QueryPageResponse<M>) data;
+            queryPageResponse.getList().forEach(item -> filterModelValue(item, classList, isDesensitize));
+            return queryPageResponse;
+        }
+        Class<?> dataCls = data.getClass();
+        if (data instanceof Collection) {
+            // 如果是集合
+            Collection<?> collection = CollectionUtil.getCollectWithoutNull(
+                    (Collection<?>) data, dataCls
+            );
+            collection.stream()
+                    .toList()
+                    .forEach(item -> {
+                        if (RootModel.isModel(item.getClass())) {
+                            filterModelValue(item, classList, isDesensitize);
+                        }
+                    });
+            return collection;
+        }
+        if (RootModel.isModel(dataCls)) {
+            // 如果 data 是 Model
+            @SuppressWarnings("unchecked")
+            M model = ((M) data);
+            model.excludeNotMetaAndDesensitize(classList, isDesensitize);
+            return model;
+        }
+        return data;
+    }
+}

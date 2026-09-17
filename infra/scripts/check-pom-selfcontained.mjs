@@ -21,7 +21,7 @@
  *    必须在本 POM 的 `<properties>` 里有定义；
  * 3. 不允许残留 airpower 发版用的构建插件（`central-publishing-maven-plugin` /
  *    `maven-gpg-plugin` / `maven-source-plugin` / `maven-javadoc-plugin`）；
- * 4. 残留的 `cn.hamm:` 依赖只能是**显式列出**的退场白名单（现在唯一合法的是 `airpower-curd`）。
+ * 4. `cn.hamm:` 依赖**一个都不许有**（2026-09-18 起 airpower-curd 已删除，白名单为空集）。
  *
  * ## 用法
  * ```
@@ -53,12 +53,13 @@ const BOOT_BOM_GROUPS = new Set([
 ])
 
 /**
- * 退场期间允许残留的 airpower 依赖（每删掉一个就把这里改小）。
- * 一个都没有时这个集合应为空 —— 那时 `pnpm airpower:backend` 的数字也该是 0。
+ * 退场期间允许残留的 airpower 依赖 —— **现在是空集**。
+ *
+ * 2026-09-18：最后一条 `cn.hamm:airpower-curd` 已删除（curd/api/core/redis/cookie/exception 六模块
+ * 全部搬进本仓自持）。这条白名单保留成空集合而不是删掉，是为了让"再塞一条 airpower 依赖回来"
+ * 变成一次**显式的代码改动**（要在 review 里被看见），而不是悄悄通过。
  */
-const AIRPOWER_DEPENDENCIES_STILL_ALLOWED = new Set([
-  'airpower-curd', // B6/B8：CRUD 主干自建后删除
-])
+const AIRPOWER_DEPENDENCIES_STILL_ALLOWED = new Set([])
 
 /** airpower 父 POM 带来的发版插件：应用工程不需要，也不该被继承回来。 */
 const FORBIDDEN_BUILD_PLUGINS = [
@@ -157,4 +158,4 @@ if (problems.length) {
     console.log(`  · ${p}`)
   process.exit(1)
 }
-console.log('\n✓ 通过：无版本依赖都在 BOM 家族内、${...} 属性都有定义、无发版插件残留、airpower 依赖在白名单内\n')
+console.log('\n✓ 通过：无版本依赖都在 BOM 家族内、${...} 属性都有定义、无发版插件残留、cn.hamm 依赖为零\n')

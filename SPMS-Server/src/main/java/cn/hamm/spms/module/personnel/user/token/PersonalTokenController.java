@@ -1,13 +1,13 @@
 package cn.hamm.spms.module.personnel.user.token;
 
-import cn.hamm.airpower.api.annotation.Api;
+import cn.hamm.spms.framework.api.annotation.Api;
 import cn.hamm.spms.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.annotation.Extends;
-import cn.hamm.airpower.curd.base.Curd;
-import cn.hamm.airpower.curd.model.query.QueryListRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
-import cn.hamm.airpower.curd.permission.Permission;
+import cn.hamm.spms.core.annotation.Description;
+import cn.hamm.spms.framework.curd.annotation.Extends;
+import cn.hamm.spms.framework.curd.base.Curd;
+import cn.hamm.spms.framework.curd.model.query.QueryListRequest;
+import cn.hamm.spms.framework.curd.model.query.QueryPageRequest;
+import cn.hamm.spms.framework.curd.permission.Permission;
 import cn.hamm.spms.base.BaseController;
 import cn.hamm.spms.module.personnel.user.UserEntity;
 import org.jetbrains.annotations.NotNull;

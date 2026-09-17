@@ -1,6 +1,6 @@
 package cn.hamm.spms.base;
 
-import cn.hamm.airpower.core.annotation.Description;
+import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
 import jakarta.persistence.Column;

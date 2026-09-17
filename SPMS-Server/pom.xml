@@ -9,8 +9,8 @@
         2. 依赖版本表：import spring-boot-dependencies 3.4.4（原父 POM 同样是 import 这个 BOM，
            而不是继承 spring-boot-starter-parent —— 所以这里**保持同构**：只 import BOM，
            不引入 starter-parent 的插件管理与资源过滤，行为零变化）；
-        3. 两个属性：`airpower.version`（airpower-curd 的版本，退场期间仍需）与
-           `springboot.version`（spring-boot-maven-plugin 的版本）；
+        3. 一个属性：`springboot.version`（Spring Boot BOM 与 spring-boot-maven-plugin 的版本）——
+           `airpower.version` 已随 2026-09-18 的框架层自持一起删除；
         4. 发布用 build 插件（source / javadoc / gpg / central-publishing）—— 那是
            airpower 发版用的，应用工程从来不需要，摘掉正好。
       自持之后，Spring Boot 的版本由**这个文件**决定，而不由第三方父 POM 决定。
@@ -44,14 +44,11 @@
         <!--
           Spring Boot 版本：原由 cn.hamm:airpower 父 POM 的 ${springboot.version} 决定（3.4.4），
           现在写在这里。改成新版本 = 只动这一行（不再受第三方父 POM 牵制）。
+          3.4.4 也是退场前父 POM 里 import 的那个 BOM 版本 —— 换父 POM 时**刻意不升版本**，
+          让"换父 POM"和"升 Spring Boot"分成两件事，出问题好定位。
         -->
         <springboot.version>3.4.4</springboot.version>
-        <!--
-          airpower-curd 的版本（退场期间唯一还需要的 airpower 依赖）。原来由父 POM 定义，
-          现在自持：**它只影响 airpower-curd 本身**，不再连带决定 Spring Boot / 插件 / 编码。
-          B8 删掉 airpower-curd 时，这行和 `airpower.version` 一起消失。
-        -->
-        <airpower.version>6.4.3</airpower.version>
+        <!-- airpower.version 已随 airpower-curd 依赖一起删除（2026-09-18 框架层自持） -->
 
         <!--
           P2 读链路换轨的地基版本（§19.33）。两个 artifact 必须**同版本**：3.5.9 起 JSqlParser 被拆成
@@ -66,7 +63,7 @@
       依赖版本表：只 import Spring Boot 官方 BOM。
       所以本工程里所有 org.springframework.boot / org.springframework / io.micrometer /
       com.h2database / org.flywaydb 的依赖都不写版本号；其余一律显式写版本
-      （mybatis-plus、springdoc、airpower-curd）。
+      （mybatis-plus、springdoc）。**airpower 系依赖已全部删除，这里不再有 cn.hamm。**
     -->
     <dependencyManagement>
         <dependencies>
@@ -81,22 +78,36 @@
     </dependencyManagement>
 
     <dependencies>
-        <dependency>
-            <groupId>cn.hamm</groupId>
-            <artifactId>airpower-curd</artifactId>
-            <version>${airpower.version}</version>
-        </dependency>
+        <!--
+          2026-09-18 后端 airpower 退场【框架层自持】：cn.hamm:airpower-curd 已删除。
+          原来这一条依赖供给了 curd/api/core/redis/cookie/email/exception 六个模块的类；
+          现在这些类都在本仓（cn.hamm.spms.core.* / cn.hamm.spms.framework.* / cn.hamm.spms.common.*），
+          来源与许可写在每个文件头（AirPower4J 6.4.3 / AirPower-Core 6.3.1，均为 MIT）。
+        -->
 
         <!--
           2026-09-18：airpower-email 已摘除。全仓只有 UserService 用它发邮箱验证码，
           自建的 cn.hamm.spms.common.email.EmailHelper 逐行等价（同样的 HTML 模板、
           同样的 spring.mail.username 发件人、同样的「未配置即报错」语义），
           因此邮件能力改用 Spring Boot 官方的 starter 即可，少一个框架模块。
-          版本由父 POM（Spring Boot BOM）管理，不显式写。
+          版本由本 POM import 的 Spring Boot BOM 管理，不显式写。
         -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!--
+          过渡依赖：JPA / Hibernate 目前仍被**自持层**使用（framework.curd.base.ICurdRepository 继承
+          JpaRepository/JpaSpecificationExecutor，CurdService 用 EntityManager + Specification），
+          实体与仓储接口也还是 JPA 注解。原来它由 airpower-curd 传递带入，现在显式写在这里——
+          好处是"还有多少东西依赖 JPA"不再是隐藏事实。
+          删掉它的条件见 docs/去JPA决策评估.md §8：实体/仓储/数据权限三块换到 MyBatis-Plus 之后，
+          这一条与 jakarta.persistence/@DynamicInsert 一起消失。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
         <!-- WebAuthn 相关依赖 -->
         <!-- 阿里云OSS开始 -->

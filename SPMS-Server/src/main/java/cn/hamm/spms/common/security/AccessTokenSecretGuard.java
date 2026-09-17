@@ -33,12 +33,12 @@ import org.springframework.util.StringUtils;
 @Component
 public class AccessTokenSecretGuard implements ApplicationRunner {
 
-    /** airpower 的弱默认密钥（写死在 application.yml 的 fallback） */
+    /** 弱默认密钥（写死在 application.yml 的 fallback；2026-09-18 改名前后都是这个值） */
     private static final String WEAK_DEFAULT = "1234567890";
     /** HS256 建议最小密钥长度（字符，≥ 256 位熵） */
     private static final int MIN_SECRET_LENGTH = 32;
 
-    @Value("${airpower.api.access-token-secret:}")
+    @Value("${spms.api.access-token-secret:}")
     private String accessTokenSecret;
 
     /**
@@ -68,7 +68,7 @@ public class AccessTokenSecretGuard implements ApplicationRunner {
     public static void validate(String secret) {
         if (!StringUtils.hasText(secret) || WEAK_DEFAULT.equals(secret)) {
             throw new IllegalStateException(
-                    "禁止使用默认 JWT 签名密钥，必须通过环境变量 AIRPOWER_API_ACCESS_TOKEN_SECRET 注入强随机值"
+                    "禁止使用默认 JWT 签名密钥，必须通过环境变量 SPMS_API_ACCESS_TOKEN_SECRET 注入强随机值"
                             + "（本地开发可显式设置 kubo.security.allow-weak-default-secret=true 放行）");
         }
         if (secret.length() < MIN_SECRET_LENGTH) {

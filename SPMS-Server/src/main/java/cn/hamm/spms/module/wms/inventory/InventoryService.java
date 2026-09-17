@@ -1,15 +1,15 @@
 package cn.hamm.spms.module.wms.inventory;
 
-import cn.hamm.airpower.core.CollectionUtil;
-import cn.hamm.airpower.core.DictionaryUtil;
-import cn.hamm.airpower.core.TreeUtil;
-import cn.hamm.airpower.curd.base.CurdEntity;
-import cn.hamm.airpower.curd.helper.ExportHelper;
-import cn.hamm.airpower.curd.model.query.Page;
-import cn.hamm.airpower.curd.model.query.QueryListRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageResponse;
-import cn.hamm.airpower.curd.model.query.Sort;
+import cn.hamm.spms.core.CollectionUtil;
+import cn.hamm.spms.core.DictionaryUtil;
+import cn.hamm.spms.core.TreeUtil;
+import cn.hamm.spms.framework.curd.base.CurdEntity;
+import cn.hamm.spms.framework.curd.helper.ExportHelper;
+import cn.hamm.spms.framework.curd.model.query.Page;
+import cn.hamm.spms.framework.curd.model.query.QueryListRequest;
+import cn.hamm.spms.framework.curd.model.query.QueryPageRequest;
+import cn.hamm.spms.framework.curd.model.query.QueryPageResponse;
+import cn.hamm.spms.framework.curd.model.query.Sort;
 import cn.hamm.spms.common.exception.Errors;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;

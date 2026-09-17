@@ -118,7 +118,9 @@ auditA–F 合计 72 项黑盒场景全部 PASS。
 
 ## 部署检查清单（本次审核引入的运维要求）
 
-- [ ] 生产设置 `AIRPOWER_API_ACCESS_TOKEN_SECRET` 强随机值（否则启动 fail-fast）。
+- [ ] 生产设置 JWT 签名密钥为强随机值（否则启动 fail-fast）。
+      ⚠️ **变量名已于 2026-09-18 改名**：`AIRPOWER_API_ACCESS_TOKEN_SECRET` → `SPMS_API_ACCESS_TOKEN_SECRET`
+      （airpower 退场，配置前缀同步改为 `spms.api.*`）；本文其余处的旧名保留为当时的事实记录。
 - [ ] 生产**删除/关闭** `kubo.security.allow-weak-default-secret`（base 配置默认
       true 仅供本地开发；production profile 已置 false）。
 - [ ] 正确设置 `SPRING_PROFILES_ACTIVE=production`（密钥守卫现已与 profile 无关，

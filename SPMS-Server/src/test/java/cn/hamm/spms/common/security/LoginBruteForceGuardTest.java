@@ -1,7 +1,7 @@
 package cn.hamm.spms.common.security;
 
 import cn.hamm.spms.core.exception.ServiceException;
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.framework.redis.RedisHelper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

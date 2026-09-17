@@ -1,6 +1,6 @@
 package cn.hamm.spms.common;
 
-import cn.hamm.airpower.curd.config.CurdConfig;
+import cn.hamm.spms.framework.curd.config.CurdConfig;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

@@ -1,8 +1,8 @@
 package cn.hamm.spms.common.interceptor;
 
-import cn.hamm.airpower.core.AccessTokenUtil;
-import cn.hamm.airpower.core.DictionaryUtil;
-import cn.hamm.airpower.curd.interceptor.CurdRequestInterceptor;
+import cn.hamm.spms.core.AccessTokenUtil;
+import cn.hamm.spms.core.DictionaryUtil;
+import cn.hamm.spms.framework.curd.interceptor.CurdRequestInterceptor;
 import cn.hamm.spms.common.tree.HierarchyClosure;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;

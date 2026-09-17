@@ -1,8 +1,8 @@
 package cn.hamm.spms.base;
 
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.ReadOnly;
-import cn.hamm.airpower.curd.base.CurdEntity;
+import cn.hamm.spms.core.annotation.Description;
+import cn.hamm.spms.core.annotation.ReadOnly;
+import cn.hamm.spms.framework.curd.base.CurdEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.MappedSuperclass;
 import lombok.Getter;

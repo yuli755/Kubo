@@ -1,9 +1,9 @@
 package cn.hamm.spms.module.system.coderule;
 
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.Dictionary;
-import cn.hamm.airpower.core.annotation.Meta;
-import cn.hamm.airpower.core.annotation.ReadOnly;
+import cn.hamm.spms.core.annotation.Description;
+import cn.hamm.spms.core.annotation.Dictionary;
+import cn.hamm.spms.core.annotation.Meta;
+import cn.hamm.spms.core.annotation.ReadOnly;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.module.system.coderule.enums.CodeRuleField;
 import cn.hamm.spms.module.system.coderule.enums.SerialNumberUpdate;

@@ -1,6 +1,6 @@
 package cn.hamm.spms.framework;
 
-import cn.hamm.airpower.curd.model.query.QueryListRequest;
+import cn.hamm.spms.framework.curd.model.query.QueryListRequest;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.asset.contract.ContractController;
 import cn.hamm.spms.module.asset.contract.ContractService;
@@ -70,8 +70,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 @ActiveProfiles("test")
 @SpringBootTest(properties = {
         "spring.cache.type=none",
-        "airpower.redis.enabled=false",
-        "airpower.mqtt.enabled=false",
         "kubo.data-permission.mode=enforce",
         "kubo.data-permission.mapper-read.enabled=true"
 }, webEnvironment = SpringBootTest.WebEnvironment.MOCK)

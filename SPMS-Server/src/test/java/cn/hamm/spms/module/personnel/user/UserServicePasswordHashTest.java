@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.personnel.user;
 
-import cn.hamm.airpower.curd.permission.PermissionUtil;
+import cn.hamm.spms.framework.curd.permission.PermissionUtil;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

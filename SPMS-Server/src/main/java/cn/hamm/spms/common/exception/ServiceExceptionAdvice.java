@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * <h1>本仓自有 ServiceException 的响应渲染（后端 airpower 退场 B2）</h1>
  *
  * <p>2026-09-18 起 {@link ServiceException} 与 {@link Json} 都是本仓自己的类，airpower 的
- * advice 只认它自己的 {@code cn.hamm.airpower.core.exception.ServiceException}——
+ * advice 只认它自己的 {@code cn.hamm.spms.core.exception.ServiceException}——
  * <b>本仓抛出的异常不再有人管</b>：会被 airpower 的兜底
  * {@code @ExceptionHandler({Exception.class, RuntimeException.class})} 接走，前端收到 500 而不是业务码。
  * 这个 advice 就是补上那一环。</p>

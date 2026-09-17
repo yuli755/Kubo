@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.factory.structure.mapper;
 
-import cn.hamm.airpower.curd.model.query.Page;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
+import cn.hamm.spms.framework.curd.model.query.Page;
+import cn.hamm.spms.framework.curd.model.query.QueryPageRequest;
 import cn.hamm.spms.module.factory.structure.StructureEntity;
 import cn.hamm.spms.module.factory.structure.StructureService;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
@@ -36,8 +36,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 @ActiveProfiles("test")
 @SpringBootTest(properties = {
         "spring.cache.type=none",
-        "airpower.redis.enabled=false",
-        "airpower.mqtt.enabled=false",
         "kubo.data-permission.mode=enforce",
         "kubo.data-permission.mapper-read.enabled=true"
 }, webEnvironment = SpringBootTest.WebEnvironment.MOCK)

@@ -1,8 +1,8 @@
 package cn.hamm.spms.module.system.permission;
 
-import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.TreeUtil;
-import cn.hamm.airpower.core.annotation.Description;
+import cn.hamm.spms.framework.api.annotation.Api;
+import cn.hamm.spms.core.TreeUtil;
+import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

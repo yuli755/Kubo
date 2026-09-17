@@ -5,8 +5,8 @@ import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.asset.material.MaterialService;
 import cn.hamm.spms.module.system.datapermission.service.RowPermissionPredicate;
-import cn.hamm.airpower.curd.model.query.Page;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
+import cn.hamm.spms.framework.curd.model.query.Page;
+import cn.hamm.spms.framework.curd.model.query.QueryPageRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,8 +34,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 @ActiveProfiles("test")
 @SpringBootTest(properties = {
         "spring.cache.type=none",
-        "airpower.redis.enabled=false",
-        "airpower.mqtt.enabled=false",
         "kubo.data-permission.mode=enforce",
         "kubo.data-permission.mapper-read.enabled=true"
 }, webEnvironment = SpringBootTest.WebEnvironment.MOCK)

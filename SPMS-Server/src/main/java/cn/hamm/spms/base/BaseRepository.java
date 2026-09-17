@@ -1,6 +1,6 @@
 package cn.hamm.spms.base;
 
-import cn.hamm.airpower.curd.base.ICurdRepository;
+import cn.hamm.spms.framework.curd.base.ICurdRepository;
 import org.springframework.data.repository.NoRepositoryBean;
 
 /**

@@ -1,6 +1,6 @@
 package cn.hamm.spms.common.security;
 
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.framework.redis.RedisHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

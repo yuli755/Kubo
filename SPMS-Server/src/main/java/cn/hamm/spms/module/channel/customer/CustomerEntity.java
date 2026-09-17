@@ -1,10 +1,10 @@
 package cn.hamm.spms.module.channel.customer;
 
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.Export;
-import cn.hamm.airpower.core.annotation.Meta;
-import cn.hamm.airpower.core.annotation.Phone;
-import cn.hamm.airpower.curd.annotation.Search;
+import cn.hamm.spms.core.annotation.Description;
+import cn.hamm.spms.core.annotation.Export;
+import cn.hamm.spms.core.annotation.Meta;
+import cn.hamm.spms.core.annotation.Phone;
+import cn.hamm.spms.framework.curd.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import jakarta.persistence.Column;

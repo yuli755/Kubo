@@ -1,15 +1,15 @@
 package cn.hamm.spms.module.personnel.user;
 
-import cn.hamm.airpower.api.config.ApiConfig;
+import cn.hamm.spms.framework.api.config.ApiConfig;
 import cn.hamm.spms.common.cookie.CookieHelper;
-import cn.hamm.airpower.core.AccessTokenUtil;
+import cn.hamm.spms.core.AccessTokenUtil;
 import cn.hamm.spms.core.DateTimeUtil;
 import cn.hamm.spms.core.RandomUtil;
-import cn.hamm.airpower.core.TreeUtil;
-import cn.hamm.airpower.curd.base.CurdEntity;
-import cn.hamm.airpower.curd.config.AccessConfig;
-import cn.hamm.airpower.curd.model.query.Sort;
-import cn.hamm.airpower.curd.permission.PermissionUtil;
+import cn.hamm.spms.core.TreeUtil;
+import cn.hamm.spms.framework.curd.base.CurdEntity;
+import cn.hamm.spms.framework.curd.config.AccessConfig;
+import cn.hamm.spms.framework.curd.model.query.Sort;
+import cn.hamm.spms.framework.curd.permission.PermissionUtil;
 import cn.hamm.spms.common.email.EmailHelper;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.common.AppConfig;

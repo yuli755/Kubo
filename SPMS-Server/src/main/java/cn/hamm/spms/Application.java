@@ -13,11 +13,15 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * @author Hamm.cn
  */
 @SpringBootApplication(
-        // 2026-09-18 后端 airpower 退场第一批：Cookie 能力已由 cn.hamm.spms.common.cookie 自建接管
-        // （CookieHelper / CookieConfig 与原实现逐行一致，仅配置前缀改为 spms.cookie）。
-        // 这里必须排除 airpower 的 cookie 自动装配，否则它会 ComponentScan 出同名的
-        // cookieHelper / cookieConfig Bean —— Spring 默认禁止 Bean 覆盖，启动即冲突。
-        exclude = cn.hamm.airpower.cookie.Auto.class
+        // 2026-09-18 后端 airpower 退场【框架层自持】：
+        // 原先这里要 exclude cn.hamm.airpower.cookie.Auto（避免它的 ComponentScan 扫出同名
+        // cookieHelper / cookieConfig Bean）。现在 airpower 已经不在依赖里，自动装配源也随之消失；
+        // 本仓自持层（cn.hamm.spms.core / cn.hamm.spms.framework.*）由下面的组件扫描直接接管，
+        // 不再需要任何"排除/注册"的脚手架。
+        //
+        // 注意：@SpringBootApplication 的默认扫描根是 cn.hamm.spms，**天然覆盖**自持层 ——
+        // 所以我们没有沿用 airpower 那套「@AutoConfiguration + META-INF/...AutoConfiguration.imports」
+        // 的注册方式（那是给外部 jar 用的；应用内再写一份会与组件扫描重复注册同一个 Bean）。
 )
 @EnableScheduling
 public class Application {

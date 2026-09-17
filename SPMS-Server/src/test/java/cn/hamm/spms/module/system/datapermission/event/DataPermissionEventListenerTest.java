@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.event;
 
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.framework.redis.RedisHelper;
 import cn.hamm.spms.module.factory.storage.StorageHierarchyIndex;
 import cn.hamm.spms.module.personnel.department.DepartmentHierarchyIndex;
 import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;

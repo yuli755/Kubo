@@ -76,8 +76,11 @@ public final class OperationLogSnapshot {
         Map<String, Object> map = new LinkedHashMap<>();
         Class<?> current = entity.getClass();
         while (current != null && current != Object.class) {
-            // 越过 airpower 框架基类：它的内部字段（如 proxy 状态）不该进快照
-            if (current.getName().startsWith("cn.hamm.airpower.")) {
+            // 越过框架基类：它的内部字段（如 JPA proxy 状态）不该进快照。
+            // 2026-09-18 后端 airpower 退场：框架层已搬进本仓，前缀从 airpower 改成下面这两个 ——
+            // 这是**最后一处** airpower 字样离开生产代码（此前的写法是一条 startsWith("cn.hamm.airpower.") 字符串）。
+            if (current.getName().startsWith("cn.hamm.spms.core.")
+                    || current.getName().startsWith("cn.hamm.spms.framework.")) {
                 break;
             }
             for (Field field : current.getDeclaredFields()) {

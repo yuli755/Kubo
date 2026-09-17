@@ -1,6 +1,6 @@
 package cn.hamm.spms;
 
-import cn.hamm.airpower.curd.interceptor.filter.RequestFilter;
+import cn.hamm.spms.framework.curd.interceptor.filter.RequestFilter;
 import cn.hamm.spms.common.Configs;
 import cn.hamm.spms.common.filter.BearerTokenNormalizationFilter;
 import cn.hamm.spms.common.filter.SecurityHeadersFilter;

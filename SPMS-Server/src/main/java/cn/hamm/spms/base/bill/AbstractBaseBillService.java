@@ -1,10 +1,10 @@
 package cn.hamm.spms.base.bill;
 
-import cn.hamm.airpower.core.ReflectUtil;
+import cn.hamm.spms.core.ReflectUtil;
 import cn.hamm.spms.core.TaskUtil;
-import cn.hamm.airpower.core.interfaces.IDictionary;
-import cn.hamm.airpower.curd.base.CurdEntity;
-import cn.hamm.airpower.curd.helper.TransactionHelper;
+import cn.hamm.spms.core.interfaces.IDictionary;
+import cn.hamm.spms.framework.curd.base.CurdEntity;
+import cn.hamm.spms.framework.curd.helper.TransactionHelper;
 import cn.hamm.spms.base.BaseRepository;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.bill.detail.BaseBillDetailEntity;

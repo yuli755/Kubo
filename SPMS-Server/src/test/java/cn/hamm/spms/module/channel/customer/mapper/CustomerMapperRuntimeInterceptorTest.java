@@ -32,8 +32,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 @ActiveProfiles("test")
 @SpringBootTest(properties = {
         "spring.cache.type=none",
-        "airpower.redis.enabled=false",
-        "airpower.mqtt.enabled=false",
         "kubo.data-permission.mode=enforce",
         "kubo.data-permission.mapper-read.enabled=true"
 }, webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -85,9 +83,9 @@ class CustomerMapperRuntimeInterceptorTest {
     @DisplayName("客户 page 使用统一筛选和租户条件")
     void servicePageUsesMapperPermission() {
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
-            var request = new cn.hamm.airpower.curd.model.query.QueryPageRequest<CustomerEntity>();
+            var request = new cn.hamm.spms.framework.curd.model.query.QueryPageRequest<CustomerEntity>();
             request.setFilter(new CustomerEntity().setName("华东"));
-            request.setPage(new cn.hamm.airpower.curd.model.query.Page().setPageNum(1).setPageSize(20));
+            request.setPage(new cn.hamm.spms.framework.curd.model.query.Page().setPageNum(1).setPageSize(20));
 
             var page = customerService.getMapperPage(request);
             assertEquals(1, page.getTotal(), "当前租户下名为「华东」的客户只有 id=1");

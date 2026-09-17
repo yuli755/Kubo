@@ -1,10 +1,10 @@
 package cn.hamm.spms.module.system.dashboard;
 
-import cn.hamm.airpower.api.ApiController;
-import cn.hamm.airpower.api.annotation.Api;
+import cn.hamm.spms.framework.api.ApiController;
+import cn.hamm.spms.framework.api.annotation.Api;
 import cn.hamm.spms.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.permission.Permission;
+import cn.hamm.spms.core.annotation.Description;
+import cn.hamm.spms.framework.curd.permission.Permission;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 

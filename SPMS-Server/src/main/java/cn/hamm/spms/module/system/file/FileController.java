@@ -1,10 +1,10 @@
 package cn.hamm.spms.module.system.file;
 
-import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.DictionaryUtil;
+import cn.hamm.spms.framework.api.annotation.Api;
+import cn.hamm.spms.core.DictionaryUtil;
 import cn.hamm.spms.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.permission.Permission;
+import cn.hamm.spms.core.annotation.Description;
+import cn.hamm.spms.framework.curd.permission.Permission;
 import cn.hamm.spms.base.BaseController;
 import cn.hamm.spms.module.personnel.user.UserService;
 import cn.hamm.spms.module.system.file.enums.FileCategory;

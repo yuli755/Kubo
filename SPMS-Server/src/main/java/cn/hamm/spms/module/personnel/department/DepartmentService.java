@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.personnel.department;
 
-import cn.hamm.airpower.core.TreeUtil;
+import cn.hamm.spms.core.TreeUtil;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;

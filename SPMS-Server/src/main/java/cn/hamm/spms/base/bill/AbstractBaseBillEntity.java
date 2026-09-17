@@ -1,6 +1,6 @@
 package cn.hamm.spms.base.bill;
 
-import cn.hamm.airpower.core.annotation.Description;
+import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.base.bill.detail.BaseBillDetailEntity;
 import jakarta.persistence.Column;

@@ -7,8 +7,8 @@
 
 ## 0. 结论先行
 
-1. **现状是「单密钥」**：airpower 用**一个**密钥 `airpower.api.access-token-secret`（环境变量
-   `AIRPOWER_API_ACCESS_TOKEN_SECRET`）对 Access Token 做 HS256 签名与验签。**密钥一旦变更，
+1. **现状是「单密钥」**：本仓 `framework.api`（原 airpower-api，2026-09-18 整模块搬入本仓）用**一个**密钥
+   `spms.api.access-token-secret`（环境变量 `SPMS_API_ACCESS_TOKEN_SECRET`）对 Access Token 做 HS256 签名与验签。**密钥一旦变更，
    所有存量 Token 立即失效**（用户被强制登出）。这是代码事实，不是可以「配置」绕过的。
 2. **没有 Refresh Token**：当前实现只有单个 Access Token（TTL 默认 1 天），`SECURITY_GUIDE.md`
    里的「15min Access + 7 天 Refresh」是**目标态愿景**，后端尚未落地。所以轮换窗口内用户会直接
@@ -25,10 +25,10 @@
 
 | 项 | 事实 | 出处 |
 | --- | --- | --- |
-| 密钥配置 | `airpower.api.access-token-secret: '${AIRPOWER_API_ACCESS_TOKEN_SECRET:1234567890}'` | `application.yml:62` |
-| 默认值 | `1234567890`（弱，10 字符） | `application.yml` |
-| 验签方 | airpower 框架内部（`ApiConfig.accessTokenSecret` 单字段，HS256），非本仓库源码 | airpower `airpower-api` |
-| Token TTL | 默认 `authorizeExpireSecond = 86400`（1 天），仓库未覆盖 | airpower `AccessConfig` |
+| 密钥配置 | `spms.api.access-token-secret: '${SPMS_API_ACCESS_TOKEN_SECRET:1234567890}'` | `application.yml`（`spms:` 段） |
+| 默认值 | `1234567890`（弱，10 字符） | `application.yml`（**生产必须用环境变量覆盖**，`AccessTokenSecretGuard` 会 fail-fast） |
+| 验签方 | **本仓库源码**：`cn.hamm.spms.framework.api.config.ApiConfig.accessTokenSecret`（单字段，HS256）——原 airpower-api 已整模块搬入本仓（MIT），改名同时把配置前缀改成 `spms.api` | `framework/api/config/ApiConfig.java` |
+| Token TTL | 默认 `authorizeExpireSecond = 86400`（1 天），仓库未覆盖 | 本仓 `framework/curd/config/AccessConfig.java` |
 | Token 载体 | 前端 `Authorization: Bearer <token>`，token 存 localStorage key `Authorization` | `src/api/axios.ts:61`、`src/utils/airpowerCompat.ts` |
 | Refresh Token | **无**（`SECURITY_GUIDE.md` 所述为目标态） | 全仓无 refresh 端点 |
 | 轮换后果 | 换密钥 = 全员登出 | airpower 单密钥验签 |
@@ -55,7 +55,7 @@
 ### 2.2 轮换步骤
 
 1. 在密钥托管处新增**新密钥**（保留旧密钥一份，用于回滚，见 §2.3）。
-2. 更新部署侧环境变量 `AIRPOWER_API_ACCESS_TOKEN_SECRET = <新密钥>`。
+2. 更新部署侧环境变量 `SPMS_API_ACCESS_TOKEN_SECRET = <新密钥>`。
 3. 滚动重启后端（优雅停机已配 `server.shutdown: graceful` + 30s 超时，见 `application-production.yml`）。
 4. 启动自检：日志出现 `JWT 签名密钥已就绪（长度 64）`，且无 `IllegalStateException`。
 5. **冒烟验证**：登录接口 `/user/login`（邮箱+密码）签发新 token → 用新 token 访问任意受保护接口
@@ -65,7 +65,7 @@
 
 ### 2.3 回滚
 
-- 把环境变量 `AIRPOWER_API_ACCESS_TOKEN_SECRET` 回退为**旧密钥** → 重启 → 存量（旧）token 立即
+- 把环境变量 `SPMS_API_ACCESS_TOKEN_SECRET` 回退为**旧密钥** → 重启 → 存量（旧）token 立即
   恢复有效。回滚同样只花一次重启，无需数据库操作。
 
 ### 2.4 验收标准

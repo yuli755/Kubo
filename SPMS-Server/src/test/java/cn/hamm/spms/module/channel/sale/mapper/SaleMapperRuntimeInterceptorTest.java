@@ -33,8 +33,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 @ActiveProfiles("test")
 @SpringBootTest(properties = {
         "spring.cache.type=none",
-        "airpower.redis.enabled=false",
-        "airpower.mqtt.enabled=false",
         "kubo.data-permission.mode=enforce",
         "kubo.data-permission.mapper-read.enabled=true"
 }, webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -87,9 +85,9 @@ class SaleMapperRuntimeInterceptorTest {
     @DisplayName("销售 page 使用统一筛选和租户条件")
     void servicePageUsesMapperPermission() {
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
-            var request = new cn.hamm.airpower.curd.model.query.QueryPageRequest<SaleEntity>();
+            var request = new cn.hamm.spms.framework.curd.model.query.QueryPageRequest<SaleEntity>();
             request.setFilter(new SaleEntity().setStatus(2));
-            request.setPage(new cn.hamm.airpower.curd.model.query.Page().setPageNum(1).setPageSize(20));
+            request.setPage(new cn.hamm.spms.framework.curd.model.query.Page().setPageNum(1).setPageSize(20));
 
             var page = saleService.getMapperPage(request);
             assertEquals(1, page.getTotal());

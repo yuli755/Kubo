@@ -1,13 +1,13 @@
 package cn.hamm.spms.module.system.menu;
 
-import cn.hamm.airpower.core.TreeUtil;
+import cn.hamm.spms.core.TreeUtil;
 import cn.hamm.spms.base.BaseService;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-import static cn.hamm.airpower.core.TreeUtil.ROOT_ID;
+import static cn.hamm.spms.core.TreeUtil.ROOT_ID;
 
 /**
  * <h1>Service</h1>

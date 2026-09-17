@@ -1,11 +1,11 @@
 package cn.hamm.spms.base;
 
 import cn.hamm.spms.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.annotation.Extends;
-import cn.hamm.airpower.curd.base.Curd;
-import cn.hamm.airpower.curd.base.CurdController;
-import cn.hamm.airpower.curd.permission.Permission;
+import cn.hamm.spms.core.annotation.Description;
+import cn.hamm.spms.framework.curd.annotation.Extends;
+import cn.hamm.spms.framework.curd.base.Curd;
+import cn.hamm.spms.framework.curd.base.CurdController;
+import cn.hamm.spms.framework.curd.permission.Permission;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.validation.annotation.Validated;

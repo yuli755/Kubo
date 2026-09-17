@@ -215,12 +215,13 @@ private StorageService storageService;
 - 使用 4 空格缩进（不使用 Tab）
 - 大括号不换行，跟随语句
 - 每个方法之间保留一个空行
-- 导入包使用 * 方式，如 `import cn.hamm.airpower.*;`
+- 导入包使用 * 方式，如 `import cn.hamm.spms.core.*;`
 
-> **注（2026-09-18）**：`cn.hamm.airpower` 是**待退场**的框架（前端对应的 `@airpower/web` 已删净）。
-> 后端退场分批方案见 `docs/后端airpower退场·可行性评估与分批建议.md`；
-> 门禁 `pnpm airpower:backend -- --check` 会拦住"足迹变大"——新增用法前先看那份文档，
-> 能自建的通用件优先自建（`pnpm airpower:backend` 会打印按用量排序的"要自建什么"清单）。
+> **注（2026-09-18，已收官）**：`cn.hamm.airpower` **已整体退场** —— 0 引用 / 0 依赖 / 无父 POM /
+> 0 配置键（`pnpm airpower:backend -- --check`，基线 0 必须保持）。框架层（原 core/curd/api/redis 四模块）
+> 整模块搬进本仓：`cn.hamm.spms.core.*` 与 `cn.hamm.spms.framework.{api,curd,redis}.*`（MIT，来源见各文件头），
+> **改框架代码就改这些文件**。后续只剩内务：编译修复 + JPA→MyBatis-Plus 的持久化换轨，见
+> `docs/后端airpower退场·可行性评估与分批建议.md` §9 与 `docs/去JPA决策评估.md`。
 
 ## 继承体系
 

@@ -1,13 +1,13 @@
 package cn.hamm.spms.module.asset.contract;
 
-import cn.hamm.airpower.api.annotation.Api;
+import cn.hamm.spms.framework.api.annotation.Api;
 import cn.hamm.spms.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.ExposeAll;
-import cn.hamm.airpower.curd.annotation.Extends;
-import cn.hamm.airpower.curd.base.Curd;
-import cn.hamm.airpower.curd.model.query.QueryListRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
+import cn.hamm.spms.core.annotation.Description;
+import cn.hamm.spms.core.annotation.ExposeAll;
+import cn.hamm.spms.framework.curd.annotation.Extends;
+import cn.hamm.spms.framework.curd.base.Curd;
+import cn.hamm.spms.framework.curd.model.query.QueryListRequest;
+import cn.hamm.spms.framework.curd.model.query.QueryPageRequest;
 import cn.hamm.spms.base.BaseController;
 import cn.hamm.spms.module.asset.contract.participant.ParticipantEntity;
 import org.jetbrains.annotations.NotNull;
@@ -15,8 +15,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-import static cn.hamm.airpower.curd.base.Curd.GetDetail;
-import static cn.hamm.airpower.curd.base.Curd.GetPage;
+import static cn.hamm.spms.framework.curd.base.Curd.GetDetail;
+import static cn.hamm.spms.framework.curd.base.Curd.GetPage;
 import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 
 /**

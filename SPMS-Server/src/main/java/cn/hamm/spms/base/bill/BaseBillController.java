@@ -1,10 +1,10 @@
 package cn.hamm.spms.base.bill;
 
 import cn.hamm.spms.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.annotation.Extends;
-import cn.hamm.airpower.curd.base.Curd;
-import cn.hamm.airpower.curd.permission.Permission;
+import cn.hamm.spms.core.annotation.Description;
+import cn.hamm.spms.framework.curd.annotation.Extends;
+import cn.hamm.spms.framework.curd.base.Curd;
+import cn.hamm.spms.framework.curd.permission.Permission;
 import cn.hamm.spms.base.BaseController;
 import cn.hamm.spms.base.bill.detail.BaseBillDetailEntity;
 import cn.hamm.spms.base.bill.detail.BaseBillDetailRepository;

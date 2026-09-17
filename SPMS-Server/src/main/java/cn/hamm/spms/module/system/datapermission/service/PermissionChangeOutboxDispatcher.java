@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.framework.redis.RedisHelper;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.entity.PermissionChangeOutboxEntity;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;

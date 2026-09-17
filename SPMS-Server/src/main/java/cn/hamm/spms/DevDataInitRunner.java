@@ -1,7 +1,7 @@
 package cn.hamm.spms;
 
 import cn.hamm.spms.core.RandomUtil;
-import cn.hamm.airpower.curd.permission.PermissionUtil;
+import cn.hamm.spms.framework.curd.permission.PermissionUtil;
 import cn.hamm.spms.common.AppConfig;
 import cn.hamm.spms.common.Configs;
 import cn.hamm.spms.module.asset.AssetServices;

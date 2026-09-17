@@ -1,10 +1,10 @@
 package cn.hamm.spms.module.system.permission;
 
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.Dictionary;
-import cn.hamm.airpower.core.annotation.Meta;
-import cn.hamm.airpower.curd.annotation.Search;
-import cn.hamm.airpower.curd.permission.IPermission;
+import cn.hamm.spms.core.annotation.Description;
+import cn.hamm.spms.core.annotation.Dictionary;
+import cn.hamm.spms.core.annotation.Meta;
+import cn.hamm.spms.framework.curd.annotation.Search;
+import cn.hamm.spms.framework.curd.permission.IPermission;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.module.system.permission.enums.PermissionType;
 import io.swagger.v3.oas.annotations.media.Schema;

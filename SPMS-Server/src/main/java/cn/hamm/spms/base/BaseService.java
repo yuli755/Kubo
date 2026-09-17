@@ -1,6 +1,6 @@
 package cn.hamm.spms.base;
 
-import cn.hamm.airpower.curd.base.CurdService;
+import cn.hamm.spms.framework.curd.base.CurdService;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.system.SystemServices;
 import cn.hamm.spms.module.system.coderule.CodeRuleService;

@@ -1,17 +1,17 @@
 package cn.hamm.spms.module.personnel.user;
 
-import cn.hamm.airpower.api.annotation.Api;
+import cn.hamm.spms.framework.api.annotation.Api;
 import cn.hamm.spms.common.cookie.CookieConfig;
 import cn.hamm.spms.common.cookie.CookieHelper;
 import cn.hamm.spms.core.Json;
 import cn.hamm.spms.core.StringUtil;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.ExposeAll;
+import cn.hamm.spms.core.annotation.Description;
+import cn.hamm.spms.core.annotation.ExposeAll;
 import cn.hamm.spms.core.exception.ServiceException;
-import cn.hamm.airpower.curd.annotation.Extends;
-import cn.hamm.airpower.curd.base.Curd;
-import cn.hamm.airpower.curd.permission.Permission;
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.framework.curd.annotation.Extends;
+import cn.hamm.spms.framework.curd.base.Curd;
+import cn.hamm.spms.framework.curd.permission.Permission;
+import cn.hamm.spms.framework.redis.RedisHelper;
 import cn.hamm.spms.base.BaseController;
 import cn.hamm.spms.common.security.LoginBruteForceGuard;
 import cn.hamm.spms.module.personnel.user.enums.UserLoginType;
@@ -70,10 +70,10 @@ public class UserController extends BaseController<UserEntity, UserService, User
     private cn.hamm.spms.common.security.AccessTokenRevocationService accessTokenRevocationService;
 
     @Autowired
-    private cn.hamm.airpower.api.config.ApiConfig apiConfig;
+    private cn.hamm.spms.framework.api.config.ApiConfig apiConfig;
 
     @Autowired
-    private cn.hamm.airpower.curd.config.AccessConfig accessConfig;
+    private cn.hamm.spms.framework.curd.config.AccessConfig accessConfig;
 
     @Autowired
     private TenantRepository tenantRepository;

@@ -1,6 +1,6 @@
 package cn.hamm.spms.common.interceptor;
 
-import cn.hamm.airpower.core.AccessTokenUtil;
+import cn.hamm.spms.core.AccessTokenUtil;
 import cn.hamm.spms.common.tree.HierarchyClosure;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.factory.storage.StorageHierarchyIndex;

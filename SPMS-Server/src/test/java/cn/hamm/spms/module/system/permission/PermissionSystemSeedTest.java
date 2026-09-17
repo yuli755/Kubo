@@ -26,9 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @SpringBootTest(
         properties = {
-                "spring.cache.type=none",
-                "airpower.redis.enabled=false",
-                "airpower.mqtt.enabled=false"
+                "spring.cache.type=none"
         },
         webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )

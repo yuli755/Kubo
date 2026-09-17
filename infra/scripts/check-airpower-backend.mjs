@@ -17,6 +17,12 @@
  * 后端退场是长跑，途中不能"越删越多"。`--check` 与 BASELINE 比对：**只许降**。
  * 某一批真正删掉了若干符号后，把 BASELINE 改成新数字（这是有意的代码改动，会被 review）。
  *
+ * **2026-09-18 已达目标态（基线 0/0/0）**：Java 代码、pom 依赖、父 POM、yml 配置键全部为 0。
+ * 从这一刻起这条门禁的语义从"只许降"变成"**必须保持 0**"——`> 0` 即红，
+ * 也就是说"再加一条 airpower 依赖/引用回来"必须显式改这个文件（review 里看得见）。
+ * 注释里提 airpower 不算（迁移档案，见 `commentOnlyFiles`）；判断类归属用的
+ * `startsWith("cn.hamm.airpower.")` 这种**字符串**算，因为它确实是耦合点。
+ *
  * ## 用法
  * ```
  * pnpm airpower:backend              # 人读盘点
@@ -60,8 +66,18 @@ const SERVER = path.join(ROOT, 'SPMS-Server')
  *     AccessTokenUtil（它的 `VerifiedToken` 是 airpower `RequestInterceptor` 重写签名的返回类型）。
  *   · 新增离线门禁 `pnpm java:imports`（导入可达性 + 自持层不得反依赖 + 同名副本必须显式承认），
  *     与本脚本共用 `infra/scripts/lib/java-source.mjs` 的剥注释实现，保证两边口径一致。
+ * - 2026-09-18 第四批（框架层整模块自持 + 删依赖）：**0 / 0 / 0**（目标态）
+ *   · 把 airpower-core 6.3.1 **整模块 41 个类** + airpower 的 curd/api/redis 三个模块
+ *     （20 个类）搬进本仓 `cn.hamm.spms.core.*` / `cn.hamm.spms.framework.{curd,api,redis}`，
+ *     只改包名（`cn.hamm.airpower.*` → 本仓包名），逐行等价，MIT 署名留在每个文件头。
+ *     **为什么从"只搬闭包"改成"整模块"**：上一批只搬了 15 个类，这一批连框架层一起搬时，
+ *     半套副本会把"缺哪个类"变成编译期的猜谜——整模块搬进来，缺口一次归零。
+ *   · 161 个业务/测试文件、545 处 import 一次改名；`cn.hamm:airpower-curd` 依赖删除；
+ *     `airpower.api/curd/redis` 配置键改名 `spms.api/curd/redis`，Redis key 前缀 `airpower:` → `spms:`，
+ *     环境变量 `AIRPOWER_API_ACCESS_TOKEN_SECRET` → `SPMS_API_ACCESS_TOKEN_SECRET`。
+ *   · 之后**再没有"上游"**：这一层由本仓拥有，改代码改本仓（正是"删除并替换为目标技术栈"的终点）。
  */
-const BASELINE = { files: 164, symbols: 49, references: 547 }
+const BASELINE = { files: 0, symbols: 0, references: 0 }
 
 
 /**
@@ -193,6 +209,16 @@ if (process.argv.includes('--check')) {
   if (report.totals.references > BASELINE.references) {
     grows.push(`引用次数 ${report.totals.references} > 基线 ${BASELINE.references}`)
   }
+  // 目标态之后，耦合面不止"代码里的引用"：依赖、父 POM、yml 配置键同样是耦合，一起归零。
+  if (report.dependencies.length > 0) {
+    grows.push(`pom 里又出现 airpower 依赖：${report.dependencies.join(', ')}`)
+  }
+  if (report.parentPom) {
+    grows.push('pom 又继承了 cn.hamm:airpower 父 POM（Spring Boot 版本会重新被别人决定）')
+  }
+  if (report.configKeys.length > 0) {
+    grows.push(`yml 里又出现 airpower 配置键：${report.configKeys.join(', ')}`)
+  }
   if (grows.length) {
     console.error('\n✗ 后端 airpower 足迹比基线更大：\n')
     for (const line of grows) {
@@ -202,9 +228,14 @@ if (process.argv.includes('--check')) {
     console.error('先看 `pnpm airpower:backend` 的「要自建什么」清单，把缺口补上再往下走。\n')
     process.exit(1)
   }
+  const zero = report.totals.airpowerFiles === 0 && report.totals.symbols === 0
+    && report.totals.references === 0 && report.dependencies.length === 0
+    && !report.parentPom && report.configKeys.length === 0
   console.log(
-    `✓ 后端 airpower 棘轮通过：文件 ${report.totals.airpowerFiles}/${BASELINE.files} · `
-    + `符号 ${report.totals.symbols}/${BASELINE.symbols} · 引用 ${report.totals.references}/${BASELINE.references}（只许降）`,
+    zero
+      ? '✓ 后端 airpower 足迹 = 0（代码 0 引用 · pom 0 依赖 · 无父 POM · yml 0 配置键）—— 目标态，必须保持'
+      : `✓ 后端 airpower 棘轮通过：文件 ${report.totals.airpowerFiles}/${BASELINE.files} · `
+        + `符号 ${report.totals.symbols}/${BASELINE.symbols} · 引用 ${report.totals.references}/${BASELINE.references}（只许降）`,
   )
   process.exit(0)
 }

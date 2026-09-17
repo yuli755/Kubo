@@ -186,7 +186,9 @@ B2 撞到三次（已回退三个符号），规律记死：
 | **B6** | `Curd` 端点 / `@Search` / `@Extends` / `Permission` / `QueryXxx` 全家（**与"删 JPA 写链路"是同一件事**） | 263 处 | ① 目标态选型已定（MyBatis-Plus，见 `去JPA决策评估.md` §8）；② 需要 `mvn compile` 能跑的环境；③ 需要真实库结构（S0 的 mysqldump） | ❌ 只能编译期 + 真库回归 | **必须由你在有 JDK/库的环境配合**，或给我一条 Maven 通道 |
 | **B8** | 删 `airpower-curd` 依赖、棘轮归零 | —— | 全部前置完成 | ✅ | 收尾 |
 
-### 8.3 现在的瓶颈与"最短解锁路径"
+### 8.3 现在的瓶颈与"最短解锁路径"（**B2 时点的判断，已被 §9 取代**）
+
+> 这一节写于 B2 之后。当天随后的第四批（§9）没有按 B5 → B7 的小步走，而是直接**整模块搬框架层并把依赖删净**，所以这里列的 B5/B7/B8 已经全部完成；真正还差的是"编译与真库回归"，见 §9.5。
 
 ```
 现在能自己往下走（不需要你、不需要 JDK）：
@@ -204,3 +206,78 @@ B2 撞到三次（已回退三个符号），规律记死：
 4. **B6** —— 只在你确认有 `mvn` 环境时启动；否则宁可先把 B5/B7 清干净，避免"半套写入路径"。
 
 > 一句话：**现在可以继续自己推进 B5 → B7；"删 JPA"那一条线需要一份 mysqldump（或一个能连库的环境），最硬的 B6 还需要一台能编译的机器。**
+
+---
+
+## 九、第四批：框架层整模块自持 —— **收官，足迹 = 0**
+
+> 指令原文：**「通通删除并替换目标技术栈」**。
+> 执行时间：2026-09-18（同日，接在 B2 之后）。执行方式：**直接做，不再分批**。
+
+### 9.1 结果（实测，可复现）
+
+| 维度 | 收官值 | 上一批（B2 之后） | 复现命令 |
+| --- | --- | --- | --- |
+| 触及 airpower 的 Java 文件 | **0 / 525** | 164 / 525 | `pnpm airpower:backend` |
+| 不同符号 | **0** | 49 | 同上 |
+| 引用次数 | **0** | 547 | 同上 |
+| pom 里 airpower 依赖 | **0** | `airpower-curd` | `pnpm pom:check` |
+| 父 POM | **无** | 已摘（B0） | 同上 |
+| yml 配置键 | **0** | 2 处 | `pnpm airpower:backend` |
+| 只在注释里提到它（迁移档案，不计入足迹） | 89 个文件 | 88 | 同上 |
+
+门禁 `pnpm airpower:backend -- --check` 的基线已置 `0/0/0`，并且把"依赖 / 父 POM / yml 配置键"
+一起纳入判据 —— **语义从"只许降"变成"必须保持 0"**：再想塞一条 airpower 引用或依赖回来，
+必须显式改脚本里的基线（review 里看得见）。
+
+### 9.2 怎么删的：整模块搬，而不是"只搬用到的"
+
+| 原模块 | 版本 | 搬入位置 | 类数 |
+| --- | --- | --- | --- |
+| airpower-core | 6.3.1 | `cn.hamm.spms.core.*` | 41（整模块） |
+| airpower-curd | 6.4.3 | `cn.hamm.spms.framework.curd.*` | 36 |
+| airpower-api | 6.4.3 | `cn.hamm.spms.framework.api.*` | 4 |
+| airpower-redis | 6.4.3 | `cn.hamm.spms.framework.redis.*` | 3 |
+| 合计 | | | **84 类**（另有 3 个模块级 `Auto` 刻意未搬，原因见下表） |
+
+- 每个文件头写明来源仓库、版本、MIT 许可与搬入日期：**改代码改本仓，不再有上游**。
+- 只改包名（`cn.hamm.airpower.{core,api,curd,redis}` → 本仓包名）+ 上一批已自持的
+  `Errors` / `CookieHelper` / `CookieConfig` 的 import 指向；**逻辑一字未改**。
+- B2 时"只搬调用闭包（15 类）"的策略在这一批被放弃，原因是：**框架层也搬进来之后，
+  半套副本会把"缺哪个类"变成编译期的猜谜**（沙箱里没有编译器，猜谜的代价是下一轮全量报错）。
+  整模块搬入 = 缺口一次归零，且 B3 那类"类身份契约"（注解 / `IDictionary` / 反射工具）
+  自动随类一起进入同一包体系，不再需要"同批切换"的精细调度。
+- 上一批为兼容而保留的三处例外（`CollectionUtil` / `ReflectUtil` / `AccessTokenUtil`）随之撤销。
+
+### 9.3 同批删掉/改掉的"名字里还有 airpower"的东西
+
+| 项 | 变化 | 影响面 |
+| --- | --- | --- |
+| pom 依赖 | `cn.hamm:airpower-curd` 删除（B8 连同完成） | 构建 |
+| 配置前缀 | `airpower.api` / `airpower.curd` / `airpower.redis` → `spms.api` / `spms.curd` / `spms.redis` | 2 个 yml + 5 个 `@ConfigurationProperties` 类 |
+| Redis key 前缀 | 默认值 `airpower:` → `spms:` | 缓存 key 命名（缓存本身可重建；**令牌黑名单/防爆破计数会"看不见旧 key"**，等价于一次性失效） |
+| 环境变量 | `AIRPOWER_API_ACCESS_TOKEN_SECRET` → `SPMS_API_ACCESS_TOKEN_SECRET` | **部署侧必须同步改名**；守卫 fail-fast 并打印新名字 |
+| `Application` | `exclude = airpower.cookie.Auto.class` 删除（该自动装配源已不存在） | 启动 |
+| 自动装配注册 | 三个模块级 `Auto` 类**没有**搬（`@AutoConfiguration` + `META-INF/...imports` 是给外部 jar 用的；应用内由 `@SpringBootApplication` 的组件扫描覆盖，再写一份会重复注册） | 启动 |
+| Dockerfile / JWT SOP | 环境变量名、密钥配置项的出处同步改写（"验签方"从"airpower 框架内部"改成本仓 `framework.api`） | 运维文档 |
+| 测试里 21 个文件的惰性属性 | `airpower.redis.enabled` / `airpower.mqtt.enabled` 删除（这两个键在 airpower 里**也没有对应的绑定字段**，属于历史残留的"求个心安"配置，删掉零行为变化） | 单测 |
+
+### 9.4 为什么这一批能"不编译也敢做"
+
+- 搬运是**逐文件字符串级等价**（包名替换 + 头注释），没有一处手写逻辑；
+- 依赖关系在搬运前已经算清（`/tmp` 的闭包勘察：36 个种子文件 + 全仓 import 分布），
+  搬完后用 `pnpm java:imports` 复查：**本仓 import 必须落地、自持层不得反依赖 airpower**；
+- 门禁替编译器兜住了三类"离线可判定"的错误：导入可达性、pom 版本/属性完整性、文本完整性（乱码/非法转义）。
+
+### 9.5 仍然待办（**已不是 airpower 的活**）
+
+| 待办 | 为什么还需要它 | 前置 |
+| --- | --- | --- |
+| **编译修复** | 沙箱无 JDK、Maven 仓库不可达（阿里云/华为云/清华/Central 全部探测 000），这一批**没有经过一次 `javac`**。首次 `mvn -q compile` 预期有一批 import/符号级报错 | 一台能跑 Maven 的机器（你的本地即可） |
+| **JPA → MyBatis-Plus** | 写链路的 JPA 仍在（`spring-boot-starter-data-jpa` 现在是本 POM 的显式依赖，见 §6 与 `去JPA决策评估.md`） | `mysqldump --no-data` 基线（S0）+ 编译环境 |
+| **真库/真 Redis 回归** | Redis key 前缀改名后，旧的黑名单/计数键读不到了（一次性失效，可接受但要知会） | 一套能跑起来的环境 |
+
+### 9.6 一句话总结
+
+**从 2026-09-18 起，这个仓库里再没有 airpower：既没有依赖，也没有引用，连配置键与环境变量都已改名；
+它唯一还存在的地方是文档和注释里（作为"这一层是怎么来的"的记录）——那正是应该留下的部分。**

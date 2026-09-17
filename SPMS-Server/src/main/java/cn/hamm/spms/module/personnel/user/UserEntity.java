@@ -2,9 +2,9 @@ package cn.hamm.spms.module.personnel.user;
 
 import cn.hamm.spms.module.system.datapermission.annotation.SensitiveField;
 
-import cn.hamm.airpower.core.annotation.*;
-import cn.hamm.airpower.core.enums.DesensitizeType;
-import cn.hamm.airpower.curd.annotation.Search;
+import cn.hamm.spms.core.annotation.*;
+import cn.hamm.spms.core.enums.DesensitizeType;
+import cn.hamm.spms.framework.curd.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;

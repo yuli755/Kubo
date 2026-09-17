@@ -1,10 +1,10 @@
 package cn.hamm.spms.common.errorreport;
 
-import cn.hamm.airpower.api.ApiController;
-import cn.hamm.airpower.api.annotation.Api;
+import cn.hamm.spms.framework.api.ApiController;
+import cn.hamm.spms.framework.api.annotation.Api;
 import cn.hamm.spms.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.permission.Permission;
+import cn.hamm.spms.core.annotation.Description;
+import cn.hamm.spms.framework.curd.permission.Permission;
 import cn.hamm.spms.common.security.RateLimitHelper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;

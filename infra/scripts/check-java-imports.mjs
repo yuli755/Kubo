@@ -8,8 +8,9 @@
  *
  *   1. **本仓自己的 import 必须能落到真实文件上**（`cn.hamm.spms.*` 的每个 import 都要有对应 .java），
  *      这条能抓住"搬进来了但被删早了"（本轮就差点留下 7 个孤儿副本）、包名写错、类名拼错；
- *   2. **搬进来的层（`cn.hamm.spms.core.*`）不得引用 airpower 的**（否则"自持"是假象：
- *      上游一升级/一删除，这里就断）；
+ *   2. **搬进来的层不得引用 airpower 的**（否则"自持"是假象：上游一升级/一删除，这里就断）。
+ *      2026-09-18 之后这一条覆盖 `cn.hamm.spms.core.*` / `cn.hamm.spms.framework.*` /
+ *      `cn.hamm.spms.common.*` —— 也就是全部自持层 + 业务公共件；
  *   3. **同一简单类名不得同时存在本仓副本与 airpower 副本** —— 这是 airpower 退场最阴的坑：
  *      两边类名一样，谁用谁不看包名，出了问题编译期不报、运行期静默（典型：注解身份不一致 →
  *      反射读不到 → 导出/字典/脱敏行为悄悄退化）。
@@ -31,21 +32,29 @@ const SRC = path.join(ROOT, 'SPMS-Server', 'src')
 /**
  * 自持层里**已承认**的 airpower import（默认必须是空的：搬进来的层不该再反向依赖上游）。
  * 用法：真的必须依赖时写进来的同时写清原因与消掉它的批次。
+ * 2026-09-18 收官后这里仍留空 —— 现在的"承认"应该发生在 `pnpm airpower:backend` 的基线上，
+ * 而不是偷偷绕过这条导入检查。
  */
 const ALLOWED_SELF_OWNED_AIRPOWER_IMPORTS = new Set([])
 
 /**
  * 已承认的"同名副本"：本仓有一份副本，代码里同时还在用 airpower 的那一份。
- * 这是退场过程里最需要盯的状态（注解/接口的**身份**决定反射能不能读到），
- * 所以每一条都要写清「为什么暂时必须共存 + 什么时候消掉」。
+ *
+ * **2026-09-18 收官后这是空的**（那时登记了 `Description`、`ReflectUtil` 两条，属于 B2 的过渡态：
+ * 注解与反射工具的**类身份**决定 `isAnnotationPresent` 能不能读到，两套并存 = 行为静默退化）。
+ * 现在 airpower 整模块搬进本仓，同名副本的世界结束了。
+ *
+ * 机制**刻意保留**：哪天有人把 airpower 依赖加回来，第一处同名冲突会立刻在这里咬人
+ * （而不是等到线上导出列名悄悄变了才被发现）。
  */
-const DETAIL_COLLISIONS = new Map([
-  ['Description', 'B3 未做：实体/响应类上的 @Description 必须继续是 airpower 的那一份（它的 ExportHelper/CurdService 按类身份反射读取），本仓副本只服务自持层内部（Json 自己）'],
-  ['ReflectUtil', 'B3 未做：airpower 的 ReflectUtil.getDescription(entity) 读的是它自己的 @Description；本仓副本目前只被自持层的 javadoc 引用，尚未启用'],
-])
+const DETAIL_COLLISIONS = new Map([])
 
-/** 已由本仓自持的层（搬进来的副本与 airpower 同名共存，必须有额外约束）。 */
-const SELF_OWNED_PREFIX = 'cn.hamm.spms.core'
+/**
+ * 已由本仓自持的层：原来只有 `cn.hamm.spms.core`（B2 搬的工具/异常层）；
+ * 2026-09-18 框架层整模块自持后扩到三个前缀 —— framework（原 curd/api/redis）
+ * 与 common（原 cookie/email/exception 里那些从 airpower 搬来的件）。
+ */
+const SELF_OWNED_PREFIXES = ['cn.hamm.spms.core.', 'cn.hamm.spms.framework.', 'cn.hamm.spms.common.']
 
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -100,7 +109,10 @@ for (const file of javaFiles) {
 }
 
 // ── 检查 2：自持层不得反向依赖 airpower ──────────────────────
-const selfOwnedFiles = javaFiles.filter(f => fs.readFileSync(f, 'utf8').includes(`package ${SELF_OWNED_PREFIX}`))
+const selfOwnedFiles = javaFiles.filter((f) => {
+  const pkg = fs.readFileSync(f, 'utf8').match(/^package\s+([\w.]+);/m)?.[1] ?? ''
+  return SELF_OWNED_PREFIXES.some(prefix => pkg.startsWith(prefix) || pkg === prefix.slice(0, -1))
+})
 for (const file of selfOwnedFiles) {
   const text = stripJavaComments(fs.readFileSync(file, 'utf8'))
   const rel = path.relative(ROOT, file)
@@ -111,7 +123,7 @@ for (const file of selfOwnedFiles) {
     problems.push(`${rel}: 自持层反向 import 了 ${m[1]} —— "自持"是假象，记到 ALLOWED_SELF_OWNED_AIRPOWER_IMPORTS 里才算承认`)
   }
 }
-notes.push(`自持层文件：${selfOwnedFiles.length} 个（包 ${SELF_OWNED_PREFIX}.*）`)
+notes.push(`自持层文件：${selfOwnedFiles.length} 个（包 ${SELF_OWNED_PREFIXES.map(p => p.slice(0, -1)).join(' / ')}）`)
 
 // ── 检查 3：同名副本（本仓副本 vs airpower 副本）──────────────
 const ownSimpleNames = new Set([...ownClasses.keys()].map(k => k.split('.').pop()))
