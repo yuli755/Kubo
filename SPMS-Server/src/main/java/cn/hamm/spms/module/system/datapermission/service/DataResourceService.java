@@ -36,6 +36,7 @@ import java.util.TreeSet;
 
 import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
 import cn.hamm.spms.framework.curd.datapermission.RowParityCounter;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionResourceResolver;
 
 /**
  * <h1>数据资源管理服务</h1>

@@ -16,7 +16,7 @@ import cn.hamm.spms.module.personnel.user.token.PersonalTokenService;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
-import cn.hamm.spms.module.system.datapermission.service.MaskedInputRegistry;
+import cn.hamm.spms.framework.curd.datapermission.MaskedInputRegistry;
 import cn.hamm.spms.module.system.datapermission.service.SystemPermissionService;
 import cn.hamm.spms.module.system.datapermission.service.TenantContextResolver;
 import cn.hamm.spms.module.system.permission.PermissionEntity;

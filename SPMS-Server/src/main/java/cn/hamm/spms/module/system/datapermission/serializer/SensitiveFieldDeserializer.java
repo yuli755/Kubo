@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.serializer;
 
-import cn.hamm.spms.module.system.datapermission.service.MaskedInputRegistry;
+import cn.hamm.spms.framework.curd.datapermission.MaskedInputRegistry;
 import cn.hamm.spms.module.system.datapermission.service.MaskedWriteGuard;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;

@@ -1,4 +1,4 @@
-package cn.hamm.spms.module.system.datapermission.service;
+package cn.hamm.spms.framework.curd.datapermission;
 
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import org.springframework.stereotype.Component;
@@ -17,6 +17,9 @@ import org.springframework.stereotype.Component;
  * {@code toLowerCase()}，于是这两个模块的策略永远查不到资源 —— 保存照样成功、
  * 行权限照样"已配置"，只是防护为零。资源键是<b>跨表外键式的字符串</b>，
  * 比较必须与注册表一字不差，不能靠"顺便规范化一下"。</p>
+
+ * <p><b>2026-09-18 分层搬迁（为什么在框架层）</b>：本类原在 {@code cn.hamm.spms.module.system.datapermission.service}，它只依赖 JDK / 框架自身，却被 base 层与业务域同时使用 —— 留在业务域里就构成"下层依赖上层"，于是搬进框架层。
+ * 搬迁前它是 base/BaseService 白名单里的"下层依赖业务域"条目之一，搬完白名单条目数 15 → 12。</p>
  *
  * @author Hamm.cn
  */

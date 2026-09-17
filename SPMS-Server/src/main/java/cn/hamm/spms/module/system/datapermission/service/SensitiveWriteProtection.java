@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
+import cn.hamm.spms.framework.curd.datapermission.MaskedInputRegistry;
 
 /**
  * <h1>敏感字段的写侧统一处置</h1>

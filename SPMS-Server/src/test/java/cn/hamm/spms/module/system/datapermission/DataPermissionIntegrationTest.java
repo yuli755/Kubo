@@ -11,7 +11,7 @@ import cn.hamm.spms.module.system.datapermission.repository.DataFieldPolicyRepos
 import cn.hamm.spms.module.system.datapermission.repository.DataPolicyRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionGuard;
-import cn.hamm.spms.module.system.datapermission.service.DataPermissionResourceResolver;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionResourceResolver;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionService;
 import cn.hamm.spms.module.system.datapermission.service.DataResourceService;
 import cn.hamm.spms.module.system.datapermission.service.DataPolicyService;

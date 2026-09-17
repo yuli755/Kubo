@@ -1,4 +1,4 @@
-package cn.hamm.spms.module.system.datapermission.service;
+package cn.hamm.spms.framework.curd.datapermission;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -15,6 +15,9 @@ import java.util.Set;
  * 而不是清空集合 —— Tomcat 线程池会复用线程，留着空集合等于给每个长期线程挂一份内存。
  * 清理点在 {@code RequestInterceptor.afterCompletion}；服务侧消费完也会清一次，
  * 保证非 HTTP 入口（测试、异步任务）不残留。</p>
+
+ * <p><b>2026-09-18 分层搬迁（为什么在框架层）</b>：本类原在 {@code cn.hamm.spms.module.system.datapermission.service}，它只依赖 JDK / 框架自身，却被 base 层与业务域同时使用 —— 留在业务域里就构成"下层依赖上层"，于是搬进框架层。
+ * 搬迁前它是 base/BaseService 白名单里的"下层依赖业务域"条目之一，搬完白名单条目数 15 → 12。</p>
  *
  * @author Hamm.cn
  */

@@ -1,4 +1,4 @@
-package cn.hamm.spms.module.system.datapermission.service;
+package cn.hamm.spms.base.permission;
 
 import cn.hamm.spms.base.TenantAwareEntity;
 
@@ -17,6 +17,9 @@ import cn.hamm.spms.base.TenantAwareEntity;
  *
  * <p>取数（回表读既存值）在 {@code BaseService#beforeUpdate}，判定（「归属 = 库中值」）在这里 ——
  * 与本模块其余守卫同一个理由：结论必须能脱离容器、不起 Spring、不连库地被逐条断言。</p>
+
+ * <p><b>2026-09-18 分层搬迁（为什么在 base 层）</b>：本类原在 {@code cn.hamm.spms.module.system.datapermission.service}，它操作的是 base.TenantAwareEntity（下层类型），且与具体业务域无关 —— 放在 base 层，业务域与 base 各自依赖它都不越界。
+ * 搬迁前它是 base/BaseService 白名单里的"下层依赖业务域"条目之一，搬完白名单条目数 15 → 12。</p>
  *
  * @author Hamm.cn
  */

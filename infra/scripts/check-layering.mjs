@@ -51,19 +51,17 @@ const SRC = path.join(ROOT, 'SPMS-Server', 'src', 'main', 'java', 'cn', 'hamm', 
  * L2 白名单：`base` 里"下层依赖业务域"的现存条目。
  *
  * 全部集中在两个类，都是**基类要挂的业务钩子**（写侧守卫、脱敏、审计、取号）。
- * 清理方式（下一批 L2）：把这些能力提炼成 `framework.curd.datapermission` 里的接口（SPI），
+ * 清理方式（L2b 批次）：把这些能力提炼成 `framework.curd.datapermission` 里的接口（SPI），
  * 实现留在 `module.system.datapermission`，`base` 只依赖接口 —— 依赖方向就正过来了。
+ * （L2a 已经把三个纯静态工具直接下移，见下面 MAX_ALLOWLIST 的注释。）
  */
 const ALLOWLIST = [
   ['base/BaseService.java', 'cn.hamm.spms.module.system.SystemServices', '服务定位器（历史遗留）；L2 批次换成注入的 SPI'],
   ['base/BaseService.java', 'cn.hamm.spms.module.system.coderule.CodeRuleService', '自动编码取号；L2 批次换成 base 侧接口 CodeRuleAllocator'],
-  ['base/BaseService.java', 'cn.hamm.spms.module.system.datapermission.service.AttributionWriteProtection', '写侧归属保护（静态工具）；L2 批次随 SPI 下移'],
   ['base/BaseService.java', 'cn.hamm.spms.module.system.datapermission.service.ColumnMaskingService', '读侧列脱敏；L2 批次随 SPI 下移'],
   ['base/BaseService.java', 'cn.hamm.spms.module.system.datapermission.service.DataPermissionGuard', '动作级守卫；L2 批次随 SPI 下移'],
   ['base/BaseService.java', 'cn.hamm.spms.module.system.datapermission.service.DataPermissionRuntime', '运行期档位/装配；L2 批次随 SPI 下移'],
-  ['base/BaseService.java', 'cn.hamm.spms.module.system.datapermission.service.DataPermissionResourceResolver', '资源键解析；L2 批次随 SPI 下移'],
   ['base/BaseService.java', 'cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker', '导出脱敏；L2 批次随 SPI 下移'],
-  ['base/BaseService.java', 'cn.hamm.spms.module.system.datapermission.service.MaskedInputRegistry', '掩码输入登记（ThreadLocal）；L2 批次随 SPI 下移'],
   ['base/BaseService.java', 'cn.hamm.spms.module.system.datapermission.service.OperationLogRecorder', '操作审计记录器（已是 Bean）；L2 批次换成 base 侧接口'],
   ['base/BaseService.java', 'cn.hamm.spms.module.system.datapermission.service.RowWriteGuard', '行级写守卫；L2 批次随 SPI 下移'],
   ['base/BaseService.java', 'cn.hamm.spms.module.system.datapermission.service.SensitiveWriteProtection', '敏感字段写保护（静态工具）；L2 批次随 SPI 下移'],
@@ -77,11 +75,17 @@ const FRAMEWORK_ALLOWED_COMMON = ['cn.hamm.spms.common.exception.']
 
 /**
  * 白名单条目数上限（**只许降**）。
- * 现在 15 条（全在 `base/BaseService` 与 `base/bill/AbstractBaseBillService`）；L2 批次（SPI 下移）做完后应当变成 0 条。
+ * 现在 12 条（全在 `base/BaseService` 与 `base/bill/AbstractBaseBillService`）。
+ * 清过的两条路径都值得记住：
+ *   · L2a（2026-09-18）：三个**纯静态工具**直接搬走，15 → 12 ——
+ *     `MaskedInputRegistry` / `DataPermissionResourceResolver` → `framework.curd.datapermission`，
+ *     `AttributionWriteProtection` → `base.permission`（它操作的就是 `base.TenantAwareEntity`）。
+ *     **能搬的下移优先于做接口**：静态工具做成接口是自找麻烦。
+ *   · L2b（待做）：剩下的 12 条都要真接口（守卫/脱敏/审计/取号要读配置与实体），做完归零。
  * `framework → common.exception` 不占白名单：它是**规则允许**的（见 FRAMEWORK_ALLOWED_COMMON），
  * 原因写在设计文档里，而不是靠一条会过期的白名单撑着。
  */
-const MAX_ALLOWLIST = 15
+const MAX_ALLOWLIST = 12
 
 const LAYER_RULES = [
   {

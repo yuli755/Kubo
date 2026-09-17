@@ -8,7 +8,7 @@ import cn.hamm.spms.module.system.datapermission.repository.DataPolicyRepository
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionGuard;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionService;
-import cn.hamm.spms.module.system.datapermission.service.DataPermissionResourceResolver;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionResourceResolver;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.service.JpaPermissionRuleProvider;

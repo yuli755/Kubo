@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Map;
 
 import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
+import cn.hamm.spms.base.permission.AttributionWriteProtection;
 
 /**
  * <h1>归属迁移服务（B1 余半块：谁有权改归属）</h1>

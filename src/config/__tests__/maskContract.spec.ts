@@ -2258,7 +2258,9 @@ describe('mask contract · 归属迁移（B1 余半块）', () => {
     expect(body, '迁移走业务 update（会被 protectAttribution 恢复回去）：这条唯一豁免永远不生效').not.toMatch(/updateToDatabase\(|service\.update\(/)
 
     // 默认防篡改仍不动：豁免是「显式持有权限走专用接口」，不是把默认改松
-    const protection = readJavaCode(join(SERVER, 'module/system/datapermission/service/AttributionWriteProtection.java'))
+    // 2026-09-18 分层搬迁（L2a）：它操作的是 base.TenantAwareEntity，与具体业务域无关，
+    // 于是从业务域搬到 base 层 —— 判据（"唯一豁免挂在专用接口上"）没变，只是文件换了位置
+    const protection = readJavaCode(join(SERVER, 'base/permission/AttributionWriteProtection.java'))
     expect(protection, '归属防篡改的默认实现被删：唯一豁免反而把默认门拆了').toContain('restoreOnUpdate(')
   })
 })
