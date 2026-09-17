@@ -21,6 +21,7 @@
  * - **L0**：`core` 不得 import `framework` / `base` / `module` / `common` / `config`
  * - **L1**：`framework` 不得 import `base` / `module` / `config`
  * - **L2**：`base` 不得 import `module.*`，例外：① `*Configuration.java`（组合根）② 白名单
+ * - **L6**：跨业务域不得 import 对方的 `repository` / `mapper` / `controller`（只许经 Service 或共享值类型）
  * - **L3**：`module/**&#47;mapper|repository` 不得 import `.service.` / `.controller.` / `*Controller`
  * - **L4**：`*Entity.java` 不得 import `.service.` / `.mapper.` / `.repository.` / `.controller.`
  * - **L5**：`*Controller.java` 不得**注入** `*Repository` / `*Mapper`（字段或构造器参数）——
@@ -130,6 +131,28 @@ const RESPONSIBILITY_RULES = [
   },
 ]
 
+/**
+ * L6：跨业务域只许经对方的 Service 或共享值类型，不许伸手进对方的**仓储与入口**。
+ *
+ * 为什么单列一条：L2（base → module）管的是"上下方向"，但 `module` 内部还有"横向"的问题 ——
+ * `module.channel` 直接注入 `module.wms.output.OutputRepository` 同样是把两个业务域焊死：
+ * 对方的表结构一变，两边一起红；而且这类依赖绕过了对方的 Service，
+ * 校验、审计、数据权限、脱敏（它们都挂在 Service 钩子上）全部失效 —— 是一次实打实的越权写入。
+ *
+ * 允许的跨域形状：`service`（对方的业务入口，钩子齐全）与共享值类型
+ * （`entity` / `enums` / `annotation` / 以子域命名的实体包）。
+ * 实测（2026-09-18）：跨域 import 别人的 `repository` / `mapper` / `controller` **0 处** ——
+ * 所以这条规则没有基线，新增即红。
+ */
+const CROSS_DOMAIN_FORBIDDEN_LEAF = ['repository', 'mapper', 'controller']
+const L6_DESC = '跨域不得 import 对方的 repository / mapper / controller（只许经 Service 或共享值类型）'
+
+/** 业务域 = `module/` 下的第一段（asset / channel / factory / personnel / system / wms） */
+function domainOf(rel) {
+  const parts = rel.split('/')
+  return parts[0] === 'module' && parts.length > 2 ? parts[1] : null
+}
+
 function walkJava(dir, rel = '', acc = []) {
   if (!fs.existsSync(dir)) return acc
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -185,6 +208,22 @@ for (const { rel, abs } of files) {
     }
   }
 
+  // L6：跨域不得伸手进对方的仓储 / 入口
+  const ownDomain = domainOf(rel)
+  if (ownDomain) {
+    for (const fqn of importLines) {
+      const m = /^cn\.hamm\.spms\.module\.(\w+)\.([\w.]+)\.(\w+)$/.exec(fqn)
+      if (!m) continue
+      const [, otherDomain, pkg] = m
+      if (otherDomain === ownDomain) continue
+      if (!CROSS_DOMAIN_FORBIDDEN_LEAF.includes(pkg.split('.').pop())) continue
+      violations.push({
+        rule: 'L6', file: `src/main/java/cn/hamm/spms/${rel}`, type: 'import',
+        detail: fqn, desc: L6_DESC,
+      })
+    }
+  }
+
   // L5：控制器不得注入仓储 / Mapper（字段或构造器参数）
   if (isController(rel)) {
     const fieldRe = /^\s*(?:private|protected|public)\s+(?:final\s+)?[\w.$.]*(?:Repository|Mapper)\s+\w+\s*;/gm
@@ -214,11 +253,11 @@ const json = process.argv.includes('--json')
 if (json) {
   console.log(JSON.stringify({ files: files.length, violations, allowlist: ALLOWLIST.length, stale }, null, 2))
 } else {
-  console.log('代码分层门禁：依赖方向（L0–L2）+ 层内职责（L3–L5）')
+  console.log('代码分层门禁：依赖方向（L0–L2）+ 层内职责（L3–L5）+ 跨域数据面（L6）')
   console.log(`  扫描：${files.length} 个 .java（cn.hamm.spms 下，剥注释）`)
   console.log(`  白名单：${ALLOWLIST.length}/${MAX_ALLOWLIST} 条（base→module；已清空，新增即红）`)
   if (violations.length === 0) {
-    console.log('✓ 依赖方向与层内职责均无新增违规')
+    console.log('✓ 依赖方向、层内职责与跨域数据面均无违规')
   } else {
     console.log(`✗ ${violations.length} 处违规：`)
     for (const v of violations) {
@@ -234,6 +273,7 @@ if (json) {
   }
   if (violations.length === 0 && stale.length === 0 && !tooMany) {
     console.log('  层次：L0 core → L1 framework → L2 base → L3 module（组合根 common/config 例外）')
+    console.log('  跨域：只许 module.<A> → module.<B>.service / 共享值类型（0 处数据面越界）')
   }
 }
 

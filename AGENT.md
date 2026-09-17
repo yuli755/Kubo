@@ -58,7 +58,7 @@ pnpm pom:check       # 后端 pom 自持校验（B0 之后没有父 POM 兜底�
 pnpm java:imports    # Java 导入可达性（没有 JDK 时的半个编译器：import 必须落地 / 自持层不得反依赖 airpower / 同名副本必须显式承认）
 pnpm jpa:check       # JPA 足迹棘轮（去 JPA 的尺子：文件 / 引用 / import 只许降；`-- --json` 出机器版）
 pnpm sql:check       # SQL 分层门禁：禁止 .java 写 SQL，只能住 mapper XML（测试夹具住 src/test/resources/sql）
-pnpm layer:check     # 分层门禁：依赖方向（core→framework→base→module）+ 层内职责（控制器不注入仓储、实体不依赖服务…）
+pnpm layer:check     # 分层门禁：依赖方向（core→framework→base→module）+ 层内职责（控制器不注入仓储、实体不依赖服务…）+ 跨域数据面（跨域只许调对方 Service）
 ```
 
 体积红线：首屏 ≤ 450 KB、总体 ≤ 900 KB（`pnpm size`）；第一次超预算基本都是"把懒加载页面的依赖挪进了首屏"。
