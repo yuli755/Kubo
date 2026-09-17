@@ -90,6 +90,10 @@ const BASE_FIELDS = [
   'enabled',
   'published',
   'isAudited',
+  // 新底座（K 侧）的状态列/启停按钮读的是 `isDisabled`（`KEntity`/`BaseEntity` 的公共列），
+  // 只给 `enabled`/`published` 的话，演示时每一行都是「启用中」，启停按钮永远显示「禁用」——
+  // 状态色与启停交互整个看不见。
+  'isDisabled',
   'tenantId',
   'creatorId',
 ] as const
@@ -149,7 +153,7 @@ const DATE_FIELDS = new Set([
   'finishTime',
 ])
 
-const BOOLEAN_FIELDS = new Set(['isFinished', 'enabled', 'published', 'isAudited'])
+const BOOLEAN_FIELDS = new Set(['isFinished', 'enabled', 'published', 'isAudited', 'isDisabled'])
 
 const LONG_REMARK
   = '这是一段刻意加长的备注：用于验证表格在超长文本下的换行与截断策略是否统一、单元格高度是否被撑开而破坏行距节奏。'
@@ -456,6 +460,18 @@ export function buildRow(resourceKey: string, index: number): Row {
   // 物料的计量单位也是嵌套的（`row.material.unit.name`）
   const material = row.material as Row
   material.unit = buildRelation('unit', 'DW', index, random)
+
+  // 用户行的部门归属必须是 **id**：用户页左侧部门树的筛选条件是 `filter.departmentId`（数字），
+  // demo 行里只有 `departmentName` 的话，演示时点任何一个部门都会筛成空表（看起来像功能坏了）。
+  // 取值与 `department` 资源的前 6 行（树根）对齐，点根节点能筛出真实子集。
+  if (resourceKey === 'user') {
+    const departmentId = ((index - 1) % 6) + 1
+    row.departmentId = departmentId
+    row.department = { ...(row.department as Row ?? {}), id: departmentId }
+    // 角色/部门多选（编辑弹窗的标签）：形状与后端 `roleList` / `departmentList` 一致
+    row.roleList = [{ id: ((index - 1) % 5) + 1, name: pickFrom(findPool('roleName') ?? ['仓库管理员'], random) }]
+    row.departmentList = [{ id: departmentId, name: (row.department as Row).name ?? `部门 ${departmentId}` }]
+  }
 
   return row
 }

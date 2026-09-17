@@ -1,3 +1,4 @@
+import type { demoPermissionTree } from '@/demo/fixtures/permissions'
 import { existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -159,6 +160,47 @@ describe('演示模式 · URL 解析与降级', () => {
 
     const page = await request('/storage/getPage', { params: { pageNum: 1, pageSize: 24 } })
     expect(Array.isArray((page.data.data as { list?: unknown[] }).list)).toBe(true)
+  })
+
+  it('角色授权树：菜单树用真实菜单、权限树用真实权限码（不是造出来的假行）', async () => {
+    // 授权弹窗是**真的把 identity 提交给后端**的地方：演示数据里编造的权限码
+    // 会让人误判"我授权了什么"。所以这两棵树必须是 fixtures 本身。
+    const menu = await request('/menu/getTreeList', { data: {} })
+    const menuNames: string[] = []
+    const walkMenu = (nodes: { name: string, children?: unknown[] }[]): void => {
+      for (const node of nodes) {
+        menuNames.push(node.name)
+        if (node.children?.length) {
+          walkMenu(node.children as { name: string, children?: unknown[] }[])
+        }
+      }
+    }
+    walkMenu(menu.data.data as { name: string, children?: unknown[] }[])
+    expect(menuNames).toContain('部门管理')
+    expect(menuNames.length).toBeGreaterThan(demoMenuTree().length)
+
+    const permission = await request('/permission/getTreeList', { data: {} })
+    const roots = permission.data.data as ReturnType<typeof demoPermissionTree>
+    expect(Array.isArray(roots)).toBe(true)
+    const identities = roots.flatMap(root => root.children.map(child => child.identity))
+    // 与真实权限码同源：授权弹窗里勾的就是后端认的编码
+    expect(identities).toContain('Role_authorizeMenu')
+    expect(identities.every(code => demoPermissions().includes(code)), '演示权限树出现了权限常量里没有的编码').toBe(true)
+  })
+
+  it('用户行带部门归属与启停状态（演示时部门筛选与状态列才有东西可看）', async () => {
+    // 用户页左侧部门树点一下会把 `filter.departmentId` 放进请求体 —— 行里没有这个字段时，
+    // 演示环境会筛出空表（看起来像"功能坏了"而不是"没数据"）。
+    const page = await request('/user/getPage', { data: { pageNum: 1, pageSize: 15, filter: { departmentId: 1 } } })
+    const rows = (page.data.data as { list: { departmentId?: unknown, isDisabled?: unknown }[] }).list
+    expect(rows.length, '按部门 1 筛选后一行都没有：演示行的 departmentId 与部门树对不上').toBeGreaterThan(0)
+    expect(rows.every(row => row.departmentId === 1)).toBe(true)
+
+    // 状态列/启停按钮读 `isDisabled`（K 侧的公共列）：全 false 的话"已禁用"与"启用"按钮永远不出现
+    const all = await request('/user/getPage', { data: { pageNum: 1, pageSize: 30 } })
+    const allRows = (all.data.data as { list: { isDisabled?: boolean }[] }).list
+    expect(allRows.some(row => row.isDisabled === true), '演示数据里没有一条禁用记录').toBe(true)
+    expect(allRows.some(row => row.isDisabled === false), '演示数据里没有一条启用记录').toBe(true)
   })
 
   it('未覆盖的读取端点降级为空对象而不是抛错（页面走空状态）', async () => {

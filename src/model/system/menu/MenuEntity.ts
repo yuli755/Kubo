@@ -2,6 +2,11 @@ import type { IMenu } from '@airpower/web'
 import type { RouteMeta } from 'vue-router'
 import { Field, Form, Model, Search, Table, Type } from '@airpower/web'
 import { BaseEntity } from '@/base/BaseEntity'
+// 只先补 `@KType`（不补整套 K 装饰器）：角色授权弹窗（F4 批 3）用
+// `KMenuService.getTreeList` 取菜单树，`fill()` 靠这个类型提示把 `children`
+// 递归实例化成 `MenuEntity` —— 少了它，勾选子级菜单后提交会调不到 `copyOnlyId()`
+// （`KRoleService.authorizeMenu` 会对每一项调它）。system 域整体迁移时再补齐其余装饰器。
+import { Type as KType } from '@/framework'
 
 /**
  * # 菜单
@@ -75,6 +80,7 @@ export class MenuEntity extends BaseEntity implements IMenu {
 
   @Field({})
   @Type(MenuEntity, true)
+  @KType(MenuEntity)
   children!: this[]
 
   @Type(MenuEntity)

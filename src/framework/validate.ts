@@ -190,6 +190,24 @@ export class WebValidator {
     return this
   }
 
+  /**
+   * 内容包含某段文本时判错。
+   *
+   * 来自真实业务规则：角色名不允许带「管理员」三个字（避免建出一个名字像超管的普通角色，
+   * 出事时无法从名字上分辨）。原库同名方法，迁移时补进框架层 ——
+   * 页面通过 `KFormDialog` 的 `extraRules` 传它，规则仍属于页面。
+   */
+  ifContain(text: string): this {
+    this.validator = (_rule, value, callback) => {
+      if (value && String(value).includes(text)) {
+        callback(new Error(this.message || `不能包含 ${text}`))
+        return
+      }
+      callback()
+    }
+    return this
+  }
+
   ifLengthLessThan(min: number): this {
     this.validator = (_rule, value, callback) => {
       if (value && String(value).length < min) {

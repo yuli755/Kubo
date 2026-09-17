@@ -3,12 +3,12 @@ import { ElButton, ElFormItem, ElTag } from 'element-plus'
 import { ref } from 'vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import KPanel from '@/component/framework/KPanel.vue'
+import KSelector from '@/component/framework/KSelector.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { Permissions } from '@/config/permissions'
-import { DialogUtil } from '@/framework'
 import { KStructureService } from '@/hook/factory/useStructure'
 import { useTable } from '@/hook/kubo/useTable'
-import { DepartmentSelector } from '@/view/console/personnel/department/component'
+import { KDepartmentService } from '@/hook/personnel/useDepartment'
 
 /**
  * # 生产单元（F4 批 1 · 新底座）
@@ -17,9 +17,9 @@ import { DepartmentSelector } from '@/view/console/personnel/department/componen
  * 它不是 `@Form` 字段（实体上只是一个 `DepartmentEntity[]`），所以走 `KFormDialog` 的
  * `#extra` 插槽自己渲染。
  *
- * 部门选择器仍是存量的 airpower 组件（部门域尚未迁移）：用 `@/framework` 的 `DialogUtil.selectList`
- * 打开它 —— 那份实现的 props/events 与 airpower 的 `DialogProps` 契约一致，可以混用；
- * 等部门域迁完再换成 `KSelector`。
+ * 部门选择器已随 F4 批 3（personnel 域迁移）换成 `KSelector`：部门选择不再是"命令式打开一个
+ * airpower 弹窗"，而是页面里一个 `v-model` 组件。`tree` 是必须的 —— 部门是树形实体，
+ * 不带它就只能看见顶层部门。
  */
 
 const table = useTable(KStructureService, { queryKey: ['factory:structure'], tree: true })
@@ -54,9 +54,16 @@ function openAddChild(row: { id: number, name?: string, code?: string }) {
 
 const departments = () => (form.value.departmentList ?? []) as Array<{ id: number, name: string }>
 
-async function selectDepartment() {
-  const selected = await DialogUtil.selectList(DepartmentSelector as never, departments() as never)
-  form.value.departmentList = selected
+/** 部门多选弹窗（页面自己持有显隐，见文件头说明） */
+const departmentPicking = ref(false)
+
+function selectDepartment() {
+  departmentPicking.value = true
+}
+
+function pickDepartments(rows: Array<{ id: number, name: string }>) {
+  form.value.departmentList = rows
+  departmentPicking.value = false
 }
 
 function removeDepartment(index: number) {
@@ -120,6 +127,16 @@ function onSaved() {
         </ElFormItem>
       </template>
     </KFormDialog>
+
+    <KSelector
+      v-model="departmentPicking"
+      :selected="departments() as never"
+      :service="KDepartmentService"
+      multiple
+      title="选择部门"
+      tree
+      @confirm="pickDepartments"
+    />
   </div>
 </template>
 

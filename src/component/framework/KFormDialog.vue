@@ -1,6 +1,6 @@
 <script lang="ts" setup generic="E extends IIdentifiableEntity">
 import type { FormInstance } from 'element-plus'
-import type { AbstractCurdService, IFormField, IIdentifiableEntity } from '@/framework'
+import type { AbstractCurdService, IFormField, IIdentifiableEntity, WebValidateRuleSet } from '@/framework'
 import { ElButton, ElDatePicker, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElSelect, ElSwitch } from 'element-plus'
 import { computed, nextTick, ref, watch } from 'vue'
 import { FeedbackUtil, getEnumItems, getFormConfigList, getModelName, WebValidator } from '@/framework'
@@ -57,6 +57,15 @@ const props = withDefaults(defineProps<{
    * 也可以返回一份改写后的数据。中止时页面自己给提示 —— 框架不猜原因。
    */
   beforeSubmit?: (form: Record<string, unknown>) => Record<string, unknown> | null | Promise<Record<string, unknown> | null>
+  /**
+   * 页面补充/覆盖的校验规则（按字段名给）。
+   *
+   * 自动生成的规则只能表达元数据里有的东西（必填、长度、格式、范围），
+   * 而业务侧还有"这一列不许出现某些字"这类判断（如角色名不能带「管理员」）。
+   * 那些规则属于**页面**，框架只负责把它们和元数据规则合并后交给表单 ——
+   * 不提供这个口子，业务规则就只能被丢掉或塞进实体装饰器。
+   */
+  extraRules?: WebValidateRuleSet
 }>(), {
   closeOnSaved: true,
   width: '560px',
@@ -129,7 +138,7 @@ const fields = computed<IFormField[]>(() => getFormConfigList(EntityClass.value)
  * 断言是边界收口：`createRules` 的返回类型是它自己的规则集，而 Element Plus 的 `FormRules`
  * 结构兼容但有名义差异，硬转一次比在每个页面各写一遍 rules 划算。
  */
-const rules = computed(() => WebValidator.createRules(EntityClass.value as never) as unknown as Record<string, unknown[]>)
+const rules = computed(() => WebValidator.createRules(EntityClass.value as never, props.extraRules ?? {}) as unknown as Record<string, unknown[]>)
 
 const title = computed(() => {
   if (props.title)

@@ -49,6 +49,11 @@ const props = withDefaults(defineProps<{
   title?: string
   /** 固定过滤条件（如只让选某类型的仓库） */
   filter?: Partial<E>
+  /**
+   * 树形实体（`useTable` 的 `tree: true`）：部门/仓库这类后端返回嵌套树的实体，
+   * 打开按层级展示并支持展开——否则选「研发部」时看不到它下属的「前端组」。
+   */
+  tree?: boolean
   /** 缓存键（同域共享；缺省按服务类名生成） */
   queryKey?: string[]
   /** 表格高度 */
@@ -88,6 +93,7 @@ const table = useTable(props.service, {
   queryKey: props.queryKey ?? [getModelName(entityClass as unknown as object), 'selector'],
   defaultFilter: props.filter,
   service: serviceInstance,
+  tree: props.tree,
 })
 
 /**

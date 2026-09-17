@@ -1,6 +1,9 @@
 import type { ITree } from '@airpower/web'
 import { Field, Form, Model, Search, Table, Type } from '@airpower/web'
 import { BaseEntity } from '@/base/BaseEntity'
+// 同 `MenuEntity`：先补 `@KType` 让授权弹窗拿到的权限树能递归实例化（见那边的说明），
+// 其余 K 装饰器随 system 域迁移补齐。
+import { Type as KType } from '@/framework'
 import { PermissionSystemEnum } from './PermissionSystemEnum'
 import { PermissionTypeEnum } from './PermissionTypeEnum'
 
@@ -73,6 +76,7 @@ export class PermissionEntity extends BaseEntity implements ITree {
 
   @Field({})
   @Type(PermissionEntity, true)
+  @KType(PermissionEntity)
   children!: this[]
 
   @Type(PermissionEntity)

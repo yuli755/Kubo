@@ -12,20 +12,22 @@
 | **批 1** | `factory`（仓库 / 生产单元，树表）+ `index` 首页 | ✅ 本轮 |
 | **批 0A** | 应用外壳（旧壳 `AFrame` 分支 + `VITE_LEGACY_SHELL` 开关一起删）、`KDialog`、两个单据弹窗（`BillAddFinishDialog`/`BillRejectDialog`）、`BillAuditOrReject` | ✅ 本轮 |
 | **批 0B（前置件已就位）** | `BillFormCode` / `BillFormMoreDetail` / `hook/billTable/*`、`UserCard` + `component/user/*`、`router/appRouter.ts` | ⬜ 上传组件已于本轮补齐（见 §三 3.6），0B 可开工；`appRouter.ts` 仍等批 6 之后（F5） |
-| **批 2** | `asset`：物料 / 合同（列表 + 详情 + 参与方）、框架层补 3 件（异步导出、日期控件、单元格插槽） | ✅ 本轮 |
-| 批 3~6 | personnel → wms → channel → system | ⬜ |
+| **批 2** | `asset`：物料 / 合同（列表 + 详情 + 参与方）、框架层补 3 件（异步导出、日期控件、单元格插槽） | ✅ |
+| **批 3** | `personnel`：部门（树）/ 角色（+菜单与权限授权）/ 用户（部门树筛选 + 角色部门多选），连带改 `factory/structure` 的部门选择器 | ✅ 本轮（§3.7） |
+| 批 4~6 | wms → channel → system | ⬜ |
 
-**本轮实测校验（批 2）**：`vue-tsc` 干净、ESLint 干净、`pnpm build` 通过、体积 首屏 369.9/450 KB · 总体 741.3/900 KB；
-vitest **48 文件 / 409 用例**全绿，其中逐页冒烟探针覆盖 asset 两页 ✅。
+**本轮实测校验（批 3）**：`vue-tsc` 干净、ESLint 干净、`pnpm build` 通过、体积 首屏 369.7/450 KB · 总体 722.8/900 KB（**比批 2 还小 18.5 KB**：删掉的 airpower 视图件与旧服务多于新增代码）；
+vitest **49 文件 / 426 用例**全绿（新增 `personnelDomain.spec.ts` 16 例，含两个授权弹窗的**演示模式端到端**）；
+逐页冒烟探针里 personnel 三页 ✅（部门页从批 2 时代的 30 KB 渲染字节涨到 53 KB，说明树真的渲染出行了，见 §八 的遗留观测）。
 
 ## 一、现状数字（实测）
 
 | 范围 | 文件数 | 说明 |
 | --- | --- | --- |
-| `import ... from '@airpower/web'` 的文件 | **159** | 生产代码（口径见 `pnpm airpower`（`scripts/find-airpower.mjs`）：剥注释后的真实 import；2026-09 批 2 后实测。历史上 177/160/156 来自 `grep`，口径不同，往后统一用该脚本） |
-| 视图页面（`src/view/console/**`） | **90** | 7 个域：channel 23 · system 21 · wms 20 · personnel 11 · asset 8 · factory 6 · index 1 |
-| 共享组件 / hook / 路由 | **12** | `src/component/{bill,user}/*`、`AuditFlow`、`PublishButton`、`UserCard`、`hook/useTanStackTable`、`hook/billTable/*`、`router/appRouter` |
-| 模型实体（`src/model/**`） | 72 | 只用到装饰器与枚举，随域迁移时同步换 `KEntity` |
+| `import ... from '@airpower/web'` 的文件 | **135** | 生产代码（口径见 `pnpm airpower`（`scripts/find-airpower.mjs`）：剥注释后的真实 import；2026-09 批 3 后实测。历史上 177/160/156/159/145 来自 `grep` 或不同批次，口径不同，往后统一用该脚本） |
+| 视图页面（`src/view/console/**`） | **54** | 6 个域还有 airpower 页面：channel 20 · wms 16 · system 16 · asset 1（物料选择器，wms/channel 共用）· factory 1（仓库选择器，wms 在用）· **personnel 0** |
+| 共享组件 / hook / 路由 | **11** | `src/component/{bill,user}/*`（5）、`UserCard`、`hook/useTanStackTable`、`hook/billTable/*`（2）、`router/appRouter`、`view/error.vue` |
+| 模型实体（`src/model/**`） | 64 | 只用到装饰器与枚举，随域迁移时同步换 `KEntity`（personnel 三实体保留双注册，等 F5） |
 
 组件级用量（按**文件数**，同一文件可能同时用多个）。右列是**本轮补齐后**的真实状态：
 
@@ -217,13 +219,53 @@ vitest **48 文件 / 409 用例**全绿，其中逐页冒烟探针覆盖 asset �
 处理方式是**收紧两个域门禁的 ALLOWED 集合**（`frameworkComponents.spec.ts` 2→1、`assetDomain.spec.ts` 4→1）——
 这正是那两条断言当初写成"精确集合"而不是"数量为 0"的目的：集合该变小时会被断言本身提示。
 
+### 3.7 批 3：personnel 域（本轮完成）
+
+人员域是**别域要引用的基础数据**（`StructureEntity.departmentList`、`UserEntity.roleList/departmentList`），
+所以这轮除了迁自己，还得处理一个跨域连带：`factory/structure/list.vue` 用 `DialogUtil.selectList` 命令式打开旧的 airpower
+`DepartmentSelector` —— 它是那个组件**唯一的外部消费者**，不一起改就没法删旧件。
+
+| 文件 | 原用法 | 迁移动作 |
+| --- | --- | --- |
+| department / role / user 三实体 | 单套 airpower 装饰器 | **双注册**（`@K*` 与 airpower 别名并存）。airpower 那套保留的原因很具体：`UserEntity` / `StructureEntity` 的 airpower `@Type(...)` 还指向它们，而消费方（`component/UserCard.vue`、wms 库存页）属 F5 |
+| **新增** `KDepartmentService` / `KRoleService` / `KUserService` | `DepartmentService` / `RoleService` / `UserService` | 新底座服务。**旧 `DepartmentService` / `RoleService` 已 `git rm`**（迁移后零消费者）—— 这两个域现在只有一份实现；`KUserService` 只做管理页 CRUD，认证链（`login`/`logout`/`getMyInfo`…）仍留在旧 `UserService`，等 F5 一起迁 |
+| **新增** `system/{menu,permission}/K*Service.ts` | 授权弹窗原来用 `MenuService` / `PermissionService` | 两个薄服务（`baseUrl` + `entityClass`）。它们在 system 域迁移时会被复用，提前建不增加后续工作量 |
+| `personnel/department/list.vue` | `APanel` + `ATable` + `useTableTree` | `KPanel` + `KTable` + `useTable({ tree: true })` + `KFormDialog`；「有子级禁删」改由 `KTable` 内置，`beforeAddRow` 回填父级改成 `preset: { parentId, parent }`；**不传 `enable` 权限**（原页没有启停动作，旧页是靠 `@Table` 有没有 `isDisabled` 列隐式决定的） |
+| `personnel/role/list.vue` | `ATable` + 两个命令式弹窗 | `KTable` + `KFormDialog`；「菜单 / 权限」两个授权动作走 `KTable` 的 `:actions`（与合同页「生效 / 终止」同一条路：权限码由页面给，组件不认识业务常量） |
+| `personnel/role/component/{menuEditor,permissionEditor}.vue` | `ADialog + DialogProps`，靠 `DialogUtil.show` 打开 | `KDialog + v-model`、回调只剩 `saved`。菜单树用 `ElTree`（**`check-strictly` 必须保留**：勾父节点不该连带勾子项，旧版就是这个语义）；权限树用 `ElTable` 树表 + 多选列，不换 `KTable` 的理由写在文件头（权限实体属 system 域，为一个弹窗去给系统域实体补元数据等于把批次边界搞糊） |
+| `personnel/user/list.vue` | `ATreeBox` + `hook.request.value.filter.departmentId` | 左侧改 `ElTree`（数据走 `KDepartmentService.getTreeList`，走 TanStack 缓存）+ `table.search({ departmentId })`；角色/部门多选走 `#extra` 插槽 + `KSelector(multiple/tree)`；提交前把两个列表裁成只带 id（旧 `copyOnlyId()` 语义） |
+| `factory/structure/list.vue` | `DialogUtil.selectList(DepartmentSelector, ...)` | `KSelector(:service="KDepartmentService" multiple tree)` + 页面自己持有弹窗显隐 |
+| **删除** | — | `personnel/{department,role,user}/component/*` 8 件（department 的 editor/selector/index、role 的 editor/selector/index、user 的 editor/index；两个 barrel 只是 re-export）+ `model/personnel/{department/DepartmentService,role/RoleService}.ts`（共 10 个文件） |
+
+#### 三个框架层补丁（都是"页面真的需要"才加）
+
+| 件 | 变化 | 为什么必须 |
+| --- | --- | --- |
+| `framework/validate.ts` | 新增 `WebValidator.ifContain(text)` | 旧角色编辑器有一条业务规则「角色名不允许带『管理员』三个字」。换底座时这类**页面级自定义校验**最容易连规则一起丢；补回链式方法，规则本身仍写在页面里 |
+| `KFormDialog` | 新增 `extraRules`（按字段补充/覆盖规则） | 自动生成的规则只能表达元数据里有的东西（必填/长度/格式/范围）。没有这个口子，上面那条业务规则就只能塞进实体装饰器——那是**把页面规则写进模型**，比丢规则好不了多少 |
+| `MenuEntity` / `PermissionEntity` | 补 `@KType(MenuEntity)` / `@KType(PermissionEntity)`（**只补这一条**，其余 K 装饰器等 system 批） | `getTreeList` 用框架的 `fill()` 递归实例化，递归依据是框架注册表里的 `@KType`，airpower 的 `@Type` 只喂 airpower 的转换器。缺了它，`children` 是裸 JSON：表单**看起来正常**，但勾选子级菜单后 `KRoleService.authorizeMenu` 逐项调 `copyOnlyId()` 会 TypeError ——「能显示、提交才炸」是这批最隐蔽的坑 |
+
+#### 批 3 的验收
+
+1. **域门禁** `src/config/__tests__/personnelDomain.spec.ts`（16 用例）：域内 airpower 精确集合 = **空集**（并连带断言 `factory/structure` 不再用 `DialogUtil`）；旧件与两个旧服务「文件不存在」；三页走新底座（含 `useTanStackTable` / 直连 `@/model/*Service` 的禁令）；两个实体实例化（`fill()` 后 `children[0].copyOnlyId` 是函数）；`isDisabled` 与基类 `isPublished` 不同时出现在同一张表；
+2. **演示模式端到端**（同文件）：真挂 `menuEditor` / `permissionEditor`，用 demo 适配器喂**真实菜单树与真实权限码**，点「保存」后断言授权项是实体实例、id 正确 —— 这条用例专门守 `@KType` 那个坑；
+3. **全链**：vitest **49 文件 / 426 用例**；`vue-tsc`、ESLint、`pnpm build`、`demo:check`、`deadcode:check`、`exports:check`、`size` 全绿；
+4. **airpower 退场**：生产文件 **145 → 135**（−10 = 部门/角色/用户三页重写 3 + 角色组件 4（编辑器/选择器/菜单授权/权限授权）+ 部门编辑器与选择器 2 + 用户编辑器 1）。
+   另**删除 10 个文件**：8 个旧 `component/**`（两个 barrel 本来就不 import airpower）+ 旧 `DepartmentService`/`RoleService`（它们只 import 本仓 `AbstractBaseService`，不计入 airpower 足迹）。
+   模型层 personnel 三实体保留双注册（5 个文件），退役留给 F5；
+5. **演示数据补齐**（`pnpm dev:demo` 下的可看性，属"预览优先"要求）：① `menu/getTreeList` 与 `permission/getTreeList` 不再走通用造数器，改为返回**真实菜单树**（与左侧导航同源）与**按真实权限码分组的权限树** —— 授权弹窗是"真的把 identity 提交给后端"的地方，编造的编码会让人误判授权对象；② 演示行补 `isDisabled`（K 侧状态列与启停按钮读它，缺了就永远显示"启用中"）；③ 用户行补 `departmentId`/`roleList`/`departmentList`，否则用户页点部门树会筛成空表（看起来像功能坏了）。三条都有契约用例（`demoPreview.spec.ts`）。
+
+> ⚠️ **一条记录在案的边界**：`isDisabled`（本实体的状态列）与 `KEntity.isPublished`（基类的状态列）在语义上是同一件事。
+> 三个实体目前都还继承 airpower 的 `BaseEntity`，所以不冲突；**将来切 `KEntity` 时必须二选一**，
+> 域门禁里已经用一条断言把这个口径钉住了（同时声明两者即失败）。
+
 ## 四、批 3~6：按域推进（先小后大，先低风险后高敏感）
 
 | 批次 | 域 | 视图文件 | 依赖缺口（除批 0 外） | 备注 |
 | --- | --- | --- | --- | --- |
 | 批 1 | factory + index | 6 + 1 | 无（已具备） | ✅ **本轮完成**：仓库/生产单元改用 `useTable({ tree: true })` + `KTable` + `KFormDialog`，首页 `APanel` → `KPanel`；两个跨域选择器**按设计保留**（wms 的入库/移库页仍用它们，属批 4） |
 | 批 2 | asset | 8 | `KSelector`、`useDetail` | ✅ **本轮完成**；另补了异步导出、日期控件、`cell-*` 插槽。原计划的"批 2B"经复查撤销：合同三件是零消费者死件（已删），物料选择器随批 4/5 迁移（见 §3.6） |
-| 批 3 | personnel | 11 | `useTreeTable`（部门树）、`KSelector`（用户/角色选择器） | 角色页的权限树编辑器是唯一复杂点，单独拆子任务 |
+| 批 3 | personnel | 11 | `useTreeTable`（部门树）、`KSelector`（用户/角色选择器） | ✅ **本轮完成**（§3.7）：三页 + 两个授权弹窗 + 两个新服务；旧 `DepartmentService`/`RoleService` 已删，`UserService` 留给认证链（F5）。连带改掉 `factory/structure` 的部门选择器 |
 | 批 4 | wms | 20 | `KSelector`、`DialogUtil`、单据公共件（批 0 已备） | 单据闭环最完整（出入库/移库/库存），是**业务主线**，放在渠道域之前 |
 | 批 5 | channel | 23 | `KSelector`、`AMoney` | 采购/销售/价格 + 客户/供应商，文件最多但结构高度同构，可脚本化批量替换 |
 | 批 6 | system | 21 | `useTreeTable`（菜单/权限树） | 权限、数据权限、日志页是「平台自身的门」，最后动，避免迁移期自锁 |
@@ -274,6 +316,8 @@ vitest **48 文件 / 409 用例**全绿，其中逐页冒烟探针覆盖 asset �
 **树表页在预览里永远是空的**（旧 airpower 树页也一样，不报错所以一直没被发现）。
 修复后仓库/库位结构页的渲染体积从 13 KB / 15 KB 涨到 110 KB / 128 KB（真实树数据）。
 
-**遗留观测（留给批 3/6）**：部门/菜单/权限三页（仍是 airpower `useTableTree`）在探针里
-字节数几乎不受该修复影响（30 KB → 30 KB），说明它们**即使拿到数据也没渲染出行**；
-这三页属于后续批次，迁移到新组件时一并验证，不要当成"演示数据缺失"处理。
+**遗留观测的后续（批 3 已解一半）**：当时部门/菜单/权限三页（airpower `useTableTree`）在探针里
+字节数几乎不受该修复影响（30 KB → 30 KB），说明它们**即使拿到数据也没渲染出行**。
+批 3 把部门页迁到 `useTable({ tree: true })` + `KTable` 后，探针字节数 **30 → 53 KB**，树真的渲染出行了
+（同一轮把 personnel 三页都跑了一遍：用户 91 KB、角色 76 KB、部门 53 KB，均 ✅ 无硬错误）。
+菜单/权限两页仍属 system 批，到那批再核同样的现象。

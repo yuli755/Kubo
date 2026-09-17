@@ -17,7 +17,7 @@
 import type { Row } from './specs'
 import { demoTenants, demoUserInfo } from '../fixtures/identity'
 import { demoMenuTree } from '../fixtures/menu'
-import { demoPermissions } from '../fixtures/permissions'
+import { demoPermissions, demoPermissionTree } from '../fixtures/permissions'
 import { demoDenyLogs, demoOverview, demoRuntimeStatus } from '../fixtures/systemData'
 import { buildRow, totalOf } from './specs'
 
@@ -194,6 +194,28 @@ function resolveIdentity(resourcePath: string, action: string): { hit: boolean, 
   return { hit: false }
 }
 
+/**
+ * 角色授权树端点（F4 批 3 起）。
+ *
+ * 菜单/权限两棵授权树**不能走通用树生成器**：
+ * - `menu/getTreeList` 返回的是应用菜单树本身（与 `user/getMyMenuList` 同源，
+ *   演示时授权的菜单名与左侧导航一致，评审时对得上）；
+ * - `permission/getTreeList` 返回按真实权限码分组的树（identity 提交给后端，
+ *   演示数据里编造的编码会让人误判授权对象）。
+ */
+function resolveAuthTree(resourcePath: string, action: string): { hit: boolean, data?: unknown } {
+  if (action !== 'getTreeList') {
+    return { hit: false }
+  }
+  if (resourcePath === 'menu') {
+    return { hit: true, data: demoMenuTree() }
+  }
+  if (resourcePath === 'permission') {
+    return { hit: true, data: demoPermissionTree() }
+  }
+  return { hit: false }
+}
+
 /** 看板 / 数据权限报表端点 */
 function resolveReport(resourcePath: string, action: string): { hit: boolean, data?: unknown } {
   if (resourcePath === 'dashboard' && action === 'overview') {
@@ -235,6 +257,11 @@ export function resolveMock(resourcePath: string, action: string, payload: Paylo
   const report = resolveReport(resourcePath, action)
   if (report.hit) {
     return report.data
+  }
+
+  const authTree = resolveAuthTree(resourcePath, action)
+  if (authTree.hit) {
+    return authTree.data
   }
 
   if (PAGE_ACTIONS.has(action)) {
