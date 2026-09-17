@@ -217,6 +217,11 @@ private StorageService storageService;
 - 每个方法之间保留一个空行
 - 导入包使用 * 方式，如 `import cn.hamm.airpower.*;`
 
+> **注（2026-09-18）**：`cn.hamm.airpower` 是**待退场**的框架（前端对应的 `@airpower/web` 已删净）。
+> 后端退场分批方案见 `docs/后端airpower退场·可行性评估与分批建议.md`；
+> 门禁 `pnpm airpower:backend -- --check` 会拦住"足迹变大"——新增用法前先看那份文档，
+> 能自建的通用件优先自建（`pnpm airpower:backend` 会打印按用量排序的"要自建什么"清单）。
+
 ## 继承体系
 
 所有类都继承项目提供的基类：

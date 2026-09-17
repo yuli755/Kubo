@@ -367,7 +367,7 @@ airpower 生产足迹 **120 → 92**（−28 = 重写 16 个文件不再 import 
 | 新增门禁 | `elementPlusAggregate.spec.ts`（2 例，钉住"源码里 `from 'element-plus'` 的具名导入必须在别名聚合入口里有导出"—— 这个坑本轮踩了两次，只在 `pnpm build` 炸）+ `authStorage.spec.ts`（4 例，钉住 localStorage key 不变） |
 | 演示 | `pnpm dev:demo` 登录 → 控制台（顶栏菜单/账号安全/令牌/头像上传入口）→ 各域列表页正常渲染 |
 
-**残留（已知，不在本轮范围）**：`BaseEntity` / `AbstractBaseService` 仍是实体的继承根（它们已不 import airpower，属 F5 的收尾重命名/收敛）；`ITableColumn.hide` 在新底座里等价于"列仍显示"（没有列选择器），
+**残留（已知，不在本轮范围）**：`src/base/` 只剩两个薄壳 —— `BaseEntity`（唯一实体基类，继承 `@/framework` 的 `RootEntity`，`KEntity` 已删）与 `AbstractBaseService`（在 `@/framework` 的 `AbstractCurdService` 上加一个带提示的 `publish()`），二者都已不 import airpower；`ITableColumn.hide` 在新底座里等价于"列仍显示"（没有列选择器），
 `metadata.spec.ts` 里把这个语义写死为契约 —— 14 处 `hide: true` 的列因此比 airpower 时代更显眼，要收口需先决定"加列选择器"还是"改成不渲染"。
 
 ## 四、批 3~6：按域推进（先小后大，先低风险后高敏感）
