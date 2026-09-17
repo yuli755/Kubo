@@ -1,132 +1,196 @@
 <script lang="ts" setup>
-import type { FormInstance } from 'element-plus'
-import { ADialog, AInput, DialogProps, DialogUtil } from '@airpower/web'
-import { ElMessage } from 'element-plus'
-import { ref } from 'vue'
-import { InventoryEntity } from '@/model/wms/inventory/InventoryEntity'
+import type { InventoryEntity } from '@/model/wms/inventory/InventoryEntity'
+import { ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
+import { computed, ref, watch } from 'vue'
+import KDialog from '@/component/framework/KDialog.vue'
+import { FeedbackUtil, getFieldLabel } from '@/framework'
+import { KOutputService } from '@/hook/wms/useOutput'
+import { InventoryEntity as Inventory } from '@/model/wms/inventory/InventoryEntity'
 import { InventoryTypeEnum } from '@/model/wms/inventory/InventoryTypeEnum'
-
-import { OutputDetailService, useOutputAddFinish } from '@/hook/wms/useOutput'
 import { OutputDetailEntity } from '@/model/wms/output/OutputDetailEntity'
-import { InventorySelector } from '../../inventory/component'
+import { InventorySelector } from '@/view/console/wms/inventory/component'
 
-const props = defineProps(DialogProps.withParam(new OutputDetailEntity()))
+/**
+ * # 确认出库（F4 批 4 · 新底座）
+ *
+ * 单据「作业」的第二种形态：出库要**先选一条具体库存**（从哪批货里扣），再填本次出库数量。
+ *
+ * ## 后端契约（E-H1 起，批 4 保持不变）
+ * `POST /output/addFinish` 的载荷是明细，后端从载荷读：
+ * - `quantity` —— **本次**数量（后端累加，传累计值会把明细数量翻倍）；
+ * - `inventory.id` —— 扣减来源（缺它会失败）。
+ *
+ * ## 与旧版的差别
+ * - 库存选择器 `InventorySelector` 已在本批迁到新底座（`IDialogActionProps` 契约不变），
+ *   这里**声明式**打开它，不再需要全局 `DialogUtil` 上下文；
+ * - 选中库存后数量默认 `min(该库存可用量, 待出数量)` —— 与旧版一致：
+ *   默认值只求"点一次就能提交"，超量仍由后端拒绝。
+ */
+const props = defineProps<{
+  modelValue: boolean
+  /** 待出库的明细 */
+  detail: OutputDetailEntity | null
+}>()
 
-const formData = ref(props.param.copy())
+const emit = defineEmits<{
+  (event: 'update:modelValue', value: boolean): void
+  (event: 'confirmed'): void
+}>()
 
-const isLoading = ref(false)
+const quantity = ref(0)
+const inventory = ref<InventoryEntity | undefined>(undefined)
+const inventoryPicking = ref(false)
+const inventorySeed = ref<InventoryEntity | undefined>(undefined)
+const submitting = ref(false)
 
-const formRef = ref<FormInstance>()
+const waitingQuantity = computed(() =>
+  Math.max(0, Number(props.detail?.quantity ?? 0) - Number(props.detail?.finishQuantity ?? 0)),
+)
 
-const { mutateAsync: addFinishMutate } = useOutputAddFinish()
+watch(
+  () => [props.modelValue, props.detail] as const,
+  ([opened, detail]) => {
+    if (opened && detail) {
+      quantity.value = Math.max(0, Number(detail.quantity ?? 0) - Number(detail.finishQuantity ?? 0))
+      // 明细上已带库存（后端回填过）则直接沿用，否则让用户选
+      inventory.value = detail.inventory?.id ? detail.inventory : undefined
+    }
+  },
+  { immediate: true },
+)
 
-async function onSubmit() {
-  const form = formData.value.copy()
-  // 阶段 E-H1：后端 OutputService.afterDetailFinishAdded 从载荷读取 inventory.id（扣减来源）
-  // 与 quantity（本次累加数量）。旧写法传 finishQuantity 且不带库存，「确认出库」必然失败。
-  if (!form.inventory || !form.inventory.id) {
-    ElMessage.warning('请选择库存来源')
-    return
+const materialName = computed(() => props.detail?.material?.name ?? '-')
+const unitName = computed(() => props.detail?.material?.unit?.name ?? '')
+const inventoryQuantity = computed(() => inventory.value?.quantity ?? 0)
+
+function openInventoryPicker() {
+  // 按仓库维度挑库存，并带上物料：选择器会按物料过滤（见 inventory selector 的文件头说明）
+  const seed = new Inventory()
+  seed.type = InventoryTypeEnum.STORAGE.key
+  if (props.detail?.material) {
+    seed.material = props.detail.material.copy()
   }
-  await addFinishMutate({
-    id: form.id,
-    quantity: form.quantity,
-    inventory: { id: form.inventory.id },
-  })
-  props.onConfirm()
+  inventorySeed.value = seed
+  inventoryPicking.value = true
 }
 
-const quantity = ref(formData.value.quantity - formData.value.finishQuantity)
-const material = ref(formData.value.material.copy())
-// 默认填「待出数量」，与入库确认编辑器对齐：部分出库后再次确认时，
-// 默认值若仍是明细总量会直接触发「完成数量不得超过单据数量」。
-formData.value.quantity = quantity.value
-formData.value.expose('id', 'quantity')
+function onInventoryPicked(picked: unknown) {
+  const row = picked as InventoryEntity | undefined
+  inventoryPicking.value = false
+  if (!row) {
+    return
+  }
+  inventory.value = row
+  // 默认值取「库存可用量」与「待出数量」的较小者：超量提交只会被后端拒绝
+  quantity.value = Math.min(Number(row.quantity ?? 0), waitingQuantity.value)
+}
 
-async function selectInventory() {
-  let inventory = new InventoryEntity()
-  inventory.type = InventoryTypeEnum.STORAGE.key
-  inventory.material = material.value.copy()
-  inventory = await DialogUtil.show(InventorySelector, inventory)
-  formData.value.inventory = inventory.copy()
-  formData.value.inventoryId = formData.value.inventory.id
-  formData.value.storageName = formData.value.inventory.storage.name
-  formData.value.quantity = Math.min(
-    formData.value.inventory.quantity,
-    quantity.value,
-  )
+async function onConfirm() {
+  const detail = props.detail
+  const source = inventory.value
+  if (!detail?.id) {
+    return
+  }
+  if (!source?.id) {
+    FeedbackUtil.toastWarning('请选择库存来源')
+    return
+  }
+  submitting.value = true
+  try {
+    await new KOutputService().addDetailFinishQuantity({
+      id: detail.id,
+      quantity: quantity.value,
+      inventory: { id: source.id },
+    } as never)
+    FeedbackUtil.toastSuccess('明细出库成功')
+    emit('confirmed')
+    emit('update:modelValue', false)
+  }
+  finally {
+    submitting.value = false
+  }
 }
 </script>
 
 <template>
-  <ADialog
-    :disable-confirm="formData.quantity <= 0"
-    :form-ref="formRef"
-    :loading="isLoading"
+  <KDialog
+    :disable-confirm="quantity <= 0"
+    :model-value="modelValue"
+    confirm-text="确认出库"
     title="确认出库"
     width="600px"
-    @cancel="onCancel"
-    @confirm="onSubmit"
+    @cancel="emit('update:modelValue', false)"
+    @confirm="onConfirm"
+    @update:model-value="value => emit('update:modelValue', value)"
   >
-    <el-form
-      ref="formRef"
-      :model="formData"
-      :rules="OutputDetailService.createValidator()"
-      label-width="120px"
+    <ElForm
+      v-loading="submitting"
+      label-width="110px"
       @submit.prevent
     >
-      <el-form-item label="物料信息">
-        <el-input
-          v-model="material.name"
+      <ElFormItem label="物料信息">
+        <ElInput
+          :model-value="materialName"
           disabled
         />
-      </el-form-item>
-      <el-form-item
-        label="库存来源"
-        prop="inventoryId"
-      >
-        <AInput
-          v-model="formData.storageName"
-          :entity="OutputDetailEntity"
+      </ElFormItem>
+      <ElFormItem label="库存来源">
+        <ElInput
+          :model-value="inventory?.storage?.name ?? ''"
           placeholder="请选择库存来源..."
-          @click="selectInventory"
+          readonly
+          @click="openInventoryPicker"
         />
-      </el-form-item>
-      <el-form-item
-        v-if="formData.inventory"
+      </ElFormItem>
+      <ElFormItem
+        v-if="inventory"
         label="当前库存"
       >
-        <el-input
-          v-model="formData.inventory.quantity"
+        <ElInput
+          :model-value="String(inventoryQuantity)"
           disabled
         >
           <template #append>
-            {{ material.unit.name }}
+            {{ unitName }}
           </template>
-        </el-input>
-      </el-form-item>
-      <el-form-item label="待出数量">
-        <el-input
+        </ElInput>
+      </ElFormItem>
+      <ElFormItem label="待出数量">
+        <ElInput
+          :model-value="String(waitingQuantity)"
+          disabled
+        >
+          <template #append>
+            {{ unitName }}
+          </template>
+        </ElInput>
+      </ElFormItem>
+      <ElFormItem :label="getFieldLabel(OutputDetailEntity, 'quantity')">
+        <ElInputNumber
           v-model="quantity"
-          disabled
-        >
-          <template #append>
-            {{ material.unit.name }}
-          </template>
-        </el-input>
-      </el-form-item>
-      <el-form-item label="出库数量">
-        <el-input
-          v-model="formData.quantity"
-          type="number"
-        >
-          <template #append>
-            {{ material.unit.name }}
-          </template>
-        </el-input>
-      </el-form-item>
-    </el-form>
-  </ADialog>
+          :min="0"
+          class="add-finish-editor__number"
+        />
+        <span class="add-finish-editor__unit">{{ unitName }}</span>
+      </ElFormItem>
+    </ElForm>
+  </KDialog>
+
+  <InventorySelector
+    v-if="inventoryPicking"
+    :param="inventorySeed"
+    :on-cancel="() => inventoryPicking = false"
+    :on-confirm="onInventoryPicked as never"
+  />
 </template>
 
-<style lang="sass" scoped></style>
+<style lang="scss" scoped>
+.add-finish-editor__number {
+  width: 180px;
+}
+
+.add-finish-editor__unit {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+}
+</style>

@@ -1,63 +1,139 @@
 <script lang="ts" setup>
-import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
-import { BillAuditOrReject, BillRejectDialog } from '@/component'
+import type { InputEntity } from '@/model/wms/input/InputEntity'
+import { ref } from 'vue'
+import BillRejectDialog from '@/component/bill/BillRejectDialog.vue'
+import KPanel from '@/component/framework/KPanel.vue'
+import KTable from '@/component/framework/KTable.vue'
 import { Permissions } from '@/config/permissions'
-import { useTanStackTable } from '@/hook/useTanStackTable'
-import { InputService, useInputAudit, useInputReject } from '@/hook/wms/useInput'
+import { FeedbackUtil } from '@/framework'
+import { useTable } from '@/hook/kubo/useTable'
+import { KInputService } from '@/hook/wms/useInput'
 import { InputStatusEnum } from '@/model/wms/input/InputStatusEnum'
-import { InputDetail, InputEditor } from './component'
+import InputDetail from './component/detail.vue'
+import InputEditor from './component/editor.vue'
 
-const hook = useTanStackTable(InputService, {
+/**
+ * # 入库单列表（F4 批 4 · 新底座）
+ *
+ * 与批 3 的普通列表相同，只多两个状态机动作（审核 / 驳回）：
+ * 判据来自实体的 `canAudit()` / `canReject()`（`AbstractBaseBillEntity`），组件不认识业务状态。
+ *
+ * 三个与旧页面对齐的细节：
+ * - **驳回复核两道**：先填原因（`BillRejectDialog`），再确认一次（旧页面就是这两步）；
+ * - **只有「已驳回」的单据可编辑**：被驳回的单据要能改完再提交，审核中/入库中的不许改；
+ * - **没有删除与启停**：后端 `@Extends(exclude = Curd.Delete)` 没有删除端点，
+ *   单据也没有启用/禁用语义 —— 用 `hide-delete` / `hide-enable` 显式关掉，
+ *   否则「没传权限码 ≠ 不显示」（`v-permission` 未传值时是不拦截的），用户会看到点下去必然报错的按钮。
+ */
+const table = useTable(KInputService, {
   queryKey: ['wms:input'],
-  editView: InputEditor,
-  detailView: InputDetail,
+  export: true,
 })
 
-async function refreshList() {
-  hook.onReloadData()
+const editorVisible = ref(false)
+const editingId = ref<number | null>(null)
+
+const detailVisible = ref(false)
+const detailId = ref<number | null>(null)
+
+const rejecting = ref(false)
+const rejectingBill = ref<InputEntity | null>(null)
+
+function openCreate() {
+  editingId.value = null
+  editorVisible.value = true
 }
 
-const { mutateAsync: auditMutate } = useInputAudit()
-async function onAudit(bill: { id: number }) {
-  await FeedbackUtil.confirmWarning('是否确认审核选择的入库单？')
-  await auditMutate({ id: bill.id })
-  await refreshList()
+function openEdit(row: InputEntity) {
+  editingId.value = row.id
+  editorVisible.value = true
 }
 
-const { mutateAsync: rejectMutate } = useInputReject()
-async function onReject(bill: { id: number, rejectReason?: string }) {
-  const rejectReason: string = await DialogUtil.show(BillRejectDialog, '驳回入库单的原因')
-  await FeedbackUtil.confirmWarning('是否确认驳回选择的入库单？')
-  await rejectMutate({ id: bill.id, rejectReason })
-  await refreshList()
+function openDetail(row: InputEntity) {
+  detailId.value = row.id
+  detailVisible.value = true
+}
+
+async function onAudit(row: InputEntity) {
+  await FeedbackUtil.confirmWarning('是否确认审核选择的入库单？', '审核入库单')
+  await new KInputService().audit(row)
+  FeedbackUtil.toastSuccess('审核成功')
+  table.reload()
+}
+
+function onRejectStart(row: InputEntity) {
+  rejectingBill.value = row
+  rejecting.value = true
+}
+
+async function onRejectConfirm(reason: string) {
+  const bill = rejectingBill.value
+  rejecting.value = false
+  rejectingBill.value = null
+  if (!bill) {
+    return
+  }
+  await FeedbackUtil.confirmWarning('是否确认驳回选择的入库单？', '驳回入库单')
+  await new KInputService().reject(bill, reason)
+  FeedbackUtil.toastSuccess('驳回成功')
+  table.reload()
+}
+
+function onSaved() {
+  table.reload()
 }
 </script>
 
 <template>
-  <APanel>
-    <ATable
-      :disable-edit="(row) => !InputStatusEnum.REJECTED.equalsKey(row.status)"
-      :use-hook="hook"
-      :add-permission="Permissions.Wms.Input.add"
-      :detail-permission="Permissions.Wms.Input.getDetail"
-      :edit-permission="Permissions.Wms.Input.update"
-      :export-permission="Permissions.Wms.Input.export"
-      ctrl-width="200"
-      hide-delete
-      show-detail
-      show-export
+  <div class="k-page">
+    <KPanel
+      title="入库单"
+      description="采购入库 / 移动入库 / 普通入库：审核后逐条「作业」登记实际入库数量"
     >
-      <template #customRow="{ data }">
-        <BillAuditOrReject
-          :audit-permission="Permissions.Wms.Input.audit"
-          :reject-permission="Permissions.Wms.Input.reject"
-          :bill="data"
-          @on-audit="onAudit"
-          @on-reject="onReject"
-        />
-      </template>
-    </ATable>
-  </APanel>
+      <KTable
+        :actions="[
+          { label: '查看', permission: Permissions.Wms.Input.getDetail, handler: openDetail },
+          { label: '审核', permission: Permissions.Wms.Input.audit, disabled: (row: InputEntity) => !row.canAudit(), handler: onAudit },
+          { label: '驳回', permission: Permissions.Wms.Input.reject, disabled: (row: InputEntity) => !row.canReject(), handler: onRejectStart },
+        ]"
+        :disable-edit="(row: InputEntity) => !InputStatusEnum.REJECTED.equalsKey(row.status)"
+        :permissions="{
+          add: Permissions.Wms.Input.add,
+          edit: Permissions.Wms.Input.update,
+          export: Permissions.Wms.Input.export,
+        }"
+        :table="table"
+        hide-delete
+        hide-enable
+        show-export
+        @add="openCreate"
+        @edit="openEdit"
+      />
+    </KPanel>
+
+    <InputEditor
+      :id="editingId"
+      v-model="editorVisible"
+      @saved="onSaved"
+    />
+
+    <InputDetail
+      :id="detailId"
+      v-model="detailVisible"
+      @saved="onSaved"
+    />
+
+    <BillRejectDialog
+      v-if="rejecting"
+      :on-cancel="() => { rejecting = false; rejectingBill = null }"
+      :on-confirm="(data) => onRejectConfirm(String(data ?? ''))"
+      param="驳回入库单的原因"
+    />
+  </div>
 </template>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+.k-page {
+  padding: 16px;
+}
+</style>

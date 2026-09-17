@@ -1,69 +1,123 @@
 <script lang="ts" setup>
-import type { FormInstance } from 'element-plus'
-import { ADialog, AInput, ASelect, DialogProps, getFieldLabel } from '@airpower/web'
-import { ref } from 'vue'
-import { OutputDetailService } from '@/hook/wms/useOutput'
+import { ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
+import { computed, ref, watch } from 'vue'
+import KDialog from '@/component/framework/KDialog.vue'
+import KSelector from '@/component/framework/KSelector.vue'
+import { getFieldLabel, WebValidator } from '@/framework'
+import { KMaterialService } from '@/hook/asset/useMaterial'
 import { OutputDetailEntity } from '@/model/wms/output/OutputDetailEntity'
 
-import { MaterialSelector } from '@/view/console/asset/material/component'
+/**
+ * # 出库明细编辑（F4 批 4 · 新底座）
+ *
+ * 与入库明细编辑器同构：选物料 + 填数量（数量后缀是物料单位）。
+ * 差别只有一处**业务含义**：出库的「来源」不在这一步定 —— 出库时从具体库存里扣
+ * （见 `OutputAddFinishEditor` 的库存选择），所以这里不选仓库。
+ */
+const props = defineProps<{
+  modelValue: boolean
+  detail: OutputDetailEntity | null
+}>()
 
-const props = defineProps(DialogProps.withParam(new OutputDetailEntity()))
+const emit = defineEmits<{
+  (event: 'update:modelValue', value: boolean): void
+  (event: 'confirm', detail: OutputDetailEntity): void
+}>()
 
-const formData = ref(props.param.copy())
+const form = ref<OutputDetailEntity | null>(null)
+const materialPicking = ref(false)
 
-const isLoading = ref(false)
+watch(
+  () => [props.modelValue, props.detail] as const,
+  ([opened, detail]) => {
+    if (opened && detail) {
+      form.value = detail.copy() as OutputDetailEntity
+    }
+  },
+  { immediate: true },
+)
 
-const formRef = ref<FormInstance>()
+const rules = computed(() => WebValidator.createRules(OutputDetailEntity as never) as unknown as Record<string, unknown[]>)
 
-async function onSubmit() {
-  props.onConfirm(formData.value)
+const unitName = computed(() => form.value?.material?.unit?.name ?? '')
+
+function onMaterialPicked(rows: unknown[]) {
+  const material = rows[0] as OutputDetailEntity['material'] | undefined
+  materialPicking.value = false
+  if (!form.value || !material) {
+    return
+  }
+  form.value.material = material
+  form.value.materialId = material.id
+  form.value.materialName = material.name
+}
+
+function onConfirm() {
+  if (form.value) {
+    emit('confirm', form.value)
+  }
+  emit('update:modelValue', false)
 }
 </script>
 
 <template>
-  <ADialog
-    :form-ref="formRef"
-    :loading="isLoading"
+  <KDialog
+    :model-value="modelValue"
+    confirm-text="确定"
     title="出库明细"
     width="600px"
-    @cancel="onCancel"
-    @confirm="onSubmit"
+    @cancel="emit('update:modelValue', false)"
+    @confirm="onConfirm"
+    @update:model-value="value => emit('update:modelValue', value)"
   >
-    <el-form
-      ref="formRef"
-      :model="formData"
-      :rules="OutputDetailService.createValidator()"
-      label-width="120px"
+    <ElForm
+      v-if="form"
+      :model="form"
+      :rules="rules"
+      label-width="110px"
       @submit.prevent
     >
-      <el-form-item
-        label="物料信息"
+      <ElFormItem
+        label="出库物料"
         prop="material"
       >
-        <ASelect
-          v-model="formData.material"
-          :selector="MaterialSelector"
+        <ElInput
+          :model-value="form.material?.name ?? ''"
+          placeholder="请选择出库物料..."
+          readonly
+          @click="materialPicking = true"
         />
-      </el-form-item>
-      <el-form-item
+      </ElFormItem>
+      <ElFormItem
         :label="getFieldLabel(OutputDetailEntity, 'quantity')"
         prop="quantity"
       >
-        <AInput
-          v-model.quantity="formData.quantity"
-          :entity="OutputDetailEntity"
-          clearable
-        >
-          <template
-            v-if="formData.material"
-            #append
-          >
-            {{ formData.material.unit.name }}
-          </template>
-        </AInput>
-      </el-form-item>
-    </el-form>
-  </ADialog>
+        <ElInputNumber
+          v-model="form.quantity as number"
+          :min="0"
+          class="output-detail-editor__number"
+        />
+        <span class="output-detail-editor__unit">{{ unitName }}</span>
+      </ElFormItem>
+    </ElForm>
+  </KDialog>
+
+  <KSelector
+    v-model="materialPicking"
+    :selected="form?.material ? [form.material] : []"
+    :service="KMaterialService"
+    title="选择物料"
+    @confirm="onMaterialPicked"
+  />
 </template>
 
-<style lang="sass" scoped></style>
+<style lang="scss" scoped>
+.output-detail-editor__number {
+  width: 180px;
+}
+
+.output-detail-editor__unit {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+}
+</style>

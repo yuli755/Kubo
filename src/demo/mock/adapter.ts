@@ -61,11 +61,16 @@ function collectPayload(config: InternalAxiosRequestConfig): Record<string, unkn
     Object.assign(payload, rawBody as Record<string, unknown>)
   }
 
-  // 路径末段是数字时视为 id（如 `/input/detail/12`）
+  // 路径末段是数字时视为 id（如 `/{res}/getDetail/{id}`）——此时**动作段是它的前一段**。
+  // 必须在这里把动作也还原出来：否则引擎拿到的是 `resourcePath='wms/input/getDetail'`、
+  // `action='3'`，任何端点都命不中，最后落到「未覆盖的读取端点」返回 `true`，
+  // 表现为**详情弹窗字段全是 '-'、明细永远为空**（列表页却完全正常，很难联想到 URL 解析）。
   const { resourcePath, action } = parseRequestUrl(config.url ?? '')
   if (/^\d+$/.test(action)) {
+    const segments = resourcePath.split('/').filter(Boolean)
     payload.id = Number(action)
-    payload.__resourcePath = resourcePath
+    payload.__resourcePath = segments.slice(0, -1).join('/')
+    payload.__action = segments[segments.length - 1] ?? ''
   }
   return payload
 }
@@ -103,11 +108,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-function wantsBlob(config: InternalAxiosRequestConfig): boolean {
+function wantsBlob(config: InternalAxiosRequestConfig, action: string): boolean {
   if (config.responseType === 'blob' || config.responseType === 'arraybuffer') {
     return true
   }
-  const { action } = parseRequestUrl(config.url ?? '')
+  // 用**已还原的**动作段判断（`/x/export/12` 这种带路径 id 的导出也要认得出来）
   return BLOB_PATH_HINTS.some(hint => action.toLowerCase().includes(hint.toLowerCase()))
 }
 
@@ -119,20 +124,22 @@ function wantsBlob(config: InternalAxiosRequestConfig): boolean {
 export function createDemoAdapter(delayMs: [number, number] = [120, 320]): AxiosAdapter {
   return async (config: InternalAxiosRequestConfig): Promise<AxiosResponse> => {
     const url = `${config.baseURL ?? ''}${config.url ?? ''}`
-    const { resourcePath: parsedPath, action } = parseRequestUrl(url)
+    const { resourcePath: parsedPath, action: parsedAction } = parseRequestUrl(url)
     const payload = collectPayload(config)
     const resourcePath = (payload.__resourcePath as string | undefined) ?? parsedPath
+    const action = (payload.__action as string | undefined) ?? parsedAction
     delete payload.__resourcePath
+    delete payload.__action
 
     await sleep(delayMs[0] + Math.random() * (delayMs[1] - delayMs[0]))
 
     const uploaded = action === 'upload' ? resolveDemoUpload(config) : null
-    const data = wantsBlob(config)
+    const data = wantsBlob(config, action)
       ? new Blob(['Kubo 演示模式：导出未接入真实文件'], { type: 'text/plain' })
       : (uploaded ?? resolveMock(resourcePath, action, payload))
 
     return {
-      data: wantsBlob(config)
+      data: wantsBlob(config, action)
         ? data
         : {
             code: 200,

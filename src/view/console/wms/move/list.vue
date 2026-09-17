@@ -1,63 +1,143 @@
 <script lang="ts" setup>
-import { APanel, ATable, DialogUtil, FeedbackUtil } from '@airpower/web'
-import { BillAuditOrReject, BillRejectDialog } from '@/component'
+import type { MoveEntity } from '@/model/wms/move/MoveEntity'
+import { ref } from 'vue'
+import BillRejectDialog from '@/component/bill/BillRejectDialog.vue'
+import KPanel from '@/component/framework/KPanel.vue'
+import KTable from '@/component/framework/KTable.vue'
 import { Permissions } from '@/config/permissions'
-import { useTanStackTable } from '@/hook/useTanStackTable'
-import { MoveService, useMoveAudit, useMoveReject } from '@/hook/wms/useMove'
+import { FeedbackUtil } from '@/framework'
+import { useTable } from '@/hook/kubo/useTable'
+import { KMoveService } from '@/hook/wms/useMove'
 import { MoveStatusEnum } from '@/model/wms/move/MoveStatusEnum'
-import { MoveDetail, MoveEditor } from './component'
+import MoveDetail from './component/detail.vue'
+import MoveEditor from './component/editor.vue'
 
-const hook = useTanStackTable(MoveService, {
+/**
+ * # 移库单列表（F4 批 4 · 新底座）
+ *
+ * 单据列表 = 普通列表 + 两个状态机动作（审核 / 驳回）。旧版把这两个动作放在 airpower 的
+ * `#customRow` 插槽里用 `BillAuditOrReject` 组件渲染；新底座走 `KTable` 的 `:actions` ——
+ * **判据仍然来自实体的状态机**（`canAudit()` / `canReject()` 由 `AbstractBaseBillEntity` 提供），
+ * 组件不认识业务状态，只负责把 `disabled` 画出来。
+ *
+ * 审核 / 驳回走 `KMoveService`（`AbstractBillService` 的 `audit`/`reject`），不再经
+ * `api/wms` 的 typed client：同一件事两条链是死代码与口径漂移的温床（批 4 已删掉这两条链的
+ * mutation hook 与 typed client）。
+ *
+ * 驳回原因用 `BillRejectDialog`（批 0 已迁到 `KDialog`，props 契约没变）：
+ * 这里**声明式**地挂在页面上（`:on-confirm` / `:on-cancel`），而不是 `DialogUtil.show` ——
+ * 命令式弹窗依赖 main.ts 注入的全局应用上下文，页面里少一处全局依赖就少一处测试盲区。
+ */
+const table = useTable(KMoveService, {
   queryKey: ['wms:move'],
-  editView: MoveEditor,
-  detailView: MoveDetail,
+  export: true,
 })
 
-async function refreshList() {
-  hook.onReloadData()
+const editorVisible = ref(false)
+const editingId = ref<number | null>(null)
+
+const detailVisible = ref(false)
+const detailId = ref<number | null>(null)
+
+const rejecting = ref(false)
+const rejectingBill = ref<MoveEntity | null>(null)
+
+function openCreate() {
+  editingId.value = null
+  editorVisible.value = true
 }
 
-const { mutateAsync: auditMutate } = useMoveAudit()
-async function onAudit(bill: { id: number }) {
-  await FeedbackUtil.confirmWarning('是否确认审核选择的移库单？')
-  await auditMutate({ id: bill.id })
-  await refreshList()
+function openEdit(row: MoveEntity) {
+  editingId.value = row.id
+  editorVisible.value = true
 }
 
-const { mutateAsync: rejectMutate } = useMoveReject()
-async function onReject(bill: { id: number, rejectReason?: string }) {
-  const rejectReason: string = await DialogUtil.show(BillRejectDialog, '驳回移库单的原因')
-  await FeedbackUtil.confirmWarning('是否确认驳回选择的移库单？')
-  await rejectMutate({ id: bill.id, rejectReason })
-  await refreshList()
+function openDetail(row: MoveEntity) {
+  detailId.value = row.id
+  detailVisible.value = true
+}
+
+async function onAudit(row: MoveEntity) {
+  await FeedbackUtil.confirmWarning('是否确认审核选择的移库单？', '审核移库单')
+  await new KMoveService().audit(row)
+  FeedbackUtil.toastSuccess('审核成功')
+  table.reload()
+}
+
+function onRejectStart(row: MoveEntity) {
+  rejectingBill.value = row
+  rejecting.value = true
+}
+
+async function onRejectConfirm(reason: string) {
+  const bill = rejectingBill.value
+  rejecting.value = false
+  rejectingBill.value = null
+  if (!bill) {
+    return
+  }
+  // 与旧页一致：填完原因后再确认一次（驳回是不可逆动作，多一道确认不是啰嗦）
+  await FeedbackUtil.confirmWarning('是否确认驳回选择的移库单？', '驳回移库单')
+  await new KMoveService().reject(bill, reason)
+  FeedbackUtil.toastSuccess('驳回成功')
+  table.reload()
+}
+
+function onSaved() {
+  table.reload()
 }
 </script>
 
 <template>
-  <APanel>
-    <ATable
-      :disable-edit="(row) => !MoveStatusEnum.REJECTED.equalsKey(row.status)"
-      :use-hook="hook"
-      :add-permission="Permissions.Wms.Move.add"
-      :detail-permission="Permissions.Wms.Move.getDetail"
-      :edit-permission="Permissions.Wms.Move.update"
-      :export-permission="Permissions.Wms.Move.export"
-      ctrl-width="160"
-      hide-delete
-      show-detail
-      show-export
+  <div class="k-page">
+    <KPanel
+      title="移库单"
+      description="仓库之间的库存移动：审核后逐条「作业」登记实际移动数量"
     >
-      <template #customRow="{ data }">
-        <BillAuditOrReject
-          :audit-permission="Permissions.Wms.Move.audit"
-          :reject-permission="Permissions.Wms.Move.reject"
-          :bill="data"
-          @on-audit="onAudit"
-          @on-reject="onReject"
-        />
-      </template>
-    </ATable>
-  </APanel>
+      <KTable
+        :actions="[
+          { label: '查看', permission: Permissions.Wms.Move.getDetail, handler: openDetail },
+          { label: '审核', permission: Permissions.Wms.Move.audit, disabled: (row: MoveEntity) => !row.canAudit(), handler: onAudit },
+          { label: '驳回', permission: Permissions.Wms.Move.reject, disabled: (row: MoveEntity) => !row.canReject(), handler: onRejectStart },
+        ]"
+        :disable-edit="(row: MoveEntity) => !MoveStatusEnum.REJECTED.equalsKey(row.status)"
+        :permissions="{
+          add: Permissions.Wms.Move.add,
+          edit: Permissions.Wms.Move.update,
+          export: Permissions.Wms.Move.export,
+        }"
+        :table="table"
+        hide-delete
+        hide-enable
+        show-export
+        @add="openCreate"
+        @edit="openEdit"
+      />
+    </KPanel>
+
+    <MoveEditor
+      :id="editingId"
+      v-model="editorVisible"
+      @saved="onSaved"
+    />
+
+    <MoveDetail
+      :id="detailId"
+      v-model="detailVisible"
+      @saved="onSaved"
+    />
+
+    <BillRejectDialog
+      v-if="rejecting"
+      :on-cancel="() => { rejecting = false; rejectingBill = null }"
+      :on-confirm="(data) => onRejectConfirm(String(data ?? ''))"
+      param="驳回移库单的原因"
+    />
+  </div>
 </template>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+.k-page {
+  padding: 16px;
+}
+</style>

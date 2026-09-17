@@ -1,64 +1,7 @@
-import type { BillAuditRequest, BillRejectRequest } from '@/api/wms/types'
-import { useMutation, useQueryClient } from '@tanstack/vue-query'
-import { inputApi } from '@/api/wms'
-
-// F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`。
-// 入库单/明细的 CRUD 走 airpower 的 Service 类（useTanStackTable / useEditor / createValidator 需要类），
-// 因此由本 hook 模块统一转发 —— 视图从这里取，不再回头依赖 @/model。
-export { InputDetailService } from '@/model/wms/input/InputDetailService'
-export { InputService } from '@/model/wms/input/InputService'
-
-/**
- * # WMS 入库单列表查询 Hook
- */
-
-/**
- * # WMS 入库单详情查询 Hook
- */
-
-/**
- * # WMS 入库单审核 Mutation
- */
-export function useInputAudit() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (data: BillAuditRequest) => inputApi.audit(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['wms:input'] })
-    },
-  })
-}
-
-/**
- * # WMS 入库单驳回 Mutation
- */
-export function useInputReject() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (data: BillRejectRequest) => inputApi.reject(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['wms:input'] })
-    },
-  })
-}
-
-/**
- * # WMS 入库单完成明细 Mutation
- */
-
-/**
- * # WMS 入库单添加完成数量 Mutation
- *
- * 对应后端 `BaseBillController.addFinish`（`/input/addFinish`）。
- * 阶段 E-H1：入库确认编辑器（InputAddFinishEditor）使用本 hook，
- * 载荷须含后端业务校验所需的 `storage.id` 与本次 `quantity`。
- */
-export function useInputAddFinish() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (data: { id: number, quantity: number, storage: { id: number } }) => inputApi.addDetailFinishQuantity(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['wms:input'] })
-    },
-  })
-}
+// F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`，服务统一从这里取。
+//
+// 批 4 起入库页走新底座（`useTable` + `KFormDialog` + `AbstractBillService`）：
+// 旧的 `InputService`/`InputDetailService`（airpower 基类）与 `api/wms` 的 typed client
+// （`useInputAudit`/`useInputReject`/`useInputAddFinish` 那套 mutation）已无消费者、随之删除 ——
+// 审核/驳回/确认入库全部由 `KInputService` 承担，同一件事留两条链是漂移的温床。
+export { KInputService } from '@/model/wms/input/KInputService'

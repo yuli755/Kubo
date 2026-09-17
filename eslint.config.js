@@ -47,6 +47,25 @@ export default antfu({
 },
 
 /**
+ * 取消上游默认忽略里的 `output` 目录（必须单独成一个「只有 ignores」的配置对象）。
+ *
+ * `@antfu/eslint-config` 的默认 `GLOB_EXCLUDE` 里有一条匹配「任意层级的 output 目录」的规则
+ * （为 Nuxt 的 `.output` 之类构建目录准备），但本仓的 `output` 是**业务域**（WMS 出库单）：
+ * `src/model/wms/output/` 与 `src/view/console/wms/output/` 因此长期没被 lint 过 ——
+ * 表现为「`eslint .` 全绿，可出库域里明明有排序/逗号类违规」。
+ *
+ * 坑：这条 `!` 反向模式**不能**混进 `antfu({ ignores: [...] })` 那份列表里 ——
+ * 那样会让整个列表退化成「每份配置自己的 ignores」，`docs/**`、`infra/**`、`SPMS-Server/**`
+ * 这些本该被忽略的目录会连同文档一起被 lint（实测 430 条噪音）。
+ * 单独成一个只含 `ignores` 的对象时，它才是全局忽略，且「后匹配者胜」——正好能取消上游那条。
+ */
+{
+  ignores: [
+    '!src/**/output/**',
+  ],
+},
+
+/**
  * 数据层单入口约定（决策 D5）：视图层禁止直接依赖 @/model 下的 Service。
  *
  * F3 已把 133 处视图直连全部迁到 src/hook 下的 use* 系列 hook（走 @/api typed client），

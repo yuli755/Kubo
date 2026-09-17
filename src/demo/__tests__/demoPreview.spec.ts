@@ -138,6 +138,18 @@ describe('演示模式 · URL 解析与降级', () => {
     })
   })
 
+  it('带路径 id 的详情端点（`/{res}/getDetail/{id}`）命中的是**单条详情**，不是降级空对象', async () => {
+    // 回归（2026-09 批 4 发现）：URL 末段是数字时，若不把「动作段」还原成它的**前一段**，
+    // 引擎看到的是 `resourcePath='wms/input/getDetail'`、`action='3'` —— 任何端点都命不中，
+    // 最后落到「未覆盖的读取端点」返回 `true`，页面表现是**详情弹窗字段全是 '-'、明细永远为空**；
+    // 而列表页完全正常，很难联想到 URL 解析。自研 client 的 `getDetail` 正是 `GET /{res}/getDetail/{id}`。
+    const res = await request('/wms/input/getDetail/3')
+    const row = res.data.data as { billCode?: string, details?: unknown[] }
+    expect(row.billCode, '详情端点没有返回单据主表字段').toBeTruthy()
+    expect(Array.isArray(row.details)).toBe(true)
+    expect((row.details as unknown[]).length).toBeGreaterThan(0)
+  })
+
   it('cRUD 读取端点返回分页信封（演示时表格有数据可看）', async () => {
     const res = await request('/wms/input/getPage', { params: { pageNum: 1, pageSize: 15 } })
     expect(res.data.code).toBe(200)

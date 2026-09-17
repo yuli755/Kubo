@@ -1,8 +1,8 @@
 // 新底座服务（F2 起的页面用）：同样是"视图只从 hook 取"的约定，避免视图层直接依赖 @/model
 export { KStorageService } from '@/model/factory/storage/KStorageService'
-// F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`。
-// 仓库的 CRUD 走 airpower 的 Service 类，由本 hook 模块统一转发（wms/inventory 等跨模块视图也从这里取）。
-export { StorageService } from '@/model/factory/storage/StorageService'
+// F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`，服务统一从这里取。
+// 批 4 把 wms 入库/移库的仓库选择换到 `KSelector` 后，旧 `StorageService`（airpower 基类）
+// 与 `factory/storage/component/selector.vue` 都已无消费者、随之删除。
 
 /**
  * # Factory 仓库树数据查询 Hook

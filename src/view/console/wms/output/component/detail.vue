@@ -1,114 +1,190 @@
 <script lang="ts" setup>
+import type { OutputDetailEntity } from '@/model/wms/output/OutputDetailEntity'
+import type { OutputEntity } from '@/model/wms/output/OutputEntity'
+import { ElDescriptions, ElDescriptionsItem, ElLink } from 'element-plus'
+import { computed, ref } from 'vue'
+import KDetailTable from '@/component/framework/KDetailTable.vue'
+import KDialog from '@/component/framework/KDialog.vue'
 import { Permissions } from '@/config/permissions'
-import { vPermission } from '@/directives'
-import {
-  AButton,
-  ADialog,
-  AFormField,
-  AGroup,
-  ATable,
-  DialogProps,
-  DialogUtil,
-  FeedbackUtil,
-  getTableConfigList,
-} from '@airpower/web'
-import { BillFormCode, BillFormMoreDetail } from '@/component'
-import { useBillDetail } from '@/hook/billTable/useBillDetail'
-import { OutputService } from '@/hook/wms/useOutput'
-import { OutputDetailEntity } from '@/model/wms/output/OutputDetailEntity'
-import { OutputEntity } from '@/model/wms/output/OutputEntity'
+import { getCellText, getEnumLabel, getTableConfig } from '@/framework'
+import { useDetail } from '@/hook/kubo/useDetail'
+import { KOutputService } from '@/hook/wms/useOutput'
+import { OutputDetailEntity as OutputDetail } from '@/model/wms/output/OutputDetailEntity'
+import { OutputEntity as Output } from '@/model/wms/output/OutputEntity'
 import { OutputStatusEnum } from '@/model/wms/output/OutputStatusEnum'
-
 import { OutputTypeEnum } from '@/model/wms/output/OutputTypeEnum'
-import { SaleDetail } from '@/view/console/channel/sale/component'
-import { OutputAddFinishEditor } from '.'
-import { MoveDetail } from '../../move/component'
+import { openSaleDetail } from '@/view/console/channel/sale/component/openDetail'
+import MoveDetail from '@/view/console/wms/move/component/detail.vue'
+import OutputAddFinishEditor from './addFinishEditor.vue'
 
-const props = defineProps(DialogProps.withParam(new OutputEntity()))
+/**
+ * # 出库单详情（F4 批 4 · 新底座）
+ *
+ * 只读主表信息 + 明细表 + 行内「作业」（确认出库）。
+ *
+ * ## 与旧版的差别
+ * - 数据走本仓 `useDetail`；主表按 `@KTable` 元数据渲染（`ElDescriptions`），
+ *   不再需要 `BillFormCode` / `BillFormMoreDetail`；
+ * - 「销售单号」「移库单号」可点开：销售单详情属 channel 域（批 5 才迁），
+ *   通过 `openSaleDetail()` 接缝打开；移库单已在本批迁完，声明式打开 `MoveDetail`；
+ * - ⚠️ 旧页面的「销售单」标签写成了「采购单」（实体里 `sale` 字段的 label 就写错了），
+ *   这里按真实语义显示「销售单号」—— 与后端字段 `sale` 一致。
+ *
+ * **作业按钮只在「出库中」可点**（`OutputStatusEnum.OUTPUTTING`）。
+ */
+const props = defineProps<{
+  modelValue: boolean
+  id: number | null | undefined
+}>()
 
-const {
-  formData,
-  isLoading,
-  getDetail,
-} = useBillDetail(props, OutputService, {
-  afterGetDetail(detailData) {
-    return detailData
-  },
+const emit = defineEmits<{
+  (event: 'update:modelValue', value: boolean): void
+  (event: 'saved'): void
+}>()
+
+const detail = useDetail(KOutputService, {
+  queryKey: ['wms:output'],
+  id: computed(() => props.id),
 })
 
-async function onAddFinish(detail: OutputDetailEntity, billId: number) {
-  detail.billId = billId
-  await DialogUtil.show(OutputAddFinishEditor, detail)
-  FeedbackUtil.toastSuccess('明细出库成功')
-  getDetail()
+const bill = computed<OutputEntity | undefined>(() => detail.entity.value)
+
+const headerFields = computed(() => ['billCode', 'type', 'status', 'createTime', 'updateTime'])
+
+/** 单据类型判断（`type` 未加载完时是 undefined，不能喂给 `equalsKey`） */
+function typeIs(target: { equalsKey: (key: number) => boolean }): boolean {
+  const type = bill.value?.type
+  return type !== undefined && target.equalsKey(type)
+}
+
+const isSaleOutput = computed(() => typeIs(OutputTypeEnum.SALE))
+const isMoveOutput = computed(() => typeIs(OutputTypeEnum.MOVE))
+
+const moveVisible = ref(false)
+const finishing = ref<OutputDetailEntity | null>(null)
+
+function fieldLabel(key: string): string {
+  return getTableConfig(Output, key)?.label ?? key
+}
+
+function fieldText(key: string): string {
+  const entity = bill.value
+  if (!entity) {
+    return '-'
+  }
+  if (key === 'status') {
+    return entity.status === undefined ? '-' : (getEnumLabel(OutputStatusEnum, entity.status) ?? '-')
+  }
+  return getCellText(entity, { ...(getTableConfig(Output, key) ?? {}), key } as never)
+}
+
+function canFinish(): boolean {
+  const status = bill.value?.status
+  return status !== undefined && OutputStatusEnum.OUTPUTTING.equalsKey(status)
+}
+
+function openFinish(row: OutputDetailEntity) {
+  finishing.value = row
+}
+
+async function onFinishConfirmed() {
+  finishing.value = null
+  await detail.reload()
+  emit('saved')
+}
+
+function openMoveDetail() {
+  if (bill.value?.move?.id) {
+    moveVisible.value = true
+  }
 }
 </script>
 
 <template>
-  <ADialog
-    :loading="isLoading"
-    height="80%"
+  <KDialog
+    :model-value="modelValue"
+    confirm-text="关闭"
+    hide-cancel
+    min-height="70%"
     title="出库单详情"
     width="80%"
-    @cancel="onCancel"
-    @confirm="onConfirm"
+    @confirm="emit('update:modelValue', false)"
+    @update:model-value="value => emit('update:modelValue', value)"
   >
-    <el-form
-      label-width="120px"
-      @submit.prevent
+    <ElDescriptions
+      :column="3"
+      border
+      size="small"
     >
-      <AGroup
-        :column="3"
-        title="出库单"
+      <ElDescriptionsItem
+        v-for="field in headerFields"
+        :key="field"
+        :label="fieldLabel(field)"
       >
-        <BillFormCode :bill="formData" />
-        <AFormField
-          disabled
-          field="type"
-        />
-        <el-form-item
-          v-if="OutputTypeEnum.SALE.equalsKey(formData.type)"
-          label="销售单号"
+        {{ fieldText(field) }}
+      </ElDescriptionsItem>
+
+      <ElDescriptionsItem
+        v-if="isSaleOutput"
+        label="销售单号"
+      >
+        <ElLink
+          v-if="bill?.sale?.id"
+          type="primary"
+          @click="bill && openSaleDetail(bill.sale)"
         >
-          <el-link @click="DialogUtil.show(SaleDetail, formData.sale)">
-            {{ formData.sale.billCode }}
-          </el-link>
-        </el-form-item>
-        <el-form-item
-          v-if="OutputTypeEnum.MOVE.equalsKey(formData.type)"
-          label="移库单号"
+          {{ bill.sale.billCode }}
+        </ElLink>
+        <span v-else>-</span>
+      </ElDescriptionsItem>
+
+      <ElDescriptionsItem
+        v-if="isMoveOutput"
+        label="移库单号"
+      >
+        <ElLink
+          v-if="bill?.move?.id"
+          type="primary"
+          @click="openMoveDetail"
         >
-          <el-link @click="DialogUtil.show(MoveDetail, formData.move)">
-            {{ formData.move.billCode }}
-          </el-link>
-        </el-form-item>
-      </AGroup>
-      <BillFormMoreDetail :bill="formData" />
-      <AGroup title="出库明细">
-        <ATable
-          :column-list="getTableConfigList(OutputDetailEntity).filter(
-            (item) => !['createTime'].includes(item.key),
-          )
-          "
-          :data-list="formData.details"
-          :entity="OutputDetailEntity"
-          hide-add
-          hide-delete
-          hide-edit
-        >
-          <template #endRow="{ data }">
-            <AButton
-              v-permission="Permissions.Wms.Output.addFinish"
-              :disabled="!OutputStatusEnum.OUTPUTTING.equalsKey(formData.status)
-              "
-              link
-              @click="onAddFinish(data, formData.id)"
-            >
-              作业
-            </AButton>
-          </template>
-        </ATable>
-      </AGroup>
-    </el-form>
-  </ADialog>
+          {{ bill.move.billCode }}
+        </ElLink>
+        <span v-else>-</span>
+      </ElDescriptionsItem>
+    </ElDescriptions>
+
+    <div class="output-detail__table">
+      <KDetailTable
+        :entity="OutputDetail"
+        :exclude="['createTime', 'updateTime']"
+        :row-actions="[{
+          label: '作业',
+          permission: Permissions.Wms.Output.addFinish,
+          disabled: () => !canFinish(),
+          handler: (row: OutputDetailEntity) => openFinish(row),
+        }]"
+        :rows="(bill?.details ?? []) as OutputDetailEntity[]"
+        empty-text="这张出库单还没有明细"
+      />
+    </div>
+  </KDialog>
+
+  <OutputAddFinishEditor
+    v-if="finishing"
+    :detail="finishing"
+    :model-value="!!finishing"
+    @confirmed="onFinishConfirmed"
+    @update:model-value="value => !value && (finishing = null)"
+  />
+
+  <MoveDetail
+    :id="bill?.move?.id"
+    v-model="moveVisible"
+  />
 </template>
+
+<style lang="scss" scoped>
+.output-detail__table {
+  margin-top: 12px;
+}
+</style>

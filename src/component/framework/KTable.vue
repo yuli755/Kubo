@@ -33,8 +33,8 @@ import { getCellColor, getCellText, getColumnAlign, getDictionary, getSearchConf
  */
 
 interface RowAction {
-  /** 权限码（不传则不校验） */
-  permission?: string
+  /** 权限码（不传则不校验；数组表示「满足其一即可」，与 `v-permission` 同口径） */
+  permission?: string | string[]
   /** 显示的文案 */
   label: string
   /** 处理函数（收到整行） */
@@ -54,6 +54,21 @@ const props = withDefaults(defineProps<{
   hideRefresh?: boolean
   /** 是否隐藏整列行操作（选择器场景用） */
   hideActions?: boolean
+  /**
+   * 是否隐藏「删除」按钮。
+   *
+   * 为什么需要它：`v-permission` 遇到未传值（`undefined`）时是**不拦截**的（见 `directives/permission.ts`），
+   * 所以「没传 delete 权限码」不等于「不显示删除」—— 实体没有删除端点时必须显式关掉，
+   * 否则用户会看到一个点下去必然报错的按钮（如移库单：后端 `@Extends(exclude = Curd.Delete)`）。
+   */
+  hideDelete?: boolean
+  /**
+   * 是否隐藏「启用/禁用」按钮。
+   *
+   * 单据类实体没有启用/禁用语义（状态由状态机决定），传 `false` 时同样会因为
+   * 未传 `enable` 权限码而照常渲染 —— 与 `hideDelete` 同理。
+   */
+  hideEnable?: boolean
   /** 是否显示序号列 */
   showIndex?: boolean
   /** 是否可选（多选） */
@@ -82,10 +97,20 @@ const props = withDefaults(defineProps<{
    * 页面只要在 `useTable(..., { export: true })` 里声明，并把 `permissions.export` 传进来。
    */
   showExport?: boolean
+  /**
+   * 不显示的列（按 `@KTable` 的字段名）。
+   *
+   * 用于「同一张表在不同维度下要的列不同」的场景（库存按仓库看时不显示生产单元列，
+   * 按生产单元看时不显示仓库列）。做成 prop 而不是让页面自己 `getTableConfigList()`
+   * 过滤：`KTable` 的列、搜索项、单元格规则都读同一份元数据，页面绕过去容易两边不一致。
+   */
+  excludeColumns?: string[]
 }>(), {
   showIndex: true,
   hideRefresh: false,
   hideActions: false,
+  hideDelete: false,
+  hideEnable: false,
   rowKey: 'id',
 })
 
@@ -134,8 +159,13 @@ async function onExportClick() {
   }
 }
 
-/** 列：来自 `@Table` 元数据（框架层注册表） */
-const columns = computed<ITableColumn[]>(() => getTableConfigList(EntityClass.value))
+/** 列：来自 `@Table` 元数据（框架层注册表），可被 `excludeColumns` 裁掉几列 */
+const columns = computed<ITableColumn[]>(() => {
+  const all = getTableConfigList(EntityClass.value)
+  return props.excludeColumns?.length
+    ? all.filter(column => !props.excludeColumns!.includes(column.key))
+    : all
+})
 
 /** 搜索项：来自 `@Search` 元数据 */
 const searchFields = computed<ISearchField[]>(() => getSearchConfigList(EntityClass.value))
@@ -434,6 +464,7 @@ const emptyText = computed(() =>
             编辑
           </ElButton>
           <ElButton
+            v-if="!hideEnable"
             v-permission="permissions?.enable"
             link
             :type="isDisabled(row as E) ? 'success' : 'warning'"
@@ -442,6 +473,7 @@ const emptyText = computed(() =>
             {{ isDisabled(row as E) ? '启用' : '禁用' }}
           </ElButton>
           <ElButton
+            v-if="!hideDelete"
             v-permission="permissions?.delete"
             link
             type="danger"

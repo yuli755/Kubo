@@ -1,130 +1,195 @@
 <script lang="ts" setup>
-import {
-  AButton,
-  ADialog,
-  AFormField,
-  AGroup,
-  ASelect,
-  ATable,
-  DialogProps,
-  DialogUtil,
-  FeedbackUtil,
-  getFieldLabel,
-  getTableConfigList,
-  useEditor,
-} from '@airpower/web'
+import { ElButton, ElInput, ElMessage } from 'element-plus'
+import { computed, ref } from 'vue'
+import KDetailTable from '@/component/framework/KDetailTable.vue'
+import KFormDialog from '@/component/framework/KFormDialog.vue'
+import KSelector from '@/component/framework/KSelector.vue'
 import { Permissions } from '@/config/permissions'
-import { vPermission } from '@/directives'
-import { MoveService } from '@/hook/wms/useMove'
+import { KStorageService } from '@/hook/factory/useStorage'
+import { KMoveService } from '@/hook/wms/useMove'
 import { InventoryEntity } from '@/model/wms/inventory/InventoryEntity'
-
 import { InventoryTypeEnum } from '@/model/wms/inventory/InventoryTypeEnum'
 import { MoveDetailEntity } from '@/model/wms/move/MoveDetailEntity'
-import { MoveEntity } from '@/model/wms/move/MoveEntity'
-import { StorageSelector } from '@/view/console/factory/storage/component'
-import { MoveDetailEditor } from '.'
-import { InventorySelector } from '../../inventory/component'
+import { InventorySelector } from '@/view/console/wms/inventory/component'
+import MoveDetailEditor from './detailEditor.vue'
 
-const props = defineProps(DialogProps.withParam(new MoveEntity()))
+/**
+ * # 移库单编辑器（F4 批 4 · 新底座）
+ *
+ * 单据编辑器 = **主表单 + 明细数组**，这是它与普通实体编辑器的全部差别：
+ * 主表单交给 `KFormDialog`（字段来自 `@KForm` 元数据），明细用 `KDetailTable`
+ * 渲染同一个表单对象上的数组（还没提交给后端，因此没有服务、没有分页）。
+ *
+ * ## 三个子弹窗，三种取数方式
+ * | 要选什么 | 用什么 | 为什么 |
+ * | --- | --- | --- |
+ * | 目标仓库 | `KSelector`（`tree`） | 单一实体、数据源固定，声明式最省事 |
+ * | 来源库存 | `InventorySelector`（库存域选择器） | 它要「按仓库/生产单元两棵树筛选 + 按物料过滤」，不是 `KSelector` 能表达的形态；靠 `IDialogActionProps` 契约声明式打开（不再需要全局 `DialogUtil` 上下文） |
+ * | 移动数量 | `MoveDetailEditor` | 明细行的局部编辑，`v-model` + `@confirm` |
+ *
+ * ## 一条业务判据（不许在迁移时丢）
+ * 明细为空时**不发请求**，直接提示「请添加明细后再提交」——
+ * 空明细的移库单在后端没有意义（既没有来源也没有数量），发出去只会换来一个 500。
+ */
+const props = defineProps<{
+  modelValue: boolean
+  /** 编辑的记录 id（不传为新增） */
+  id?: number | null
+}>()
 
-const {
-  title,
-  formData,
-  rules,
-  formRef,
-  isLoading,
-  onSubmit,
-} = useEditor(props, MoveService, {
-  afterGetDetail(detailData) {
-    detailData.storageName = detailData.storage.name
-    return detailData
-  },
-  beforeSubmit(submitData) {
-    if (submitData.details.length === 0) {
-      FeedbackUtil.toastWarning('请添加明细后再提交')
-      return null
-    }
-    return submitData
-  },
-})
+const emit = defineEmits<{
+  (event: 'update:modelValue', value: boolean): void
+  (event: 'saved'): void
+}>()
 
-async function addDetail() {
-  let inventory = new InventoryEntity()
-  inventory.type = InventoryTypeEnum.STORAGE.key
-  inventory = await DialogUtil.select(InventorySelector, inventory)
-  let detail = new MoveDetailEntity()
-  detail.inventory = inventory
-  detail = await DialogUtil.show(MoveDetailEditor, detail)
-  formData.value.details.push(detail)
+const form = ref<Record<string, unknown>>({})
+const storagePicking = ref(false)
+const inventoryPicking = ref(false)
+/** 库存选择器的种子（带上类型，选择器据此决定左侧树用仓库还是生产单元） */
+const inventorySeed = ref<InventoryEntity | undefined>(undefined)
+const detailEditorVisible = ref(false)
+const editingDetail = ref<MoveDetailEntity | null>(null)
+
+const details = computed<MoveDetailEntity[]>(() => (form.value.details ?? []) as MoveDetailEntity[])
+
+/** 表单初始化：明细数组补空（新增时 `KFormDialog` 只重置 `@Form` 字段） */
+function onLoaded(next: Record<string, unknown>) {
+  next.details ??= []
+  form.value = next
 }
 
-async function deleteDetail(index: number) {
-  await FeedbackUtil.confirmWarning('是否删除选中行的计划明细？')
-  formData.value.details.splice(index, 1)
+function onStoragePicked(rows: unknown[]) {
+  form.value.storage = rows[0]
+  storagePicking.value = false
+}
+
+function openInventoryPicker() {
+  // 「按仓库」维度挑库存：移库的来源是仓库里的库存
+  const seed = new InventoryEntity()
+  seed.type = InventoryTypeEnum.STORAGE.key
+  inventorySeed.value = seed
+  inventoryPicking.value = true
+}
+
+function onInventoryPicked(picked: InventoryEntity) {
+  inventoryPicking.value = false
+  if (!picked) {
+    return
+  }
+  const detail = new MoveDetailEntity()
+  detail.inventory = picked
+  // 默认填满可用数量：手填比库存多会被后端拒绝，默认值贴近上限少一次试错
+  detail.quantity = picked.quantity
+  editingDetail.value = detail
+  detailEditorVisible.value = true
+}
+
+function onDetailConfirm(detail: MoveDetailEntity) {
+  details.value.push(detail)
+  detailEditorVisible.value = false
+}
+
+function removeDetail(row: MoveDetailEntity) {
+  const index = details.value.indexOf(row)
+  if (index >= 0) {
+    details.value.splice(index, 1)
+  }
+}
+
+function beforeSubmit(payload: Record<string, unknown>) {
+  if (!(payload.details as unknown[] | undefined)?.length) {
+    ElMessage.warning('请添加明细后再提交')
+    return null
+  }
+  return payload
 }
 </script>
 
 <template>
-  <ADialog
-    :form-ref="formRef"
-    :loading="isLoading"
-    :title="title"
-    height="80%"
-    width="80%"
-    @cancel="onCancel"
-    @confirm="onSubmit"
+  <KFormDialog
+    :id="props.id"
+    :model-value="props.modelValue"
+    :before-submit="beforeSubmit"
+    :columns="2"
+    :service="KMoveService"
+    title="移库单"
+    width="900px"
+    @closed="emit('update:modelValue', false)"
+    @loaded="onLoaded"
+    @saved="emit('saved')"
+    @update:model-value="value => emit('update:modelValue', value)"
   >
-    <el-form
-      ref="formRef"
-      :model="formData"
-      :rules="rules"
-      label-width="120px"
-      @submit.prevent
-    >
-      <AGroup
-        :column="2"
-        title="移库单"
-      >
-        <AFormField field="billCode" />
-        <el-form-item
-          label="目标仓库"
-          prop="storage"
-        >
-          <ASelect
-            v-model="formData.storage"
-            :selector="StorageSelector"
-          />
-        </el-form-item>
-      </AGroup>
-      <AGroup title="移库明细">
-        <ATable
-          :column-list="getTableConfigList(MoveDetailEntity).filter((item) => !['createTime'].includes(item.key))"
-          :data-list="formData.details"
+    <template #field-storage>
+      <ElInput
+        :model-value="(form.storage as { name?: string } | undefined)?.name ?? ''"
+        placeholder="请选择目标仓库..."
+        readonly
+        @click="storagePicking = true"
+      />
+    </template>
+
+    <template #extra>
+      <div class="move-editor__details">
+        <div class="move-editor__head">
+          <span class="move-editor__title">移库明细</span>
+          <ElButton
+            v-permission="[Permissions.Wms.Move.add, Permissions.Wms.Move.update]"
+            link
+            type="primary"
+            @click="openInventoryPicker"
+          >
+            添加明细
+          </ElButton>
+        </div>
+
+        <KDetailTable
           :entity="MoveDetailEntity"
-          hide-delete
-          hide-edit
-        >
-          <template #addButton>
-            <AButton
-              v-permission="[Permissions.Wms.Move.add, Permissions.Wms.Move.update]"
-              icon="ADD"
-              @click="addDetail()"
-            >
-              添加{{ getFieldLabel(MoveEntity, 'details') }}
-            </AButton>
-          </template>
-          <template #customRow="{ index }">
-            <AButton
-              v-permission="[Permissions.Wms.Move.add, Permissions.Wms.Move.update]"
-              danger
-              link
-              @click="deleteDetail(index)"
-            >
-              删除
-            </AButton>
-          </template>
-        </ATable>
-      </AGroup>
-    </el-form>
-  </ADialog>
+          :exclude="['createTime']"
+          :row-actions="[{ label: '删除', danger: true, permission: [Permissions.Wms.Move.add, Permissions.Wms.Move.update], handler: removeDetail }]"
+          :rows="details"
+          empty-text="还没有明细，点「添加明细」从库存里挑一条"
+        />
+      </div>
+    </template>
+  </KFormDialog>
+
+  <KSelector
+    v-model="storagePicking"
+    :selected="form.storage ? [form.storage as never] : []"
+    :service="KStorageService"
+    title="选择目标仓库"
+    tree
+    @confirm="onStoragePicked"
+  />
+
+  <InventorySelector
+    v-if="inventoryPicking"
+    :param="inventorySeed"
+    :on-cancel="() => inventoryPicking = false"
+    :on-confirm="onInventoryPicked as never"
+  />
+
+  <MoveDetailEditor
+    v-model="detailEditorVisible"
+    :detail="editingDetail"
+    @confirm="onDetailConfirm"
+  />
 </template>
+
+<style lang="scss" scoped>
+.move-editor__details {
+  margin-top: 8px;
+}
+
+.move-editor__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.move-editor__title {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+</style>

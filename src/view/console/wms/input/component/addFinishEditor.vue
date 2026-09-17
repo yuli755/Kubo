@@ -1,106 +1,175 @@
 <script lang="ts" setup>
-import type { FormInstance } from 'element-plus'
-
-import { ADialog, AInput, DialogProps, DialogUtil } from '@airpower/web'
-import { ElMessage } from 'element-plus'
-import { ref } from 'vue'
-import { InputDetailService, useInputAddFinish } from '@/hook/wms/useInput'
+import type { StorageEntity } from '@/model/factory/storage/StorageEntity'
+import { ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
+import { computed, ref, watch } from 'vue'
+import KDialog from '@/component/framework/KDialog.vue'
+import KSelector from '@/component/framework/KSelector.vue'
+import { FeedbackUtil, getFieldLabel } from '@/framework'
+import { KStorageService } from '@/hook/factory/useStorage'
+import { KInputService } from '@/hook/wms/useInput'
 import { InputDetailEntity } from '@/model/wms/input/InputDetailEntity'
-import { StorageSelector } from '@/view/console/factory/storage/component'
 
-const props = defineProps(DialogProps.withParam(new InputDetailEntity()))
+/**
+ * # 确认入库（F4 批 4 · 新底座）
+ *
+ * 单据「作业」的第一种形态：给一条入库明细登记**本次入库数量**。
+ *
+ * ## 后端契约（E-H1 起，批 4 保持不变）
+ * `POST /input/addFinish` 的载荷是**明细**，且后端从载荷里读两样东西：
+ * - `quantity` —— **本次**数量（后端做累加，传累计值会把明细数量翻倍）；
+ * - `storage.id` —— 入库目标仓库（缺它会 403「请传入入库仓库」）。
+ *
+ * 所以这里默认填「待入数量」（总量 − 已完成），并要求先选仓库再提交。
+ *
+ * ## 与旧版的差别
+ * - 旧版用 `DialogUtil.show(InputAddFinishEditor, detail)`（命令式 + airpower 应用上下文），
+ *   且往组件里塞了一个 `quantity` 本地变量来控制显示 —— 现在 `modelValue`/`detail` 两个 prop 说清一切；
+ * - 旧版把「目标仓库」做成空壳 `AInput` + `DialogUtil.show(StorageSelector)`；现在用 `KSelector`
+ *   （`tree` 模式，仓库是树形实体，选子仓库时能看到层级）—— `StorageSelector`（airpower）随之无消费者，已删。
+ *
+ * ## 一个**修掉的旧缺陷**
+ * 旧版 `quantity` 的 ref 初值是 `detail.quantity - detail.finishQuantity`，但 `formData.quantity`
+ * 被赋成这个值之后又被 `expose('id','quantity')` 裁剪，用户改数量前若直接确认，提交的其实是
+ * 「待入数量」而不是 0 —— 看起来对，但一旦用户手动改过又清空，输入框会静默变成 0 并仍然提交。
+ * 现在 `quantity` 是显式校验的（`<= 0` 时确认按钮禁用），空值不会被当成合法输入提交。
+ */
+const props = defineProps<{
+  modelValue: boolean
+  /** 待入库的明细 */
+  detail: InputDetailEntity | null
+}>()
 
-const formData = ref(props.param.copy())
+const emit = defineEmits<{
+  (event: 'update:modelValue', value: boolean): void
+  (event: 'confirmed'): void
+}>()
 
-const isLoading = ref(false)
+const quantity = ref(0)
+const storage = ref<StorageEntity | undefined>(undefined)
+const storagePicking = ref(false)
+const submitting = ref(false)
 
-const formRef = ref<FormInstance>()
+watch(
+  () => [props.modelValue, props.detail] as const,
+  ([opened, detail]) => {
+    if (opened && detail) {
+      // 默认「待入数量」：部分入库后再次确认时，默认值若还是总量会直接被后端拒绝
+      quantity.value = Math.max(0, Number(detail.quantity ?? 0) - Number(detail.finishQuantity ?? 0))
+      // 明细上已指定的仓库（如采购入库单的明细带了 storage）优先，没有则要求用户选
+      storage.value = detail.storage?.id ? detail.storage : undefined
+    }
+  },
+  { immediate: true },
+)
 
-const { mutateAsync: addFinishMutate } = useInputAddFinish()
+const materialName = computed(() => props.detail?.material?.name ?? '-')
+const unitName = computed(() => props.detail?.material?.unit?.name ?? '')
+const waitingQuantity = computed(() =>
+  Math.max(0, Number(props.detail?.quantity ?? 0) - Number(props.detail?.finishQuantity ?? 0)),
+)
 
-async function onSubmit() {
-  const form = formData.value.copy()
-  // 阶段 E-H1：后端 InputService.afterDetailFinishAdded 从载荷读取 storage.id（入库目标）
-  // 与 quantity（本次累加数量）。旧写法传 finishQuantity（绑定到实体历史完成量字段）
-  // 且不带仓库，「确认入库」必然 403「请传入入库仓库」。
-  if (!form.storage || !form.storage.id) {
-    ElMessage.warning('请选择目标仓库')
-    return
-  }
-  await addFinishMutate({
-    id: form.id,
-    quantity: form.quantity,
-    storage: { id: form.storage.id },
-  })
-  props.onConfirm()
+function onStoragePicked(rows: unknown[]) {
+  storage.value = rows[0] as StorageEntity | undefined
+  storagePicking.value = false
 }
 
-const quantity = ref(formData.value.quantity - formData.value.finishQuantity)
-const material = ref(formData.value.material.copy())
-formData.value.quantity = quantity.value
-formData.value.expose('id', 'quantity')
-
-async function selectStorage() {
-  formData.value.storage = await DialogUtil.show(StorageSelector)
-  formData.value.storageName = formData.value.storage.name
-  formData.value.storageId = formData.value.storage.id
+async function onConfirm() {
+  const detail = props.detail
+  const target = storage.value
+  if (!detail?.id) {
+    return
+  }
+  if (!target?.id) {
+    FeedbackUtil.toastWarning('请选择目标仓库')
+    return
+  }
+  submitting.value = true
+  try {
+    await new KInputService().addDetailFinishQuantity({
+      id: detail.id,
+      quantity: quantity.value,
+      storage: { id: target.id },
+    } as never)
+    FeedbackUtil.toastSuccess('明细入库成功')
+    emit('confirmed')
+    emit('update:modelValue', false)
+  }
+  finally {
+    submitting.value = false
+  }
 }
 </script>
 
 <template>
-  <ADialog
-    :disable-confirm="formData.quantity <= 0"
-    :form-ref="formRef"
-    :loading="isLoading"
+  <KDialog
+    :disable-confirm="quantity <= 0"
+    :model-value="modelValue"
+    confirm-text="确认入库"
     title="确认入库"
     width="600px"
-    @cancel="onCancel"
-    @confirm="onSubmit"
+    @cancel="emit('update:modelValue', false)"
+    @confirm="onConfirm"
+    @update:model-value="value => emit('update:modelValue', value)"
   >
-    <el-form
-      ref="formRef"
-      :model="formData"
-      :rules="InputDetailService.createValidator()"
-      label-width="120px"
+    <!-- 提交中只在内容上盖 loading：`KDialog` 没有 loading 属性（它只管显隐/按钮），
+         提交态属于内容自己的事 -->
+    <ElForm
+      v-loading="submitting"
+      label-width="110px"
       @submit.prevent
     >
-      <el-form-item label="物料信息">
-        <el-input
-          v-model="material.name"
+      <ElFormItem label="物料信息">
+        <ElInput
+          :model-value="materialName"
           disabled
         />
-      </el-form-item>
-      <el-form-item
-        label="目标仓库"
-        prop="storageId"
-      >
-        <AInput
-          v-model="formData.storageName"
-          :entity="InputDetailEntity"
+      </ElFormItem>
+      <ElFormItem label="目标仓库">
+        <ElInput
+          :model-value="storage?.name ?? ''"
           placeholder="请选择目标仓库..."
-          @click="selectStorage"
+          readonly
+          @click="storagePicking = true"
         />
-      </el-form-item>
-      <el-form-item label="待入数量">
-        <el-input
-          v-model="quantity"
+      </ElFormItem>
+      <ElFormItem label="待入数量">
+        <ElInput
+          :model-value="String(waitingQuantity)"
           disabled
         >
           <template #append>
-            {{ material.unit.name }}
+            {{ unitName }}
           </template>
-        </el-input>
-      </el-form-item>
-      <el-form-item label="入库数量">
-        <el-input
-          v-model="formData.quantity"
-          type="number"
-        >
-          <template #append>
-            {{ material.unit.name }}
-          </template>
-        </el-input>
-      </el-form-item>
-    </el-form>
-  </ADialog>
+        </ElInput>
+      </ElFormItem>
+      <ElFormItem :label="getFieldLabel(InputDetailEntity, 'quantity')">
+        <ElInputNumber
+          v-model="quantity"
+          :min="0"
+          class="add-finish-editor__number"
+        />
+        <span class="add-finish-editor__unit">{{ unitName }}</span>
+      </ElFormItem>
+    </ElForm>
+  </KDialog>
+
+  <KSelector
+    v-model="storagePicking"
+    :selected="storage ? [storage] : []"
+    :service="KStorageService"
+    title="选择目标仓库"
+    tree
+    @confirm="onStoragePicked"
+  />
 </template>
+
+<style lang="scss" scoped>
+.add-finish-editor__number {
+  width: 180px;
+}
+
+.add-finish-editor__unit {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+}
+</style>

@@ -14,11 +14,11 @@
 | **批 0B（前置件已就位）** | `BillFormCode` / `BillFormMoreDetail` / `hook/billTable/*`、`UserCard` + `component/user/*`、`router/appRouter.ts` | ⬜ 上传组件已于本轮补齐（见 §三 3.6），0B 可开工；`appRouter.ts` 仍等批 6 之后（F5） |
 | **批 2** | `asset`：物料 / 合同（列表 + 详情 + 参与方）、框架层补 3 件（异步导出、日期控件、单元格插槽） | ✅ |
 | **批 3** | `personnel`：部门（树）/ 角色（+菜单与权限授权）/ 用户（部门树筛选 + 角色部门多选），连带改 `factory/structure` 的部门选择器 | ✅ 本轮（§3.7） |
-| 批 4~6 | wms → channel → system | ⬜ |
+| **批 4** | `wms`：入库 / 出库 / 移库 / 库存（**单据闭环最完整的一域**），连带删掉 `factory/storage` 的仓库选择器 | ✅ 本轮（§3.8） |
 
-**本轮实测校验（批 3）**：`vue-tsc` 干净、ESLint 干净、`pnpm build` 通过、体积 首屏 369.7/450 KB · 总体 722.8/900 KB（**比批 2 还小 18.5 KB**：删掉的 airpower 视图件与旧服务多于新增代码）；
-vitest **49 文件 / 426 用例**全绿（新增 `personnelDomain.spec.ts` 16 例，含两个授权弹窗的**演示模式端到端**）；
-逐页冒烟探针里 personnel 三页 ✅（部门页从批 2 时代的 30 KB 渲染字节涨到 53 KB，说明树真的渲染出行了，见 §八 的遗留观测）。
+**本轮实测校验（批 4 · wms）**：`vue-tsc` 干净、`eslint .` 全量干净、`pnpm build` 通过、体积 首屏 **368.2/450 KB** · 总体 **732.6/900 KB**（总体比批 3 涨 9.8 KB：新增 `KDetailTable` 与单据服务基类，明细表与三个作业弹窗都在懒加载分包里）；
+`pnpm check` exit=0：**50 文件 / 441 用例**全绿（新增 `wmsDomain.spec.ts` 14 例：零 airpower、四页底座、元数据与 `@KType`、单据四动作端点载荷、审核/驳回/作业交互、演示数据与「点开详情看得见明细」的端到端）；airpower 生产足迹 **135 → 120**。
+**批 3 复核值（保留对照）**：49 文件 / 426 用例、首屏 369.7 KB、总体 722.8 KB。
 
 ## 一、现状数字（实测）
 
@@ -237,6 +237,43 @@ vitest **49 文件 / 426 用例**全绿（新增 `personnelDomain.spec.ts` 16 �
 | `factory/structure/list.vue` | `DialogUtil.selectList(DepartmentSelector, ...)` | `KSelector(:service="KDepartmentService" multiple tree)` + 页面自己持有弹窗显隐 |
 | **删除** | — | `personnel/{department,role,user}/component/*` 8 件（department 的 editor/selector/index、role 的 editor/selector/index、user 的 editor/index；两个 barrel 只是 re-export）+ `model/personnel/{department/DepartmentService,role/RoleService}.ts`（共 10 个文件） |
 
+### 3.8 批 4：wms 域（本轮完成）
+
+**范围**：入库（input）/ 出库（output）/ 移库（move）/ 库存（inventory）四个子域，含 4 个列表页、3 个单据编辑器、3 个单据详情、3 个明细编辑器、3 个「确认入库/出库/作业」弹窗、库存选择器；连带删掉 `factory/storage` 的 airpower 仓库选择器。
+
+**本轮新增的框架件（后面 channel/system 批直接复用）**
+
+| 件 | 作用 | 为什么必须有 |
+| --- | --- | --- |
+| `src/framework/bill.ts` | `AbstractBillService`：`audit` / `reject` / `addDetailFinishQuantity` / `setBillDetailsAllFinished` | 单据四动作是后端 `BaseBillController` 的固定契约，三个域各写一遍必然漂移 |
+| `src/component/framework/KDetailTable.vue` | 内存明细表（`rows` + `entity` + `exclude` + `row-actions` + `#cell-*`） | 单据明细是**表单对象上的数组**（没有服务、没有分页、没有搜索），塞不进 `KTable`（它的契约是 `useTable`） |
+| `KTable` 两处扩展 | `exclude-columns`（同表不同维度要的列不同）与 `hide-delete` / `hide-enable` | `v-permission` 未传值时**不拦截**，所以「没传权限码 ≠ 不渲染按钮」——单据没有删除端点与启停语义，必须显式关掉 |
+
+**几个迁移时才暴露的真问题（已修，勿退回去）**
+
+1. **出库域从来没被 lint 过**：`@antfu/eslint-config` 的默认 `GLOB_EXCLUDE` 含一条匹配「任意层级 `output` 目录」的规则（为 Nuxt 的 `.output` 准备），把业务域 `src/**/output/**` 一并排除了 —— 表现为「`eslint .` 全绿，可出库域里明明有排序/逗号类违规」。已在 `eslint.config.js` 里用一个**只含 `ignores` 的独立配置对象**反向取消（混进 `antfu({ ignores })` 那份列表会连带放开 `docs/**`/`infra/**`，实测 430 条噪音）。
+2. **单据状态/类型/驳回原因不能进 K 表单**：`KFormDialog` 会按 `@KForm` 元数据**自动渲染**字段，而旧 airpower 编辑器是手写模板（只渲染 `billCode` + 目标仓库）。把状态挂进 `@KForm` 等于让用户直接改状态机结果；把 `type` 挂进去等于让用户改来源单据类型。新增时的类型默认值改由页面 `preset` 提供（与旧编辑器 `type ??= 普通X库` 同义）。
+3. **库存选择器的物料过滤是空转**：旧代码把 `material` 放进 `param` 却从未使用，用户能选到别的物料的库存，提交后由后端抛「物料信息不匹配」（403）。选择器现已按 `param.material.id` 过滤（库存读接口的筛选只支持 `type`/`storageIds`/`structureIds`，所以是客户端过滤），后端那道校验保持不变。
+4. **演示模式的详情端点以前是「空转」的**：自研 client 的 `getDetail` 是 `GET /{res}/getDetail/{id}`，
+   而 mock 适配器把 URL 末段当成**动作段**（`action='3'`）→ 引擎命中不了任何端点，落到「未覆盖的读取端点」
+   返回 `true` → 详情弹窗字段全是 `-`、明细永远为空（**列表页完全正常**，所以很难联想到 URL 解析）。
+   修法：末段是数字时把动作还原成它的前一段（`payload.__action`），并让 blob 判定也走还原后的动作段。
+   本批的入库/出库/移库详情弹窗都在演示模式里跑通了；asset/personnel 的详情弹窗同时受益。
+5. **跨域跳转留成「接缝」而不是把 airpower 拖回来**：入库详情要能点开采购单、出库详情要能点开销售单，而 channel 域批 5 才迁。做法是在 channel 侧新增 `component/openDetail.ts`（两个小函数），wms 只调用函数 —— 于是 **wms 视图域内零 airpower import**，批 5 只需改那两个函数的实现。
+
+**验收**
+
+| 项 | 结果 |
+| --- | --- |
+| wms 域视图与 hook 的 airpower import | **0**（门禁用例钉死，域内没有例外文件） |
+| `pnpm check` | exit=0：50 文件 / **441 用例**、首屏 **368.2/450 KB**、总体 **732.6/900 KB**、死件 0 / 未引用导出 0 |
+| 单据闭环行为不漂移 | `wmsDomain.spec.ts` 14 例：端点与载荷（审核/驳回 `{id, rejectReason}`/作业**明细**载荷/一键完成）、审核二次确认、驳回「填原因 → 再确认」两步、详情「作业」仅状态机的可作业态可点 |
+| 元数据与 `@KType` | 四实体列/表单非空、单据状态与类型不在表单、明细分层实例化（`fill()` 后 `constructor.name` 正确、明细带 `copyOnlyId`） |
+| 演示 | ① 单据行补 `billCode` + `details[]`（含嵌套 `inventory.material.unit` / `storage`，三种完成度），避免「点开详情空空如也」这种**形似功能坏**的演示缺口；② 修掉 mock 的「路径 id 当动作段」缺陷（见上文第 4 条），并加回归用例；③ 端到端两条：demo 数据 → 列表 → 点「查看」→ 详情弹窗里真的有明细行 |
+
+**删除清单（本轮 20 个已跟踪文件 + 1 个未跟踪残件）**：4 个旧服务（`Input/InputDetail/Output/OutputDetailService`）+ 5 个随 K 服务到位的旧服务（`Move/MoveDetail/Inventory/Storage/StructureService`）+ `base/bill/AbstractBaseBillDetailService.ts` + 3 个 barrel（input/output/move 的 `component/index.ts`）+ `wms/inventory/component/selector.vue`（重写）+ `factory/storage/component/{index,selector}.vue` + 5 个 `api/wms/*` typed client（`index/input/move/output/types`）。
+airpower 生产足迹 **135 → 120**（净 −15）：wms 四个子域 16 个视图件 + `factory/storage` 选择器 1 件 + 随 K 服务到位后无消费者的旧服务/基类，扣掉 channel 侧新增的 2 个接缝文件。
+
 #### 三个框架层补丁（都是"页面真的需要"才加）
 
 | 件 | 变化 | 为什么必须 |
@@ -266,7 +303,7 @@ vitest **49 文件 / 426 用例**全绿（新增 `personnelDomain.spec.ts` 16 �
 | 批 1 | factory + index | 6 + 1 | 无（已具备） | ✅ **本轮完成**：仓库/生产单元改用 `useTable({ tree: true })` + `KTable` + `KFormDialog`，首页 `APanel` → `KPanel`；两个跨域选择器**按设计保留**（wms 的入库/移库页仍用它们，属批 4） |
 | 批 2 | asset | 8 | `KSelector`、`useDetail` | ✅ **本轮完成**；另补了异步导出、日期控件、`cell-*` 插槽。原计划的"批 2B"经复查撤销：合同三件是零消费者死件（已删），物料选择器随批 4/5 迁移（见 §3.6） |
 | 批 3 | personnel | 11 | `useTreeTable`（部门树）、`KSelector`（用户/角色选择器） | ✅ **本轮完成**（§3.7）：三页 + 两个授权弹窗 + 两个新服务；旧 `DepartmentService`/`RoleService` 已删，`UserService` 留给认证链（F5）。连带改掉 `factory/structure` 的部门选择器 |
-| 批 4 | wms | 20 | `KSelector`、`DialogUtil`、单据公共件（批 0 已备） | 单据闭环最完整（出入库/移库/库存），是**业务主线**，放在渠道域之前 |
+| 批 4 | wms | 20 | `KSelector`、`KDetailTable`、单据服务基类（本轮补）、单据公共件（批 0 已备） | 单据闭环最完整（出入库/移库/库存），是**业务主线**，放在渠道域之前 —— ✅ **本轮完成**（§3.8） |
 | 批 5 | channel | 23 | `KSelector`、`AMoney` | 采购/销售/价格 + 客户/供应商，文件最多但结构高度同构，可脚本化批量替换 |
 | 批 6 | system | 21 | `useTreeTable`（菜单/权限树） | 权限、数据权限、日志页是「平台自身的门」，最后动，避免迁移期自锁 |
 

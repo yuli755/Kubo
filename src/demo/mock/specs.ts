@@ -387,6 +387,56 @@ function resolveCodePrefix(resourceKey: string): string {
  * @param resourceKey 资源键（URL 路径最后一段，如 `input`）
  * @param index 行号（1 起）
  */
+
+/** 单据类资源（有明细数组） */
+const BILL_RESOURCES = new Set(['input', 'output', 'move'])
+
+/**
+ * 造一张单据的明细。
+ *
+ * 每条明细都带**嵌套对象**而不是扁平字段：K 侧列渲染器读 `row.inventory.material.code` 这种路径
+ * （与后端 `getDetail` 返回的形状一致），扁平字段只有 airpower 的 formatter 会用。
+ * 出库/移库还要 `inventory`（扣减/移动来源），入库要 `storage`（入库目标）。
+ */
+function buildBillDetails(resourceKey: string, index: number, random: () => number): Row[] {
+  const count = 1 + Math.floor(random() * 3)
+  return Array.from({ length: count }, (_, offset) => {
+    const material = buildRelation('material', 'WL', index + offset, random)
+    material.unit = buildRelation('unit', 'DW', index + offset, random)
+    const quantity = randomInt([5, 200], random)
+    // 部分完成：让「已入库/已出库/已移动数量」与总数形成 3 种关系（0 / 部分 / 全部），
+    // 「作业」按钮的可用性与它有关
+    const finishQuantity = random() < 0.4 ? 0 : random() < 0.5 ? Math.floor(quantity / 2) : quantity
+    const detail: Row = {
+      id: index * 100 + offset,
+      billId: index,
+      materialId: (material.id ?? index) as number,
+      material,
+      materialCode: material.code,
+      materialName: material.name,
+      quantity,
+      finishQuantity,
+      createTime: randomDate(random),
+      updateTime: randomDate(random, 30),
+    }
+    if (resourceKey === 'input') {
+      detail.storage = buildRelation('storage', 'WH', index + offset, random)
+      detail.storageName = (detail.storage as Row).name
+      detail.storageId = (detail.storage as Row).id
+    }
+    else {
+      const inventory = buildRelation('inventory', 'KC', index + offset, random)
+      inventory.material = material
+      inventory.quantity = quantity
+      inventory.storage = buildRelation('storage', 'WH', index + offset, random)
+      detail.inventory = inventory
+      detail.storageName = (inventory.storage as Row).name
+      detail.inventoryId = inventory.id
+    }
+    return detail
+  })
+}
+
 export function buildRow(resourceKey: string, index: number): Row {
   const spec = RESOURCE_SPECS[resourceKey]
   const random = createRandom(hashString(`${resourceKey}#${index}`))
@@ -471,6 +521,14 @@ export function buildRow(resourceKey: string, index: number): Row {
     // 角色/部门多选（编辑弹窗的标签）：形状与后端 `roleList` / `departmentList` 一致
     row.roleList = [{ id: ((index - 1) % 5) + 1, name: pickFrom(findPool('roleName') ?? ['仓库管理员'], random) }]
     row.departmentList = [{ id: departmentId, name: (row.department as Row).name ?? `部门 ${departmentId}` }]
+  }
+
+  // 单据（入库 / 出库 / 移库）在 demo 里还必须有**明细**：详情弹窗的明细表读 `details`，
+  // 缺了就是「点开详空空如也」—— 与批 3 用户行缺 `departmentId` 同类：看着像功能坏了。
+  // `billCode` 同理：单据列表的第一列就是它（不是 `code`）。
+  if (BILL_RESOURCES.has(resourceKey)) {
+    row.billCode ??= row.code
+    row.details = buildBillDetails(resourceKey, index, random)
   }
 
   return row
