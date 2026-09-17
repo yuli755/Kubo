@@ -8,6 +8,7 @@ import { DEMO_ENABLED } from '@/config/buildFlags'
 import { routes } from '@/config/routes'
 import { directives } from '@/directives'
 import { setDialogAppContext } from '@/framework/feedback'
+import { hasTransport } from '@/framework/transport'
 import { initAuthGuard } from '@/guard/authGuard'
 import { initPermissionGuard } from '@/guard/permissionGuard'
 import { registerPWA } from '@/pwa/registerSW'
@@ -18,6 +19,11 @@ import { useThemeStore } from '@/stores/theme'
 import { installGlobalErrorHandler, setErrorReporter } from '@/utils/errorHandler'
 import { reportErrorToServer } from '@/utils/errorReportClient'
 import { installRouterErrorHandler } from '@/utils/routerErrorHandler'
+// HTTP 传输层装配：框架只声明契约（src/framework/transport.ts），统一实例（src/api/axios.ts）
+// 在模块加载时把自己注册进去。这一行必须是**显式**的 —— 框架侧不再 import 应用实例，
+// 少了它就没有任何模块会加载统一实例，第一个请求会以"传输层未装配"抛错（下方有启动自检）。
+import '@/api/axios'
+
 // V1+V2：设计 token 层 + Element Plus 暗色变量（顺序敏感，必须在本文件其它样式之后引入）
 import '@/styles/index.scss'
 
@@ -26,6 +32,12 @@ import '@/styles/index.scss'
 import 'element-plus/es/components/message/style/css'
 import 'element-plus/es/components/message-box/style/css'
 import 'element-plus/es/components/loading/style/css'
+
+// 启动自检：装配漏了就在这里炸，而不是等用户点按钮时"静默没发请求"。
+// （这正是当初不敢拆 framework → api/axios 那条依赖的理由，解法是把失败变显式。）
+if (!hasTransport()) {
+  throw new Error('HTTP 传输层未装配：请检查 src/main.ts 顶部对 @/api/axios 的引入')
+}
 
 const app = createApp(App)
 

@@ -1,6 +1,7 @@
 import type { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { configureTransport } from '@/framework/transport'
 import { useUserStore } from '@/stores/user'
 
 // 链路追踪（可观测性 P1）：与后端 airpower 的 HttpConstant.Header.TRACE_ID 对齐 —— airpower 的
@@ -332,3 +333,13 @@ export const api = {
 
 // 导出类型
 export type { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse }
+
+// —— 传输层装配（框架侧只认契约，见 src/framework/transport.ts）——
+// 框架的 HTTP / 上传都往这里走：凭据、租户头、401 刷新、幂等键、链路追踪、演示适配器
+// 全在同一个实例上生效。以前是框架直接 import 本文件（层次反了，门禁里记成"例外"）；
+// 现在是应用把实例注册给框架。**注意**：本文件必须被显式引入（`src/main.ts` 里那一行 +
+// 启动自检），否则框架侧第一个请求会以"传输层未装配"直接抛错。
+configureTransport({
+  request: config => unwrapData(request(config as AxiosRequestConfig)),
+  upload: (url, file, option) => api.upload(url, file, option),
+})

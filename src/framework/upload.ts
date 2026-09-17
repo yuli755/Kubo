@@ -17,16 +17,17 @@
  *
  * 1. **上传地址不能直接拼**：`WebConfig.uploadUrl = '/api/file/upload'` 是给 airpower 用的
  *    （它的 axios 没有 baseURL），而本仓 `src/api/axios.ts` 的实例 `baseURL = '/api'` ——
- *    原样传进去会变成 `/api/api/file/upload`。这里统一剥掉前缀后交给统一实例，
- *    于是鉴权头 / 租户头 / 演示适配器照常生效。
+ *    原样传进去会变成 `/api/api/file/upload`。这里统一剥掉前缀后交给**传输层**
+ *    （`framework/transport.ts`，由 `src/api/axios.ts` 装配），于是鉴权头 / 租户头 /
+ *    演示适配器照常生效，而框架侧不认识应用实例。
  * 2. **响应里没有 `size` 时要补**：后端返回的 `size` 是 `Long`（可能为 0/缺失），
  *    而列表要显示文件大小；这里在缺失时回落到浏览器已知的 `file.size`。
  */
 
 import type { IJson } from './types'
-import { api } from '@/api/axios'
 import { WebConfig } from './config'
 import { WebFileUtil } from './feedback'
+import { getTransport } from './transport'
 
 /** 上传成功后拿到的文件记录（与后端 `FileEntity` 同形，去掉框架不关心的字段） */
 export interface IUploadedFile {
@@ -136,7 +137,8 @@ export class UploadUtil {
   /**
    * 上传一个文件。
    *
-   * 走 `src/api/axios.ts` 的统一实例 → 鉴权、租户、演示适配器都自动生效（演示模式下不会真的发请求）。
+   * 走传输层（`src/api/axios.ts` 装配的统一实例）→ 鉴权、租户、演示适配器都自动生效
+   * （演示模式下不会真的发请求）。
    */
   static async upload(file: File, option: IUploadOption & IUploadProgress = {}): Promise<IUploadedFile> {
     const error = this.validate(file, option)
@@ -144,11 +146,11 @@ export class UploadUtil {
       throw new Error(error)
     }
 
-    const data = await api.upload<IJson>(this.getRequestUrl(), file, {
+    const data = await getTransport().upload(this.getRequestUrl(), file, {
       fields: option.category === undefined ? {} : { category: option.category },
       onProgress: percent => option.onProgress?.(percent, file),
     })
-    return this.normalize(data, file)
+    return this.normalize(data as IJson, file)
   }
 
   /** 一次性上传多个文件（用于多选上传） */

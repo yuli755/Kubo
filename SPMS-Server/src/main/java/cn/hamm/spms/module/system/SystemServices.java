@@ -59,7 +59,6 @@ public class SystemServices {
             UnitService unitService,
             DataResourceService dataResourceService,
             DataPolicyService dataPolicyService,
-            DataFieldPolicyProvider dataFieldPolicyService,
             DataFieldPolicyProvider dataFieldPolicyService
     ) {
         SystemServices.codeRuleService = codeRuleService;

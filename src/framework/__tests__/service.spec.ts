@@ -3,6 +3,7 @@ import { RootEntity } from '@/framework/entity'
 import { AbstractCurdService } from '@/framework/http'
 import { Field, Model, Type } from '@/framework/metadata'
 import { QueryRequestPage } from '@/framework/query'
+import { configureTransport } from '@/framework/transport'
 
 /**
  * 服务层的核心契约是 **URL 与请求体形状**：后端是 airpower 控制器，
@@ -10,9 +11,12 @@ import { QueryRequestPage } from '@/framework/query'
  */
 
 const requestMock = vi.fn()
-vi.mock('@/api/axios', () => ({
-  request: (...args: unknown[]) => requestMock(...args),
-}))
+// 框架的请求出口是**传输层契约**（src/framework/transport.ts）：这里装一个假的实现。
+// 生产里由 src/api/axios.ts 注册统一实例；测试不再需要 mock 模块路径（那是框架依赖应用面时期的写法）。
+configureTransport({
+  request: config => requestMock(config),
+  upload: vi.fn(),
+})
 vi.mock('element-plus', () => ({
   ElMessage: vi.fn(),
   ElMessageBox: { alert: vi.fn() },

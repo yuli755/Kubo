@@ -12,7 +12,7 @@
  * | --- | --- | --- |
  * | 纯工具 | `utils` / `types` | 只允许 `utils` / `types`（零出向） |
  * | 数据层 | `base` / `model` | 纯工具 + `framework`（模型基类）；**不知道 UI** |
- * | 框架层 | `framework` | 框架内部 + `component` / `base` / 纯工具 / `model`；**不认识应用面**（view/api/stores/config/router/composables/hook/guard/demo/pwa） |
+ * | 框架层 | `framework` | 框架内部 + `component` / `base` / 纯工具 / `model`；**不认识应用面**（view/api/stores/config/router/composables/hook/guard/demo/pwa）。需要应用的能力时不 import，而是**声明契约**（`framework/transport.ts`）由应用注册 |
  * | 视图层 | `view` | 任意层（叶子） |
  * | 组合根 | `main.ts` / `App.vue` / `router/**` / `config/routes*` | 任意层（路由表与挂载点必然认识视图） |
  *
@@ -34,7 +34,8 @@
  * ## 白名单纪律
  *
  * 与后端同一套：条目必须**仍然存在**（代码改了却忘删 = 红）、条目数**只许降**（`MAX_ALLOWLIST`）。
- * 现在的 2 条是 `framework/**` 与 `api/axios` 之间那处**刻意**的耦合（见各条理由）。
+ * **当前 0 条 / 上限 0** —— 前端的层次没有例外了（后端的唯一"例外"是装配类，那是按注解识别的规则，
+ * 不占白名单）。
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -66,20 +67,22 @@ const UI_LAYERS = ['view', 'component', 'composables', 'hook']
 const PURE_LAYERS = ['utils', 'types']
 
 /**
- * 白名单：`framework/**` 与 `api/axios` 之间那处刻意耦合。
+ * 白名单：**现在是空的**。
  *
- * 为什么留着而不是拆：框架的请求出口**必须**是应用那个统一实例 —— 拦截器、租户头、
- * 401 刷新、演示模式适配器都挂在它上面（`framework/http.ts` 头注释里写明了）。
- * 拆成注入（`configureHttp(request)`）会让"接线漏了"变成运行期静默无请求，
- * 而本仓当前没有浏览器级回归测试兜底 —— 先登记、只许降。
+ * 它曾经有 2 条（`framework/http.ts`、`framework/upload.ts` → `api/axios`）：框架的请求出口
+ * 必须走应用那个统一实例，而那时是"框架直接 import 应用"。2026-09-18 改成**接缝**
+ * （`src/framework/transport.ts`：框架声明契约，`api/axios.ts` 把自己注册进去），
+ * 依赖方向变成 `api → framework`，两条都清掉了。
+ *
+ * 当初不拆的理由是"接线漏了会静默无请求"；现在的解法是把失败变显式：
+ * 未装配时 `getTransport()` 直接抛错，组合根（`src/main.ts`）还有一道启动自检
+ * （契约见 `src/framework/__tests__/transport.spec.ts`）。
  */
 const ALLOWLIST = [
-  ['framework/http.ts', 'api/axios', '框架的请求出口必须是应用实例（鉴权/租户/401/演示适配器都挂在它上面）'],
-  ['framework/upload.ts', 'api/axios', '同上：上传走同一实例，演示模式下不会真的发请求'],
 ].map(([file, target, reason]) => ({ file: `src/${file}`, target, reason }))
 
-/** 条目数上限（**只许降**） */
-const MAX_ALLOWLIST = 2
+/** 条目数上限（**只许降**）：0 —— 即"一条都不许有" */
+const MAX_ALLOWLIST = 0
 
 /**
  * 剥掉注释与字符串：TS/JS 的注释与字符串都可能长得像依赖（见文件头口径①）
@@ -221,7 +224,7 @@ if (process.argv.includes('--json')) {
 else {
   console.log('前端分层门禁：工具/模型/框架/视图 + 组合根（LF1–LF4）')
   console.log(`  扫描：${files.length} 个 .ts/.vue（src 下，剥注释、.vue 只取 <script>）`)
-  console.log(`  白名单：${ALLOWLIST.length}/${MAX_ALLOWLIST} 条（framework → api/axios 的刻意耦合，只许降）`)
+  console.log(`  白名单：${ALLOWLIST.length}/${MAX_ALLOWLIST} 条（只许降）`)
   if (violations.length === 0) {
     console.log('✓ 前端的层次没有越界')
   }

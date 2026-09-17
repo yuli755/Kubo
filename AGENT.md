@@ -22,6 +22,7 @@
 ## 二、硬规则（每条都有门禁或踩坑记录）
 
 1. **SQL 只能写在专属文件里**（用户 2026-09-18 定）：生产语句进 `SPMS-Server/src/main/resources/mapper/**/*.xml`，测试夹具进 `src/test/resources/sql/**`（`SqlFixtures` 加载）。`@Query`/`@Select`/`@Delete`/`last("…")` 全算违规，`pnpm sql:check` 是硬门禁；唯一豁免是"非可执行 SQL"（恶意输入样例），且必须写 `// SQL-IGNORE: 理由`。
+pnpm java:decl       # Java 声明级门禁：形参重名 / 字段重名（javac 会拒绝，沙箱无 JDK 时靠它兜底）
 1. **不许出现 `@airpower/web`**（已整体退场）。新文件、新页面一律走 `src/framework` + `K*` 组件；
    `pnpm airpower:check` 是硬门禁 —— 剥注释后出现任何 `@airpower/*` 的 import 或依赖即红。
 2. **模板里的 `<el-*>` 必须显式 `import`**（如 `import { ElButton } from 'element-plus'`）。

@@ -18,17 +18,18 @@
  * | `delete` | `POST /{baseUrl}/delete` |
  * | `enable` / `disable` | `POST /{baseUrl}/enable` / `disable` |
  *
- * 请求实际发往 `src/api/axios.ts` 的统一实例（拦截器/租户头/401 刷新/演示适配器都在这儿生效），
- * 因此换底座不影响鉴权、多租户与演示模式。
+ * 请求实际发往**应用装配的传输层**（`src/api/axios.ts` 把它自己注册进 `framework/transport.ts`）：
+ * 拦截器/租户头/401 刷新/演示适配器都还挂在那个统一实例上，只是框架不再 import 应用面。
+ * 未装配时会带着文件名抛错（以前是"框架直接 import 应用实例"，层次上是反的，见 transport.ts 头注释）。
  */
 
 import type { Ref } from 'vue'
 import type { QueryRequest } from './query'
 import type { IIdentifiableEntity, IJson, ITransformerConstructor } from './types'
-import { request } from '@/api/axios'
 import { fill, RootModel, toJson } from './entity'
 import { FeedbackUtil } from './feedback'
 import { QueryPage, QueryRequestPage, QueryResponsePage, QuerySort } from './query'
+import { getTransport } from './transport'
 
 /** 单个请求的可选项 */
 export interface IHttpOption {
@@ -75,13 +76,13 @@ export class Http {
   }
 
   private async send(body?: unknown, method: 'get' | 'post' = this.method): Promise<unknown> {
-    return request({
+    return getTransport().request({
       url: this.url,
       method,
       data: body === undefined ? undefined : toJson(body as object),
       headers: this.headers,
       timeout: this.option.timeout,
-    } as never)
+    })
   }
 
   /** 发起请求，返回响应体 `data` */
