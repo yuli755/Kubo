@@ -1,47 +1,69 @@
 package cn.hamm.spms.module.system.datapermission.repository;
 
+import cn.hamm.spms.base.mapper.KuboInfraMapper;
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionDenyLogEntity;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 /**
- * <h1>数据权限拒绝事件仓库</h1>
+ * <h1>数据权限拒绝事件仓储</h1>
  *
- * <p>与 {@link DataPermissionDiffRepository} 同样的取舍：不继承 {@code BaseRepository} /
- * {@code ICurdRepository}，埋点表多一个 CRUD 端点就多一份越权面。只暴露写入与按资源/原因查询。</p>
+ * <p>2026-09-18 由 Spring Data JPA 换成 MyBatis-Plus（去 JPA 的第一批：这一族证据表**不依赖 CRUD 引擎**，
+ * 可以整块先换）。三处变化，都是"JPA 方言 → MyBatis-Plus 方言"，语义逐条对齐：</p>
+ *
+ * <ul>
+ *   <li>{@code extends JpaRepository<..., Long>} → {@code extends KuboInfraMapper<...>}
+ *       （见 {@link KuboInfraMapper}：无条件注册，不跟读侧灰度开关走）；</li>
+ *   <li>派生查询 {@code findTop50ByResourceKeyOrderByIdDesc} → {@code default} 方法 + {@code LambdaQueryWrapper}
+ *       （用方法引用写列名，编译期就能发现字段改名；{@code last("LIMIT 50")} 对应派生查询里的 {@code Top50}）；</li>
+ *   <li>原生 {@code @Query(value = "delete ... where create_time < :cutoff", nativeQuery = true)} →
+ *       MyBatis 的 {@code @Delete}，**刻意保留显式 SQL**：证据表的保留期清理是审计对象，
+ *       表名与条件应该明明白白写在仓储里（契约测试 `maskContract.spec.ts` 也钉着这句话）；
+ *       占位符从 JPA 的 {@code :cutoff} 换成 MyBatis 的 {@code #{cutoff}}，其余一字不变。</li>
+ * </ul>
+ *
+ * <p><b>调用点需要注意的一处差异</b>：JPA 的 {@code save(entity)} 已被 MyBatis-Plus 的
+ * {@code insert(entity)} 取代（写入方 {@code DataPermissionDenyLogRecorder} 同批改）。
+ * 这是**唯一**需要改调用方的语义变化 —— 其余方法名与签名保持不变。</p>
  *
  * @author Hamm.cn
  */
 @Repository
-public interface DataPermissionDenyLogRepository extends JpaRepository<DataPermissionDenyLogEntity, Long> {
-
+public interface DataPermissionDenyLogRepository extends KuboInfraMapper<DataPermissionDenyLogEntity> {
     /**
-     * 某资源最近的拒绝事件（排障用）
-     */
-    List<DataPermissionDenyLogEntity> findTop50ByResourceKeyOrderByIdDesc(String resourceKey);
-
-    /**
-     * 全量最近的拒绝事件（管理端看板：放开后第一眼要看的「挡了谁」）
-     */
-    List<DataPermissionDenyLogEntity> findTop50ByOrderByIdDesc();
-
-    /**
-     * 删除指定时间点之前的拒绝事件；长期归档由数据库备份/归档层负责。
+     * 某资源最近 50 条拒绝事件（倒序）
      *
-     * <p>用原生 SQL 是刻意的：{@code create_time} 来自 AirPower 的基类，应用 Java 属性名不是本模块
-     * 的契约；按物理列写可以让迁移脚本、归档任务与实体映射认同一件事。</p>
+     * @param resourceKey 资源标识
+     * @return 事件列表
+     */
+    default List<DataPermissionDenyLogEntity> findTop50ByResourceKeyOrderByIdDesc(String resourceKey) {
+        return selectList(new LambdaQueryWrapper<DataPermissionDenyLogEntity>()
+                .eq(DataPermissionDenyLogEntity::getResourceKey, resourceKey)
+                .orderByDesc(DataPermissionDenyLogEntity::getId)
+                .last("LIMIT 50"));
+    }
+
+    /**
+     * 最近 50 条拒绝事件（倒序）
      *
-     * @param cutoffEpochMillis 截止时间（该时刻之前的记录可删除）
+     * @return 事件列表
+     */
+    default List<DataPermissionDenyLogEntity> findTop50ByOrderByIdDesc() {
+        return selectList(new LambdaQueryWrapper<DataPermissionDenyLogEntity>()
+                .orderByDesc(DataPermissionDenyLogEntity::getId)
+                .last("LIMIT 50"));
+    }
+
+    /**
+     * 删除截止线之前的拒绝事件（保留期清理）
+     *
+     * @param cutoffEpochMillis 截止时间（毫秒）
      * @return 删除行数
      */
-    @Modifying
-    @Transactional
-    @Query(value = "delete from data_permission_deny_log where create_time < :cutoff", nativeQuery = true)
+    @Delete("delete from data_permission_deny_log where create_time < #{cutoff}")
     int deleteExpiredBefore(@Param("cutoff") long cutoffEpochMillis);
 }

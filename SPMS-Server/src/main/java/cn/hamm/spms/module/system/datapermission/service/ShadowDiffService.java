@@ -338,7 +338,7 @@ public class ShadowDiffService {
             entity.setTenantId(tenantId);
             // 影子比对记录由后台线程写入，无 HTTP 上下文：本实体不含 @SensitiveField 字段，
             // 因此不需要 BaseService 的敏感字段兜底（脱敏登记也天然是空的）
-            repository.save(entity);
+            repository.insert(entity);
         }
         catch (RuntimeException ex) {
             log.debug("[data-permission][shadow] 差异落库失败：{}", ex.getMessage());
@@ -440,7 +440,7 @@ public class ShadowDiffService {
             return;
         }
         try {
-            repository.save(new DataPermissionOrmParityEntity()
+            repository.insert(new DataPermissionOrmParityEntity()
                     .setResourceKey(resourceKey)
                     .setActionName(action == null ? "QUERY" : action.name())
                     .setTableName(probe.tableAlias())

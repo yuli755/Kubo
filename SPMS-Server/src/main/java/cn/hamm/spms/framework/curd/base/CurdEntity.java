@@ -17,6 +17,8 @@ import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.annotation.ReadOnly;
 import cn.hamm.spms.core.exception.ServiceException;
 import cn.hamm.spms.core.interfaces.IEntity;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.persistence.Column;
@@ -66,6 +68,9 @@ public class CurdEntity<E extends CurdEntity<E>> extends RootModel<E>
     public static final String STRING_CREATE_TIME = "createTime";
 
     @Description("ID")
+    // MyBatis-Plus：自增主键并在 insert 后把生成值回填到实体（与 JPA 的 IDENTITY 语义一致）。
+    // 去 JPA 期间两套注解并存：@Id/@GeneratedValue 仍是 JPA（Hibernate）读的那份。
+    @TableId(type = IdType.AUTO)
     @Id
     @GeneratedValue(strategy = IDENTITY)
     @Column(nullable = false, columnDefinition = "bigint UNSIGNED comment 'ID'")

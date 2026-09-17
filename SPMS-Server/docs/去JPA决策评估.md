@@ -245,4 +245,139 @@ mysqldump -h 127.0.0.1 -u<user> -p --no-data --skip-comments --skip-add-drop-tab
 
 拿到这份 schema 后，我可以：① 生成 `V__baseline.sql`（对齐现有 10 个迁移）；② 把 `ddl-auto` 全切 `none`；
 ③ 扩 `ddl:check` 覆盖面到全部 45 个实体；④ 之后按域（wms → factory → channel → asset → system/personnel）迁写侧。
-**在此之前**，JPA 的删除只能停在「盘点 + 门禁」，动它就等于盲改 87 个 Service 的持久化语义。
+**在此之前**，JPA 的删除只能停在「盘点 + 门禁」。
+
+> **2026-09-18 更新（见 §9）**：使用方已明确「继续盲删、按域一批批推进、编译报错留到最后统一修」，
+> 所以路线从「等 S0」改成「**先建棘轮 → 按域换轨 → 引擎换轨 → 删依赖**」。§8.2 里"S0 是唯一前置"的说法随之调整：S0 仍是 *删掉 `ddl-auto`* 的前置，
+> 但不再是把写链路换成 MyBatis-Plus 的前置。
+
+---
+
+## 9. 执行记录（2026-09-18，按域推进）
+
+### 9.1 先把尺子立起来：`pnpm jpa:check`（JPA 足迹棘轮）
+
+去 JPA 和刚做完的 airpower 退场是同一类工程：**删除面大、单批收益不可见**。
+airpower 那轮靠 `pnpm airpower:backend` 把"还剩多少"变成数字，才有了"只许降"的节奏；
+这一轮照做，新增 `infra/scripts/check-jpa-usage.mjs`：
+
+| 判据 | 起点（2026-09-18） |
+| --- | --- |
+| 触及 JPA 的 Java 文件 | **110 / 527** |
+| 引用次数（剥注释后按关键字数） | **599** |
+| JPA import 条数 | **478** |
+| 依赖 | `spring-boot-starter-data-jpa` **仍在 pom 里** |
+| `ddl-auto` | local `update` · main/prod `validate` |
+
+```bash
+pnpm jpa:check              # 人读：按模块 / 按关键字 / 最重的 20 个文件
+pnpm jpa:check -- --json    # 机器版
+pnpm jpa:check -- --check   # 棘轮（CI 与 pnpm check 都已接入）：超过基线即红
+```
+
+**口径踩过的坑**（都写进脚本注释了）：必须**词边界**匹配 ——
+`@Table` 不能把 MyBatis-Plus 的 `@TableName/@TableId` 算进来（本轮实测差 48 处）、
+`@Access` 不能把 Lombok 的 `@Accessors` 算进来（差 63 处）、
+`Specification` 不能把本仓的 `DataPermissionSpecification` 算进来（差 90 处）、
+`Predicate` 不能把 `java.util.function.Predicate` 算进来（差 370 处）。
+另外一律**剥注释**：不然"这里原来是 JPA"这类迁移档案注释会把数字顶上去。
+
+**起点数字里最值得盯的三行**（它们决定了顺序）：
+
+| 关键字 | 数量 | 含义 |
+| --- | --- | --- |
+| `@Column` | 222 | 41 个实体的列映射 —— 纯机械，但必须整批替换（半套副本 = 两套 ORM 各认一半字段） |
+| `CriteriaBuilder` 70 + `Specification` 54 + `criteria.Predicate` 42 | 166 | **数据权限的行级条件目前是用 JPA Criteria 手搓的**，与 MyBatis-Plus 那条 SQL 渲染链路是"同一套规则、两份实现"（§3.2 说的双份编译），换轨时这条必须整线切 |
+| `@ManyToOne` 29 + `@ManyToMany` 8 | 37 | 对象图关系：MyBatis 侧没有对象图，只有显式 join/子查询 |
+
+### 9.2 第一批（J1）：数据权限证据/审计日志族 → MyBatis-Plus
+
+**为什么先动这一块**：这 4 个仓储**不依赖 CRUD 引擎**（它们直接 `extends JpaRepository`，不是
+`BaseRepository`），是整块可换、可回滚、边界清楚的切片 —— 拿来验证"换轨的写法"最合适。
+
+| 文件 | 变化 |
+| --- | --- |
+| `repository/DataPermissionDenyLogRepository.java` | `JpaRepository<_, Long>` → `KuboInfraMapper<_>` |
+| `repository/DataPermissionDiffRepository.java` | 同上 |
+| `repository/DataPermissionOrmParityRepository.java` | 同上 |
+| `repository/OperationLogRepository.java` | 同上 |
+| `entity/{DataPermissionDenyLog,DataPermissionDiff,DataPermissionOrmParity,OperationLog}Entity.java` | 加 `@TableName("…")`（JPA 的 `@Table` 保留，并存期各读各的）；删掉**冗余重声明**的 `@Id private Long id;` |
+| `framework/curd/base/CurdEntity.java` | `id` 补 `@TableId(type = IdType.AUTO)`（与 JPA `IDENTITY` 同语义：自增 + 回填） |
+| `base/mapper/KuboInfraMapper.java` + `base/mapper/InfraMapperConfiguration.java` | **新增**：基础设施 Mapper 的无条件注册（4 个 `MapperFactoryBean` 显式登记，见下） |
+| `service/{DataPermissionDenyLogRecorder,OperationLogRecorder,ShadowDiffService}.java` | `repository.save(x)` → `repository.insert(x)`（MP 里 `save` 叫 `insert`，本批唯一需要改调用方的语义） |
+
+**翻译对照**（每一处都在代码注释里写了理由）：
+
+| JPA 写法 | MyBatis-Plus 写法 | 说明 |
+| --- | --- | --- |
+| `findTop50ByResourceKeyOrderByIdDesc(k)` | `default` 方法 + `LambdaQueryWrapper.eq(...).orderByDesc(...).last("LIMIT 50")` | 列名用方法引用写 → 字段改名编译期就炸，不用等到 SQL 报错 |
+| `countByResourceKeyAndVerdict(k, v)` | `selectCount(wrapper)` | 返回 `Long`，空值归一为 `0` |
+| `@Query(value="delete … where create_time < :cutoff", nativeQuery=true)` + `@Modifying @Transactional` | `@Delete("delete from <表> where create_time < #{cutoff}")`（**保留显式 SQL**） | 表名与条件是审计对象，写在仓储里可被契约测试 `maskContract.spec.ts` 直接钉住（本批就是被它拦下过一次：wrapper 版会丢掉那句可审计的 SQL）。**刻意不补 `@Transactional`**：MP 的 Mapper 在无事务时按语句自动提交，正好保住"三张证据表各自独立清理、某一张失败不影响其它两张"的既有行为（调用方 `DataPermissionEvidenceRetention` 是逐个 try/catch） |
+
+**新增的地基（这一段是这批的"设计"部分，不是机械替换）**：
+MyBatis-Plus 的 Mapper 在本仓有两套注册规则，**刻意用两个 marker 接口分开**：
+
+- `KuboBaseMapper`：业务读链路。由 `MapperReadConfiguration` 在
+  `kubo.data-permission.mapper-read.enabled=true` 时注册 —— 那个开关是灰度与回滚位，业务 Mapper 必须能"整体不存在"。
+- `KuboInfraMapper`：基础设施表（本批的 4 个）。由新的 `InfraMapperConfiguration` **无条件**注册 ——
+  写证据日志是"业务失败也要留痕"的旁路，绝不能跟着灰度开关一起消失（它们原来是 JPA 仓储，一直存在）。
+
+**为什么不是再写一个 `@MapperScan`**：契约测试 `maskContract.spec.ts` 钉着"注册面只能有一处"
+（多于一处 = 那个灰度开关就管不住全部 Mapper 了），这条判据是对的，所以本批改成
+**4 个 `MapperFactoryBean` 显式逐个登记**：既不受开关影响，又让"哪几个 Mapper 不走开关"
+在代码里一眼可见（这几行本身就是理由）。Bean 名字沿用接口驼峰名，`ObjectProvider<...>` 注入一个字都不用改。
+
+> 本批被门禁拦下过两次，都按契约改了实现而不是改判据：① 保留期清理必须留下可审计的显式 SQL
+> （wrapper 版会丢掉 `delete from <表> where create_time < …` 这句话）；② 对账实体的
+> `@Column` 计数由 12 变 11（冗余重声明的 `id` 字段被删，它在基类 `CurdEntity` 里）。
+
+### 9.3 顺手发现的一处隐患（**没改，等你拍板**）
+
+这 4 张证据表的 `create_time` **一直是 NULL**：
+
+- 写入走的是 `repository.save(entity)`，**不经过** `CurdService` 的审计填充（`CurdService:821` 才有 `setCreateTime(...)`）；
+- 而 V2 迁移里 `create_time BIGINT NULL` 没有默认值（`operation_log` 那张更早，是 `DEFAULT 0`）；
+- 保留期清理跑的是 `delete … where create_time < cutoff` —— **NULL 不满足任何比较**，
+  所以拒绝事件/差异/对账三类证据日志**从来没有被保留期清掉过**（数据只增不减）。
+
+MyBatis-Plus 的 `MetaObjectHandler`（审计字段自动填充）正好是修它的现成位置，可以放进下一批 ——
+但那是**行为变化**（清理会第一次真正生效），不是纯重构，所以单独提出来让你确认。
+
+### 9.4 下一批（J2）的设计：写链路引擎换轨（**一次性的核心改动**）
+
+`CurdService`（1052 行）里 JPA 只有 **8 个触点**，这是好消息 —— 换轨不需要重写 CRUD 语义，只需要换底座：
+
+| 触点 | 现在 | 换成 |
+| --- | --- | --- |
+| 新增 | `repository.saveAndFlush(target)` | `insert(target)` / `updateById(target)`（按 id 判空） |
+| 删除 | `repository.deleteById(id)` | `deleteById(id)`（签名兼容） |
+| 详情 | `repository.findById(id)` + `entityManager.clear()` | `selectById(id)`（MP 无一级缓存，`clear()` 直接删掉） |
+| 列表 | `repository.findAll(spec, sort)` | `selectList(wrapper)` + `orderBy` |
+| 分页 | `repository.findAll(spec, pageable)` | `selectPage(Page, wrapper)` |
+| 唯一性校验 | `repository.findOne(Example)` | `selectList(wrapper)` 取首条 |
+| 悲观锁 | `repository.getForUpdateById(id)` | `selectOne(wrapper.last("FOR UPDATE"))` |
+| 条件构造 | `createSpecification(filter, isEqual)`（Criteria） | `createWrapper(filter, isEqual)`（`LambdaQueryWrapper`） |
+
+配套（同批，缺一个都不成立）：
+
+1. `ICurdRepository` 从 `extends JpaRepository, JpaSpecificationExecutor` 改成 `extends BaseMapper`，
+   并把 JPA 风格的**兼容垫片**（`findAll()` / `findById()` / `saveAndFlush()` / `findAllById()`）做成
+   `default` 方法 —— 这样 21 处域内调用点**零改动**，改动面被压在引擎这一个文件里；
+2. `QueryHelper.createSort/createPageable` → MyBatis-Plus 的 `OrderItem` / `Page`；
+3. `@MapperScan` 覆盖 `**.repository`（44 个仓储接口从此就是 Mapper，不用逐个改）；
+4. 8 个仓储里 41 个**派生查询方法**（`getByPhone`/`getByCode`/…）改成 `LambdaQueryWrapper` 的 `default` 方法。
+
+**为什么这一批必须一次做完、不能按域拆**：实体注解（`@Id`/`@Column`）是**两套 ORM 共读**的；
+只要 JPA 还在，实体的 JPA 注解就不能删；而 `ICurdRepository` 一旦不是 JpaRepository，
+所有 JPA 读路径（包括数据权限的 `Specification` 与影子比对）就一起断了。
+所以顺序只能是：**引擎换轨（J2）→ 实体注解批量替换 + 数据权限 Criteria 线换成 MP 渲染（J3）→ 删 `spring-boot-starter-data-jpa` + `ddl-auto`（J4）**。
+
+### 9.5 验证边界（说清楚哪些能验、哪些不能）
+
+| 这一批 | 能不能离线验 | 怎么验 |
+| --- | --- | --- |
+| 语法/字面量/编码 | ✅ | `pnpm text:check`（525 个 Java 文件的字面量、转义、JDK import） |
+| import 可达性 | ✅ | `pnpm java:imports` |
+| JPA 足迹只许降 | ✅ | `pnpm jpa:check -- --check` |
+| **编译** | ❌ 沙箱无 JDK、Maven 仓库不可达 | 需要你本机 `mvn -q compile`（或 CI） |
+| **运行时语义**（MP 的 insert/update 与 JPA 脏检查是否等价、数据权限拦截器是否覆盖写语句） | ❌ 需要真库 | 需要你本机跑一次：新增/改/删各一条 + 证据日志落库 + 保留期清理 |

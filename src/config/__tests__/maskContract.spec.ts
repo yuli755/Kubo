@@ -1311,8 +1311,12 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
     const schedule = `@Scheduled(cron = "${property}")`
     expect(retention).toContain(schedule)
     expect(retention).toContain('cutoffEpochMillis')
-    expect(diffRepository).toContain('delete from data_permission_diff_log where create_time < :cutoff')
-    expect(parityRepository).toContain('delete from data_permission_orm_parity_log where create_time < :cutoff')
+    // 2026-09-18 去 JPA 第一批：仓储从 Spring Data JPA 换成 MyBatis-Plus 的 Mapper，
+    // 清理语句的**判据没变**（表名 + create_time 条件必须可审计地写在仓储里），只有占位符
+    // 跟着方言从 JPA 的 `:cutoff` 变成 MyBatis 的 `#{cutoff}` —— 这条断言拦下过一次
+    // "用 LambdaQueryWrapper.delete 替掉显式 SQL"的写法（那样表名就从仓储里消失了）。
+    expect(diffRepository).toContain('delete from data_permission_diff_log where create_time < #{cutoff}')
+    expect(parityRepository).toContain('delete from data_permission_orm_parity_log where create_time < #{cutoff}')
     // 迁移脚本 2026-09-17 收编进 Flyway，路径随之改变（见 docs/database/Flyway-S0·基线与存量脚本收编.md）
     const migration = read(join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'db', 'migration', 'V2__data_permission_migrations.sql'))
     expect(migration).toContain('idx_dp_diff_create_time')
@@ -1769,8 +1773,11 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
     const columns = [...readJavaCode(PARITY_ENTITY).matchAll(/@Column\(name = "([a-z_]+)"/g)].map(m => m[1])
     // 列数写死是有意的：加列时必须同时改迁移脚本、H2 手抄与这个数字，
     // 少改一处就会在这里红 —— 换成"至少 12 列"就变成一条永远过的计数
+    // 12 → 11（2026-09-18 去 JPA）：实体里**冗余重声明**的 `@Id private Long id` 被删掉
+    // （`id` 由基类 CurdEntity 声明，其余 40 个实体都不重复声明；留着会让 MyBatis-Plus 看到
+    // 两个同名 id 字段）。`id` 列本身仍由 ddl:check 与基类保证，这里数的是"本实体自己声明的列"。
     expect(columns, '对账实体的 @Column 数量与门禁不符：新增/删除列要同时改迁移脚本、schema-test.sql 和这一处')
-      .toHaveLength(12)
+      .toHaveLength(11)
     for (const column of columns) {
       expect(block, `${PARITY_TABLE} 少了列 ${column}：MySQL 上"表存在但少列"是运行期 500，不是启动期报错`)
         .toContain(`\`${column}\``)

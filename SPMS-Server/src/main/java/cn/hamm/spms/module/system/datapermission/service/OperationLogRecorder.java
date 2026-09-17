@@ -132,7 +132,7 @@ public class OperationLogRecorder {
                     .setAfterSnapshot(event.afterSnapshot());
             entity.setUserId(event.userId());
             entity.setTenantId(event.tenantId());
-            repository.save(entity);
+            repository.insert(entity);
         }
         catch (RuntimeException ex) {
             log.warn("[operation-log] 操作审计落库失败（不影响业务结果）：resource={} action={} {}",

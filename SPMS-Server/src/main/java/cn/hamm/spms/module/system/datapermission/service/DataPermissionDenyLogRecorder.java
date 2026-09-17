@@ -122,7 +122,7 @@ public class DataPermissionDenyLogRecorder {
                     .setDetail(event.detail());
             entity.setUserId(event.userId());
             entity.setTenantId(event.tenantId());
-            repository.save(entity);
+            repository.insert(entity);
         }
         catch (RuntimeException ex) {
             log.warn("[data-permission][deny-log] 拒绝事件落库失败（不影响拒绝结果）：resource={} reason={} {}",

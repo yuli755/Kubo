@@ -2,11 +2,9 @@ package cn.hamm.spms.module.system.datapermission.entity;
 
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
+import com.baomidou.mybatisplus.annotation.TableName;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -33,18 +31,13 @@ import org.hibernate.annotations.DynamicUpdate;
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
 @Entity
+@TableName("data_permission_deny_log")
 @Data
 @DynamicInsert
 @DynamicUpdate
 @Table(name = "data_permission_deny_log")
 @Description("数据权限拒绝事件")
 public class DataPermissionDenyLogEntity extends BaseEntity<DataPermissionDenyLogEntity> {
-
-    @Description("ID")
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
-    private Long id;
 
     @Description("数据资源标识")
     @Column(name = "resource_key", nullable = false, length = 128)

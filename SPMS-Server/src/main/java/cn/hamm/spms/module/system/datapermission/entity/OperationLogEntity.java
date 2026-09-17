@@ -2,11 +2,9 @@ package cn.hamm.spms.module.system.datapermission.entity;
 
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
+import com.baomidou.mybatisplus.annotation.TableName;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -30,18 +28,13 @@ import org.hibernate.annotations.DynamicUpdate;
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
 @Entity
+@TableName("operation_log")
 @Data
 @DynamicInsert
 @DynamicUpdate
 @Table(name = "operation_log")
 @Description("通用操作审计日志")
 public class OperationLogEntity extends BaseEntity<OperationLogEntity> {
-
-    @Description("ID")
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
-    private Long id;
 
     @Description("资源标识（如 asset.material）")
     @Column(name = "resource_key", nullable = false, length = 128)

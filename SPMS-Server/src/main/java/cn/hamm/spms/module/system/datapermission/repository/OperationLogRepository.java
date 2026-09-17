@@ -1,47 +1,54 @@
 package cn.hamm.spms.module.system.datapermission.repository;
 
+import cn.hamm.spms.base.mapper.KuboInfraMapper;
 import cn.hamm.spms.module.system.datapermission.entity.OperationLogEntity;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 /**
- * <h1>通用操作审计日志仓库</h1>
+ * <h1>通用操作审计日志仓储</h1>
  *
- * <p>与 {@link DataPermissionDenyLogRepository} 同一取舍：不继承 {@code BaseRepository} /
- * {@code ICurdRepository}——审计表多一个 CRUD 端点就多一份越权面。只暴露查询与清理。</p>
+ * <p>2026-09-18 由 Spring Data JPA 换成 MyBatis-Plus（去 JPA 第一批，写法见
+ * {@link DataPermissionDenyLogRepository} 的说明）。</p>
  *
  * @author Hamm.cn
  */
 @Repository
-public interface OperationLogRepository extends JpaRepository<OperationLogEntity, Long> {
-
+public interface OperationLogRepository extends KuboInfraMapper<OperationLogEntity> {
     /**
-     * 全量最近的操作日志（管理端倒序看板）
-     */
-    List<OperationLogEntity> findTop200ByOrderByIdDesc();
-
-    /**
-     * 某资源最近的操作日志（按资源下钻）
-     */
-    List<OperationLogEntity> findTop200ByResourceKeyOrderByIdDesc(String resourceKey);
-
-    /**
-     * 删除指定时间点之前的日志；长期归档由数据库备份/归档层负责。
+     * 最近 200 条操作日志（倒序）
      *
-     * <p>用原生 SQL 是刻意的：{@code create_time} 来自 AirPower 基类，按物理列写让迁移脚本、
-     * 归档任务与实体映射认同一件事。</p>
+     * @return 日志列表
+     */
+    default List<OperationLogEntity> findTop200ByOrderByIdDesc() {
+        return selectList(new LambdaQueryWrapper<OperationLogEntity>()
+                .orderByDesc(OperationLogEntity::getId)
+                .last("LIMIT 200"));
+    }
+
+    /**
+     * 某资源最近 200 条操作日志（倒序）
      *
-     * @param cutoffEpochMillis 截止时间（该时刻之前的记录可删除）
+     * @param resourceKey 资源标识
+     * @return 日志列表
+     */
+    default List<OperationLogEntity> findTop200ByResourceKeyOrderByIdDesc(String resourceKey) {
+        return selectList(new LambdaQueryWrapper<OperationLogEntity>()
+                .eq(OperationLogEntity::getResourceKey, resourceKey)
+                .orderByDesc(OperationLogEntity::getId)
+                .last("LIMIT 200"));
+    }
+
+    /**
+     * 删除截止线之前的操作日志（保留期清理）
+     *
+     * @param cutoffEpochMillis 截止时间（毫秒）
      * @return 删除行数
      */
-    @Modifying
-    @Transactional
-    @Query(value = "delete from operation_log where create_time < :cutoff", nativeQuery = true)
+    @Delete("delete from operation_log where create_time < #{cutoff}")
     int deleteExpiredBefore(@Param("cutoff") long cutoffEpochMillis);
 }

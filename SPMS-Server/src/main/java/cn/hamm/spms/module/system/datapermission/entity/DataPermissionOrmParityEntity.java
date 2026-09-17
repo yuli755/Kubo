@@ -2,11 +2,9 @@ package cn.hamm.spms.module.system.datapermission.entity;
 
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
+import com.baomidou.mybatisplus.annotation.TableName;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -36,6 +34,7 @@ import org.hibernate.annotations.DynamicUpdate;
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
 @Entity
+@TableName("data_permission_orm_parity_log")
 @Data
 @DynamicInsert
 @DynamicUpdate
@@ -63,11 +62,6 @@ public class DataPermissionOrmParityEntity extends BaseEntity<DataPermissionOrmP
      */
     public static final String VERDICT_ERROR = "ERROR";
 
-    @Description("ID")
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
-    private Long id;
 
     @Description("数据资源标识")
     @Column(name = "resource_key", nullable = false, length = 128)
