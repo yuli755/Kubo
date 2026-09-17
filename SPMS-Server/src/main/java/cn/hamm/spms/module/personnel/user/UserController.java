@@ -1,8 +1,8 @@
 package cn.hamm.spms.module.personnel.user;
 
 import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.cookie.CookieConfig;
-import cn.hamm.airpower.cookie.CookieHelper;
+import cn.hamm.spms.common.cookie.CookieConfig;
+import cn.hamm.spms.common.cookie.CookieHelper;
 import cn.hamm.airpower.core.Json;
 import cn.hamm.airpower.core.StringUtil;
 import cn.hamm.airpower.core.annotation.Description;

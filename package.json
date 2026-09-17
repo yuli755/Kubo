@@ -9,6 +9,7 @@
     "dev": "vite",
     "airpower:check": "node scripts/check-airpower-gone.mjs",
     "airpower:backend": "node infra/scripts/check-airpower-backend.mjs",
+    "stack:project": "node scripts/project-stack.mjs",
     "stack": "node scripts/frontend-stack.mjs",
     "deadcode:check": "node scripts/find-unused-frontend.mjs --check",
     "exports:check": "node scripts/find-unused-exports.mjs --check",

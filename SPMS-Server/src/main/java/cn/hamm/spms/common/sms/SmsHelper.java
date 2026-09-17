@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 /**
  * <h1>短信发送助手</h1>
  * <p>
- * 与 airpower 的 {@code EmailHelper}（airpower-email，已接入、可真实发邮件）对位：邮箱验证码已闭环，
+ * 与 {@code cn.hamm.spms.common.email.EmailHelper}（已接入、可真实发邮件）对位：邮箱验证码已闭环，
  * 短信验证码此前只走到「生成验证码 + 存 Redis」，最后一步「真发短信」停在这里（原代码是
  * {@code log.info("短信验证码：{}", code)} + {@code //todo 发送验证码}）。
  * </p>

@@ -32,10 +32,82 @@ const ROOT = process.env.KUBO_ROOT ?? path.resolve(import.meta.dirname, '..', '.
 const SERVER = path.join(ROOT, 'SPMS-Server')
 
 /**
- * 基线（2026-09-18 实测）。**只许降**：每完成一批后端自建，把这里改成新数字。
+ * 基线（**只许降**）。每完成一批后端自建，把这里改成新数字（改动可见、可 review）。
  * 数字膨胀时 `--check` 会红，并告诉你该回去看哪一批把 airpower 用回来了。
+ *
+ * 演进：
+ * - 2026-09-18 起点：180 文件 / 73 符号 / 656 引用（依赖 airpower-curd + airpower-email + parent POM）
+ * - 2026-09-18 第一批（邮件 + Cookie 自建）：183 / 72 / 655
+ *   依赖 −1（airpower-email 摘除）、模块 −2（email 归零、cookie 3→1）。
+ *   **文件数反而 +3 是预期内的**：自建件本身会引用框架符号（`EmailHelper` 还引用 `Errors.EMAIL_ERROR`；
+ *   `Application` 里那行 `exclude = cn.hamm.airpower.cookie.Auto.class` 是显式的接管声明）——
+ *   退场是"引用集中到少数适配点、再一次性拔掉"，不是"每批都让所有数字下降"。
  */
-const BASELINE = { files: 180, symbols: 73, references: 657 }
+const BASELINE = { files: 183, symbols: 72, references: 655 }
+
+
+/**
+ * 剥掉 Java 注释、保留字符串字面量。
+ *
+ * 为什么必须剥：退场过程中大量注释会写"这里原来是 airpower 的 EmailHelper"之类的说明，
+ * 不剥的话**自己写的档案会把数字顶上去**（本轮就发生过：摘掉 airpower-email 反而 +3 个文件）。
+ * 而 `startsWith("cn.hamm.airpower.")` 这种**字符串**是真耦合（判断类归属），必须保留。
+ */
+function stripJavaComments(code) {
+  let out = ''
+  let state = 'code' // code | line | block | string | char
+  for (let i = 0; i < code.length; i += 1) {
+    const c = code[i]
+    const next = code[i + 1]
+    if (state === 'code') {
+      if (c === '/' && next === '/') {
+        state = 'line'
+        i += 1
+        continue
+      }
+      if (c === '/' && next === '*') {
+        state = 'block'
+        i += 1
+        continue
+      }
+      if (c === '"') {
+        state = 'string'
+      }
+      else if (c === '\'') {
+        state = 'char'
+      }
+    }
+    else if (state === 'line') {
+      if (c === '\n') {
+        state = 'code'
+        out += c
+      }
+      continue
+    }
+    else if (state === 'block') {
+      if (c === '*' && next === '/') {
+        state = 'code'
+        i += 1
+      }
+      else if (c === '\n') {
+        out += c
+      }
+      continue
+    }
+    else if (state === 'string' || state === 'char') {
+      if (c === '\\') {
+        out += c + (next ?? '')
+        i += 1
+        continue
+      }
+      if ((state === 'string' && c === '"') || (state === 'char' && c === '\'')) {
+        state = 'code'
+      }
+    }
+    out += c
+  }
+  return out
+}
 
 function walk(dir, files = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -80,13 +152,18 @@ const symbolHits = new Map() // symbol → 次数
 const moduleHits = new Map() // module → 次数
 const fileHits = []
 
+const mentionOnly = []
+
 for (const file of javaFiles) {
-  const source = fs.readFileSync(file, 'utf8')
-  if (!source.includes('cn.hamm.airpower')) {
+  const raw = fs.readFileSync(file, 'utf8')
+  if (!raw.includes('cn.hamm.airpower')) {
     continue
   }
+  const source = stripJavaComments(raw)
   const hits = source.match(SYMBOL_RE) ?? []
   if (hits.length === 0) {
+    // 只在注释里提到（迁移档案）——不计入足迹，单列出来供人查阅
+    mentionOnly.push(path.relative(ROOT, file).replaceAll('\\', '/'))
     continue
   }
   fileHits.push({ file: path.relative(ROOT, file).replaceAll('\\', '/'), count: hits.length })
@@ -129,6 +206,7 @@ const report = {
     airpowerFiles: fileHits.length,
     symbols: symbols.length,
     references: symbols.reduce((sum, s) => sum + s.count, 0),
+    commentOnlyFiles: mentionOnly.length,
   },
   baseline: BASELINE,
   parentPom: parentAirpower,
@@ -173,7 +251,8 @@ if (process.argv.includes('--json')) {
   process.exit(0)
 }
 
-console.log(`\n🔍 后端 airpower 足迹（${report.totals.airpowerFiles} / ${report.totals.javaFiles} 个 Java 文件，${report.totals.references} 处引用）\n`)
+console.log(`\n🔍 后端 airpower 足迹（${report.totals.airpowerFiles} / ${report.totals.javaFiles} 个 Java 文件，${report.totals.references} 处引用）`)
+console.log(`  口径：剥掉注释与 JavaDoc 后仍出现的真实引用；另有 ${report.totals.commentOnlyFiles} 个文件只在注释里提到它（迁移档案，不计）\n`)
 console.log(`  父 POM：${report.parentPom ? 'cn.hamm:airpower（决定 Spring Boot 版本 —— 最硬的耦合）' : '无'}`)
 console.log(`  依赖：${report.dependencies.join(', ') || '无'}`)
 console.log(`  配置键：${report.configKeys.join(', ') || '无'}`)

@@ -41,10 +41,16 @@
             <version>${airpower.version}</version>
         </dependency>
 
+        <!--
+          2026-09-18：airpower-email 已摘除。全仓只有 UserService 用它发邮箱验证码，
+          自建的 cn.hamm.spms.common.email.EmailHelper 逐行等价（同样的 HTML 模板、
+          同样的 spring.mail.username 发件人、同样的「未配置即报错」语义），
+          因此邮件能力改用 Spring Boot 官方的 starter 即可，少一个框架模块。
+          版本由父 POM（Spring Boot BOM）管理，不显式写。
+        -->
         <dependency>
-            <groupId>cn.hamm</groupId>
-            <artifactId>airpower-email</artifactId>
-            <version>${airpower.version}</version>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
         <!-- WebAuthn 相关依赖 -->
         <!-- 阿里云OSS开始 -->

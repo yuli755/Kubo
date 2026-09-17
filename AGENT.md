@@ -50,7 +50,9 @@
 ```bash
 pnpm check          # 全链：lint → 死代码（文件级/导出级）→ typecheck → test:coverage → 各契约门禁 → build → demo:check → size
 pnpm stack          # 当前技术栈一览（含"死重量"：零引用依赖、没人用的 public 资源）
-pnpm airpower:check # airpower 不得回潮（剥注释后 0 引用才算过）
+pnpm airpower:check  # airpower 不得回潮（剥注释后 0 引用才算过）
+pnpm airpower:backend -- --check  # 后端airpower足迹棘轮（只许降）
+pnpm stack:project   # 整个仓库的技术栈（前端+后端+部署+CI，读真文件，不靠人写）
 ```
 
 体积红线：首屏 ≤ 450 KB、总体 ≤ 900 KB（`pnpm size`）；第一次超预算基本都是"把懒加载页面的依赖挪进了首屏"。
@@ -59,6 +61,8 @@ pnpm airpower:check # airpower 不得回潮（剥注释后 0 引用才算过）
 
 | 文档 | 内容 |
 | --- | --- |
+| `SPMS-Server/docs/项目整体技术栈详细信息.md` | **整个项目**的技术栈（版本、架构、部署、CI、退场现状与存量决策项） |
+| `SPMS-Server/docs/后端airpower退场·可行性评估与分批建议.md` | 后端退场的分批（B0–B8）、每批口径、为什么必须先有编译环境 |
 | `SPMS-Server/docs/前端技术栈现状.md` | 现在装的是什么、和目标栈差在哪、怎么删（纯删 / 边删边补 / 先补才能删） |
 | `SPMS-Server/docs/前端F4·airpower 逐域迁移分批清单.md` | 逐域迁移的批次、每批验收口径、踩坑 |
 | `SPMS-Server/docs/前端换底座·去airpower实施计划.md` | 换底座的总体设计与取舍 |
