@@ -51,7 +51,7 @@ function toReport(error: unknown, source: ErrorReport['source'], context?: strin
  * 业务代码主动上报错误（供 `try/catch` 捕获点调用）。
  *
  * 与 `installGlobalErrorHandler` 的兜底互补：后者接「未捕获」的异常，这里接「已捕获但值得上报」的
- * 错误（登录失败、WebSocket 断连、设备数据拉取失败……）。接入后这些错误会走统一的 `reporter`，
+ * 错误（登录失败、接口超时、设备数据拉取失败……）。接入后这些错误会走统一的 `reporter`，
  * 将来接 Sentry/自建监控时自动纳入，无需再改调用点。默认实现仍落 console，不改变现有行为。
  */
 export function reportError(error: unknown, context?: string): void {

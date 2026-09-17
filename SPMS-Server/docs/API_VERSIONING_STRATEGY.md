@@ -2,7 +2,8 @@
 
 > **版本**：v1.0
 > **状态**：🟢 已定稿，强制执行
-> **适用范围**：Kubo 平台所有对外 API (REST/gRPC/Dubbo/WebSocket)
+> **适用范围**：Kubo 平台所有对外 API (REST)。~~gRPC / Dubbo / WebSocket~~ —— 这三种通道**均未落地**
+> （gRPC 与 Dubbo 从未采用；WebSocket 通道与聊天模块已于 2026-09-17 整体移除，协议文档一并删除）。
 
 ---
 
@@ -39,19 +40,15 @@ API 版本: v{MAJOR}          (URL 路径前缀: /api/v1/, /api/v2/)
 - 禁止使用 Header 作为唯一版本标识
 - API 网关根据路径前缀路由到对应版本服务
 
-### 2.2 Dubbo/gRPC 服务
+### 2.2 Dubbo/gRPC 服务 —— ⛔ 已移除的技术栈
 
-| 方式 | 格式 | 示例 |
-|------|------|------|
-| **服务名版本化** | `kubo.wms.api.v1.InventoryService` | 接口包名包含版本 |
-| 元数据传递 | `x-api-version: 1` | Header 透传 |
+> 两种 RPC 通道**从未在本仓落地**（无依赖、无服务定义、无调用方），相关实现方案不再有效。
+> 若将来引入，版本传递规则需重新评估后写入本节。
 
-### 2.3 WebSocket
+### 2.3 WebSocket —— ⛔ 已移除的技术栈
 
-| 方式 | 格式 | 示例 |
-|------|------|------|
-| 连接路径 | `/ws/v1/{channel}` | `/ws/v1/alarms` |
-| CONNECT 帧 | `x-api-version: 1` | Header 传递 |
+> WebSocket 通道与聊天模块已于 2026-09-17 整体移除（前端 `src/websocket/`、后端 `AppWebSocketHandler`、
+> nginx `/websocket` 反代、`WEBSOCKET_PROTOCOL.md` 全部删除）。实时能力如重新立项，再补本节。
 
 ---
 

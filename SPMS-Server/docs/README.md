@@ -1,6 +1,6 @@
 # Kubo 平台文档索引
 
-> **最后更新**: 2026-09-09
+> **最后更新**: 2026-09-17
 > 本索引反映仓库**实际目录结构**。规划期文档已归档至 [`archive/`](./archive/)。
 
 ## 当前口径（单一事实源，优先读这里）
@@ -20,7 +20,11 @@
 | [`DATABASE_MIGRATION_STRATEGY.md`](./DATABASE_MIGRATION_STRATEGY.md) | 手写幂等迁移的策略、约定与回滚 |
 | [`API_DESIGN_GUIDE.md`](./API_DESIGN_GUIDE.md) | RESTful 设计规范、错误码、幂等、权限 |
 | [`API_VERSIONING_STRATEGY.md`](./API_VERSIONING_STRATEGY.md) | 语义化版本、废弃策略 |
-| [`WEBSOCKET_PROTOCOL.md`](./WEBSOCKET_PROTOCOL.md) | WebSocket 帧协议 |
+
+> **WebSocket 通道已移除（2026-09-17）**：`/websocket` 反代、`src/websocket/WebSocketManager.ts`、
+> `AppWebSocketHandler`、`WEBSOCKET_PROTOCOL.md` 一并删除，nginx CSP 不再放行 `ws:/wss:`。
+> 实时通道需要时重新立项（SSE / MQ 推送），不要沿用旧协议稿。
+
 
 ## 目录
 
@@ -30,7 +34,7 @@
 | [`02-Architecture/`](./02-Architecture/) | 二次改造设计文档（历史设计稿，已标注过时） |
 | [`04-Infrastructure/`](./04-Infrastructure/) | 基础设施（INFRASTRUCTURE_OVERVIEW） |
 | [`05-Development/`](./05-Development/) | 开发规范（DEVELOPMENT / CODE_STYLE / GIT_COMMIT / TESTING / SECURITY） |
-| [`database/`](./database/) | 迁移脚本（`migration/*.sql`）+ `tenant_readiness_matrix.md` |
+| [`database/`](./database/) | 迁移策略 + `tenant_readiness_matrix.md`；SQL 已收编为 Flyway `V1..V10`（`../src/main/resources/db/migration/`） |
 | [`archive/`](./archive/) | **已归档**的规划期过程文档（见 `archive/README.md`） |
 
 ## 前端文档
