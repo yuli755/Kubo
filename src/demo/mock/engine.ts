@@ -224,7 +224,7 @@ export function resolveMock(resourcePath: string, action: string, payload: Paylo
   if (DETAIL_ACTIONS.has(action)) {
     return buildDetail(resourceKey, payload)
   }
-  if (action === 'getTree') {
+  if (action === 'getTree' || action === 'getTreeList') {
     const page = buildPage(resourceKey, { ...payload, pageSize: 24 })
     const list = page.list as Row[]
     // 树形页：把前 6 行作为根，其余挂到「父级」下，验证树表的展开/折叠视觉
@@ -233,7 +233,13 @@ export function resolveMock(resourcePath: string, action: string, payload: Paylo
       parentId: 0,
       children: list.slice(6, 12).map(child => ({ ...child, parentId: row.id, children: [] })),
     }))
-    return { list: roots, total: roots.length, pageNum: 1, pageSize: 24 }
+    // ⚠️ 两个端点的**响应形状不同**，别合并：
+    // - `getTree`（typed client `api/personnel`、`api/system` 用）返回 `{ list, total, ... }`；
+    // - `getTreeList`（airpower 的 useTableTree 与 `@/framework` 的 getTreeList 都用）返回**裸数组**，
+    //   框架层的 getTreeList 见非数组直接返回 `[]` —— 形状不对会表现为「树表永远空」而**不报错**。
+    return action === 'getTreeList'
+      ? roots
+      : { list: roots, total: roots.length, pageNum: 1, pageSize: 24 }
   }
   if (WRITE_ACTIONS.has(action)) {
     return true

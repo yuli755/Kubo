@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import type { IJson } from '@/framework'
 import { computed, ref } from 'vue'
 import KPanel from '@/component/framework/KPanel.vue'
 import { Permissions } from '@/config/permissions'
@@ -18,7 +17,28 @@ const canViewSecurity = computed(() => usePermissionStore().hasAny(
   Permissions.System.DataFieldPolicy.getDetail,
 ))
 
-const modules = ref<IJson[]>([
+/**
+ * 首页功能导航的分组数据。
+ *
+ * 之前这里的类型是 airpower 的 `IJson`（索引签名是 `any`，模板里随便取字段都不报错）；
+ * 换成 `@/framework` 的 `IJson = Record<string, unknown>` 后模板立刻失去类型 ——
+ * 与其继续用宽类型，不如把形状写清楚（顺手也是这一页的文档）。
+ */
+interface IDashboardAction {
+  /** 功能名 */
+  name: string
+  /** 一句话说明 */
+  desc: string
+  /** 跳转路径 */
+  path: string
+}
+
+interface IDashboardModule {
+  title: string
+  actions: IDashboardAction[]
+}
+
+const modules = ref<IDashboardModule[]>([
   {
     title: 'ERP资产管理',
     actions: [

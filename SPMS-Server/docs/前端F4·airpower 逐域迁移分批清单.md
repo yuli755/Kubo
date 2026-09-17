@@ -106,3 +106,21 @@ vitest 44 文件 / 373 用例全绿，其中逐页冒烟探针 27/27 页 ✅（�
 | 模型层双装饰器遗漏 → 页面「字段不见了」但不报错 | 域门禁 spec 断言「实体字段数 == 表格列数 + 表单字段数」，用数量对账替代肉眼检查 |
 | 双底座**枚举基类不同**：airpower 的 `WebEnum` 只有 `toArray()/getLabel()`，本仓是 `getList()` —— 新表格读 airpower 枚举会「列头有、值是数字」 | `framework/enums.ts` 统一取值 `getEnumItems/getEnumLabel/getEnumColor`（两种形状都吃），并有单测钉住；`IWebEnumConstructor` 的静态方法声明为可选 |
 | 迁移中把**跨域公共件**（选择器、单据组件）一起改掉，会连带打挂尚未迁移的域 | 只改"叶子页"，跨域件按"最后一个使用方"排期；新页面通过 `DialogUtil` 打开存量 airpower 选择器（契约一致，可混用） |
+| 树表的**响应形状**搞错：`getTree` 返回 `{ list, total }`，`getTreeList` 返回**裸数组** —— 形状不对时表现为"树表永远空"且**不报错** | 框架 `getList/getTreeList` 对非数组返回 `[]`；演示 mock 已按端点分别返回正确形状（见下） |
+
+## 七、树查询端点的事实（本轮查证，避免再踩）
+
+| 端点 | 谁在用 | 响应形状 | 说明 |
+| --- | --- | --- | --- |
+| `POST /{baseUrl}/getTreeList` | airpower 的 `useTableTree`、**本仓新底座 `useTable({ tree: true })`** | **裸数组** `E[]` | airpower `urlGetTreeList = 'getTreeList'`；仓库/生产单元/部门/菜单/权限的树页都走它 |
+| `POST /{baseUrl}/getList` | `ASelector`（`un-paginate`）、部分下拉 | `E[]` | `StorageController` 注释里说的"树导航 getList（前端 tree selector 用）"指的是这条 |
+| `POST /{baseUrl}/getTree` | `src/api/{personnel,system}` 的 typed client | `{ list, total, ... }` | 演示 mock 原本只支持这一条的树形状 |
+
+**演示 mock 的坑（本轮已修）**：`src/demo/mock/engine.ts` 之前只处理 `getTree`，
+`getTreeList` 落到 `action.startsWith('get')` 的兜底分支返回 `{}` → 框架层当成空数组 →
+**树表页在预览里永远是空的**（旧 airpower 树页也一样，不报错所以一直没被发现）。
+修复后仓库/库位结构页的渲染体积从 13 KB / 15 KB 涨到 110 KB / 128 KB（真实树数据）。
+
+**遗留观测（留给批 3/6）**：部门/菜单/权限三页（仍是 airpower `useTableTree`）在探针里
+字节数几乎不受该修复影响（30 KB → 30 KB），说明它们**即使拿到数据也没渲染出行**；
+这三页属于后续批次，迁移到新组件时一并验证，不要当成"演示数据缺失"处理。
