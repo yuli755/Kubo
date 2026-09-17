@@ -52,6 +52,7 @@
 | 文档 | 说明 |
 | --- | --- |
 | [`../docs/API_DOCS_GUIDE.md`](../../docs/API_DOCS_GUIDE.md) | API 文档生成与类型同步指南 |
+| [`../docs/AUDIT_REPORT_2026-09.md`](../../docs/AUDIT_REPORT_2026-09.md) | 分阶段安全与业务审核报告（真实环境黑盒验证 + 落库核对，发现即修复并钉测试） |
 | [`../docs/web_docs/`](../../docs/web_docs/) | 前端开发规范与协作流程 |
 | [`前端技术栈现状.md`](./前端技术栈现状.md) | 当前前端技术栈、airpower 退场结果（0 引用）、门禁与清理口径 |
 | [`前端F4·airpower 逐域迁移分批清单.md`](./前端F4·airpower%20逐域迁移分批清单.md) | 前端换底座的逐域迁移批次与验收 |
