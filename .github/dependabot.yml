@@ -30,12 +30,13 @@ updates:
       - backend
     commit-message:
       prefix: chore(deps)
-    # airpower 是项目核心框架（parent POM 同时决定 Spring Boot 版本），升级需人工全量回归，
-    # 不做自动 major 升级；其余传递依赖（spring-boot-*、mybatis-plus、springdoc 等）随父 POM
-    # 或显式版本管理，交给 Dependabot 报 patch/minor。
+    # 2026-09-18 起后端**不再继承 cn.hamm:airpower 父 POM**（退场 B0）：Spring Boot 版本由
+    # SPMS-Server/pom.xml 的 `springboot.version` 决定，`mvn` 的依赖版本表是 Spring Boot 官方 BOM，
+    # 所以 spring-boot-*/mybatis-plus/springdoc 的版本都由本仓显式管，交给 Dependabot 报 patch/minor。
+    # 剩的唯一 airpower 依赖 `airpower-curd` 正在退场（B8 删除），自动升级只会制造噪音。
     ignore:
-      - dependency-name: cn.hamm:airpower
-        update-types: ['version-update:semver-major']
+      - dependency-name: cn.hamm:airpower-curd
+        update-types: ['version-update:semver-major', 'version-update:semver-minor', 'version-update:semver-patch']
 
   # ── GitHub Actions 依赖（workflow 里的 action 版本）────────────
   - package-ecosystem: github-actions

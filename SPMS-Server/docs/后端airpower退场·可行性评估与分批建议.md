@@ -101,7 +101,7 @@
 
 | 批 | 自建什么 | 替换哪些符号 | 验收 |
 | --- | --- | --- | --- |
-| **B0** | 换 parent（`spring-boot-starter-parent` + 显式 `mybatis-plus` 等版本） | —— | `mvn -q compile` + `mvn test` 绿；`pnpm airpower:backend -- --check` 的**文件数/引用数不变**（这步只换版本管理，不动代码） |
+| **B0** ✅ 2026-09-18 已做 | 摘掉 `cn.hamm:airpower` 父 POM，构建基线自持（Java 17 / UTF-8 / `spring-boot-dependencies` 3.4.4 BOM import / `springboot.version` / `airpower.version`） | —— | `pnpm pom:check` 离线闸门 ✅（无版本依赖在 BOM 家族白名单内、`${...}` 属性都有定义、无发版插件残留）；**待在有 JDK 的机器上补跑 `mvn -q compile && mvn test`**；`pnpm airpower:backend -- --check` 数字不变（只换版本管理，不动代码） |
 | **B1** | `cn.hamm.spms.framework.error`（收编 `Errors.*` 55 处到项目自定义错误码） | `Errors.*`（12 个常量） | 错误码门禁 `pnpm auth:check` / 集成测试；错误响应的 code 值与旧值映射表留档 |
 | **B2** | `framework.json`（`Json` 34 处）+ `framework.util`（`CollectionUtil`/`TreeUtil`/`DictionaryUtil`/`NumberUtil`/`ReflectUtil`/`DateTimeUtil`/`RandomUtil`/`TaskUtil`/`FileUtil`/`TraceUtil`/`AccessTokenUtil` ≈ 60 处） | core 工具类 | 单测覆盖（这些是纯函数，最容易先做） |
 | **B3** | 元数据注解自建：`@Description`(79) `@Meta`(26) `@Dictionary`(13) `@ReadOnly`(12) `@Export`(12) `@ExposeAll`/`@Phone`/`@Desensitize` → `framework.metadata` | core 注解 ≈ 150 处 | 注解是**行为开关**（导出列、只读、脱敏），必须与 `ExportHelper`/`Permission` 的使用处一起切；`pnpm java:check` + 现有 `maskContract` 契约测试 |
@@ -122,7 +122,7 @@
    - `pnpm airpower:backend` —— 一眼看清"还剩什么"：文件数 / 符号数 / 引用数 / 依赖 / 配置键 /
      按模块分布 / **"要自建什么"清单（用量倒序，≥3 次的 40 个就是通用件）**；
    - `pnpm airpower:backend -- --check` —— CI 棘轮：**数字只许降**，已接进 `pnpm check` 与 CI。
-     基线 `{files: 180, symbols: 73, references: 657}` 写在脚本里，每批完成时手工下调（改动可见、可 review）。
+     基线写在脚本里（2026-09-18 第一批后为 `{files: 183, symbols: 72, references: 655}`），每批完成时手工下调（改动可见、可 review）。
    - `--json` 给脚本读，后续可以据此自动生成"本批要改哪些文件"的工作清单。
 2. **把"缺什么"变成机器答案**：这正是你说的痛点 —— 边修边补时不知道缺什么。
    现在缺什么由脚本回答（40 个通用件按用量排序），不必靠人回忆。
@@ -132,7 +132,7 @@
 ## 七、需要你拍板的三件事
 
 1. **口径**：你说的"删干净"是否包含**后端** `cn.hamm:airpower`？
-   - 含 → 我按 §五 的批次推进（**B0 换 parent 可以现在就写，代码零改动、风险最低**），但**只能在能编译的环境里验**（见下）。
+   - 含 → 我按 §五 的批次推进（**B0 已完成，见 §五**），后续每批仍需在有 JDK 的环境里验（见下）。
    - 不含（只指前端 web 包）→ 那件事已经完成（§一），我转去别的待办（显示字段 A/B/C、菜单播种、api-docs 处置）。
 2. **执行环境**：后端的每一步都必须过 `mvn compile/test`。当前沙箱**没有 JDK、Maven 仓库也被墙**。
    建议二选一：

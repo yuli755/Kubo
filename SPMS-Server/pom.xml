@@ -2,11 +2,20 @@
 <project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>cn.hamm</groupId>
-        <artifactId>airpower</artifactId>
-        <version>6.4.3</version>
-    </parent>
+    <!--
+      2026-09-18（退场 B0）：**不再继承 cn.hamm:airpower 父 POM**。
+      原父 POM 给这个工程的东西只有四样，现在全部自持：
+        1. 构建基线：Java 17 / UTF-8 源码编码（下面的 properties）；
+        2. 依赖版本表：import spring-boot-dependencies 3.4.4（原父 POM 同样是 import 这个 BOM，
+           而不是继承 spring-boot-starter-parent —— 所以这里**保持同构**：只 import BOM，
+           不引入 starter-parent 的插件管理与资源过滤，行为零变化）；
+        3. 两个属性：`airpower.version`（airpower-curd 的版本，退场期间仍需）与
+           `springboot.version`（spring-boot-maven-plugin 的版本）；
+        4. 发布用 build 插件（source / javadoc / gpg / central-publishing）—— 那是
+           airpower 发版用的，应用工程从来不需要，摘掉正好。
+      自持之后，Spring Boot 的版本由**这个文件**决定，而不由第三方父 POM 决定。
+      离线校验：`pnpm pom:check`（无版本依赖必须在 BOM 家族白名单内、`${...}` 属性必须在本 POM 内有定义）。
+    -->
     <groupId>cn.hamm.spms</groupId>
     <artifactId>server</artifactId>
     <version>4.0.0</version>
@@ -25,6 +34,25 @@
         </repository>
     </repositories>
     <properties>
+        <!-- ==================== 构建基线（原父 POM 提供，现自持） ==================== -->
+        <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.encoding>UTF-8</maven.compiler.encoding>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <!--
+          Spring Boot 版本：原由 cn.hamm:airpower 父 POM 的 ${springboot.version} 决定（3.4.4），
+          现在写在这里。改成新版本 = 只动这一行（不再受第三方父 POM 牵制）。
+        -->
+        <springboot.version>3.4.4</springboot.version>
+        <!--
+          airpower-curd 的版本（退场期间唯一还需要的 airpower 依赖）。原来由父 POM 定义，
+          现在自持：**它只影响 airpower-curd 本身**，不再连带决定 Spring Boot / 插件 / 编码。
+          B8 删掉 airpower-curd 时，这行和 `airpower.version` 一起消失。
+        -->
+        <airpower.version>6.4.3</airpower.version>
+
         <!--
           P2 读链路换轨的地基版本（§19.33）。两个 artifact 必须**同版本**：3.5.9 起 JSqlParser 被拆成
           独立 artifact，只引 starter 不引 jsqlparser 的话，任何 InnerInterceptor（分页 / 我们的数据权限）
@@ -33,6 +61,24 @@
         -->
         <mybatis-plus.version>3.5.9</mybatis-plus.version>
     </properties>
+
+    <!--
+      依赖版本表：只 import Spring Boot 官方 BOM。
+      所以本工程里所有 org.springframework.boot / org.springframework / io.micrometer /
+      com.h2database / org.flywaydb 的依赖都不写版本号；其余一律显式写版本
+      （mybatis-plus、springdoc、airpower-curd）。
+    -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${springboot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>

@@ -8,7 +8,7 @@
  * | 维度 | 证据来源（都是真文件，不靠人写） |
  * | --- | --- |
  * | 前端运行期/构建期依赖 | `package.json` + `node_modules/<包>/package.json`（实际安装版本） |
- * | 后端依赖与版本 | `SPMS-Server/pom.xml`（含 parent 提供的版本族） |
+ * | 后端依赖与版本 | `SPMS-Server/pom.xml`（自持：import Spring Boot BOM，无第三方父 POM） |
  * | JVM / Spring Boot 基线 | pom 的属性与 parent 声明 |
  * | 数据层 | Flyway 迁移脚本和/或 `db/` 目录、MyBatis-Plus、Hikari、JPA |
  * | 中间件 | `application*.yml`（MySQL / Redis / RabbitMQ / mail / actuator） |
@@ -84,6 +84,11 @@ function pomProp(name) {
   const m = pom.match(new RegExp(`<${name}>([^<]+)</${name}>`))
   return m ? m[1] : null
 }
+// `${xxx}` 形式的版本写的是属性名 —— 报告里要显示**解析后的值**，不然"技术栈"等于没说
+function resolveVersion(raw) {
+  const m = raw?.match(/^\$\{([^}]+)\}$/)
+  return m ? (pomProp(m[1]) ?? raw) : raw
+}
 const parentArtifact = (() => {
   const m = pom.match(/<parent>[\s\S]*?<groupId>([^<]+)<\/groupId>\s*<artifactId>([^<]+)<\/artifactId>\s*<version>([^<]+)<\/version>/)
   return m ? `${m[1]}:${m[2]}:${m[3]}` : null
@@ -92,9 +97,14 @@ const pomDeps = [...pom.matchAll(/<dependency>([\s\S]*?)<\/dependency>/g)].map((
   const block = m[1]
   const g = block.match(/<groupId>([^<]+)<\/groupId>/)?.[1]
   const a = block.match(/<artifactId>([^<]+)<\/artifactId>/)?.[1]
-  const v = block.match(/<version>([^<]+)<\/version>/)?.[1] ?? '（由 parent/BOM 管理）'
-  return { groupId: g, artifactId: a, version: v }
+  // `<scope>import</scope>` 的 pom 依赖是**版本表**（BOM），不是运行时依赖，单列
+  const isBom = /<type>pom<\/type>/.test(block) && /<scope>import<\/scope>/.test(block)
+  const raw = block.match(/<version>([^<]+)<\/version>/)?.[1]
+  const v = raw === undefined ? '（由 BOM 管理）' : resolveVersion(raw)
+  return { groupId: g, artifactId: a, version: v, isBom }
 }).filter(d => d.artifactId)
+const pomBoms = pomDeps.filter(d => d.isBom)
+const pomRealDeps = pomDeps.filter(d => !d.isBom)
 
 const javaFiles = (() => {
   const out = []
@@ -168,9 +178,10 @@ function detectMiddleware() {
 const backend = {
   parent: parentArtifact,
   java: pomProp('java.version') ?? pomProp('maven.compiler.release') ?? null,
-  springBoot: pomProp('spring-boot.version') ?? '（由 parent 提供）',
+  springBoot: pomBoms.find(b => b.artifactId === 'spring-boot-dependencies')?.version ?? resolveVersion(pomProp('spring-boot.version')) ?? '（未声明）',
+  boms: pomBoms,
   mybatisPlus: pomProp('mybatis-plus.version'),
-  dependencies: pomDeps,
+  dependencies: pomRealDeps,
   javaFiles: javaFiles.length,
   testFiles: javaFiles.filter(f => f.includes(`${path.sep}test${path.sep}`)).length,
   migrations: migrations.length,
@@ -269,10 +280,12 @@ for (const d of frontend.dev)
 line()
 console.log('后端（SPMS-Server · Spring Boot 应用）')
 line()
-console.log(`  Java ${backend.java ?? '17（由父 POM 决定，AirPower4J 基线要求 17+）'} · 父 POM ${backend.parent}`)
+console.log(`  Java ${backend.java ?? '17（由父 POM 决定，AirPower4J 基线要求 17+）'} · 父 POM ${backend.parent ?? '无（自持：spring-boot-dependencies BOM）'}`)
 console.log(`  Spring Boot ${backend.springBoot}${backend.mybatisPlus ? ` · MyBatis-Plus ${backend.mybatisPlus}` : ''}`)
 console.log(`  源码规模：${backend.javaFiles} 个 Java 文件（其中测试 ${backend.testFiles} 个）`)
 console.log('  Maven 依赖：')
+for (const b of backend.boms)
+  console.log(`    · ${`${b.groupId}:${b.artifactId}`.padEnd(46)} ${b.version}  ← 依赖版本表（BOM import）`)
 for (const d of backend.dependencies)
   console.log(`    · ${`${d.groupId}:${d.artifactId}`.padEnd(46)} ${d.version}`)
 console.log(`  数据库迁移：${backend.migrations} 个 SQL`)

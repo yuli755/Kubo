@@ -53,6 +53,7 @@ pnpm stack          # 当前技术栈一览（含"死重量"：零引用依赖�
 pnpm airpower:check  # airpower 不得回潮（剥注释后 0 引用才算过）
 pnpm airpower:backend -- --check  # 后端airpower足迹棘轮（只许降）
 pnpm stack:project   # 整个仓库的技术栈（前端+后端+部署+CI，读真文件，不靠人写）
+pnpm pom:check       # 后端 pom 自持校验（B0 之后没有父 POM 兜底，靠这道离线闸门）
 ```
 
 体积红线：首屏 ≤ 450 KB、总体 ≤ 900 KB（`pnpm size`）；第一次超预算基本都是"把懒加载页面的依赖挪进了首屏"。
