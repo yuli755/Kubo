@@ -1,5 +1,5 @@
 <script lang="ts" setup generic="E extends IIdentifiableEntity, S extends AbstractCurdService<E>">
-import type { AbstractCurdService, IIdentifiableEntity } from '@/framework'
+import type { AbstractCurdService, IIdentifiableEntity, ITransformerConstructor } from '@/framework'
 import { ElDescriptions, ElDescriptionsItem, ElEmpty } from 'element-plus'
 import { computed } from 'vue'
 import { getCellText, getDecoratedFieldList, getDictionary, getFieldLabel, getTableConfig } from '@/framework'
@@ -24,8 +24,8 @@ import { useDetail } from '@/hook/kubo/useDetail'
  */
 
 const props = withDefaults(defineProps<{
-  /** 服务类 */
-  service: new () => S
+  /** 服务类（`entityClass` 参与类型推断，见 `useTable` 注释） */
+  service: new () => S & { entityClass: ITransformerConstructor<E> }
   /** 记录 id */
   id: number | null | undefined
   /** 标题（不传则只渲染字段区） */

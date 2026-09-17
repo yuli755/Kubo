@@ -1,3 +1,4 @@
+import type { Component } from 'vue'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 // @vitest-environment jsdom
 import { mount } from '@vue/test-utils'
@@ -172,8 +173,14 @@ describe('f2 · KTable 由元数据驱动', () => {
       page: { pageNum: 1, pageSize: 20 },
     } as never)
 
+    /**
+     * ⚠️ 注册成组件时要把泛型组件断言成 `Component`：
+     * KTable 是 `generic="E extends IIdentifiableEntity, S extends ..."` 的泛型组件，
+     * 直接放进 `components` 会让 `defineComponent` 的重载解析失败（TS2769）。
+     * 与页面用 `:table="table"` 的真实用法等价，只是把类型放宽在测试边界上。
+     */
     const HostComponent = defineComponent({
-      components: { KTable },
+      components: { KTable: KTable as unknown as Component },
       setup() {
         const table = useTable(ContractService, { queryKey: ['contract-entity'], defaultPageSize: 20 })
         return { table }
@@ -312,8 +319,9 @@ describe('f2 · 第二批组件（KPanel / 树表格 / KSelector / KDetail）', 
     const getTreeList = vi.spyOn(TreeNodeService.prototype, 'getTreeList').mockResolvedValue(tree as never)
     const getPage = vi.spyOn(TreeNodeService.prototype, 'getPage')
 
+    // 同上一处：泛型组件注册进 `components` 需要放宽类型（见该用例的注释）
     const Host = defineComponent({
-      components: { KTable },
+      components: { KTable: KTable as unknown as Component },
       setup() {
         const table = useTable(TreeNodeService, { queryKey: ['f2:tree'], tree: true })
         return { table }
@@ -343,7 +351,7 @@ describe('f2 · 第二批组件（KPanel / 树表格 / KSelector / KDetail）', 
     ] as never)
 
     const Host = defineComponent({
-      components: { KTable },
+      components: { KTable: KTable as unknown as Component },
       setup() {
         const table = useTable(TreeNodeService, { queryKey: ['f2:tree-add-child'], tree: true })
         return { table }
@@ -359,7 +367,8 @@ describe('f2 · 第二批组件（KPanel / 树表格 / KSelector / KDetail）', 
     expect(button, '树模式缺少「添加子级」按钮').toBeTruthy()
     await button!.trigger('click')
     // `findComponent` 的返回在泛型组件下退化成 DOMWrapper，取 emitted 需要显式断言形状
-    const tableWrapper = wrapper.findComponent(KTable) as unknown as { emitted: (name: string) => unknown[] }
+    // `findComponent` 收泛型组件需要放宽类型（同上面的注册处），返回值在泛型下退化成 DOMWrapper
+    const tableWrapper = wrapper.findComponent(KTable as unknown as Component) as unknown as { emitted: (name: string) => unknown[] }
     const child = tableWrapper.emitted('addChild') as [Array<{ id: number }>] | undefined
     expect(child?.[0]?.[0]?.id).toBe(9)
   })

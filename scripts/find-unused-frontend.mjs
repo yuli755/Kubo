@@ -74,6 +74,13 @@ const sources = new Map(files.map(file => [file, readFileSync(file, 'utf8')]))
 /**
  * 「路径字符串」判定语料：源码 + 根配置 + infra/scripts。
  * 任何一处以字符串写下某个路径，都算引用（构建别名、CI 检查清单、文档脚本都可能引用源码）。
+ *
+ * ⚠️ **测试文件不进这份语料**（但它们仍参与 import 图 —— 测试 import 的模块当然算在用）。
+ * 原因：`maskContract.spec.ts` 里有一串**脱敏资源键**（`'asset/material'`、`'factory/storage'`…），
+ * 与 `src/api/asset/material.ts` 的路径后缀逐字相同 —— 把它们算作引用，会让
+ * 「已经被清空的 API 文件」永远不被报告（本仓真实踩到：四个 0 字节文件因它长期不被发现）。
+ * 页面/模型这类按路径懒加载的东西，字面量在 `src/demo/fixtures/menu.ts`（非测试）里，
+ * 不依赖测试文件提供引用。
  */
 function readTreeQuietly(dir) {
   if (!existsSync(dir))
@@ -86,8 +93,10 @@ function readTreeQuietly(dir) {
   }
 }
 
+const isTestFile = file => /[\\/]__tests__[\\/]|\.spec\.(?:ts|mts)$/.test(file)
+
 const allText = [
-  ...sources.values(),
+  ...[...sources.entries()].filter(([file]) => !isTestFile(file)).map(([, text]) => text),
   ...ENTRIES.filter(existsSync).map(file => readFileSync(file, 'utf8')),
   ...CORPUS_DIRS.flatMap(readTreeQuietly),
 ].join('\n')

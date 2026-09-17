@@ -1,8 +1,9 @@
 import type { Ref } from 'vue'
-import type { AbstractCurdService, IIdentifiableEntity, QueryResponsePage } from '@/framework'
+import type { AbstractCurdService, IIdentifiableEntity, ITransformerConstructor, QueryResponsePage } from '@/framework'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 import {
+  ExportUtil,
   FeedbackUtil,
   QueryRequestPage as FrameworkQueryRequestPage,
   QueryRequest,
@@ -18,7 +19,7 @@ import {
  * | --- | --- | --- |
  * | 数据源 | `AbstractService` + 自建 `request/response` 双份 ref，视图直接读写 | TanStack Query（缓存/去重/占位数据），视图不碰 `request` 对象 |
  * | 分页/排序 | 由 `QueryRequestPage` 承担，`ATable` 直接改它的字段 | 收敛成本 hook 的 `page/pageSize/sort`，只暴露语义化方法 |
- * | 弹窗 | `DialogUtil` + `editView` 组件 + `onCallback` 回调 | 同样保留（这是业务真的需要的），但**提交/删除由本 hook 统一走 service**，页面不再自己写 CRUD |
+ * | 弹窗 | `DialogUtil` + `editView` 组件 + `onCallback` 回调 | 组件与回调都交回页面（`KFormDialog` / `KDialog`），本 hook 只管查询与删除 —— 少一层"hook 替你决定开哪个弹窗"的间接 |
  *
  * ## 为什么不用 airpower 的 `QueryRequestPage`
  * `@Table` 的列配置、`@Form` 的表单配置都由本仓 `src/framework` 的装饰器写入 WeakMap，
@@ -27,17 +28,19 @@ import {
  *
  * ## 用法
  * ```ts
- * const table = useTable(UnitService, { queryKey: ['system:unit'], EditView: UnitEditor })
+ * const table = useTable(KUnitService, { queryKey: ['system:unit'] })
+ * // 编辑弹窗由页面自己开（KFormDialog 负责表单与提交），hook 不再持有组件：
+ * //   <KFormDialog :id="editingId" v-model="editorVisible" :service="KUnitService" @saved="table.reload" />
  * ```
+ *
+ * > 历史：早期版本有 `EditView` / `DetailView` 两个选项（继承 airpower 的用法）。
+ * > 批 2 起页面统一"自己开弹窗"，这两个选项失去使用者已删除 —— 需要自定义编辑器时，
+ * > 页面直接把组件写在模板里即可，不要再让 hook 持有组件。
  */
 
 export interface IUseTableOption<E extends IIdentifiableEntity, S extends AbstractCurdService<E>> {
   /** TanStack Query 缓存键（同域共享，如 `['system:unit']`） */
   queryKey: string[]
-  /** 编辑弹窗组件（通常由 `defineAsyncComponent` 或直接 import 得到） */
-  EditView?: unknown
-  /** 详情弹窗组件（不传则复用 EditView） */
-  DetailView?: unknown
   /** 默认每页条数 */
   defaultPageSize?: number
   /**
@@ -45,6 +48,21 @@ export interface IUseTableOption<E extends IIdentifiableEntity, S extends Abstra
    * 不分页、不带 `page` 参数。置 `true` 后 `KTable` 会自动开树渲染（`row-key` + 子节点）。
    */
   tree?: boolean
+  /**
+   * 搜索条件整形：搜索框提交前改一次 filter（页面特有，如把「单位名」拼成 `filter.unit.name`）。
+   *
+   * 放在 `useTable` 而不是页面：搜索动作由 `KTable` 内部触发（页面拿不到那次调用），
+   * 唯一能介入的位置就是 hook 自己。
+   */
+  beforeSearch?: (filter: Record<string, unknown>) => Record<string, unknown>
+  /**
+   * 是否支持导出（列表页声明 `export: true` 后 `KTable` 才渲染导出按钮）。
+   *
+   * 导出走后端的**异步导出任务**（建任务 → 轮询 → 下载地址），完整契约见
+   * `framework/export.ts`。这里只做"把当前筛选条件下的全部数据导出"这一件事 ——
+   * 当前页的数据用不到导出。
+   */
+  export?: boolean
   /** 默认过滤条件（如按父级 id 过滤） */
   defaultFilter?: Partial<E>
   /** 默认排序字段 */
@@ -60,8 +78,14 @@ export interface ITableSort {
   desc: boolean
 }
 
+/**
+ * ⚠️ 参数类型里带上 `entityClass` 不是为了运行期（服务上本来就有），而是**为了类型推断**：
+ * `E` 只出现在 `S` 的约束里（`S extends AbstractCurdService<E>`）时 TS 推不出来，
+ * 会静默退化成 `IIdentifiableEntity` —— 表现为"页面里 `row.xxx` 全部报不存在"，
+ * 而 `KTable` 却还能跑（它读的是运行期的服务实例）。
+ */
 export function useTable<E extends IIdentifiableEntity, S extends AbstractCurdService<E>>(
-  ServiceClass: new () => S,
+  ServiceClass: new () => S & { entityClass: ITransformerConstructor<E> },
   option: IUseTableOption<E, S> = { queryKey: [] },
 ) {
   const service = option.service ?? new ServiceClass()
@@ -171,7 +195,8 @@ export function useTable<E extends IIdentifiableEntity, S extends AbstractCurdSe
 
   /** 搜索：条件变化后必须回到第 1 页，否则会停在一个可能不存在的页码上 */
   function search(newFilter: Record<string, unknown> = filter.value) {
-    filter.value = { ...newFilter }
+    const shaped = option.beforeSearch ? option.beforeSearch(newFilter) : newFilter
+    filter.value = { ...shaped }
     page.value = 1
   }
 
@@ -221,6 +246,28 @@ export function useTable<E extends IIdentifiableEntity, S extends AbstractCurdSe
     await toggleMutation.mutateAsync({ id, enable })
   }
 
+  /**
+   * 导出当前筛选条件下的全部数据。
+   *
+   * 请求体取 `request.value`（含 filter 与 sort），但 `ExportUtil` 会去掉 `page` ——
+   * 导出的是整个结果集，不是当前页。轮询期间的提示交给 FeedbackUtil（不阻塞页面操作）。
+   */
+  async function onExport() {
+    const payload = request.value as unknown as Record<string, unknown>
+    // 提示走 FeedbackUtil（`ElMessage`），成功/失败各一条 —— 不自己做进度条：
+    // 导出是后端异步任务，前端能知道的只有"还没好"，画进度百分比就是编数据。
+    FeedbackUtil.toastInfo('正在导出，请稍候…')
+    try {
+      const url = await ExportUtil.run(service, payload, { intervalMs: 500, maxAttempts: 60 })
+      FeedbackUtil.toastSuccess('导出完成，开始下载')
+      ExportUtil.download(url)
+    }
+    catch (error) {
+      FeedbackUtil.toastError(error instanceof Error ? error.message : '导出失败')
+      throw error
+    }
+  }
+
   return {
     // 数据
     list,
@@ -240,14 +287,15 @@ export function useTable<E extends IIdentifiableEntity, S extends AbstractCurdSe
     onSortChanged,
     onDelete,
     onToggleEnable,
+    onExport,
+    /** 是否支持导出（KTable 据此渲染导出按钮） */
+    canExport: computed(() => !!option.export),
     reload: invalidate,
     /** 是否树模式（KTable 据此渲染树 + 隐藏分页器 + 显示「添加子级」） */
     isTree: computed(() => !!option.tree),
     // 组件与元数据（供 KTable / 弹窗使用）
     service,
     entityClass: EntityClass,
-    EditView: option.EditView,
-    DetailView: option.DetailView ?? option.EditView,
     queryKey: option.queryKey,
   }
 }

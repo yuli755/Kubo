@@ -1,7 +1,7 @@
 <script lang="ts" setup generic="E extends IIdentifiableEntity">
 import type { FormInstance } from 'element-plus'
 import type { AbstractCurdService, IFormField, IIdentifiableEntity } from '@/framework'
-import { ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElSelect, ElSwitch } from 'element-plus'
+import { ElButton, ElDatePicker, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElSelect, ElSwitch } from 'element-plus'
 import { computed, nextTick, ref, watch } from 'vue'
 import { FeedbackUtil, getEnumItems, getFormConfigList, getModelName, WebValidator } from '@/framework'
 
@@ -50,6 +50,13 @@ const props = withDefaults(defineProps<{
   preset?: Record<string, unknown>
   /** 表单列数（2 列用于字段多的实体，替代原库 `AGroup :column="2"`） */
   columns?: 1 | 2
+  /**
+   * 提交前的最后一道闸门：拿到即将提交的数据，返回 `null` 表示**中止提交**。
+   *
+   * 页面用它做"提交前还要拦一下"的事（如物料的价格字段被脱敏策略限制时不许保存），
+   * 也可以返回一份改写后的数据。中止时页面自己给提示 —— 框架不猜原因。
+   */
+  beforeSubmit?: (form: Record<string, unknown>) => Record<string, unknown> | null | Promise<Record<string, unknown> | null>
 }>(), {
   closeOnSaved: true,
   width: '560px',
@@ -135,7 +142,9 @@ const title = computed(() => {
  * 控件类型：`@Form` 里是一组**布尔标志**（`switch` / `textarea` / `password` / `radio`…），
  * 没有 `type` 字符串 —— 按标志优先级推导，顺序即优先级（多行 > 开关 > 下拉 > 普通输入）。
  */
-function fieldType(field: IFormField): 'textarea' | 'switch' | 'select' | 'password' | 'number' | 'input' {
+function fieldType(field: IFormField): 'date' | 'textarea' | 'switch' | 'select' | 'password' | 'number' | 'input' {
+  if (field.dateType)
+    return 'date'
   if (field.textarea)
     return 'textarea'
   if (field.switch)
@@ -165,6 +174,34 @@ const parentLabel = computed(() => {
   }
   return parent.code ? `${parent.name}(${parent.code})` : parent.name
 })
+
+/** 日期控件的选择器类型（`dateType` 的 `toString()` 就是 EP 的 type） */
+function datePickerType(field: IFormField): string {
+  const type = field.dateType as { toString?: () => string } | undefined
+  return type?.toString?.() ?? 'date'
+}
+
+/**
+ * 日期控件的值与显示格式。
+ *
+ * Element Plus 的 `value-format="x"` 表示**毫秒时间戳**，正好对上后端契约
+ * （`dateFormatter: DateTimeFormatter.TIMESTAMP`）；不写 `value-format` 时拿到的是 Date 对象，
+ * 提交给后端会变成 ISO 字符串 —— 后端字段是 `Long`，那就是类型不匹配。
+ */
+function dateValueFormat(field: IFormField): string {
+  const formatter = field.dateFormatter as { toString?: () => string } | undefined
+  const key = formatter?.toString?.()
+  if (!key || key === 'timestamp') {
+    return 'x'
+  }
+  return key
+}
+
+/** 显示格式（不传则与取值格式一致） */
+function dateShowFormat(field: IFormField): string {
+  const formatter = field.dateShowFormatter as { toString?: () => string } | undefined
+  return formatter?.toString?.() ?? dateValueFormat(field)
+}
 
 function resetForm() {
   const Ctor = EntityClass.value
@@ -221,10 +258,20 @@ async function onSubmit() {
   if (valid === false)
     return
 
+  // 页面可以在这里拦一道（返回 null = 中止），如物料价格被脱敏策略限制时不许保存
+  let payload = form.value
+  if (props.beforeSubmit) {
+    const next = await props.beforeSubmit(form.value)
+    if (!next) {
+      return
+    }
+    payload = next
+  }
+
   isSubmitting.value = true
   try {
     const Ctor = EntityClass.value
-    const entity = Object.assign(new Ctor(), form.value) as unknown as E
+    const entity = Object.assign(new Ctor(), payload) as unknown as E
     const id = props.id
       ? await service.value.update({ ...entity, id: props.id } as E)
       : await service.value.add(entity)
@@ -284,8 +331,17 @@ function onCancel() {
           :field="field"
           :form="form"
         >
+          <ElDatePicker
+            v-if="fieldType(field) === 'date'"
+            v-model="form[field.key] as number | string"
+            :format="dateShowFormat(field)"
+            :placeholder="field.placeholder || `请选择${field.label}`"
+            :type="datePickerType(field) as never"
+            :value-format="dateValueFormat(field)"
+            class="k-form-dialog__control"
+          />
           <ElSwitch
-            v-if="fieldType(field) === 'switch' || typeof form[field.key] === 'boolean'"
+            v-else-if="fieldType(field) === 'switch' || typeof form[field.key] === 'boolean'"
             v-model="form[field.key] as boolean"
           />
           <ElSelect

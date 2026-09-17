@@ -11,17 +11,18 @@
 | **F2 第二批** | `KPanel` / `KSelector` / `KDetail` + `useDetail`、树表（`useTable({ tree })` + KTable 树渲染）、单元格与金额格式化（`framework/cell.ts`、`format.ts`）、字典兼容 airpower 枚举（`getEnumItems/getEnumLabel/getEnumColor`） | ✅ 本轮 |
 | **批 1** | `factory`（仓库 / 生产单元，树表）+ `index` 首页 | ✅ 本轮 |
 | **批 0A** | 应用外壳（旧壳 `AFrame` 分支 + `VITE_LEGACY_SHELL` 开关一起删）、`KDialog`、两个单据弹窗（`BillAddFinishDialog`/`BillRejectDialog`）、`BillAuditOrReject` | ✅ 本轮 |
-| **批 0B** | `BillFormCode` / `BillFormMoreDetail` / `hook/billTable/*`、`UserCard` + `component/user/*`、`router/appRouter.ts` | ⬜ 见下方"为什么拆成 0A/0B" |
-| 批 2~6 | asset → personnel → wms → channel → system | ⬜ |
+| **批 0B** | `BillFormCode` / `BillFormMoreDetail` / `hook/billTable/*`、`UserCard` + `component/user/*`、`router/appRouter.ts` | ⬜ 见下方"为什么拆成 0A/0B"（卡上传组件） |
+| **批 2** | `asset`：物料 / 合同（列表 + 详情 + 参与方）、框架层补 3 件（异步导出、日期控件、单元格插槽） | ✅ 本轮 |
+| 批 3~6 | personnel → wms → channel → system | ⬜ |
 
-**本轮实测校验**：`vue-tsc` 干净、ESLint 干净、`pnpm build` 通过、体积 首屏 343/450 KB · 总体 715/900 KB；
-vitest 44 文件 / 373 用例全绿，其中逐页冒烟探针 27/27 页 ✅（含新迁的仓库管理与库位结构）。
+**本轮实测校验（批 2）**：`vue-tsc` 干净、ESLint 干净、`pnpm build` 通过、体积 首屏 369.9/450 KB · 总体 741.3/900 KB；
+vitest **47 文件 / 399 用例**全绿，其中逐页冒烟探针覆盖 asset 两页 ✅。
 
 ## 一、现状数字（实测）
 
 | 范围 | 文件数 | 说明 |
 | --- | --- | --- |
-| `import ... from '@airpower/web'` 的文件 | **177** | 含只取装饰器/枚举的模型层 |
+| `import ... from '@airpower/web'` 的文件 | **159** | 生产代码（口径见 `pnpm airpower`（`scripts/find-airpower.mjs`）：剥注释后的真实 import；2026-09 批 2 后实测。历史上 177/160/156 来自 `grep`，口径不同，往后统一用该脚本） |
 | 视图页面（`src/view/console/**`） | **90** | 7 个域：channel 23 · system 21 · wms 20 · personnel 11 · asset 8 · factory 6 · index 1 |
 | 共享组件 / hook / 路由 | **12** | `src/component/{bill,user}/*`、`AuditFlow`、`PublishButton`、`UserCard`、`hook/useTanStackTable`、`hook/billTable/*`、`router/appRouter` |
 | 模型实体（`src/model/**`） | 72 | 只用到装饰器与枚举，随域迁移时同步换 `KEntity` |
@@ -89,12 +90,59 @@ vitest 44 文件 / 373 用例全绿，其中逐页冒烟探针 27/27 页 ✅（�
 后者编译成 kebab 键 `on-confirm`，而 `emit('confirm')` 只在 `vnode.props` 里找 `onConfirm`，
 找不到就**静默不派发**（弹窗点确定没反应、且不报错）。这条正是本批新增的测试抓出来的。
 
-## 三、批 1~5：按域推进（先小后大，先低风险后高敏感）
+## 三、批 2：asset 域（本轮完成）
+
+### 3.1 为 asset 补的三件框架层能力（都是"页面真的需要"才加）
+
+| 文件 | 原用法 | 迁移动作 |
+| --- | --- | --- |
+| **新增** `src/framework/export.ts`（`ExportUtil`） | airpower 的导出模型 + 轮询 | 建任务 `POST /{baseUrl}/export`（请求体 = 查询请求**去掉 page**，导出的是整个筛选结果）→ 轮询 `POST /{baseUrl}/queryExport` `{fileCode}` → 拼 `WebConfig.staticUrl` 打开。轮询**有上限**（默认 60 次）并抛"导出超时"，不允许死循环 |
+| `src/framework/http.ts` | — | 新增 `createExportTask` / `queryExport` 两个方法与 url 常量 |
+| `src/hook/kubo/useTable.ts` | — | 新增 `export`（声明式开关）/ `onExport` / `canExport` / `beforeSearch`（搜索条件整形，如把"单位名"拼成 `filter.unit.name` —— 搜索由 KTable 内部触发，页面只能在这里介入）；**删除** `EditView` / `DetailView`（页面改为自己开 `KFormDialog` 后已无使用者） |
+| `src/component/framework/KTable.vue` | `ATable` 的导出按钮 / 自定义列 | `show-export` + 导出按钮（带 loading）、`cell-<key>` 单元格插槽（金额脱敏这类"按列覆盖"用它）、`disable-edit` / `disable-delete` |
+| `src/component/framework/KFormDialog.vue` | `ADateTime` / 提交前校验 | `beforeSubmit`（返回 `null` 即中止，页面自己给提示）、日期控件（`dateType`；EP `value-format="x"` = **毫秒时间戳**，对齐后端 `Long`） |
+
+### 3.2 域内迁移
+
+| 文件 | 原用法 | 迁移动作 |
+| --- | --- | --- |
+| asset 四实体（material / contract / participant / contractDocument） | 单套 airpower 装饰器 | **双注册**（airpower 别名 + `KModel/KField/KForm/KSearch/KTable`），批 2B 后一次性删旧 |
+| **新增** `model/asset/{material,contract}/K*Service.ts` | `MaterialService` / `ContractService` | 新底座服务（`KContractService` 含 `enforce` / `stop`）；旧服务与 7 个死 API 文件 `git rm` |
+| `asset/material/list.vue` | `APanel` + `ATable` + `useTanStackTable` | `KPanel` + `KTable` + `KFormDialog`（价格被遮蔽时 `beforeSubmit` 守卫、`#cell-*` 覆盖价格列、`#field-unit` 换 `KSelector` + `KUnitService`、`beforeSearch` 拼 `filter.unit.name`） |
+| `asset/contract/list.vue` | 同上 | 行操作「生效 / 终止 / 查看」：参与方不足两方 → 提示且**不发请求**；终止 → 二次确认后才调服务 |
+| `asset/contract/component/detail.vue` | airpower `useDetail` | `KDialog` + `KDetail` + 本仓 `useDetail`（与列表同 `queryKey`，打开即用缓存再回源）+ 两个明细页签 |
+| 删除 | — | `asset/material/component/editor.vue`（被 `KFormDialog` 取代）、`system/unit/component/{editor,selector}.vue` + `unit/component/index.ts` + `model/system/unit/UnitService.ts`（它们唯一的消费者就是被删的物料编辑器 —— 单位页早就走 `KFormDialog` + `KUnitService`） |
+
+### 3.3 批 2 的验收
+
+1. **域门禁** `src/config/__tests__/assetDomain.spec.ts`（6 用例）：域内 airpower 精确集合 = 4 个文件（`contract/{editor,editParticipant,selector}.vue` + `material/selector.vue`，全部卡在批 2B 的上传组件/选择器）、列表与详情走新底座、双注册且 `baseUrl` 一致、价格列 `money + hide`、参与方不足不发请求、终止需二次确认。
+2. **框架层行为** `src/config/__tests__/frameworkBatch2.spec.ts`（7 用例）：导出（去 page / 轮询重试 / 超时上限 / 空 `fileCode` 立即失败）、日期控件（渲染成 `ElDatePicker`、`valueFormat='x'`、提交的是数字）、`beforeSubmit` 返回 `null` 时不发写请求、`#cell-<key>` 槽位覆盖单元格。
+3. **全链**：vitest **47 文件 / 399 用例**全绿；`vue-tsc`、ESLint 干净；`pnpm build` 通过；体积 首屏 **369.9/450** · 总体 **741.3/900** KB；`demo:check`、`deadcode:check`、`exports:check` 全绿；逐页探针里两个 asset 页 ✅。
+4. **airpower 退场**：生产文件 **165 → 159**（本轮退 6 个：asset 三页 + 物料编辑器 + 单位编辑器/选择器）。新工具 `pnpm airpower` 统一口径（`scripts/find-airpower.mjs`，`--list` 列文件）。
+
+### 3.4 体积 +27 KB 的来历（本轮唯一"不干净"的数字，已定位）
+
+给 `KFormDialog` 加日期控件后首屏 **342.5 → 369.9 KB**。根因不是"组件在首屏被用到"，而是：
+
+> `src/types/element-plus-aggregate.ts`（EP 聚合入口）被 `src/api/axios.ts` 静态引用（首屏 eager），
+> 于是**从聚合入口 import 的每个组件都会进首屏**。日期面板 + dayjs ≈ +27.4 KB gzip，而用它的页面全是懒加载的。
+
+两条改法都实测过、都无效：① 把 `date-picker`/`time-picker` 排除出 `vendor-element` → 模块只是挪进同样在首屏的 `vendor-airpower`；② 让 `KFormDialog` 直接走 EP 子路径、并从聚合入口删掉 `ElDatePicker` → 净变化 ≈ 0（模块换了个在首屏的 chunk）。
+
+结论：**airpower 还在位时这是结构性开销**，预算内（450 KB）仍有余量；F5（airpower 退场 + EP chunk 重新分组）时一并处理。已在 `vite.config.mts` 与聚合入口留下注释，避免下一个人重复实验。
+
+### 3.5 批 2B（剩余，等上传组件）
+
+`contract/{editor,editParticipant,selector}.vue`、`material/selector.vue` 仍是 airpower 组件：编辑器要传附件、选择器内嵌编辑器要传图片。
+它们与「选择器里新增实体」这一能力一起卡在框架层上传组件（`DialogUtil.showUpload` 目前是 reject 占位）。
+`material/selector.vue` 里写清了失去"选择器内新增单位"入口的两条恢复路径（补上传组件 / 在物料表单里改用 KSelector 内联新增）。
+
+## 四、批 3~6：按域推进（先小后大，先低风险后高敏感）
 
 | 批次 | 域 | 视图文件 | 依赖缺口（除批 0 外） | 备注 |
 | --- | --- | --- | --- | --- |
 | 批 1 | factory + index | 6 + 1 | 无（已具备） | ✅ **本轮完成**：仓库/生产单元改用 `useTable({ tree: true })` + `KTable` + `KFormDialog`，首页 `APanel` → `KPanel`；两个跨域选择器**按设计保留**（wms 的入库/移库页仍用它们，属批 4） |
-| 批 2 | asset | 8 | `KSelector`、`useDetail` | 合同域有明细行编辑器（`editParticipant`）与只读详情页，正好验证 `useDetail` |
+| 批 2 | asset | 8 | `KSelector`、`useDetail` | ✅ **本轮完成**（除批 2B 的 4 个 airpower 组件：编辑器/参与方/两个选择器，卡上传组件）；另补了异步导出、日期控件、`cell-*` 插槽 |
 | 批 3 | personnel | 11 | `useTreeTable`（部门树）、`KSelector`（用户/角色选择器） | 角色页的权限树编辑器是唯一复杂点，单独拆子任务 |
 | 批 4 | wms | 20 | `KSelector`、`DialogUtil`、单据公共件（批 0 已备） | 单据闭环最完整（出入库/移库/库存），是**业务主线**，放在渠道域之前 |
 | 批 5 | channel | 23 | `KSelector`、`AMoney` | 采购/销售/价格 + 客户/供应商，文件最多但结构高度同构，可脚本化批量替换 |
@@ -102,7 +150,7 @@ vitest 44 文件 / 373 用例全绿，其中逐页冒烟探针 27/27 页 ✅（�
 
 估时口径（供排期）：每域按「列表页 1 个 / 编辑弹窗 1 个 / 选择器 1 个 / 详情 1 个」为 1 单位，批 1 约 3 单位、批 2 约 4 单位、批 3 约 5 单位、批 4 约 8 单位、批 5 约 9 单位、批 6 约 8 单位。
 
-## 四、每批的完成定义（DoD，缺一不可）
+## 五、每批的完成定义（DoD，缺一不可）
 
 1. **零 airpower import**：该域所有 `.vue` 内 `import ... from '@airpower/web'` 为 0。批 1 的门禁断言的是
    **精确剩余集合**（两个跨域选择器）而不是"数量为 0" —— 新增一处 airpower 用法会让用例变红，
@@ -110,10 +158,10 @@ vitest 44 文件 / 373 用例全绿，其中逐页冒烟探针 27/27 页 ✅（�
    `f4 · 批 1（factory + index）迁移完成度`。
 2. **探针全绿**：`src/demo/__tests__/menuSmoke.probe.spec.ts`（逐页独立挂载，`errorHandler`/`console.error` 计硬错误）在该域页面全部 ✅。
 3. **新增域门禁 spec**：仿 `src/config/__tests__/frameworkComponents.spec.ts`，至少覆盖「请求体契约 + 元数据驱动渲染 + 该域独有交互」三件事。
-4. **类型与体积**：`vue-tsc --noEmit`、`eslint src` 干净；`pnpm build && pnpm size` 达标（当前 首屏 343/450 KB · 总体 712.1/900 KB）。
+4. **类型与体积**：`vue-tsc --noEmit`、`eslint src` 干净；`pnpm build && pnpm size` 达标（当前 首屏 369.9/450 KB · 总体 741.3/900 KB；批 2 的 +27 KB 来历见 3.4）。
 5. **手工点检**：`pnpm dev:demo` 下按「列表 → 新增 → 编辑 → 删除 → 分页 → 排序 → 搜索 → 选择器」走一遍（用真实浏览器，探针只保证渲染不炸）。
 
-## 五、迁移机制（沿用 F2 已落地的双底座过渡）
+## 六、迁移机制（沿用 F2 已落地的双底座过渡）
 
 - 新页实体基类 = `src/base/KEntity.ts`（注册 `@/framework` 元数据）；**旧页 `BaseEntity` 不动**，否则 144 个页面同时失效。
 - 单个实体在过渡期**双套装饰器**：airpower 别名 + `KModel/KField/KForm/KSearch/KTable`（见 `src/model/system/unit/UnitEntity.ts`）。
@@ -121,7 +169,7 @@ vitest 44 文件 / 373 用例全绿，其中逐页冒烟探针 27/27 页 ✅（�
 - 视图层不直接 `import @/model` 的 Service，统一经 `src/hook/system/*` 转发（ESLint `no-restricted-imports` 已拦）。
 - 域内页面全部切完后，**一次性**删除该域模型上的 airpower 装饰器与旧 Service —— 这一步必须整域做完再做，半域删除会让旧页面拿不到元数据。
 
-## 六、风险与对策
+## 七、风险与对策
 
 | 风险 | 对策 |
 | --- | --- |
@@ -133,7 +181,7 @@ vitest 44 文件 / 373 用例全绿，其中逐页冒烟探针 27/27 页 ✅（�
 | 迁移中把**跨域公共件**（选择器、单据组件）一起改掉，会连带打挂尚未迁移的域 | 只改"叶子页"，跨域件按"最后一个使用方"排期；新页面通过 `DialogUtil` 打开存量 airpower 选择器（契约一致，可混用） |
 | 树表的**响应形状**搞错：`getTree` 返回 `{ list, total }`，`getTreeList` 返回**裸数组** —— 形状不对时表现为"树表永远空"且**不报错** | 框架 `getList/getTreeList` 对非数组返回 `[]`；演示 mock 已按端点分别返回正确形状（见下） |
 
-## 七、树查询端点的事实（本轮查证，避免再踩）
+## 八、树查询端点的事实（本轮查证，避免再踩）
 
 | 端点 | 谁在用 | 响应形状 | 说明 |
 | --- | --- | --- | --- |

@@ -10,6 +10,7 @@
  * - `http`      服务基类（AbstractService/AbstractCurdService）与链式请求
  * - `query`     分页/排序/查询模型（与后端契约一致）
  * - `feedback`  吐司/确认框/命令式弹窗/剪贴板
+ * - `export`    异步导出任务（建任务 → 轮询 → 下载地址）
  * - `validate`  表单校验
  * - `datetime`  时间工具
  * - `enums`     枚举字典/颜色/脱敏
@@ -22,6 +23,7 @@ export * from './config'
 export * from './datetime'
 export * from './entity'
 export * from './enums'
+export * from './export'
 export * from './feedback'
 export * from './format'
 export * from './http'

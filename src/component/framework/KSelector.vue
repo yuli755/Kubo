@@ -1,5 +1,5 @@
 <script lang="ts" setup generic="E extends IIdentifiableEntity, S extends AbstractCurdService<E>">
-import type { AbstractCurdService, IIdentifiableEntity } from '@/framework'
+import type { AbstractCurdService, IIdentifiableEntity, ITransformerConstructor } from '@/framework'
 import { ElButton, ElDialog } from 'element-plus'
 import { computed, shallowRef, watch } from 'vue'
 import { getModelName } from '@/framework'
@@ -39,8 +39,8 @@ import KTable from './KTable.vue'
 
 const props = withDefaults(defineProps<{
   modelValue: boolean
-  /** 服务类（决定查询哪个实体、列怎么显示） */
-  service: new () => S
+  /** 服务类（决定查询哪个实体、列怎么显示）；`entityClass` 参与类型推断，见 `useTable` 注释 */
+  service: new () => S & { entityClass: ITransformerConstructor<E> }
   /** 是否多选 */
   multiple?: boolean
   /** 回显的已选实体（按 id 勾选） */

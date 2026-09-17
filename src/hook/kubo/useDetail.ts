@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type { AbstractCurdService, IIdentifiableEntity } from '@/framework'
+import type { AbstractCurdService, IIdentifiableEntity, ITransformerConstructor } from '@/framework'
 import { useQuery } from '@tanstack/vue-query'
 import { computed, unref } from 'vue'
 
@@ -26,7 +26,8 @@ interface IUseDetailOption {
 }
 
 export function useDetail<E extends IIdentifiableEntity, S extends AbstractCurdService<E>>(
-  ServiceClass: new () => S,
+  // `entityClass` 出现在参数类型里只为类型推断：E 只出现在 S 的约束里时 TS 会推不出来（同 useTable）
+  ServiceClass: new () => S & { entityClass: ITransformerConstructor<E> },
   option: IUseDetailOption,
 ) {
   const service = new ServiceClass()

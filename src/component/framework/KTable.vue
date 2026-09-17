@@ -6,7 +6,7 @@ import type { UseTableReturn } from '@/hook/kubo/useTable'
 // 视图中出现 <el-*> 就依赖全局注册，在 vitest（不加载该插件）与任何独立挂载场景下
 // 都会退化成一个未知元素 —— 表格列的 `#default="{ row }"` 拿不到 row，直接抛错。
 import { ElButton, ElEmpty, ElForm, ElFormItem, ElInput, ElPagination, ElTable, ElTableColumn } from 'element-plus'
-import { computed, nextTick, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, ref, shallowRef, useSlots, watch } from 'vue'
 import { getCellColor, getCellText, getColumnAlign, getDictionary, getSearchConfigList, getTableConfigList } from '@/framework'
 
 /**
@@ -68,6 +68,20 @@ const props = withDefaults(defineProps<{
   rowKey?: string
   /** 该行是否禁止删除（如树节点下有子级）；返回 true 时删除按钮置灰 */
   disableDelete?: (row: E) => boolean
+  /**
+   * 该行是否禁止编辑；返回 true 时「编辑」按钮置灰。
+   *
+   * 与 `disableDelete` 一样，判据来自**实体自身的状态机**（如合同只有"未生效"可改），
+   * 由页面传入 —— 组件不认识业务状态。
+   */
+  disableEdit?: (row: E) => boolean
+  /**
+   * 是否显示导出按钮。
+   *
+   * 导出由**后端的异步导出任务**完成（`ExportUtil`），点击后走 `useTable` 的 `onExport`；
+   * 页面只要在 `useTable(..., { export: true })` 里声明，并把 `permissions.export` 传进来。
+   */
+  showExport?: boolean
 }>(), {
   showIndex: true,
   hideRefresh: false,
@@ -89,9 +103,36 @@ defineSlots<{
   'toolbar-left'?: (props: { selection: E[] }) => unknown
   /** 工具条右侧（刷新按钮之前） */
   'toolbar-right'?: (props: { selection: E[] }) => unknown
+  /**
+   * 覆盖任意列的单元格渲染：`#cell-<字段名>`（如 `#cell-purchasePrice`）。
+   *
+   * 需要它的场景是「列的显示不只看值」：金额要先查脱敏策略、链接要拼静态资源前缀、
+   * 状态要带图标。默认渲染走 `getCellText`（字典/日期/金额/脱敏同一套规则），
+   * 只有默认规则不够时才用插槽覆盖 —— 不是每个字段都要写一个插槽。
+   */
+  [key: `cell-${string}`]: (props: { row: E, value: unknown, column: ITableColumn }) => unknown
 }>()
 
 const EntityClass = computed(() => props.table.entityClass as unknown as object)
+
+/** 页面是否覆盖了该列的单元格渲染（`useSlots` 而不是模板里的 `$slots[...]`：动态键在模板里类型不友好） */
+const slots = useSlots()
+function hasCellSlot(key: string): boolean {
+  return !!slots[`cell-${key}`]
+}
+
+/** 导出中（按钮 loading；导出的进度只有后端知道，这里只表达"还没回来"） */
+const isExporting = ref(false)
+
+async function onExportClick() {
+  isExporting.value = true
+  try {
+    await props.table.onExport()
+  }
+  finally {
+    isExporting.value = false
+  }
+}
 
 /** 列：来自 `@Table` 元数据（框架层注册表） */
 const columns = computed<ITableColumn[]>(() => getTableConfigList(EntityClass.value))
@@ -279,6 +320,15 @@ const emptyText = computed(() =>
         />
       </div>
       <div class="k-table__toolbar-right">
+        <ElButton
+          v-if="showExport"
+          v-permission="permissions?.export"
+          :loading="isExporting"
+          plain
+          @click="onExportClick"
+        >
+          导出
+        </ElButton>
         <slot
           name="toolbar-right"
           :selection="selection"
@@ -333,7 +383,16 @@ const emptyText = computed(() =>
         show-overflow-tooltip
       >
         <template #default="{ row }">
-          <span :style="cellStyle(row as E, column)">{{ cellText(row as E, column) }}</span>
+          <!-- 页面用 `#cell-<字段名>` 覆盖该列的渲染（金额脱敏、链接、图标等） -->
+          <slot
+            v-if="hasCellSlot(column.key)"
+            v-bind="{ row, column, value: (row as E)[column.key as keyof E] }"
+            :name="`cell-${column.key}`"
+          />
+          <span
+            v-else
+            :style="cellStyle(row as E, column)"
+          >{{ cellText(row as E, column) }}</span>
         </template>
       </ElTableColumn>
 
@@ -369,6 +428,7 @@ const emptyText = computed(() =>
             v-permission="permissions?.edit"
             link
             type="primary"
+            :disabled="disableEdit?.(row as E)"
             @click="emit('edit', row as E)"
           >
             编辑

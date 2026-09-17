@@ -7,6 +7,7 @@
   "author": "Hamm",
   "scripts": {
     "dev": "vite",
+    "airpower": "node scripts/find-airpower.mjs",
     "deadcode:check": "node scripts/find-unused-frontend.mjs --check",
     "exports:check": "node scripts/find-unused-exports.mjs --check",
     "s": "vite",

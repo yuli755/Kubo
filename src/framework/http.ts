@@ -174,9 +174,30 @@ export abstract class AbstractCurdService<E extends IIdentifiableEntity> extends
   /** 禁用 */
   protected urlDisable = 'disable'
 
+  /** 创建导出任务（异步导出：返回任务编码，由 `queryExport` 轮询下载地址） */
+  protected urlExport = 'export'
+
+  /** 查询导出结果 */
+  protected urlQueryExport = 'queryExport'
+
   /** 实体类（`new this.entityClass()` 的写法会触发 new-cap，统一在这里取一次） */
   protected get EntityClass(): ITransformerConstructor<E> {
     return this.entityClass
+  }
+
+  /**
+   * 创建导出任务。
+   *
+   * 返回 `fileCode`（任务编码），配合 `queryExport` 轮询下载地址 ——
+   * 完整流程见 `framework/export.ts` 的 `ExportUtil.run()`，页面一般不需要直接调它。
+   */
+  async createExportTask(request: unknown, apiUrl = this.urlExport): Promise<string> {
+    return this.api(apiUrl).requestRaw<string>(request)
+  }
+
+  /** 查询导出结果：任务未完成时后端会返回业务错误，调用方负责重试（见 `ExportUtil`） */
+  async queryExport(fileCode: string, apiUrl = this.urlQueryExport): Promise<string> {
+    return this.api(apiUrl).requestRaw<string>({ fileCode })
   }
 
   /** 分页查询 */
