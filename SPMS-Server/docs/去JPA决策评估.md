@@ -367,7 +367,7 @@ MyBatis-Plus 的 `MetaObjectHandler`（审计字段自动填充）正好是修�
 3. `@MapperScan` 覆盖 `**.repository`（44 个仓储接口从此就是 Mapper，不用逐个改）；
 4. 8 个仓储里 41 个**派生查询方法**（`getByPhone`/`getByCode`/…）改成 `LambdaQueryWrapper` 的 `default` 方法。
 
-**为什么这一批必须一次做完、不能按域拆**：实体注解（`@Id`/`@Column`）是**两套 ORM 共读**的；
+**为什么这一批必须一次做完、不能按域拆**（§10.1 已用实测数据坐实，并给出照做清单）：实体注解（`@Id`/`@Column`）是**两套 ORM 共读**的；
 只要 JPA 还在，实体的 JPA 注解就不能删；而 `ICurdRepository` 一旦不是 JpaRepository，
 所有 JPA 读路径（包括数据权限的 `Specification` 与影子比对）就一起断了。
 所以顺序只能是：**引擎换轨（J2）→ 实体注解批量替换 + 数据权限 Criteria 线换成 MP 渲染（J3）→ 删 `spring-boot-starter-data-jpa` + `ddl-auto`（J4）**。
@@ -382,82 +382,111 @@ MyBatis-Plus 的 `MetaObjectHandler`（审计字段自动填充）正好是修�
 | **编译** | ❌ 沙箱无 JDK、Maven 仓库不可达 | 需要你本机 `mvn -q compile`（或 CI） |
 | **运行时语义**（MP 的 insert/update 与 JPA 脏检查是否等价、数据权限拦截器是否覆盖写语句） | ❌ 需要真库 | 需要你本机跑一次：新增/改/删各一条 + 证据日志落库 + 保留期清理 |
 
-## §10 J2 执行清单（下一批照做：引擎换轨，按域批次的前置件）
+## §10 J2 执行清单（**干净切除**：不接受 JPA 与 MyBatis-Plus 并存）
 
-> 本节把 §9.4 的"一次做完"改成**可分批的双路径**：J2 只动引擎与仓储底座，
-> 每个域随后可以**单独**迁移（J3+），迁移期间两套 ORM 并存、两套路径都在跑。
+> 决策更新（用户 2026-09-18）：**"只保留 MyBatis-Plus"** —— 本节先前写过的"引擎双路径、JPA 分支先留着"
+> 方案作废。`spring-boot-starter-data-jpa` 与 Spring Data 仓储**必须整体退场**，不留并行分支。
+> 代价照收：迁移窗口内应用不可启动（两套代理会抢同一个 Bean 名），编译只在你本机验。
 
 ### 10.1 为什么必须先动引擎（实测依据）
 
 | 事实 | 出处 | 结论 |
 | --- | --- | --- |
-| 引擎只碰仓储的 **7 个动作** | `CurdService` L152/328/717/738/800/845/898 | 改造面小得出乎意料，值得照做 |
-| 引擎里的 `Specification` 有 31 处、`CurdController` 18 处、`QueryHelper` 11 处 | `grep -c` | 60/126 的 JPA 查询构建集中在 3 个文件 |
-| 44 个仓储接口里**只有 6 个**有自定义方法（19 个） | `find module -name '*Repository.java'` | 绝大多数仓储是一行接口，换底座是机械操作 |
-| `CurdService<E, R extends ICurdRepository<E>>`、`BaseService<E, R extends BaseRepository<E>>` | L65 / `base/BaseService.java` L39 | 泛型上下界就是天然的**接缝**位置：改这两个接口即改全仓 |
+| 引擎只碰仓储的 **7 个动作** | `CurdService` L152/328/717/738/800/845/898 | 改造面比想象小 |
+| 引擎 31 处 + `CurdController` 18 处 + `QueryHelper` 11 处 `Specification`/`Criteria` | `grep -c` | 126 处 JPA 查询构建里的 60 处集中在 3 个文件 |
+| 44 个仓储接口里**只有 6 个**有自定义方法（共 19 个） | `find module -name '*Repository.java'` | 绝大多数仓储是一行接口，换底座是机械操作 |
+| 全域 `repository.xxx()` 调用只有 ~30 种方法名 | `grep -rho` | 垫片能覆盖绝大部分调用点 |
+| **`addSearchPredicate(Root, CriteriaBuilder, E)` 有 15 个域覆写** | `grep -rn addSearchPredicate` | 换签名必须**同批**换掉这 15 个，否则旧方法变成"能编译但永不被调用"的空转 |
+| 这 15 个覆写依赖 `DataPermissionSpecification.buildPredicates`（316 行 Criteria 编译器） | `module/system/datapermission/service/` | **数据权限读侧强制与引擎是同一个编译单元**，不能拆批 |
 
-### 10.2 接缝设计（双路径，让域可以一个一个搬）
+**结论**：这不是"写链路一批、读链路一批"的关系 —— 仓储底座、引擎、15 个查询钩子、
+数据权限条件编译器四者互相咬合，只能是**一批原子切除**（下面 10.2~10.6 是照做清单）。
 
-`ICurdRepository` **不再继承 `JpaRepository`**，退成一个纯契约（只声明引擎要用的动作），
-两个实现族各自满足它：
+### 10.2 底座（不留 JPA 族）
 
-| 族 | 声明 | 谁在用 | 引擎怎么走 |
-| --- | --- | --- | --- |
-| JPA 族（未迁移） | `BaseRepository<E> extends ICurdRepository<E>, JpaRepository<E, Long>, JpaSpecificationExecutor<E>` | 迁移前的域 | `repository instanceof BaseMapper` 为 false → 走**现有 JPA 代码**（冻结，J4 删） |
-| MP 族（已迁移） | `KuboCrudMapper<E> extends ICurdRepository<E>, BaseMapper<E>` | 迁完的域 | true → 走 `LambdaQueryWrapper` / `selectPage` / `insert` / `updateById` |
+```java
+// ICurdRepository：不再 extends JpaRepository / JpaSpecificationExecutor
+public interface ICurdRepository<E extends CurdEntity<E>> extends BaseMapper<E> {
+    // JPA 风格的兼容垫片：default 方法，保域内调用点零改动
+    default Optional<E> findById(Long id)   { return Optional.ofNullable(selectById(id)); }
+    default <S extends E> S save(S entity)  { /* id 为空 → insert，否则 updateById；回填自增 id */ }
+    default <S extends E> S saveAndFlush(S entity) { return save(entity); }
+    default void deleteById(Long id)        { deleteById((Serializable) id); }
+    default List<E> findAll()               { return selectList(null); }
+    default long count()                    { return selectCount(null); }
+    default boolean existsById(Long id)     { return selectById(id) != null; }
+    default E getForUpdateById(Long id)     { /* selectOne(wrapper.eq(id).last("FOR UPDATE"))；@Transactional(MANDATORY) */ }
+    // ⚠️ 上面的 findAll(Specification)/findOne(Example)/flush() 一律**不提供**：
+    //    它们没有 MP 语义，留着就是让调用点继续活着。找不到 = 编译期报错 = 我们要的响。
+}
+```
 
-- 两个族都满足 `ICurdRepository<E>`，所以 `CurdService` 的泛型上下界**不用改**，21 处域内调用点也不用改；
-- **默认方法与抽象方法不会打架**：`KuboCrudMapper` 用 `default` 覆盖契约里的抽象方法
-  （JLS 允许子接口用 default 覆盖父接口的抽象方法），JPA 族则直接拿 `JpaRepository` 的实现 ——
-  两边都合法，且**同一个接口不会被两个框架同时注册**（这是本设计里最容易踩的雷：Spring Data 与
-  MyBatis 的代理都会抢 `<SimpleName>` 这个 Bean 名，Boot 2.1+ 默认禁止覆盖 → 直接起不来）。
-- 迁移一个域 = 把该域仓储的 `extends BaseRepository<X>` 换成 `extends KuboCrudMapper<X>`，
-  并在引擎侧确认它只用到已覆盖的动作。
+- `BaseRepository<E>` 去掉 `JpaRepository`/`NoRepositoryBean`，只留 `extends ICurdRepository<E>`；
+- 注册：新增 `CurdMapperConfiguration`，`@MapperScan(basePackages = "cn.hamm.spms", markerInterface = ICurdRepository.class)`
+  —— **无开关、永远注册**（写路径不能跟着读侧灰度开关消失）；与读侧的 `KuboBaseMapper` 扫描互不相交；
+- 新增 `MpCurdMapperConfiguration`/`KuboBaseMapper` 两处扫描的**契约判据升级**（见 10.5）。
 
-### 10.3 7 个动作的双路径映射（照抄表）
+### 10.3 引擎：7 个动作只留 MP 实现（照抄表）
 
-| 位置 | JPA 路径（保留） | MP 路径（新增） | MP 语义要点 |
-| --- | --- | --- | --- |
-| `deleteById(id)` L152 | `repository.deleteById(id)` | `deleteById(id)` | 一致（都是先查后删） |
-| `getForUpdateById(id)` L328 | `@Lock(PESSIMISTIC_WRITE)` 派生方法 | `selectOne(wrapper.eq(id).last("FOR UPDATE"))` | 必须仍在 `@Transactional(MANDATORY)` 里，否则锁无意义 |
-| `findAll(spec, sort)` L717 | 原样 | `selectList(wrapper.orderBy(...))` | `Sort` → `OrderItem`（见 10.4） |
-| `findAll(spec, pageable)` L738 | 原样 | `selectPage(new Page<>(n, size), wrapper)` | `PageData.newInstance` 接收 `total/records`，MP 的 `IPage` 直接给 |
-| `findById(id)` L800 | 原样 | `Optional.ofNullable(selectById(id))` | 返回 `Optional` 是为了调用点零改动 |
-| `saveAndFlush(target)` L845 | 原样 | `id == null ? insert : updateById`；返回实体 | **插入时要把自增主键回填**（MP 会写回 `id`），否则后续 `target.getId()` 为 null |
-| `findOne(example)` L898 | 原样 | `selectOne(createWrapper(example, true).last("LIMIT 1"))` | `Example` 分支只在"查重"用，强匹配即可 |
+| 位置 | 现在（JPA） | 换成 |
+| --- | --- | --- |
+| L152 `deleteById` | `repository.deleteById(id)` | 同名垫片（语义一致：先查后删） |
+| L328 `getForUpdate` 前的 `entityManager.clear()` | 清一级缓存防脏读 | **直接删**（MP 默认 `localCacheScope=STATEMENT`，每条语句后清本地缓存，本来就没有一级缓存陈旧读） |
+| L328 `getForUpdateById` | `@Lock(PESSIMISTIC_WRITE)` | 垫片里的 `last("FOR UPDATE")`，仍在 `@Transactional(MANDATORY)` 内 |
+| L717 `findAll(spec, sort)` | Criteria + Spring Data `Sort` | `selectList(createWrapper(filter, isEquals).orderBy(...))` |
+| L738 `findAll(spec, pageable)` | Criteria + `Pageable` | `selectPage(new Page<>(n, size), createWrapper(...))` → `PageData.newInstance(ipage)` |
+| L800 `findById` | `Optional<E>` | 垫片（返回 `Optional`，调用点零改动） |
+| L845 `saveAndFlush` | 脏检查 + flush | 垫片（`insert`/`updateById`，**插入必须回填自增主键**） |
+| L898 `findOne(Example.of(search))` | `Example` | `selectOne(createWrapper(search, true).last("LIMIT 1"))` |
+| L881 `checkUnique` 读 `@Column(unique=true)` | JPA 注解 | 改读 `@TableField`，**过渡期两个都读**（`@Column` 还在时照样能过；J3 删 JPA 注解后自然只读后者） |
+| L782 `addSearchPredicate(Root, CriteriaBuilder, E)` | 15 个域覆写 | `addSearchPredicate(@NotNull LambdaQueryWrapper<E> wrapper, @NotNull E search)`；**15 个覆写同批转换**（见 10.4） |
 
-### 10.4 `QueryHelper` 要补的两个方法
+`QueryHelper` 补两个方法：`createWrapper(E filter, boolean isEqual)`（与 `getPredicateList` 同一套
+`@Search`/`@SearchEmpty`/`@ManyToOne` 反射遍历，只是往 wrapper 里塞条件）与 `Sort/Page → OrderItem/Page` 转换。
+列名解析走中间方法（现在读 `@Column(name=…)`，J3 后优先读 `@TableField`），这样实体注解换轨时这一处不用再动。
 
-1. `createWrapper(E filter, boolean isEqual)` —— 与 `getPredicateList` **同一套反射遍历**
-   （`@Search` / `@SearchEmpty` / `@ManyToOne` 的处理逻辑照搬），只是往 `LambdaQueryWrapper` 里塞条件；
-   列名解析走一个中间方法（现在读 JPA 的 `@Column(name=…)`，J3 后优先读 `@TableField`），
-   这样实体注解换轨时**这一处不用再动**。
-2. `Sort/Pageable → OrderItem/Page` 的转换（保留入参类型，调用点零改动）。
+### 10.4 15 个查询钩子（同批转换，防静默空转）
 
-### 10.5 注册与门禁
+| 文件 | 行 | 现在加的什么 |
+| --- | --- | --- |
+| `asset/contract/ContractService` | 180 | 权限谓词 + 自定义条件 |
+| `asset/material/MaterialService` | 182 | 同上 |
+| `channel/customer|sale|purchase|purchaseprice|saleprice|supplier/*Service` | 168~196 | 同上（6 个） |
+| `factory/storage/StorageService` | 184 | `parent_id` 归属条件 |
+| `factory/structure/StructureService` | 178 | 同上 |
+| `personnel/department|role|user/*Service` | 41/27/590 | 同上 |
+| `wms/input|move|inventory|output/*Service` | 208/188/289/182 | 同上（`InventoryService` 另有 `beforeCreatePredicate`） |
 
-- 新增 `KuboCrudMapper` 后需要**第二处 `@MapperScan`**（`**.repository`，无开关、永远注册 ——
-  写路径不能跟着读侧灰度开关消失）。契约测试 `maskContract.spec.ts` L1603 的"只许一处"要改成
-  **更强的判据**：逐个解析每处 `@MapperScan` 的 `markerInterface`，① 含 `KuboBaseMapper` 的那处
-  必须带 `@ConditionalOnProperty`；② 其余各处的 marker 必须与 `KuboBaseMapper` **不相交**
-  （扫 main 里 `extends KuboBaseMapper` 的接口逐个验证）；③ 无 marker 的通配扫描一律红。
-  这样"读侧 Mapper 一定归开关管"这条**判据没放宽**，反而从"数个数"升级成"逐个证明"。
-- `pnpm jpa:check` 的基线在 J2 后应显著下降（`Specification`/`CriteriaBuilder`/`JpaRepository` 三类
-  预计从 599 掉到 300 上下），`--check` 会把下降固化成不许回涨。
+> **为什么必须同批**：`addSearchPredicate` 换签名后，没改的覆写会退化成"普通方法"，
+> 编译**不报错**、运行时**永不调用** —— 查询条件与权限条件一起静默消失，比编译错误危险得多。
+> （`beforeCreatePredicate` 是另一条线，不动。"
 
-### 10.6 J2 完成后每个域怎么搬（J3 清单，逐域执行）
+### 10.5 数据权限读侧：Criteria → wrapper（本批最需要小心的地方）
 
-1. 实体：`@Entity`→`@TableName`、`@Column`→`@TableField`、`@Id`/`@GeneratedValue` 删除
-   （`CurdEntity.id` 已有 `@TableId(AUTO)`）；`@ManyToOne`/`@OneToMany` 这类**关联注解没有 MP 对应物**，
-   按"只留外键列（`xxxId`）+ 删掉导航属性"处理，用到导航属性的一并改查询。
-2. 仓储：`extends BaseRepository<X>` → `extends KuboCrudMapper<X>`；19 个自定义方法改成 `default` + wrapper。
-3. 服务：`Specification` 调用点（126 处，`ShadowDiffService` 13 / `DataPermissionSpecification` 7 /
-   各域 `…Service` 6 处）逐个换成 wrapper；`Example<X>.of` → wrapper 强匹配。
-4. 每域跑一次 `pnpm check`（前端 459 用例里的 94 条后端契约会替我们盯住注解/表名/DDL 三处同源）。
+- `DataPermissionSpecification.buildPredicates(Root, CriteriaBuilder, …)` → `buildWrapper(LambdaQueryWrapper<E>, …)`：
+  `OFF/SHADOW/ENFORCE` 三档语义、`deny-unregistered`、binding 指标、空结果集策略**逐条照搬，不许"简化"**；
+- `JpaPermissionRuleCompiler` 的规则模型（`PermissionRule` = 字段/比较符/值）本来就是 ORM 中立的
+  → 换一个 wrapper 渲染器即可，规则解析、建树、审计三件不动；类名与用法一起改（`Jpa…` 前缀此时必须消失）；
+- `ShadowDiffService`(13) / `MapperShadowReadService`(6) / `JpaRowVisibilityProbe` / `DimensionBindingAnalyzer`(3)
+  逐个跟着换；影子比对的两条路径（JPA 侧与 Mapper 侧）在换完之后应当只剩一条 —— 这正是"去 JPA"的收益，
+  不要在 wrapper 世界里再把两套影子逻辑重建一遍；
+- **验收口径不变**：数据权限的既有单测/契约断言全部保留（`src/config/__tests__` 里 94 条与
+  `SPMS-Server/src/test/java` 下的单测），换完必须仍然表达同一个语义。
 
-### 10.7 本批（J2）交付口径
+### 10.6 切分与顺序（一批原子切除，内部按这个序做）
 
-- 交付：`CurdService` + `CurdController` + `QueryHelper` 的双路径改造、`ICurdRepository` 退成契约、
-  `KuboCrudMapper` 与第二处 `@MapperScan`、契约测试判据升级、`pnpm check` 全绿、`jpa:check` 基线下降；
-- **不交付**：任何域的实体/服务迁移（那是 J3 逐域批次的事）；
-- 仍然验不了：`javac`（沙箱无 JDK）与真库语义 —— 需要你本机 `mvn -q compile` + 一次真库回归。
+1. **底座**：`ICurdRepository`/`BaseRepository` + 垫片 + `CurdMapperConfiguration` + 契约判据升级；
+2. **引擎**：`QueryHelper.createWrapper` → `CurdService` 的 7 个动作与查询路径 → `CurdController`；
+3. **钩子**：15 个 `addSearchPredicate` 覆写（同批）；
+4. **权限线**：`DataPermissionSpecification` → wrapper 版，`JpaPermissionRuleCompiler` 等一并改；
+5. **仓储**：44 个接口的 `extends` 换成 MP 族 + 19 个自定义方法改 `default` + wrapper；
+6. **收尾**：`pnpm jpa:check` 基线按实测下调并固化、`docs` 对账、`pnpm check` 全绿（前端 459 用例 + 契约）。
+
+### 10.7 窗口内的真相（写下来，免得后来者误判）
+
+- **应用在这个窗口内起不来**：Spring Data 与 MyBatis 会为同一个接口抢同名 Bean（Boot 2.1+ 禁止覆盖），
+  只有等 44 个仓储全部脱离 JPA 族才能启动 —— 这是"干净切除"的必然代价，不是 bug；
+- **编译仍只在你本机验**：沙箱无 JDK、Maven 仓库不可达。我这边能验的是：
+  `pnpm text:check`（字面量/转义/import 可达）、`pnpm java:imports`、`pnpm jpa:check -- --check`（棘轮）、
+  94 条后端契约 + 前端用例 —— 这些挡不住"类型不匹配"，但**能挡住静默语义丢失**（10.4 那条）。
+- 需要用户本机跑的验收：`mvn -q compile` → `pnpm check` → 真库一次回归（增删改 + 数据权限 ENFORCE 档 + 保留期清理）。
