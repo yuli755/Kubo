@@ -74,8 +74,13 @@ const BASE_FIELDS = [
   'maxStock',
   'purchasePrice',
   'salePrice',
+  'price',
+  'totalPrice',
+  'totalRealPrice',
   'amount',
   'totalAmount',
+  'reason',
+  'rejectReason',
   'weight',
   'createTime',
   'updateTime',
@@ -122,6 +127,8 @@ const TEXT_POOLS: Array<[string, string[]]> = [
   ['orderNo', ['SO202609001', 'SO202609014', 'SO202609027']],
   ['planNo', ['PL202609001', 'PL202609008', 'PL202609015']],
   ['remark', ['按客户加急处理', '需质检二次确认', '供应商已确认交期', '']],
+  ['reason', ['9 月原料补库', '客户催货加急', '试制批次材料', '设备备件补充']],
+  ['rejectReason', ['数量与需求不符，请复核后重提', '单价超预算，退回重议', '供应商资质待补充']],
   ['description', ['常规生产任务', '试制批次，注意留样', '返工补充订单', '']],
 ]
 
@@ -389,7 +396,7 @@ function resolveCodePrefix(resourceKey: string): string {
  */
 
 /** 单据类资源（有明细数组） */
-const BILL_RESOURCES = new Set(['input', 'output', 'move'])
+const BILL_RESOURCES = new Set(['input', 'output', 'move', 'purchase', 'sale'])
 
 /**
  * 造一张单据的明细。
@@ -424,6 +431,10 @@ function buildBillDetails(resourceKey: string, index: number, random: () => numb
       detail.storageName = (detail.storage as Row).name
       detail.storageId = (detail.storage as Row).id
     }
+    else if (resourceKey === 'purchase' || resourceKey === 'sale') {
+      // 采购/销售的明细是「物料 + 单价 + 数量」：价格列是金额列，缺了会显示 `-`
+      detail.price = randomInt([1000, 32000], random)
+    }
     else {
       const inventory = buildRelation('inventory', 'KC', index + offset, random)
       inventory.material = material
@@ -432,6 +443,13 @@ function buildBillDetails(resourceKey: string, index: number, random: () => numb
       detail.inventory = inventory
       detail.storageName = (inventory.storage as Row).name
       detail.inventoryId = inventory.id
+    }
+    if (resourceKey === 'purchase') {
+      // 采购明细的供应商列读嵌套对象（`row.supplier.code|name`）
+      const supplier = buildRelation('supplier', 'GYS', index + offset, random)
+      detail.supplier = supplier
+      detail.supplierCode = supplier.code
+      detail.supplierName = supplier.name
     }
     return detail
   })
@@ -529,6 +547,14 @@ export function buildRow(resourceKey: string, index: number): Row {
   if (BILL_RESOURCES.has(resourceKey)) {
     row.billCode ??= row.code
     row.details = buildBillDetails(resourceKey, index, random)
+    // 采购/销售主表的金额列（K 列表里是金额列，空值会显示 `-`）
+    if (resourceKey === 'purchase') {
+      row.totalPrice ??= randomInt([1000, 120000], random)
+      row.totalRealPrice ??= row.totalPrice
+    }
+    if (resourceKey === 'sale') {
+      row.totalPrice ??= randomInt([1000, 120000], random)
+    }
   }
 
   return row

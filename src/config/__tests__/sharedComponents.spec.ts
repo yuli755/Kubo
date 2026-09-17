@@ -76,15 +76,15 @@ describe('f4 · 批 0A 共享件迁移完成度', () => {
 
     /**
      * 待迁清单（每一条都写清卡在哪）：
-     * - `bill/BillFormCode`、`bill/BillFormMoreDetail`：字段/日期/状态要按**元数据**渲染，
-     *   而单据实体的框架层装饰器要等 wms/channel/asset 逐域迁移时才补（批 0B）；
      * - `UserCard` + `user/*`：头像上传依赖上传组件（原库 `AImage` + `FileEntity`），
      *   框架层 `DialogUtil.showUpload` 尚未实现 —— 属于"还缺一个件"，不是"忘了迁"。
+     *
+     * 批 5 变化：`bill/BillFormCode`、`bill/BillFormMoreDetail` 与它们的 barrel `component/index.ts`
+     * 已随 channel 迁移**删除**（channel 详情改用 `ElDescriptions` + `@KTable` 元数据渲染，
+     * 这两个组件失去最后一批消费者）—— 它们不是"待迁"，是"没人要了"。
      */
     const expected = [
       'src/component/UserCard.vue',
-      'src/component/bill/BillFormCode.vue',
-      'src/component/bill/BillFormMoreDetail.vue',
       'src/component/user/ModifyPassword.vue',
       'src/component/user/PersonalToken.vue',
       'src/component/user/UserAccount.vue',
@@ -256,5 +256,61 @@ describe('f4 · 单据共享件（批 0A 重写后的行为）', () => {
     // props 传进来的对象会被 Vue 包成响应式代理，身份比较必然失败 → 用深比较
     expect(wrapper.emitted('onAudit')?.[0]?.[0]).toStrictEqual(bill)
     expect(wrapper.emitted('onReject')).toBeUndefined()
+  })
+})
+
+/**
+ * # 批 5 回归：命令式弹窗必须继承应用上下文
+ *
+ * `DialogUtil.show()` 把弹窗挂在一棵**新的组件树**里（`framework/feedback.ts` 的宿主），
+ * 不显式继承 `appContext` 就拿不到 pinia / router / queryClient。漏接的表现**完全静默**：
+ * 弹窗里 `useQuery` 抛 `No 'queryClient' found in Vue context`，异常发生在 `render()` 内部，
+ * 页面只是「点了没反应」——channel 的「查看详情」就是这么坏的。
+ */
+describe('f4 · 命令式弹窗继承应用上下文（批 5 回归）', () => {
+  it('接线后：DialogUtil.show 打开的弹窗里 useQuery 能拿到 queryClient', async () => {
+    const { QueryClient, VueQueryPlugin } = await import('@tanstack/vue-query')
+    const { DialogUtil, setDialogAppContext } = await import('@/framework')
+    const { defineComponent, getCurrentInstance, h } = await import('vue')
+    const { useQuery } = await import('@tanstack/vue-query')
+
+    const Probe = defineComponent({
+      name: 'Probe',
+      setup() {
+        const query = useQuery({ queryKey: ['probe'], queryFn: async () => '弹窗内容' })
+        return () => h('div', { class: 'probe' }, query.data.value ?? '加载中')
+      },
+    })
+
+    let captured: import('vue').AppContext | null = null
+    const Host = defineComponent({
+      name: 'Host',
+      setup() {
+        captured = getCurrentInstance()?.appContext ?? null
+        return () => h('div')
+      },
+    })
+
+    mountDialog(Host, {
+      global: { plugins: [[VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]] },
+    })
+    expect(captured, '没拿到应用上下文，测试本身失效').toBeTruthy()
+
+    setDialogAppContext(captured)
+    try {
+      void DialogUtil.show(Probe)
+      await vi.waitFor(() => {
+        expect(document.body.textContent).toContain('弹窗内容')
+      }, { timeout: 4000 })
+    }
+    finally {
+      setDialogAppContext(null)
+      document.body.innerHTML = ''
+    }
+  })
+
+  it('main.ts 里有这行接线（漏了就等于所有命令式弹窗都在裸上下文里渲染）', async () => {
+    const { readFileSync } = await import('node:fs')
+    expect(readFileSync('src/main.ts', 'utf8')).toContain('setDialogAppContext(app._context)')
   })
 })

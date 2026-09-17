@@ -1,105 +1,157 @@
 <script lang="ts" setup>
-import type { FormInstance } from 'element-plus'
-import { ADialog, AInput, ASelect, DialogProps, FeedbackUtil, getFieldLabel } from '@airpower/web'
-import { ref, watch } from 'vue'
-import { SaleDetailService } from '@/hook/channel/useSale'
-import { SalePriceService } from '@/hook/channel/useSalePrice'
-import { SaleDetailEntity } from '@/model/channel/sale/SaleDetailEntity'
-import { MaterialSelector } from '@/view/console/asset/material/component'
+import type { IDialogActionProps } from '@/framework'
+import type { MaterialEntity } from '@/model/asset/material/MaterialEntity'
+import type { SaleDetailEntity } from '@/model/channel/sale/SaleDetailEntity'
+import { ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
+import { computed, ref, watch } from 'vue'
+import KDialog from '@/component/framework/KDialog.vue'
+import KSelector from '@/component/framework/KSelector.vue'
+import { FeedbackUtil, getFieldLabel, WebValidator } from '@/framework'
+import { KMaterialService } from '@/hook/asset/useMaterial'
+import { KSalePriceService } from '@/hook/channel/useSalePrice'
+import { SaleDetailEntity as SaleDetail } from '@/model/channel/sale/SaleDetailEntity'
 
-const props = defineProps(DialogProps.withParam(new SaleDetailEntity()))
+/**
+ * # 销售明细编辑（F4 批 5 · 新底座）
+ *
+ * 编辑一条销售明细：选物料 + 单价 + 数量。客户不在明细里选 —— 它是**单据主表**字段，
+ * 由销售单编辑器在「添加明细」时塞进明细（`detail.customer`），这里只读展示。
+ *
+ * ## 报价回退链（旧版语义，逐字保真）
+ * 选中物料后按「物料 × 该明细的客户」查专属销售价：
+ * - 查到 → 单价用它；
+ * - 查不到 → 提示「未配置该物料对该客户的特别销售价，将自动填写该物料的参考销售价」，
+ *   单价回退到物料的 `salePrice`。
+ *
+ * 旧版 `afterGetDetail` 里还手工补过 `customerName` / `materialId` / `materialName`
+ * 三个扁平字段 —— 新底座里列渲染读的是嵌套对象（`@KTable` 的 formatter），
+ * 只需要保证 `materialId` 与 `material` 一起回填（后端按 id 关联）。
+ */
+const props = defineProps<IDialogActionProps<SaleDetailEntity>>()
 
-const formData = ref(props.param.copy())
-const isLoading = ref(false)
+const form = ref<SaleDetailEntity | null>(null)
+const materialPicking = ref(false)
 
-const formRef = ref<FormInstance>()
+watch(
+  () => props.param,
+  (detail) => {
+    // 复制一份再编辑：取消时不会把半截修改留在上一层的数组里
+    form.value = detail ? (detail.copy() as SaleDetailEntity) : null
+  },
+  { immediate: true },
+)
 
-async function getSalePrice() {
-  if (formData.value.materialId && formData.value.customer) {
-    const salePrice = await SalePriceService.create(isLoading).getByMaterialAndCustomer(
-      formData.value.materialId,
-      formData.value.customer.id,
-    )
-    if (salePrice) {
-      formData.value.price = salePrice.price
-      return
-    }
-    FeedbackUtil.toastWarning('未配置该物料对该客户的特别销售价，将自动填写该物料的参考销售价')
-    formData.value.price = formData.value.material.salePrice
+const rules = computed(() => WebValidator.createRules(SaleDetail as never) as unknown as Record<string, unknown[]>)
+
+const unitName = computed(() => (form.value?.material as MaterialEntity | undefined)?.unit?.name ?? '')
+const customerName = computed(() => (form.value?.customer as { name?: string } | undefined)?.name ?? '-')
+
+/** 专属销售价查询：物料 + 客户都齐了才有意义 */
+async function lookupPrice(): Promise<void> {
+  const detail = form.value
+  const materialId = detail?.material?.id ?? detail?.materialId
+  const customerId = (detail?.customer as { id?: number } | undefined)?.id
+  if (!detail || !materialId || !customerId) {
+    return
+  }
+  const price = await new KSalePriceService().getByMaterialAndCustomer(materialId, customerId)
+  if (price) {
+    detail.price = price.price
+    return
+  }
+  FeedbackUtil.toastWarning('未配置该物料对该客户的特别销售价，将自动填写该物料的参考销售价')
+  detail.price = (detail.material as MaterialEntity).salePrice
+}
+
+function onMaterialPicked(rows: unknown[]) {
+  materialPicking.value = false
+  const material = rows[0] as MaterialEntity | undefined
+  if (!form.value || !material) {
+    return
+  }
+  form.value.material = material
+  form.value.materialId = material.id
+  form.value.materialName = material.name
+  void lookupPrice()
+}
+
+function onConfirm() {
+  if (form.value) {
+    props.onConfirm?.(form.value)
   }
 }
-
-async function onSubmit() {
-  props.onConfirm(formData.value)
-}
-
-watch(() => formData.value, () => {
-  formRef.value?.validate()
-}, {
-  deep: true,
-  immediate: true,
-})
 </script>
 
 <template>
-  <ADialog
-    :form-ref="formRef"
-    :loading="isLoading"
+  <KDialog
     title="销售明细"
-    width="600px"
-    @cancel="onCancel"
-    @confirm="onSubmit"
+    width="620px"
+    @cancel="() => props.onCancel?.()"
+    @confirm="onConfirm"
   >
-    <el-form
-      ref="formRef"
-      :model="formData"
-      :rules="SaleDetailService.createValidator()"
-      label-width="120px"
+    <ElForm
+      v-if="form"
+      :model="form"
+      :rules="rules"
+      label-width="110px"
       @submit.prevent
     >
-      <el-form-item
-        label="销售物料"
-        prop="material"
-      >
-        <ASelect
-          v-model="formData.material"
-          :selector="MaterialSelector"
-          @change="getSalePrice()"
+      <ElFormItem label="销售物料">
+        <ElInput
+          :model-value="form.material?.name ?? ''"
+          placeholder="请选择销售物料..."
+          readonly
+          @click="materialPicking = true"
         />
-      </el-form-item>
-      <el-form-item
-        :label="getFieldLabel(SaleDetailEntity, 'price')"
+      </ElFormItem>
+      <ElFormItem label="销售客户">
+        <ElInput
+          :model-value="customerName"
+          disabled
+        />
+      </ElFormItem>
+      <ElFormItem
+        :label="getFieldLabel(SaleDetail, 'price')"
         prop="price"
       >
-        <AInput
-          v-model.price="formData.price"
-          :entity="SaleDetailEntity"
-        >
-          <template
-            v-if="formData.material"
-            #append
-          >
-            元/{{ formData.material?.unit?.name }}
-          </template>
-        </AInput>
-      </el-form-item>
-      <el-form-item
-        :label="getFieldLabel(SaleDetailEntity, 'quantity')"
+        <ElInputNumber
+          v-model="form.price as number"
+          :min="0"
+          :precision="2"
+          class="sale-detail-editor__number"
+        />
+        <span class="sale-detail-editor__unit">元/{{ unitName }}</span>
+      </ElFormItem>
+      <ElFormItem
+        :label="getFieldLabel(SaleDetail, 'quantity')"
         prop="quantity"
       >
-        <AInput
-          v-model.quantity="formData.quantity"
-          :entity="SaleDetailEntity"
-          clearable
-        >
-          <template
-            v-if="formData.material"
-            #append
-          >
-            {{ formData.material?.unit?.name }}
-          </template>
-        </AInput>
-      </el-form-item>
-    </el-form>
-  </ADialog>
+        <ElInputNumber
+          v-model="form.quantity as number"
+          :min="0"
+          class="sale-detail-editor__number"
+        />
+        <span class="sale-detail-editor__unit">{{ unitName }}</span>
+      </ElFormItem>
+    </ElForm>
+  </KDialog>
+
+  <KSelector
+    v-model="materialPicking"
+    :selected="form?.material ? [form.material] : []"
+    :service="KMaterialService"
+    title="选择销售物料"
+    @confirm="onMaterialPicked"
+  />
 </template>
+
+<style lang="scss" scoped>
+.sale-detail-editor__number {
+  width: 180px;
+}
+
+.sale-detail-editor__unit {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+}
+</style>

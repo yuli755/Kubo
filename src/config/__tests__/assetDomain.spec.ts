@@ -101,9 +101,10 @@ function listVueFiles(dir: string): string[] {
 
 describe('f4 · 批 2（asset）迁移完成度', () => {
   /**
-   * 待迁清单（每条都写清卡在哪）：
-   * - `material/component/selector.vue`：airpower `ASelector`，物料选择器，被 **wms 入库/出库**
-   *   与 **channel 采购/销售** 的明细编辑器引用（那两域属于批 4/5）→ 随域迁移换成 `KSelector`。
+   * 待迁清单：**已清零**。
+   * - `material/component/selector.vue`（airpower `ASelector`）随批 4（wms 明细编辑器）与批 5
+   *   （channel 采购/销售、两张价格页）迁移完成而失去全部消费者 → 已删除；
+   *   同时删掉的还有配套的旧 `MaterialService` 与 `MaterialEntity` 的 airpower 装饰器。
    *
    * 2026-09 更新：合同那三件（`contract/component/{editor,editParticipant,selector}.vue`）与它们
    * 的 barrel **从未被任何页面引用**（批 2 把合同列表改成 `KFormDialog` 后就成了孤岛，barrel 只被
@@ -111,19 +112,15 @@ describe('f4 · 批 2（asset）迁移完成度', () => {
    * ⚠️ 它们承载的**参与者/附件编辑**能力目前没有替代实现，重建时用新底座
    * （`KFormDialog` + 上传件）在批 2B 或 system 批里补 —— 别把"删了死件"误读成"这功能不需要"。
    */
-  const ALLOWED = [
-    'src/view/console/asset/material/component/selector.vue',
-  ]
+  const ALLOWED: string[] = []
 
-  it('域内仍依赖 airpower 的文件 = 明确的待迁集合', () => {
+  it('域内仍依赖 airpower 的文件 = 明确的待迁集合（批 5 后已清零）', () => {
     const offenders = listVueFiles('src/view/console/asset')
       .filter(file => importsAirpower(readFileSync(file, 'utf8')))
       .sort()
     expect(
       offenders,
-      offenders.length === 0
-        ? '整域迁完，可以把这条断言收紧成 toEqual([])'
-        : '域内还有 airpower 依赖，若已迁完请同步收紧本用例的 ALLOWED',
+      '资产域还有 airpower 依赖：`MaterialSelector` 已随 wms/channel 迁移删除，域内不该再有',
     ).toEqual([...ALLOWED].sort())
   })
 
@@ -152,14 +149,12 @@ describe('f4 · 批 2（asset）迁移完成度', () => {
     }
   })
 
-  it('两个域的实体都做了双注册（框架层装饰器齐全，K 服务指向同一 baseUrl）', async () => {
+  it('实体元数据齐全，K 服务各自指向后端接口', async () => {
     const { getFormConfigList, getTableConfigList } = await import('@/framework')
     const { MaterialEntity } = await import('@/model/asset/material/MaterialEntity')
     const { ContractEntity } = await import('@/model/asset/contract/ContractEntity')
     const { KMaterialService } = await import('@/model/asset/material/KMaterialService')
     const { KContractService } = await import('@/model/asset/contract/KContractService')
-    const { MaterialService } = await import('@/model/asset/material/MaterialService')
-    const { ContractService } = await import('@/model/asset/contract/ContractService')
 
     // 表格列 / 表单字段都非空 —— 这是"元数据驱动渲染"能成立的前提
     expect(getTableConfigList(MaterialEntity).length).toBeGreaterThan(4)
@@ -167,9 +162,16 @@ describe('f4 · 批 2（asset）迁移完成度', () => {
     expect(getTableConfigList(ContractEntity).length).toBeGreaterThan(4)
     expect(getFormConfigList(ContractEntity).length).toBeGreaterThan(3)
 
-    // 新旧服务同 baseUrl：过渡期两份实现必须指向同一个后端接口，否则数据会"漂移"
-    expect(new KMaterialService().baseUrl).toBe(new MaterialService().baseUrl)
-    expect(new KContractService().baseUrl).toBe(new ContractService().baseUrl)
+    expect(new KMaterialService().baseUrl).toBe('material')
+    expect(new KContractService().baseUrl).toBe('contract')
+  })
+
+  it('物料实体已单注册：不再 import airpower（批 5 删掉最后两个消费者后收紧）', () => {
+    const source = readFileSync('src/model/asset/material/MaterialEntity.ts', 'utf8')
+    expect(
+      importsAirpower(source),
+      '物料实体又出现了 airpower 依赖：asset 域应当只剩新底座一套元数据',
+    ).toBe(false)
   })
 
   it('物料价格列：@KTable 里是金额列且默认隐藏（脱敏口径与后端一致）', async () => {

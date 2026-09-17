@@ -6,6 +6,7 @@ import App from '@/App.vue'
 import { DEMO_ENABLED } from '@/config/buildFlags'
 import { routes } from '@/config/routes'
 import { directives } from '@/directives'
+import { setDialogAppContext } from '@/framework/feedback'
 import { initAuthGuard } from '@/guard/authGuard'
 import { initPermissionGuard } from '@/guard/permissionGuard'
 import { registerPWA } from '@/pwa/registerSW'
@@ -64,6 +65,12 @@ app.directive('loading', ElLoading.directive)
 for (const [name, directive] of Object.entries(directives)) {
   app.directive(name, directive)
 }
+
+// 命令式弹窗（`DialogUtil.show/select/selectList`、`showUpload`）挂在独立容器里渲染，
+// 是**另一棵组件树**：不显式继承上下文就拿不到 pinia / router / queryClient。
+// 漏接的后果是静默的 —— 弹窗里 `useQuery` 抛 `No 'queryClient' found`，
+// 异常发生在 `DialogUtil.show()` 内部的 `render()` 中，页面表现只是「点了没反应」。
+setDialogAppContext(app._context)
 
 /**
  * 启动：演示模式（`pnpm dev:demo`，仅本地预览）先安装 mock 请求适配器与预置登录态再挂载。

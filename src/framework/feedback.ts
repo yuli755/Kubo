@@ -7,8 +7,14 @@
  *   返回组件 `onConfirm` 传出的数据；取消则 resolve `undefined`
  * - `ClipboardUtil.copy(text)`
  *
- * 命令式弹窗依赖当前应用上下文（pinia / router / Element Plus 组件都要在），
- * 因此由 `installFramework(app)` 在 `main.ts` 里注入一次。
+ * 命令式弹窗依赖当前应用上下文（pinia / router / Element Plus 组件都要在）：
+ * 弹窗挂在**独立容器**里，是一棵新的组件树，不继承 `main.ts` 那个 app 的注入，
+ * 所以必须先调一次 `setDialogAppContext(app._context)`（`main.ts` 里已接线）。
+ *
+ * ⚠️ 漏接的表现是弹窗**静默不开**（不报错、按钮点了没反应）：宿主里的 `useQuery` /
+ * `usePermissionStore` 找不到注入，直接抛 `No 'queryClient' found in Vue context`，
+ * 异常发生在 `DialogUtil.show()` 内部的 `render()` 里，调用方 `void` 掉就再也看不见。
+ * 批 5（channel）的「查看详情」踩过这个坑。
  */
 
 import type { AppContext, Component, VNode } from 'vue'
@@ -132,11 +138,11 @@ export interface IDialogActionProps<P = unknown> {
   onCallback?: () => void
 }
 
-/** 当前应用上下文（含 pinia/router/全局组件），由 installFramework 注入 */
+/** 当前应用上下文（含 pinia/router/全局组件），由 `main.ts` 调 `setDialogAppContext` 注入 */
 let appContext: AppContext | null = null
 
-/** 注入应用上下文（内部使用：`main.ts` 安装框架时调用） */
-export function setDialogAppContext(context: AppContext): void {
+/** 注入应用上下文（`main.ts` 在 `createApp` 之后调用；测试里传 `null` 可复位） */
+export function setDialogAppContext(context: AppContext | null): void {
   appContext = context
 }
 

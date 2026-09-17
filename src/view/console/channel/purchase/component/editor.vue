@@ -1,116 +1,134 @@
 <script lang="ts" setup>
-import {
-  AButton,
-  ADialog,
-  AFormField,
-  AGroup,
-  ATable,
-  DialogProps,
-  DialogUtil,
-  FeedbackUtil,
-  getFieldLabel,
-  getModelName,
-  getTableConfigList,
-  useEditor,
-} from '@airpower/web'
+import type { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
+import { ElButton } from 'element-plus'
+import { computed, ref } from 'vue'
+import KDetailTable from '@/component/framework/KDetailTable.vue'
+import KFormDialog from '@/component/framework/KFormDialog.vue'
 import { Permissions } from '@/config/permissions'
-import { vPermission } from '@/directives'
-import { PurchaseService } from '@/hook/channel/usePurchase'
-import { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
-import { PurchaseEntity } from '@/model/channel/purchase/PurchaseEntity'
-import { PurchaseDetailEditor } from '.'
+import { DialogUtil, FeedbackUtil } from '@/framework'
+import { KPurchaseService } from '@/hook/channel/usePurchase'
+import { PurchaseDetailEntity as PurchaseDetail } from '@/model/channel/purchase/PurchaseDetailEntity'
+import PurchaseDetailEditor from './detailEditor.vue'
 
-const props = defineProps(DialogProps.withParam(new PurchaseEntity()))
+/**
+ * # 采购单编辑器（F4 批 5 · 新底座）
+ *
+ * 主表单（单号 + 采购事由）由 `KFormDialog` 按 `@KForm` 元数据渲染，
+ * 明细数组放在 `#extra` 里用 `KDetailTable` 渲染（尚未提交给后端，没有服务/分页/搜索）。
+ *
+ * 三条业务判据逐条保真：
+ * 1. **明细为空不发请求**（旧版 `FeedbackUtil.toastWarning('请添加明细后再提交')`，
+ *    本批统一到与 wms 相同的 `ElMessage` 口径 —— 文案不变）；
+ * 2. **明细增删要权限**：旧版 `v-permission="[add, update]"`，这里挂在 `KDetailTable` 的
+ *    `row-actions.permission` 与「添加明细」按钮上（数组语义 = 满足其一即可，与指令同口径）；
+ * 3. **删明细二次确认**（旧文案「是否删除选中行的采购明细？」）。
+ *
+ * 明细本身由 `PurchaseDetailEditor` 编辑：选物料 + 选供应商时会去查「该物料 × 该供应商」
+ * 的专属采购价（`purchasePrice/getByMaterialAndSupplier`），查不到回退物料的参考报价。
+ */
+const props = defineProps<{
+  modelValue: boolean
+  /** 编辑的记录 id（不传为新增） */
+  id?: number | null
+}>()
 
-const {
-  title,
-  formData,
-  rules,
-  formRef,
-  isLoading,
-  onSubmit,
-} = useEditor(props, PurchaseService, {
-  afterGetDetail(detailData) {
-    return detailData
-  },
-  beforeSubmit(submitData) {
-    if (submitData.details.length === 0) {
-      FeedbackUtil.toastWarning('请添加明细后再提交')
-      return null
-    }
-    return submitData
-  },
-})
+const emit = defineEmits<{
+  (event: 'update:modelValue', value: boolean): void
+  (event: 'saved'): void
+}>()
 
-async function addDetail() {
-  const detail: PurchaseDetailEntity = await DialogUtil.show(PurchaseDetailEditor)
-  formData.value.details.push(detail)
+const form = ref<Record<string, unknown>>({})
+const details = computed<PurchaseDetailEntity[]>(() => (form.value.details ?? []) as PurchaseDetailEntity[])
+
+function onLoaded(next: Record<string, unknown>) {
+  next.details ??= []
+  form.value = next
 }
 
-async function deleteDetail(index: number) {
-  await FeedbackUtil.confirmWarning('是否删除选中行的采购明细？')
-  formData.value.details.splice(index, 1)
+async function addDetail() {
+  const detail = await DialogUtil.show<PurchaseDetailEntity>(PurchaseDetailEditor, new PurchaseDetail())
+  if (detail) {
+    details.value.push(detail)
+  }
+}
+
+async function removeDetail(row: PurchaseDetailEntity) {
+  const index = details.value.indexOf(row)
+  if (index < 0) {
+    return
+  }
+  await FeedbackUtil.confirmWarning('是否删除选中行的采购明细？', '删除明细')
+  details.value.splice(index, 1)
+}
+
+function beforeSubmit(payload: Record<string, unknown>) {
+  if (!(payload.details as unknown[] | undefined)?.length) {
+    FeedbackUtil.toastWarning('请添加明细后再提交')
+    return null
+  }
+  return payload
 }
 </script>
 
 <template>
-  <ADialog
-    :form-ref="formRef"
-    :loading="isLoading"
-    :title="title + getModelName(PurchaseEntity)"
-    height="80%"
-    width="80%"
-    @cancel="onCancel"
-    @confirm="onSubmit"
+  <KFormDialog
+    :id="props.id"
+    :model-value="props.modelValue"
+    :before-submit="beforeSubmit"
+    :columns="2"
+    :service="KPurchaseService"
+    title="采购单"
+    width="900px"
+    @closed="emit('update:modelValue', false)"
+    @loaded="onLoaded"
+    @saved="emit('saved')"
+    @update:model-value="value => emit('update:modelValue', value)"
   >
-    <el-form
-      ref="formRef"
-      :model="formData"
-      :rules="rules"
-      label-width="120px"
-      @submit.prevent
-    >
-      <AGroup
-        :column="2"
-        title="采购单"
-      >
-        <AFormField field="billCode" />
-        <AFormField
-          field="reason"
-          style="width: 100%"
+    <template #extra>
+      <div class="purchase-editor__details">
+        <div class="purchase-editor__head">
+          <span class="purchase-editor__title">采购明细</span>
+          <ElButton
+            v-permission="[Permissions.Channel.Purchase.add, Permissions.Channel.Purchase.update]"
+            link
+            type="primary"
+            @click="addDetail"
+          >
+            添加明细
+          </ElButton>
+        </div>
+
+        <KDetailTable
+          :entity="PurchaseDetail"
+          :exclude="['createTime', 'updateTime']"
+          :row-actions="[{
+            label: '删除',
+            danger: true,
+            permission: [Permissions.Channel.Purchase.add, Permissions.Channel.Purchase.update],
+            handler: removeDetail,
+          }]"
+          :rows="details"
+          empty-text="还没有明细，点「添加明细」选一条物料"
         />
-      </AGroup>
-      <AGroup title="采购明细">
-        <ATable
-          :column-list="
-            getTableConfigList(PurchaseDetailEntity).filter((item) => !['createTime'].includes(item.key))
-          "
-          :data-list="formData.details"
-          :entity="PurchaseDetailEntity"
-          hide-delete
-          hide-edit
-        >
-          <template #addButton>
-            <AButton
-              v-permission="[Permissions.Channel.Purchase.add, Permissions.Channel.Purchase.update]"
-              icon="ADD"
-              @click="addDetail()"
-            >
-              添加{{ getFieldLabel(PurchaseEntity, 'details') }}
-            </AButton>
-          </template>
-          <template #customRow="{ index }">
-            <AButton
-              v-permission="[Permissions.Channel.Purchase.add, Permissions.Channel.Purchase.update]"
-              danger
-              link
-              @click="deleteDetail(index)"
-            >
-              删除
-            </AButton>
-          </template>
-        </ATable>
-      </AGroup>
-    </el-form>
-  </ADialog>
+      </div>
+    </template>
+  </KFormDialog>
 </template>
+
+<style lang="scss" scoped>
+.purchase-editor__details {
+  margin-top: 8px;
+}
+
+.purchase-editor__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.purchase-editor__title {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+</style>

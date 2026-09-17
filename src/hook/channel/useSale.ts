@@ -1,24 +1,4 @@
-import type { BillAuditRequest, BillRejectRequest } from '@/api/channel/types'
-import { useMutation, useQueryClient } from '@tanstack/vue-query'
-import { saleApi } from '@/api/channel'
-
 // F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`。
-// 销售单及其明细的 CRUD 走 airpower 的 Service 类，由本 hook 模块统一转发。
-export { SaleDetailService } from '@/model/channel/sale/SaleDetailService'
-export { SaleService } from '@/model/channel/sale/SaleService'
-
-export function useSaleAudit() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (data: BillAuditRequest) => saleApi.audit(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['channel:sale'] }) },
-  })
-}
-
-export function useSaleReject() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (data: BillRejectRequest) => saleApi.reject(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['channel:sale'] }) },
-  })
-}
+// F4 批 5：销售单切到新底座；审核 / 驳回走 `AbstractBillService`
+// （旧 `useSaleAudit` / `useSaleReject` 两个 mutation 已删，口径与采购单一致）。
+export { KSaleService } from '@/model/channel/sale/KSaleService'

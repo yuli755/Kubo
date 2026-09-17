@@ -11,23 +11,25 @@
 | **F2 第二批** | `KPanel` / `KSelector` / `KDetail` + `useDetail`、树表（`useTable({ tree })` + KTable 树渲染）、单元格与金额格式化（`framework/cell.ts`、`format.ts`）、字典兼容 airpower 枚举（`getEnumItems/getEnumLabel/getEnumColor`） | ✅ 本轮 |
 | **批 1** | `factory`（仓库 / 生产单元，树表）+ `index` 首页 | ✅ 本轮 |
 | **批 0A** | 应用外壳（旧壳 `AFrame` 分支 + `VITE_LEGACY_SHELL` 开关一起删）、`KDialog`、两个单据弹窗（`BillAddFinishDialog`/`BillRejectDialog`）、`BillAuditOrReject` | ✅ 本轮 |
-| **批 0B（前置件已就位）** | `BillFormCode` / `BillFormMoreDetail` / `hook/billTable/*`、`UserCard` + `component/user/*`、`router/appRouter.ts` | ⬜ 上传组件已于本轮补齐（见 §三 3.6），0B 可开工；`appRouter.ts` 仍等批 6 之后（F5） |
+| **批 0B（已消解）** | ~~`BillFormCode` / `BillFormMoreDetail` / `hook/billTable/*`~~、`UserCard` + `component/user/*`、`router/appRouter.ts` | ✅ 前三件被批 5 复核为**无消费者**（真实消费者是旧 airpower 单据编辑器），随批 5 一并删除；`UserCard` + `component/user/*` 依赖 `AImage`，与 `appRouter.ts` 同归 F5（见 §3.9 第 2 条） |
 | **批 2** | `asset`：物料 / 合同（列表 + 详情 + 参与方）、框架层补 3 件（异步导出、日期控件、单元格插槽） | ✅ |
 | **批 3** | `personnel`：部门（树）/ 角色（+菜单与权限授权）/ 用户（部门树筛选 + 角色部门多选），连带改 `factory/structure` 的部门选择器 | ✅ 本轮（§3.7） |
 | **批 4** | `wms`：入库 / 出库 / 移库 / 库存（**单据闭环最完整的一域**），连带删掉 `factory/storage` 的仓库选择器 | ✅ 本轮（§3.8） |
+| **批 5** | `channel`：客户 / 供应商 / 采购 / 销售 / 采购价 / 销售价（**旧链最乱、并线最多的一域**：typed client + 旧服务 + 页面直连三层并存），连带重指 `wms ↔ channel` 的两个详情接缝 | ✅ 本轮（§3.9） |
 
-**本轮实测校验（批 4 · wms）**：`vue-tsc` 干净、`eslint .` 全量干净、`pnpm build` 通过、体积 首屏 **368.2/450 KB** · 总体 **732.6/900 KB**（总体比批 3 涨 9.8 KB：新增 `KDetailTable` 与单据服务基类，明细表与三个作业弹窗都在懒加载分包里）；
-`pnpm check` exit=0：**50 文件 / 441 用例**全绿（新增 `wmsDomain.spec.ts` 14 例：零 airpower、四页底座、元数据与 `@KType`、单据四动作端点载荷、审核/驳回/作业交互、演示数据与「点开详情看得见明细」的端到端）；airpower 生产足迹 **135 → 120**。
+**本轮实测校验（批 5 · channel）**：`vue-tsc` 干净、`eslint .` 全量干净、`pnpm build` 通过、`pnpm check` exit=0 —— **51 文件 / 457 用例**全绿，体积 首屏 **367.9/450 KB** · 总体 **735.7/900 KB**（总体 +3.1 KB：channel 六页走懒加载分包；首屏 −0.3 KB 与删除的三个 0B 死件相抵）；
+airpower 生产足迹 **120 → 92**。新增 `channelDomain.spec.ts` 13 例（见 §3.9 验收表）+ `sharedComponents.spec.ts` 追加 2 例（命令式弹窗的应用上下文回归）。
+**批 4 复核值（保留对照）**：50 文件 / 441 用例、首屏 368.2 KB、总体 732.6 KB、airpower 120。
 **批 3 复核值（保留对照）**：49 文件 / 426 用例、首屏 369.7 KB、总体 722.8 KB。
 
 ## 一、现状数字（实测）
 
 | 范围 | 文件数 | 说明 |
 | --- | --- | --- |
-| `import ... from '@airpower/web'` 的文件 | **135** | 生产代码（口径见 `pnpm airpower`（`scripts/find-airpower.mjs`）：剥注释后的真实 import；2026-09 批 3 后实测。历史上 177/160/156/159/145 来自 `grep` 或不同批次，口径不同，往后统一用该脚本） |
-| 视图页面（`src/view/console/**`） | **54** | 6 个域还有 airpower 页面：channel 20 · wms 16 · system 16 · asset 1（物料选择器，wms/channel 共用）· factory 1（仓库选择器，wms 在用）· **personnel 0** |
-| 共享组件 / hook / 路由 | **11** | `src/component/{bill,user}/*`（5）、`UserCard`、`hook/useTanStackTable`、`hook/billTable/*`（2）、`router/appRouter`、`view/error.vue` |
-| 模型实体（`src/model/**`） | 64 | 只用到装饰器与枚举，随域迁移时同步换 `KEntity`（personnel 三实体保留双注册，等 F5） |
+| `import ... from '@airpower/web'` 的文件 | **92** | 生产代码（口径见 `pnpm airpower`（`scripts/find-airpower.mjs`）：剥注释后的真实 import；批 5 后实测。历史上 177/160/156/159/145/135/120 来自 `grep` 或不同批次，口径不同，往后统一用该脚本） |
+| 视图页面（`src/view/**`） | **17** | 只剩 **system 16**（batch 6 收口）+ `view/error.vue`；五个业务域全部 0（asset / channel / wms / factory / personnel） |
+| 共享组件 / hook / 路由 | **8** | `src/component/{user/*,UserCard}`（4）、`base/{BaseEntity,AbstractBaseService,bill/*}`（4）、`hook/useTanStackTable`、`router/appRouter`、`config/airpower-bootstrap`、`utils/airpowerCompat`（`hook/billTable/*` 与 `component/bill/*` 已于批 5 删除） |
+| 模型实体（`src/model/**`） | 63 | 只用到装饰器与枚举：视图迁完后页面已不再读这些装饰器，**保留双注册只为 airpower 的 `BaseEntity`/转换器仍在用**，F5 一次性摘掉 |
 
 组件级用量（按**文件数**，同一文件可能同时用多个）。右列是**本轮补齐后**的真实状态：
 
@@ -295,6 +297,35 @@ airpower 生产足迹 **135 → 120**（净 −15）：wms 四个子域 16 个�
 > ⚠️ **一条记录在案的边界**：`isDisabled`（本实体的状态列）与 `KEntity.isPublished`（基类的状态列）在语义上是同一件事。
 > 三个实体目前都还继承 airpower 的 `BaseEntity`，所以不冲突；**将来切 `KEntity` 时必须二选一**，
 > 域门禁里已经用一条断言把这个口径钉住了（同时声明两者即失败）。
+
+### 3.9 批 5：channel 域（本轮完成）
+
+**范围**：客户 / 供应商 / 采购 / 销售 / 采购价 / 销售价六个子域，含 6 个列表页、采购与销售的编辑器 + 明细编辑器 + 详情 + 作业弹窗、5 个明细/旧编辑器删除、`wms ↔ channel` 的两个详情接缝函数重指。
+
+**这一批没有新增框架件**——批 4 建好的 `AbstractBillService`（审核/驳回/作业）与 `KDetailTable` 正好是 channel 要的全部：采购/销售也是"单据"，价目表是普通 CRUD 页。这也验证了批 4 把单据能力收到框架层的判断（否则这里必然要抄第二遍）。
+
+**几个迁移时才暴露的真问题（已修，勿退回去）**
+
+1. **命令式弹窗从来没有接过应用上下文**（本轮最大的一处）：`DialogUtil.show/select/selectList` 把弹窗渲染在**独立容器**里（`framework/feedback.ts` 的宿主），是一棵新的组件树，不继承 `main.ts` 那个 app 的注入；而 `setDialogAppContext` 这个入口**全仓无人调用**。后果是所有命令式弹窗里的 `useQuery` / `usePermissionStore` 直接抛 `No 'queryClient' found in Vue context` —— 异常发生在 `DialogUtil.show()` 内部的 `render()` 里，调用方 `void` 掉就再也看不见，页面表现只是**「点查看没反应」**。
+   批 3/4 的详情弹窗是声明式（`:model-value`）所以没踩到；channel 的「查看」还是命令式，一踩就中。修法：`main.ts` 注册完指令后 `setDialogAppContext(app._context)`，并在 `sharedComponents.spec.ts` 加两条回归（一条真开弹窗验 `useQuery` 能拿到 client，一条钉住 `main.ts` 里那行接线）。
+2. **批 0B 的三件"待迁件"其实没人要**：`component/bill/BillFormCode.vue`、`BillFormMoreDetail.vue`、`hook/billTable/*`。批 5 复核发现它们的真实消费者是**旧 airpower 单据编辑器**（`ABillFormCode` 之类的模板写法），channel 换成 `ElDescriptions` + `@KTable` 元数据渲染后，连测试都只能靠 barre 引用它们——`deadcode:check` 直接点出"没有被任何 import 或路径字符串引用"。故一并删除，0B 就此**消解**（不是"待迁"）。`base/bill/AbstractBaseBillService.ts` 同理（五个实体都已改用 `framework/bill.ts` 的 `AbstractBillService`）。
+3. **模拟数据要跟后端形状对齐**：采购/销售在演示里也要是"单据"（`billCode` + `details[]` + `totalPrice` + `reason`/`rejectReason`），价目表行要有 `price` 与嵌套 `material`/`supplier`/`customer` —— 否则页面看起来"能开但全是空/全是 `-`"，是**形似功能坏**的演示缺口。
+4. **域内旧缺陷顺手修掉（不在迁移范围但挡在路上）**：`SalePriceEntity` 三处（`customerName`/`customerCode` 的取值与标题互换、残留 `materialId` 扁平字段、`customer` 缺 `@Table()`）、`sale/component/editor.vue` 文案两处「采购单/采购明细」、`SaleEntity` 里悬挂与重复的 K 装饰器组（锚点插 K 时留下的空组，`@KForm` 下没有成员）、`SupplierEntity` 的类名仍是 `CustomerEntity`（模板复制残留）。都在 K 侧按后端契约修正，函数签名与端点未动。
+
+**验收**
+
+| 项 | 结果 |
+| --- | --- |
+| channel 域视图与 hook 的 airpower import | **0**（门禁逐文件扫描，域内无例外） |
+| 旧链退场 | `api/channel/*`（4 件）+ 8 个旧服务 + 5 个 barrel 全部 `existsSync === false`；视图不再出现 `useTanStackTable` / 直连 `@/model/**Service` |
+| `pnpm check` | exit=0：**51 文件 / 457 用例**、首屏 **367.9/450 KB**、总体 **735.7/900 KB**、死件 0 / 未引用导出 0 |
+| 单据动作不漂移 | `channelDomain.spec.ts` 13 例：审核二次确认、驳回「填原因 → 再确认」两步与文案（`销售单` 不再写成采购单）、四动作端点与载荷（`addFinish` 载荷=明细+本次数量）、报价查询载荷 `{material:{id}, supplier|customer:{id}}`、价目表脱敏 `blockedSubmit` 仍在 |
+| 元数据与 `@KType` | 六实体列/表单非空、状态与 `rejectReason` 不进表单、明细分层实例化（`constructor.name` + `copyOnlyId`）、销售价 `customer` 递归成 `CustomerEntity` |
+| 演示 | 采购/销售列表 → 点「查看」→ 详情弹窗里出现**真实明细行**（整体走 demo 适配器，同时回归批 4 修的「路径 id 当动作段」） |
+| 接缝 | `channel/{purchase,sale}/component/openDetail.ts` 改指 `@/framework` 的 `DialogUtil`，**wms 出库/入库详情调用方一行未动** |
+
+**删除清单（34 个已跟踪文件）**：8 个旧服务 + `api/channel/*` 4 件 + 5 个 barrel + 7 个旧视图件（customer 详情/编辑器/选择器、supplier 编辑器/选择器、两处 price 编辑器）+ 物料选择器三件（`asset/material/component/{selector.vue,index.ts}` + `MaterialService.ts`）+ `component/bill/{BillFormCode,BillFormMoreDetail}.vue` 与 `component/index.ts` + `hook/billTable/*`（2）+ `base/bill/AbstractBaseBillService.ts`。
+airpower 生产足迹 **120 → 92**（−28 = 重写 16 个文件不再 import + 删除 12 个 airpower 文件）。剩余 92 个里 **36 个是 system 域**（批 6 一次收口），其余是各域实体的双注册装饰器与 F5 拆伞项。
 
 ## 四、批 3~6：按域推进（先小后大，先低风险后高敏感）
 

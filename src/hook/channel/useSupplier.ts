@@ -1,3 +1,3 @@
 // F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`。
-// 供应商的 CRUD 走 airpower 的 Service 类，由本 hook 模块统一转发。
-export { SupplierService } from '@/model/channel/supplier/SupplierService'
+// F4 批 5：供应商切到新底座 `KSupplierService`（采购单/采购价与供应商选择器共用）。
+export { KSupplierService } from '@/model/channel/supplier/KSupplierService'
