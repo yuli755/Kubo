@@ -1,8 +1,7 @@
 /**
  * 共享工具函数
  *
- * 已迁移：
- * - mask.ts：脱敏策略归一化（normalizeMaskPolicy / maskPolicyKeepTail）
+ * - mask.ts：脱敏策略归一化与遮蔽计算（`normalizeMaskPolicy` / `applyMaskPolicy` / `looksMasked`）
  *
  * 未来迁移目标：
  * - 日期 / 金额格式化

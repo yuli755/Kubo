@@ -295,7 +295,8 @@ jobs:
   # 为什么不用 Testcontainers：那要往 pom 里加 testcontainers + mysql-connector 依赖，
   # 本 job 只要一个 service 容器 + mysql CLI，判定的却是同一件事（脚本能否在 MySQL 8 上执行、
   # 是否真幂等、建出来的列是否与脚本一致），而 H2 + schema-test.sql 那份手抄件永远判不出方言问题。
-  # 红线：这里跑的是 docs/database/migration 下的**生产脚本**，绝不拿 schema-test.sql 顶替它。
+  # 红线：这里跑的是 `src/main/resources/db/migration` 下的**生产迁移脚本**（Flyway 版本化，
+  # 2026-09 的 S0 从 `docs/database/migration/` 收编过来），绝不拿 schema-test.sql 顶替它。
   # ============================================================================
   migrations:
     name: Migrations (MySQL 8 dialect / idempotency)
@@ -347,7 +348,7 @@ jobs:
 
           for pass in 1 2; do
             : > "/tmp/err-$pass.txt"
-            for f in SPMS-Server/docs/database/migration/*.sql; do
+            for f in SPMS-Server/src/main/resources/db/migration/*.sql; do
               echo "::group::pass $pass — $f"
               # --force 只为"前置业务表不存在"这一类已知缺口服务：这批脚本假定业务库已存在
               # （框架表 permission/role、业务表 bom/contract… 由 Hibernate ddl-auto 生成，本仓没有它们的建表脚本）。

@@ -1,10 +1,15 @@
+// ⚠️ 认证那一组类型（ChangePasswordRequest / CurrentUserInfo / RefreshToken* / TenantOption）
+// 曾经经 `'./types'` **解析到 `src/api/types.ts`**（TS 里文件优先于同目录文件夹）—— 即实际取的是
+// 脚手架 shim，而不是 `./system/types`。2026-09 删掉那个 shim 后统一回到 `./system/types`。
 import type {
+  ChangePasswordRequest,
   CodeRuleEntity,
   CodeRuleField,
   CodeRuleParam,
   CodeRuleQuery,
   ConfigEntity,
   ConfigQuery,
+  CurrentUserInfo,
   DashboardOverviewItem,
   DataFieldPolicyEntity,
   DataFieldPolicyQuery,
@@ -22,11 +27,14 @@ import type {
   PermissionEntity,
   PermissionQuery,
   PolicyResourceRiskItem,
+  RefreshTokenRequest,
+  RefreshTokenResponse,
   RowPolicyRiskItem,
+  TenantOption,
   UnitEntity,
   UnitQuery,
 } from './system/types'
-import type { ChangePasswordRequest, RefreshTokenRequest, RefreshTokenResponse, TenantOption, UserEntity } from './types'
+
 import { api, request } from './axios'
 
 export const authApi = {
@@ -48,10 +56,13 @@ export const authApi = {
   logout(): Promise<void> {
     return request.post('/user/logout')
   },
+  // ⚠️ 后端**没有** `user/refresh` 端点（2026-09 全仓 grep 过 `SPMS-Server`）。
+  // 目前唯一的调用方是 `stores/user.refreshToken()`，而它没有任何调用方 ——
+  // 即"刷新令牌"这条链路是悬空的：既到不了后端，也没被触发。重写登录态时一起处置。
   refreshToken(data: RefreshTokenRequest): Promise<RefreshTokenResponse> {
     return request.post('/user/refresh', data)
   },
-  getCurrentUser(): Promise<UserEntity> {
+  getCurrentUser(): Promise<CurrentUserInfo> {
     return request.post('/user/getMyInfo')
   },
   getMyTenantList(): Promise<TenantOption[]> {

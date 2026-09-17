@@ -1,6 +1,6 @@
 import type { MaskPolicy, MaskType } from '../../types/mask'
 import { describe, expect, it } from 'vitest'
-import { applyMaskPolicy, looksMasked, maskPolicyKeepTail, normalizeMaskPolicy } from '../mask'
+import { applyMaskPolicy, looksMasked, normalizeMaskPolicy } from '../mask'
 
 /**
  * # 列级脱敏策略归一化 · 单元测试
@@ -35,22 +35,6 @@ describe('normalizeMaskPolicy', () => {
   it('需脱敏时返回 masked=true 且透传 REPLACE 表达式', () => {
     const result = normalizeMaskPolicy({ maskType: 'REPLACE', maskExpression: '已隐藏', allowPlaintext: false })
     expect(result).toMatchObject({ masked: true, maskType: 'REPLACE', maskExpression: '已隐藏', allowPlaintext: false })
-  })
-})
-
-describe('maskPolicyKeepTail', () => {
-  it('fULL / REPLACE 不保留尾位', () => {
-    expect(maskPolicyKeepTail({ masked: true, maskType: 'FULL' })).toBe(0)
-    expect(maskPolicyKeepTail({ masked: true, maskType: 'REPLACE' })).toBe(0)
-  })
-
-  it('pARTIAL 保留 1 位（与后端 ColumnMaskingService.maskPartial 一致）', () => {
-    expect(maskPolicyKeepTail({ masked: true, maskType: 'PARTIAL' })).toBe(1)
-  })
-
-  it('空策略 → 0', () => {
-    expect(maskPolicyKeepTail(null)).toBe(0)
-    expect(maskPolicyKeepTail({ masked: false, maskType: 'PARTIAL' })).toBe(0)
   })
 })
 

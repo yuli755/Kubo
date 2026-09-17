@@ -296,18 +296,9 @@ const RESOURCE_SPECS: Record<string, ResourceSpec> = {
     namePool: ['登录成功', '修改用户信息', '审核入库单', '导出库存'],
     total: 240,
   },
-  app: {
-    label: '开放应用',
-    codePrefix: 'APP',
-    statusPool: [1, 2],
-    namePool: ['MES 边缘网关', 'WMS 手持终端', 'BI 数据同步'],
-  },
-  notify: {
-    label: '通知',
-    codePrefix: 'NT',
-    statusPool: [1, 2],
-    namePool: ['库存低于安全线', '设备离线告警', '单据审核提醒'],
-  },
+  // 注：`app`（开放应用）与 `notify`（通知）两个演示规格已随「open 域 / 通知模块」删除
+  // （后端 `module/` 下也没有对应模块），2026-09 清理时一并删掉 —— 留着只会让 mock 生成
+  // 出没有任何页面消费的假数据。
 }
 
 /**

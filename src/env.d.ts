@@ -8,15 +8,9 @@ declare module '*.vue' {
 }
 
 interface ImportMetaEnv extends Readonly<Record<string, string | boolean>> {
-  /**
-   * ### 环境名称
-   */
-  VITE_APP_NAME: string
-
-  /**
-   * ### API根路径
-   */
-  VITE_APP_API_URL: string
+  // 注：原先这里声明了 `VITE_APP_NAME` / `VITE_APP_API_URL`（配套根目录 `.env.production`）。
+  // 全仓没有任何代码读取它们（API 地址由 `vite.config.mts` 的 `/api` 代理与 nginx 承担），
+  // 2026-09 清理时随 `.env.production` 一并删除 —— 需要环境变量时**先写读取代码，再补声明**。
 
   /**
    * ### 是否开发模式

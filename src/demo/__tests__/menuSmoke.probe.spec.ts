@@ -34,6 +34,37 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
   })) as unknown as typeof window.matchMedia
 }
 
+/**
+ * ## jsdom 补丁：airpower `ATable` 的滚动容器（**F5 删 airpower 时一并删除**）
+ *
+ * `@airpower/web` 的表组件在数据变化时执行（dist/main.js 内 `watch(dataListRef)`）：
+ *
+ * ```js
+ * const table = document.getElementById(tableId)
+ * const bodyWrap = table?.querySelector('.el-scrollbar__wrap')
+ * bodyWrap.scrollTop = 0      // ← `table` 加了可选链，`bodyWrap` 没加
+ * ```
+ *
+ * EP 的 `ElTable` **只有在设置了 height/maxHeight 时**才渲染 `.el-scrollbar__wrap`，
+ * 而测试里（jsdom，无布局）拿不到它 → 每个用到该表组件的页面都会在 `nextTick` 里抛
+ * `TypeError: Cannot set properties of undefined (setting 'scrollTop')`，
+ * 被 vitest 记成**未处理拒绝**：用例全绿但 `pnpm test` / `pnpm check` 退出码 1。
+ * 真实浏览器里这个容器一定存在，所以它是**第三方在测试环境下的缺陷**，不是本仓的问题。
+ *
+ * 处置：查该选择器、查不到时返回一个只带 `scrollTop` 的无害占位 —— 只影响这一条选择器，
+ * 本仓代码从不读 `.el-scrollbar__wrap`，因此不会掩盖本仓自己的错误。
+ * **F5（airpower 退场）后必须删掉这一段。**
+ */
+const FAKE_SCROLL_WRAP = { scrollTop: 0 } as unknown as Element
+const realQuerySelector = Element.prototype.querySelector
+Element.prototype.querySelector = function patchedQuerySelector(this: Element, selector: string) {
+  const found = realQuerySelector.call(this, selector)
+  if (found || selector !== '.el-scrollbar__wrap') {
+    return found
+  }
+  return FAKE_SCROLL_WRAP
+} as typeof Element.prototype.querySelector
+
 const views = import.meta.glob('/src/view/**/*.vue') as Record<string, (() => Promise<{ default: unknown }>) | undefined>
 
 /** 渲染期抛错（判失败） */
@@ -91,6 +122,12 @@ async function mountPage(pinia: Pinia, path: string, component?: string) {
   const Comp = (await loader()).default
 
   const wrapper = mount(Comp as never, {
+    // ⚠️ 必须 `attachTo`：airpower 的表组件在数据变化后靠
+    // `document.getElementById(tableId)` 找回自己的表格 DOM 再重置滚动条。
+    // 不挂到 document 上时它拿到 null，随即 `bodyWrap.scrollTop = 0` 抛 TypeError
+    // （`bodyWrap` 那行漏了可选链）→ 39 个未处理拒绝 → `pnpm test` 退出码 1。
+    // 挂上去还有一个附带好处：探针更接近真实渲染环境（能被 `document.getElementById` 找到）。
+    attachTo: document.body,
     global: {
       plugins: [
         pinia,
@@ -152,7 +189,7 @@ describe('探针 · 全菜单逐页冒烟', () => {
           const noise = warnings.length ? `（告警 ${warnings.length} 条，例：${warnings[0].slice(0, 140)}）` : ''
           report.push(`✅ ${page.name} (${page.path}) [${html.length}]${noise}`)
         }
-        wrapper.unmount()
+        // 实验：暂时不卸载
       }
       catch (error) {
         failed.push(page.name)

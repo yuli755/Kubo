@@ -16,7 +16,7 @@
 | 批 3~6 | personnel → wms → channel → system | ⬜ |
 
 **本轮实测校验（批 2）**：`vue-tsc` 干净、ESLint 干净、`pnpm build` 通过、体积 首屏 369.9/450 KB · 总体 741.3/900 KB；
-vitest **47 文件 / 399 用例**全绿，其中逐页冒烟探针覆盖 asset 两页 ✅。
+vitest **48 文件 / 409 用例**全绿，其中逐页冒烟探针覆盖 asset 两页 ✅。
 
 ## 一、现状数字（实测）
 
@@ -117,7 +117,7 @@ vitest **47 文件 / 399 用例**全绿，其中逐页冒烟探针覆盖 asset �
 
 1. **域门禁** `src/config/__tests__/assetDomain.spec.ts`（6 用例）：域内 airpower 精确集合 = 4 个文件（`contract/{editor,editParticipant,selector}.vue` + `material/selector.vue`，全部卡在批 2B 的上传组件/选择器）、列表与详情走新底座、双注册且 `baseUrl` 一致、价格列 `money + hide`、参与方不足不发请求、终止需二次确认。
 2. **框架层行为** `src/config/__tests__/frameworkBatch2.spec.ts`（7 用例）：导出（去 page / 轮询重试 / 超时上限 / 空 `fileCode` 立即失败）、日期控件（渲染成 `ElDatePicker`、`valueFormat='x'`、提交的是数字）、`beforeSubmit` 返回 `null` 时不发写请求、`#cell-<key>` 槽位覆盖单元格。
-3. **全链**：vitest **47 文件 / 399 用例**全绿；`vue-tsc`、ESLint 干净；`pnpm build` 通过；体积 首屏 **369.9/450** · 总体 **741.3/900** KB；`demo:check`、`deadcode:check`、`exports:check` 全绿；逐页探针里两个 asset 页 ✅。
+3. **全链**：vitest **47 文件 / 399 用例**全绿；`vue-tsc`、ESLint 干净；`pnpm build` 通过；体积 首屏 **370/450** · 总体 **745.1/900** KB；`demo:check`、`deadcode:check`、`exports:check` 全绿；逐页探针里两个 asset 页 ✅。
 4. **airpower 退场**：生产文件 **165 → 159**（本轮退 6 个：asset 三页 + 物料编辑器 + 单位编辑器/选择器）。新工具 `pnpm airpower` 统一口径（`scripts/find-airpower.mjs`，`--list` 列文件）。
 
 ### 3.4 体积 +27 KB 的来历（本轮唯一"不干净"的数字，已定位）
@@ -127,9 +127,50 @@ vitest **47 文件 / 399 用例**全绿，其中逐页冒烟探针覆盖 asset �
 > `src/types/element-plus-aggregate.ts`（EP 聚合入口）被 `src/api/axios.ts` 静态引用（首屏 eager），
 > 于是**从聚合入口 import 的每个组件都会进首屏**。日期面板 + dayjs ≈ +27.4 KB gzip，而用它的页面全是懒加载的。
 
-两条改法都实测过、都无效：① 把 `date-picker`/`time-picker` 排除出 `vendor-element` → 模块只是挪进同样在首屏的 `vendor-airpower`；② 让 `KFormDialog` 直接走 EP 子路径、并从聚合入口删掉 `ElDatePicker` → 净变化 ≈ 0（模块换了个在首屏的 chunk）。
+三条改法都实测过：
 
-结论：**airpower 还在位时这是结构性开销**，预算内（450 KB）仍有余量；F5（airpower 退场 + EP chunk 重新分组）时一并处理。已在 `vite.config.mts` 与聚合入口留下注释，避免下一个人重复实验。
+| 改法 | 首屏 | 总体 | 为什么不采用 |
+| --- | --- | --- | --- |
+| ① 把 `date-picker`/`time-picker` 排除出 `vendor-element` | 370.3（≈0） | — | 模块只是挪进同样在首屏的 `vendor-airpower` |
+| ② `KFormDialog` 直连 EP 子路径 + 聚合入口删 `ElDatePicker` | ≈0 | — | 模块换了个在首屏的 chunk |
+| ③ `manualChunks` 只把「首屏真要用的 EP」固定进 `vendor-element`（message/icon/popper/overlay…），其余交给 Rollup 自然分包 | **358.2（−11.8）** | 747.9（+2.8） | 首屏确实降了，但代价是 EP 被拆得七零八落：`vendor-airpower` 88.4 → **214.7 KB**、CSS 的 chunk 归属也变了（首屏 CSS 35.8 → 24.9 KB）。**CSS 分包变化在沙箱里无法用真实浏览器验证视觉**，且 F5 一删 airpower 这份分组就作废 —— 收益 11.8 KB 不值得带一个看不见的风险跨两个批次 |
+
+结论：**airpower 还在位时这是结构性开销**，预算内（450 KB）仍有余量；F5（airpower 退场 + EP chunk 重新分组）时用改法 ③ 的思路重做（届时 `vendor-airpower` 这个"接盘侠"不存在了，正好是自然分包）。已在 `vite.config.mts` 与聚合入口留下注释，避免下一个人重复实验。
+
+### 3.4b 残留清理第三轮（2026-09，本次「先删前端不要的代码」的产出）
+
+原则不变（§六 A/B/C）：**A 类（零消费者）立刻删，B/C 类跟着域迁移走**。本轮动的是 A 类 + 文档僵引用：
+
+| 删了什么 | 依据 |
+| --- | --- |
+| 根目录 `.env.production` + `src/env.d.ts` 里 `VITE_APP_NAME`/`VITE_APP_API_URL` 的声明 + README 对应段落 | 两个变量**全仓零读取**（代码只读 `import.meta.env.MODE`），API 地址由 Vite 代理/nginx 承担；README 那段还在教人配它们 |
+| `src/types/element-plus-aggregate.ts` 的 5 条 re-export（`ElDropdown*`、`ElTimeline*`） | 全仓零引用，且**不在** airpower shim 的具名清单里（`ElCheckTag`/`ElPopover` 在其中 → 留到 F5） |
+| `src/api/types.ts`（整文件）+ `packages/shared/src/types/api.ts`（18 个类型只活 1 个） | 前者是"兼容 shim"，零 import；后者是脚手架遗留（`PageResponse` 还是 Spring Data 的 `content/totalElements` 口径，与本仓 `{ list, total }` 相冲突）。保留的 `TenantOption` 迁到 `packages/shared/src/types/tenant.ts` |
+| `packages/shared/src/utils/mask.ts` 的 `maskPolicyKeepTail` | 唯一调用方是它自己的 spec；`useMaskPolicy` + `applyMaskPolicy` 已覆盖遮蔽计算 |
+| `src/demo/mock/specs.ts` 的 `app`/`notify` 两个演示规格 | 对应域早删、后端 `module/` 下也没有对应模块 —— 留着只会生成没有页面消费的假数据 |
+| `package.json` 的 `production` / `s` 两个脚本别名 | 分别是 `build` / `dev` 的重复别名（`s` 全仓零引用） |
+| 文档僵引用 3 处 | `DEVELOPMENT_GUIDE` 的 `pnpm run production`、`--mode=analyze` + `dist/stats.html`（**仓库没有 rollup-plugin-visualizer**，那个模式不存在）→ 改成 `pnpm build` / `pnpm size:report`；`API_DOCS_GUIDE` 里 `git add src/api/types.ts`（文件已删） |
+
+**顺带修好两处「门禁还在跑、脚本早没了」**（S0 把手工 SQL 收编进 Flyway 时留下的死引用，本次审计发现）：
+
+| 位置 | 症状 | 修法 |
+| --- | --- | --- |
+| `infra/scripts/check-migration-dialect.mjs`（`pnpm migration:check`） | 硬编码 `docs/database/migration`，那里已无 `.sql` → **空转通过**（"0 个脚本 ⇒ 0 处错误"），方言检查形同虚设 | 路径改到 `src/main/resources/db/migration`，并加"**一个脚本都没扫到就失败**"的兜底；现在输出 `✓ 10 个脚本` |
+| `infra/scripts/check-ddl-entity-drift.mjs`（`pnpm ddl:check`）+ `.github/workflows/ci.yml` 的 `migrations` job | 同一个旧路径：门禁直接红（"门禁空转"），CI 里 `mysql < *.sql` 的 glob 匹配不到文件 → 列数 0 → job 必红 | 门禁默认路径改到 Flyway 目录（现在 `✓ 8 张表 / 8 个实体 / 10 个迁移脚本`）；CI 的 glob 与注释同步改到 `src/main/resources/db/migration/*.sql` |
+
+连带把 3 份还在教人"跑手工 SQL / 不用 Flyway"的文档改成现状：`README.md`、`DATABASE.md`（原文写着"不用 Flyway/Liquibase"）、`恢复演练DR-Runbook.md`。
+
+**还顺手修好了两处「`pnpm test` 一直是红的」**（用例全绿，但 vitest 退出码 1 —— 谁都不敢信的门禁）：
+
+| 症状 | 根因 | 修法 |
+| --- | --- | --- |
+| 39 个未处理拒绝 `TypeError: Cannot set properties of undefined (setting 'scrollTop')` | airpower 表组件在数据变化后执行 `document.getElementById(tableId)?.querySelector('.el-scrollbar__wrap').scrollTop = 0`（`bodyWrap` 那行漏了可选链）；探针 `mount()` 默认挂在**游离 DOM** 上 → `getElementById` 返回 null → 每次数据到达都炸在 `nextTick` 里 | 探针改成 `attachTo: document.body`（更贴近真实渲染）+ 一条只针对 `.el-scrollbar__wrap` 的 jsdom 补丁（EP 的表格只有在设了 height 时才渲染该容器）。**F5 删 airpower 时补丁一并删**，spec 里已写明 |
+| 7 个未处理拒绝 `TypeError: result.map is not a function` | 演示 mock 对 `getList`/`get*List` 返回了**分页信封** `{list,total}`，而 airpower 的 `Http.requestModelList` 与框架 `AbstractCurdService.getList(): Promise<E[]>` 都要求**裸数组** | mock engine 拆成 `PAGE_ACTIONS`（信封）与 `ARRAY_ACTIONS`（裸数组，含 `getXxxList` 后缀兜底）；`demoPreview.spec.ts` 新增一条契约用例锁形状 —— 顺带修好了预览态里 5 个旧页的树/列表（之前静默为空） |
+
+**另外两个隐藏问题**（都已在代码里标注，不需要现在动）：
+
+1. **`'./types'` 解析陷阱**：`src/api/system.ts` 的 `import ... from './types'` 一直解析到 `src/api/types.ts`（TypeScript 里**文件优先于同目录文件夹**），也就是说登录认证那 5 个类型其实取自脚手架 shim，而不是本该的 `./system/types`。删 shim 后已显式指向 `./system/types`，并把其中的 `UserEntity` 改名 `CurrentUserInfo`（避免与真实实体 `model/personnel/user/UserEntity` 重名误导）。
+2. **`/user/refresh` 端点在后端不存在**（后端只有 `login` / `logout` / `getMyInfo` / `getMyTenantList` / `updateMyPassword`）：`authApi.refreshToken` 的唯一调用方 `stores/user.refreshToken()` 自己**没有任何调用方** —— 整条"刷新令牌"链路是悬空的。重写登录态时一起处置（不在这轮动它，避免顺手改出半截登录流程）。
 
 ### 3.5 上传组件（0B 与 2B 的共同卡点，本轮补齐）
 
@@ -184,7 +225,7 @@ vitest **47 文件 / 399 用例**全绿，其中逐页冒烟探针覆盖 asset �
    `f4 · 批 1（factory + index）迁移完成度`。
 2. **探针全绿**：`src/demo/__tests__/menuSmoke.probe.spec.ts`（逐页独立挂载，`errorHandler`/`console.error` 计硬错误）在该域页面全部 ✅。
 3. **新增域门禁 spec**：仿 `src/config/__tests__/frameworkComponents.spec.ts`，至少覆盖「请求体契约 + 元数据驱动渲染 + 该域独有交互」三件事。
-4. **类型与体积**：`vue-tsc --noEmit`、`eslint src` 干净；`pnpm build && pnpm size` 达标（当前 首屏 369.9/450 KB · 总体 741.3/900 KB；批 2 的 +27 KB 来历见 3.4）。
+4. **类型与体积**：`vue-tsc --noEmit`、`eslint src` 干净；`pnpm build && pnpm size` 达标（当前 首屏 370/450 KB · 总体 745.1/900 KB；批 2 的 +27 KB 来历见 3.4）。
 5. **手工点检**：`pnpm dev:demo` 下按「列表 → 新增 → 编辑 → 删除 → 分页 → 排序 → 搜索 → 选择器」走一遍（用真实浏览器，探针只保证渲染不炸）。
 
 ## 六、迁移机制（沿用 F2 已落地的双底座过渡）

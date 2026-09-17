@@ -178,7 +178,7 @@ const { data } = await permissionApi.getTree()
 ```bash
 # 生成的类型文件不提交 (gitignore 已配置)
 # 只需提交手动编写的业务代码
-git add src/api/system.ts src/api/types.ts
+git add src/api/system/types.ts
 git commit -m "feat: 权限管理页面"
 ```
 

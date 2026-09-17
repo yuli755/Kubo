@@ -1,8 +1,9 @@
 import type { IPayload } from '@airpower/web'
 // ⚠️ 过渡态双注册：同一个字段同时打 airpower 与本仓 `@/framework` 的装饰器。
-// 原因：存量 `UnitSelector`（airpower ASelector）读 airpower 的元数据注册表，
-// 新底座页面（KTable/KFormDialog）读 `@/framework` 的注册表 —— 两边都得看见列与表单配置。
-// F4 按域迁移时删掉上面这行 airpower 装饰器即可（届时 UnitSelector 一并删除）。
+// 原因：`MaterialEntity.unit` 这类**跨域嵌套字段**仍会被存量 airpower 页面/元数据注册表读到，
+// 而新底座页面（KTable/KFormDialog）读 `@/framework` 的注册表 —— 两边都得看见列与表单配置。
+// 注意：不要再拿 `UnitSelector` 当理由（该组件已在批 2 删除）；真正的原因是嵌套引用，
+// 等 F5 删掉 airpower 依赖时，上面的 airpower 装饰器 + `BaseEntity` 基类一并换掉。
 import { Field, Form, Model, Search, Table } from '@airpower/web'
 import { BaseEntity } from '@/base/BaseEntity'
 import {

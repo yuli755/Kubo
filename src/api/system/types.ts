@@ -490,3 +490,49 @@ export interface DashboardOverviewItem {
   /** 当前用户可见行数 */
   count: number
 }
+
+// ──────────────────────────────────────────
+// 认证 / 会话类型
+//
+// origin：`src/api/types.ts`（那个"兼容 shim"在 2026-09 残留清理时整文件删除，
+// 它当时的 5 条 re-export 里只有 `TenantOption` 有真实消费者，其余 4 条迁到这里）。
+// `TenantOption` 是跨应用共享类型，仍然由 `@kubo/shared` 承载，这里只做转发。
+// ──────────────────────────────────────────
+
+/** 刷新 Token 请求 */
+export interface RefreshTokenRequest {
+  refreshToken: string
+}
+
+/** 刷新 Token 响应 */
+export interface RefreshTokenResponse {
+  token: string
+  refreshToken: string
+  expiresIn: number
+  tokenType: string
+}
+
+/** 修改密码请求（后端 `user/updateMyPassword`） */
+export interface ChangePasswordRequest {
+  oldPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
+/**
+ * 当前登录用户信息（后端 `user/getMyInfo` 的返回）
+ *
+ * 刻意**不叫** `UserEntity`：真正的用户实体在 `@/model/personnel/user/UserEntity`，
+ * 这里是遗留 API 层自己的窄化视图（页面只读 avatar / nickname / username）。
+ */
+export interface CurrentUserInfo {
+  id: number
+  username: string
+  nickname: string
+  avatar: string
+  email?: string
+  phone?: string
+  status?: number
+}
+
+export type { TenantOption } from '@kubo/shared'

@@ -7,6 +7,19 @@
 
 ---
 
+## 收编之后需要同步的引用（2026-09 已清）
+
+旧目录 `docs/database/migration/` 一删，凡是**指向它的活引用**都必须跟着改，否则会出现"门禁还在跑、脚本早没了"：
+
+| 位置 | 症状 | 现状 |
+| --- | --- | --- |
+| `infra/scripts/check-migration-dialect.mjs` | 空转通过（0 个脚本 ⇒ 0 处错误） | ✅ 指向 `src/main/resources/db/migration`，并加"扫不到脚本即失败"兜底 |
+| `infra/scripts/check-ddl-entity-drift.mjs` | 门禁红（"没有 .sql —— 门禁空转"） | ✅ 默认目录已改，输出 `✓ 8 张表 / 8 个实体 / 10 个迁移脚本` |
+| `.github/workflows/ci.yml` 的 `migrations` job | glob 匹配不到文件 → 列数 0 → job 必红 | ✅ glob 与注释同步改到新目录 |
+| `README.md` / `DATABASE.md` / `恢复演练DR-Runbook.md` | 仍在教"手工跑 consolidated.sql""不用 Flyway" | ✅ 改成"实体是事实源 + Flyway 版本化演进" |
+
+历史文档（`数据权限目标态落地施工图.md`、`archive/**` 等）里的旧路径**保留**——它们记录的是当时的事实。
+
 ## 1. 为什么必须做这一步（问题不是"想加个迁移工具"）
 
 三个事实叠在一起，构成一个**随时会爆的坑**：

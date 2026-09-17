@@ -322,11 +322,12 @@ open http://localhost:8081
 
 ```bash
 # 生产构建
-pnpm run production
+pnpm build
 
-# 构建产物分析
-pnpm run build -- --mode=analyze
-# 产出: dist/stats.html
+# 构建产物体积报告（首屏 / 分包明细）
+pnpm size:report
+# 产出: dist/size-report.json（注意：仓库**没有** rollup-plugin-visualizer，
+# 没有 `--mode=analyze` 这个模式，历史文档里的 dist/stats.html 是脚手架残留）
 
 # 预览生产构建
 pnpm run preview

@@ -6,7 +6,7 @@
 > `data_resource` / `data_policy` / `data_field_policy` / `permission_change_outbox` /
 > `tenant` / `user_tenant` / `user_factory` / `data_permission_diff_log` /
 > `data_permission_deny_log` / `data_permission_orm_parity_log` 等——见
-> `SPMS-Server/docs/database/migration/20260909_data_permission_migrations_consolidated.sql`
+> `SPMS-Server/src/main/resources/db/migration/V2__data_permission_migrations.sql`（原 9 个手工脚本已于 2026-09 收编为 Flyway V1–V10）
 > 与 `SPMS-Server/docs/database/tenant_readiness_matrix.md`。
 
 ## 📊 数据库信息
@@ -366,8 +366,8 @@ ALTER TABLE `user` ADD COLUMN `wechat` varchar(255) DEFAULT '' COMMENT '微信�
 
 1. **ddl-auto: update** 只能增加字段，不能删除字段
 2. 修改字段类型需要谨慎，可能导致数据丢失
-3. 生产环境（`validate`）**先跑迁移脚本再启动**：`mysql -u root -p kubo < SPMS-Server/docs/database/migration/20260909_data_permission_migrations_consolidated.sql`
-4. 结构变更的约定：JPA 建业务表；增量变更（补列、回填、唯一域降级、新表）写**手写幂等迁移脚本**进 `SPMS-Server/docs/database/migration/`（不用 Flyway/Liquibase，幂等由 CI 双跑判据保证）
+3. 生产环境（`validate`）**先跑迁移再启动**：应用启动时由 **Flyway** 自动执行（存量库以 `baseline-on-migrate` 记为 baseline 1，不会被重放）；需要手工核对时按 `SPMS-Server/src/main/resources/db/migration/` 里的版本顺序执行
+4. 结构变更的约定：实体（JPA）是事实源，schema 由 **Flyway 版本化脚本**演进 —— 新表/补列/回填写成 `V<n>__<描述>.sql` 放进 `SPMS-Server/src/main/resources/db/migration/`（保持幂等：CI 用真实 MySQL 8 连跑两遍并比对 `information_schema`）。JPA 不用 `ddl-auto=update` 改结构
 
 ---
 

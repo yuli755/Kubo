@@ -2,7 +2,7 @@
 /**
  * 生产迁移 DDL ↔ JPA 实体列 漂移门禁
  * ============================================================================
- * 为什么要有这个脚本：`data_*` 这批表的真实结构只存在于 `SPMS-Server/docs/database/migration/*.sql`
+ * 为什么要有这个脚本：`data_*` 这批表的真实结构只存在于 `SPMS-Server/src/main/resources/db/migration/*.sql`
  * （MySQL 8 方言：存储过程 + information_schema 判断 + DELIMITER），而 H2 那边是一份**手抄**的
  * `schema-test.sql`。后端 150+ 用例跑在 H2 上，所以"实体加了列、迁移脚本没加"这类漂移
  * 在 CI 里**完全不会红**（H2 用的是手抄那份），到了生产就变成启动期 `Schema-validation: missing column`。
@@ -33,7 +33,9 @@ const opt = (name, dft) => {
 
 const ENTITY_DIR = opt('entities', 'SPMS-Server/src/main/java/cn/hamm/spms/module/system/datapermission/entity')
 const APP_BASE = opt('app-base', 'SPMS-Server/src/main/java/cn/hamm/spms/base/BaseEntity.java')
-const DDL_DIR = opt('ddl', 'SPMS-Server/docs/database/migration')
+// 目录在 2026-09 的 S0 从 `docs/database/migration/` 迁到 Flyway 的默认位置；
+// 旧路径下已无 .sql，本门禁会直接判失败（"门禁空转"），所以路径必须跟着迁移走。
+const DDL_DIR = opt('ddl', 'SPMS-Server/src/main/resources/db/migration')
 const TEST_SCHEMA = opt('test-schema', 'SPMS-Server/src/test/resources/schema-test.sql')
 const JSON_OUT = opt('json', '')
 const LIVE = opt('live-columns', '')
@@ -259,7 +261,7 @@ for (const [table, list] of byTable) {
   baseColumns.forEach((c) => want.add(c))
   const have = ddl.get(table)
   if (!have) {
-    errors.push(`表 ${table}（${list.map((e) => e.file.split('/').pop()).join(', ')}）在迁移脚本里没有 CREATE TABLE —— 新表必须进 docs/database/migration`)
+    errors.push(`表 ${table}（${list.map((e) => e.file.split('/').pop()).join(', ')}）在迁移脚本里没有 CREATE TABLE —— 新表必须进 src/main/resources/db/migration（Flyway）`)
     continue
   }
   const missing = [...want].filter((c) => !have.has(c))

@@ -44,7 +44,7 @@
 - Node.js 18+
 - pnpm 9+（`package.json` 已声明 `packageManager: pnpm@9.0.0`）
 - TypeScript 5.9+
-- MySQL 8+（后端用；表结构由 JPA `ddl-auto=validate` 校验，增量迁移见 `SPMS-Server/docs/database/migration/`）
+- MySQL 8+（后端用；表结构由 JPA `ddl-auto=validate` 校验，增量迁移是 Flyway 版本化脚本，见 `SPMS-Server/src/main/resources/db/migration/`）
 - Redis（后端）
 - JDK 17+（后端，仅运行 SPMS-Server 时需要）
 
@@ -56,7 +56,8 @@ pnpm install
 
 ### 配置环境变量
 
-- 生产构建读取根目录 **`.env.production`**（如 `VITE_APP_NAME`、`VITE_APP_API_URL = "/api/"`）。
+- **不需要 .env 文件**：生产构建不读任何 `VITE_*` 变量（原 `.env.production` 里的 `VITE_APP_NAME` /
+  `VITE_APP_API_URL` 全仓无人读取，已于 2026-09 删除）。要新增环境变量时，先有读取代码再补声明。
 - 本地开发无需手工配 `.env`：前端通过 Vite 代理把 `/api` 转发到 `http://127.0.0.1:8080/`（后端），见 `vite.config.mts`。
 
 ### 启动项目
@@ -65,8 +66,8 @@ pnpm install
 # 启动前端开发服务器（后端需先跑在 8080）
 pnpm dev
 
-# 生产构建
-pnpm build        # 等价于 pnpm production
+# 生产构建（唯一入口：原来还有个 `pnpm production` 别名，2026-09 与 `pnpm s` 一起删掉了）
+pnpm build
 
 # 代码格式检查与修复
 pnpm lint

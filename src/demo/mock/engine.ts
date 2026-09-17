@@ -113,7 +113,26 @@ function buildDetail(resourceKey: string, payload: Payload): Row {
   return { ...buildRow(resourceKey, Math.max(1, id)) }
 }
 
-const LIST_ACTIONS = new Set(['getPage', 'getList', 'getAll', 'getTableList', 'getSelectList'])
+/**
+ * 分页信封端点：返回 `{ list, total, pageNum, pageSize }`。
+ *
+ * 依据：框架 `framework/http.ts` 的 `getPage(): Promise<QueryResponsePage<E>>`；
+ * airpower 的 `urlGetPage = 'getPage'`（`getPage` 里读 `responsePage.list`）。
+ */
+const PAGE_ACTIONS = new Set(['getPage', 'getTableList'])
+/**
+ * 列表端点：返回**裸数组**。
+ *
+ * 依据（两边都是硬契约，给错形状就在运行期炸）：
+ * - 框架 `framework/http.ts` 的 `getList/getTreeList(): Promise<E[]>`；
+ * - airpower `AbstractCurdService.getList/getTreeList` 走 `Http.requestModelList`，
+ *   里面直接 `result.map(...)` —— 收到信封会抛 `TypeError: result.map is not a function`，
+ *   而且是在 `nextTick`/定时器里抛，表现为**未处理拒绝**（2026-09 的 `pnpm test` 就是因为
+ *   这里返回了信封而有 7 个未处理拒绝、退出码 1，用例却全绿）。
+ *
+ * `getAll` / `getSelectList` 在 airpower 2.9 与本仓都没有调用点，是按同一语义保留的别名。
+ */
+const ARRAY_ACTIONS = new Set(['getList', 'getAll', 'getSelectList'])
 const DETAIL_ACTIONS = new Set(['getDetail', 'get', 'getOne', 'getInfo'])
 /** 写操作：演示模式一律「成功」，不做真实落库（刷新即回到初始数据） */
 const WRITE_ACTIONS = new Set([
@@ -218,8 +237,15 @@ export function resolveMock(resourcePath: string, action: string, payload: Paylo
     return report.data
   }
 
-  if (LIST_ACTIONS.has(action)) {
+  if (PAGE_ACTIONS.has(action)) {
     return buildPage(resourceKey, payload)
+  }
+  // 之所以还按**名字后缀**兜一层：存量 airpower 服务里有一批 `getXxxList`
+  // （`coderule` 的 `getFieldList` / `getParamList`、`getSelectList` …），它们同样走
+  // `requestModelList`（裸数组）。落到下面"未覆盖端点返回 {}"的分支会在 `nextTick` 里炸成未处理拒绝。
+  if (ARRAY_ACTIONS.has(action) || /(?:List|Items|Fields|Params|Options|All)$/.test(action)) {
+    // 只取信封里的 list：见 ARRAY_ACTIONS 的注释（airpower 直接 `.map`）
+    return buildPage(resourceKey, payload).list
   }
   if (DETAIL_ACTIONS.has(action)) {
     return buildDetail(resourceKey, payload)

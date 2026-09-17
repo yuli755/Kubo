@@ -2,7 +2,7 @@
 /**
  * 迁移脚本 MySQL 8 方言语法完整性门禁
  * ============================================================================
- * 为什么要有这个脚本：迁移脚本（docs/database/migration/*.sql）用的是 MySQL 8 方言
+ * 为什么要有这个脚本：迁移脚本（SPMS-Server/src/main/resources/db/migration/*.sql，Flyway 版本化）用的是 MySQL 8 方言
  * （存储过程 + DELIMITER + information_schema + 动态 SQL PREPARE/EXECUTE），H2 那份
  * schema-test.sql 是手抄件、永远判不出方言问题。CI 的 Migrations job 用真实 MySQL 8
  * 跑，但沙箱既无 MySQL 也下不了镜像 —— 于是「DELIMITER 忘闭合」「存储过程没 END$$ 收尾」
@@ -28,7 +28,11 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-const DDL_DIR = join(REPO, 'SPMS-Server', 'docs', 'database', 'migration')
+// ⚠️ 2026-09 的 S0 把手工 SQL 收编成了 Flyway 版本化迁移（`V1__baseline_schema.sql` … `V10__…`），
+// 目录从 `docs/database/migration/` 移到了这里。旧路径下已无 `.sql`，本门禁会**空转通过**
+// （0 个脚本 ⇒ 0 处错误）—— 这正是 2026-09 残留审计抓到的问题：门禁还在跑，脚本早没了。
+// 所以下面除了改路径，还加了"一个脚本都没扫到就失败"的兜底。
+const DDL_DIR = join(REPO, 'SPMS-Server', 'src', 'main', 'resources', 'db', 'migration')
 const VERBOSE = process.argv.includes('--verbose')
 
 /**
@@ -171,6 +175,11 @@ function selfCheck() {
 // 主流程
 // ============================================================================
 const sqlFiles = readdirSync(DDL_DIR).filter((f) => f.endsWith('.sql')).sort()
+if (sqlFiles.length === 0) {
+  console.error(`✗ ${DDL_DIR} 下没有 .sql —— 门禁空转（路径写错或脚本被搬走）。`)
+  console.error('  宁可红一次，也不要"0 个脚本 ⇒ 0 处错误"的假绿。')
+  process.exit(1)
+}
 const allErrors = []
 for (const f of sqlFiles) {
   const src = readFileSync(join(DDL_DIR, f), 'utf-8')

@@ -11,6 +11,16 @@
  * - 业务代码一律引用 `var(--el-*)` 或 `var(--kubo-*)`，禁止再硬编码 `#409eff` 等十六进制主色；
  * - 主色色阶为 Element Plus `#409eff` 官方预计算值，避免 `color-mix()` 的兼容性差异；
  * - 状态色沿用 EP 默认（success/warning/danger/info），本层只在暗色下做对比度微调。
+ *
+ * ## ⚠️ 别按「shell 里 grep 不到就删」清理本文件
+ *
+ * 本文件里有一批 token 在 `src/**` 里**搜不到名字**，但删了就会坏样式，原因是消费发生在别处：
+ * 1. 先被本文件映射成 `--el-*`（如 `--kubo-color-primary-light-7` → `--el-color-primary-light-7`），
+ *    再由 Element Plus 组件内部（`.el-button--primary.is-plain:hover` 等）读取 —— 名字只出现在
+ *    本文件与 `element-plus/theme-chalk` 里；
+ * 2. token 之间互相引用（`--kubo-shadow-sm` 被 `--kubo-shadow-md` 等复用）；
+ * 3. 暗色块（`html.dark`）与亮色块成对出现，只删亮色那份会造成主题漂移。
+ * 2026-09 的残留审计核对过一遍：当前 17 条「零引用」全部落在上面三类里，**全部保留**。
  */
 
 :root {

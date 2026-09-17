@@ -60,8 +60,8 @@ export { ElDatePicker } from 'element-plus/es/components/date-picker/index.mjs'
 export { ElDescriptions, ElDescriptionsItem } from 'element-plus/es/components/descriptions/index.mjs'
 export { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
 export { ElDrawer } from 'element-plus/es/components/drawer/index.mjs'
-// dropdown 子路径同时导出 ElDropdown / ElDropdownItem / ElDropdownMenu
-export { ElDropdown, ElDropdownItem, ElDropdownMenu } from 'element-plus/es/components/dropdown/index.mjs'
+// 注：曾从这里 re-export 的 `ElDropdown*` / `ElTimeline*` 全仓无人引用（airpower 的具名清单里也没有），
+// 2026-09 清理时删除；新用到时按本文件顶部的维护说明补回对应子路径。
 export { ElEmpty } from 'element-plus/es/components/empty/index.mjs'
 // ── 类型导出（FormInstance / TreeInstance）─────────────────────────────
 export type { FormInstance } from 'element-plus/es/components/form/index.mjs'
@@ -98,8 +98,6 @@ export { ElTable, ElTableColumn } from 'element-plus/es/components/table/index.m
 // tabs 子路径同时导出 ElTabs / ElTabPane
 export { ElTabPane, ElTabs } from 'element-plus/es/components/tabs/index.mjs'
 export { ElTag } from 'element-plus/es/components/tag/index.mjs'
-// timeline 子路径同时导出 ElTimeline / ElTimelineItem
-export { ElTimeline, ElTimelineItem } from 'element-plus/es/components/timeline/index.mjs'
 // tooltip 子路径导出 ElTooltip（未导出 ElTooltipContent）
 export { ElTooltip } from 'element-plus/es/components/tooltip/index.mjs'
 export type { TreeInstance } from 'element-plus/es/components/tree/index.mjs'

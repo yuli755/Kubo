@@ -4,18 +4,16 @@ import { UnitEntity } from './UnitEntity'
 /**
  * # 计量单位服务（新底座）
  *
- * 与 `UnitService`（继承 airpower 的 `AbstractBaseService`）**指向同一个后端接口**
- * （`baseUrl = 'unit'`），区别只在依赖的基类：
+ * 单位是**系统域**实体，但它的消费者横跨域：物料（asset）的编辑/筛选要用单位选择器。
+ * 因此这里提供一个 `@/framework` 基类的服务，让非系统域页面也能用 —— 而不必等系统域整体迁移。
  *
- * | | `UnitService` | `KUnitService` |
- * | --- | --- | --- |
- * | 基类 | airpower `AbstractBaseService` | `@/framework` `AbstractCurdService` |
- * | 谁在用 | 存量 `UnitSelector`（airpower `ASelector`）与 `useEditor` | 新底座页面（`useTable` + `KTable`） |
+ * ## 历史（别照着旧注释改回去）
  *
- * 两个并存是**过渡态**：`UnitSelector` 仍被物料编辑页使用，而 airpower 的 `ASelector`
- * 要求它自己的服务类型；等到 F4 按域迁移把物料域也换过来，`UnitService` 与
- * `view/console/system/unit/component/**` 会一起删除。这里不复制任何业务逻辑（只有两行配置），
- * 所以过渡期不存在"两套实现漂移"的风险。
+ * 这个类曾经是「双服务并行」的过渡态：与之并列的 `UnitService`（airpower
+ * `AbstractBaseService`）只为存量 `ASelector` 而活。批 2 删掉
+ * `view/console/system/unit/component/{editor,selector}.vue` 之后旧服务没了消费者，
+ * `UnitService` 与 `view/console/system/unit/component/**` 已一并删除 —— 现在单位只有这一套服务，
+ * 旧页（若还有）也应改用它。
  */
 export class KUnitService extends AbstractCurdService<UnitEntity> {
   // 与 airpower 的写法一致：`entityClass` 是**实例字段**（不是 static），

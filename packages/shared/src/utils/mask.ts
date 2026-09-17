@@ -56,21 +56,6 @@ export function normalizeMaskPolicy(policy: MaskPolicy | null | undefined): Norm
 }
 
 /**
- * 根据归一化策略计算保留明文的位数
- *
- * 后端 PARTIAL 固定保留首尾各 1 位；REPLACE / FULL 不需要保留位。
- *
- * @param policy 归一化策略
- * @returns 保留尾部位数（FULL / REPLACE 返回 0）
- */
-export function maskPolicyKeepTail(policy: NormalizedMaskPolicy | null | undefined): number {
-  if (!policy?.masked) {
-    return 0
-  }
-  return policy.maskType === 'PARTIAL' ? 1 : 0
-}
-
-/**
  * ### 判断一个值是否"已经是遮蔽结果"
  *
  * 后端 enforce 模式下 `SensitiveFieldSerializer` 已经把值写成掩码字符串，

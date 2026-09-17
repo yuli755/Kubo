@@ -146,6 +146,21 @@ describe('演示模式 · URL 解析与降级', () => {
     expect(typeof page.total).toBe('number')
   })
 
+  it('`getList`/`getTreeList` 返回裸数组，`getPage` 才返回信封（形状不同，别合并）', async () => {
+    // 旧页（personnel/wms 的树、wms 库存选择器）用 airpower 的 `getList`，其
+    // `Http.requestModelList` 直接 `result.map(...)`：收到信封会抛 TypeError，
+    // 而且抛在 nextTick 里 → 变成未处理拒绝（用例全绿但 pnpm test 退出码 1）。
+    const list = await request('/storage/getList', { params: { pageNum: 1, pageSize: 24 } })
+    expect(Array.isArray(list.data.data)).toBe(true)
+    expect((list.data.data as unknown[]).length).toBeGreaterThan(0)
+
+    const tree = await request('/storage/getTreeList', { params: { pageNum: 1, pageSize: 24 } })
+    expect(Array.isArray(tree.data.data)).toBe(true)
+
+    const page = await request('/storage/getPage', { params: { pageNum: 1, pageSize: 24 } })
+    expect(Array.isArray((page.data.data as { list?: unknown[] }).list)).toBe(true)
+  })
+
   it('未覆盖的读取端点降级为空对象而不是抛错（页面走空状态）', async () => {
     const res = await request('/some/unknown/getSomething')
     expect(res.data.code).toBe(200)
