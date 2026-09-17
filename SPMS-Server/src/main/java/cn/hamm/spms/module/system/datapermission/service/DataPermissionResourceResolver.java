@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import org.springframework.stereotype.Component;
 
 

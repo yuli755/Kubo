@@ -2,9 +2,9 @@ package cn.hamm.spms.module.system.datapermission.service;
 
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
-import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
-import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 

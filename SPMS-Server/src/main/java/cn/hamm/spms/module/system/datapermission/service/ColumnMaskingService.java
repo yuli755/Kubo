@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
-import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import org.springframework.stereotype.Service;
 

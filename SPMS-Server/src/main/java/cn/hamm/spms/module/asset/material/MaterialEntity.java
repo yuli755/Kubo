@@ -10,7 +10,7 @@ import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.asset.material.enums.MaterialType;
 import cn.hamm.spms.module.asset.material.enums.MaterialUseType;
 import cn.hamm.spms.module.system.coderule.enums.CodeRuleField;
-import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
+import cn.hamm.spms.framework.curd.audit.OperationLog;
 import cn.hamm.spms.module.system.datapermission.annotation.SensitiveField;
 import cn.hamm.spms.module.system.unit.UnitEntity;
 import jakarta.persistence.Column;

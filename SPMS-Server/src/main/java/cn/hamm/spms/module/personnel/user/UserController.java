@@ -19,7 +19,7 @@ import cn.hamm.spms.module.system.menu.MenuEntity;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
 import cn.hamm.spms.module.system.tenant.TenantEntity;
 import cn.hamm.spms.module.system.tenant.TenantOption;
-import cn.hamm.spms.module.system.tenant.TenantRepository;
+import cn.hamm.spms.module.system.tenant.TenantService;
 import cn.hamm.spms.module.system.tenant.UserTenantService;
 import jakarta.mail.MessagingException;
 import jakarta.servlet.http.Cookie;
@@ -75,8 +75,12 @@ public class UserController extends BaseController<UserEntity, UserService, User
     @Autowired
     private cn.hamm.spms.framework.curd.config.AccessConfig accessConfig;
 
+    /**
+     * 租户查询走服务层（L5 规则：控制器不得注入仓储/Mapper —— 那次重构让它从
+     * "控制器直接认识 TenantRepository"变成"控制器认识 TenantService"）
+     */
     @Autowired
-    private TenantRepository tenantRepository;
+    private TenantService tenantService;
 
     @Autowired
     private LoginBruteForceGuard loginBruteForceGuard;
@@ -107,10 +111,10 @@ public class UserController extends BaseController<UserEntity, UserService, User
         Long defaultTenantId = userTenantService.defaultTenantId(userId);
         List<TenantEntity> tenants;
         if (user != null && user.isRootUser()) {
-            tenants = tenantRepository.findAll();
+            tenants = tenantService.listAll();
         } else {
             Set<Long> tenantIds = userTenantService.tenantIds(userId);
-            tenants = tenantRepository.findAllById(tenantIds);
+            tenants = tenantService.listByIds(tenantIds);
         }
         List<TenantOption> options = tenants.stream()
                 .filter(Objects::nonNull)

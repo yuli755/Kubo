@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.wms.inventory.mapper;
 
-import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
-import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
 import cn.hamm.spms.module.wms.inventory.InventoryEntity;
 import cn.hamm.spms.module.wms.inventory.InventoryService;
 import org.junit.jupiter.api.AfterEach;

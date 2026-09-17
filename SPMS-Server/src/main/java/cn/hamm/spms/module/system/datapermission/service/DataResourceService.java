@@ -7,7 +7,7 @@ import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionDenyLogEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionDiffEntity;
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionOrmParityEntity;
 import cn.hamm.spms.module.system.datapermission.entity.OperationLogEntity;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDenyLogRepository;
@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
+import cn.hamm.spms.framework.curd.datapermission.RowParityCounter;
 
 /**
  * <h1>数据资源管理服务</h1>

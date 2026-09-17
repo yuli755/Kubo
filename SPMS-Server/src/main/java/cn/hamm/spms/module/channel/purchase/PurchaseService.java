@@ -19,7 +19,7 @@ import cn.hamm.spms.module.channel.purchase.enums.PurchaseStatus;
 import cn.hamm.spms.module.channel.purchase.mapper.PurchaseMapper;
 import cn.hamm.spms.module.channel.purchase.mapper.PurchaseReadShadowService;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import cn.hamm.spms.module.wms.WmsServices;

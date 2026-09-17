@@ -1,8 +1,8 @@
 package cn.hamm.spms.base;
 
 import cn.hamm.spms.core.annotation.Description;
-import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
-import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
 import jakarta.persistence.Column;
 import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.PrePersist;

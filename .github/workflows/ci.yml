@@ -87,6 +87,12 @@ jobs:
 
       # 去 JPA 是与退场同类的长跑：删除面大、单批收益不可见。这道棘轮把"还剩多少 JPA"
       # 变成可下降的数字（文件/引用/import），并且只许降 —— 新代码直接用 MyBatis-Plus。
+      # 分层架构（用户 2026-09-18）：依赖方向 L0 core → L1 framework → L2 base → L3 module；
+      # 层内职责（mapper/repository 不许依赖 service、实体不许依赖 service/mapper、控制器不许注入仓储）。
+      # 例外逐条具名 + 白名单只许降：见 SPMS-Server/docs/架构分层设计.md
+      - name: 分层门禁（依赖方向 L0-L2 + 层内职责 L3-L5）
+        run: pnpm layer:check -- --check
+
       # 代码分层规则（用户 2026-09-18）：禁止 .java 写 SQL，只能使用专属文件（mapper XML）。
       # 判据见 infra/scripts/check-sql-in-java.mjs：字符串字面量里的 SQL 特征 + SQL 载体注解；
       # 唯一豁免是"非可执行 SQL"（安全测试的恶意输入样例 / 被测对象的输入），且必须写理由。

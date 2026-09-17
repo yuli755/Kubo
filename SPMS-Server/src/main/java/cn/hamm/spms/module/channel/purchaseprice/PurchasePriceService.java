@@ -16,7 +16,7 @@ import cn.hamm.spms.module.channel.ChannelServices;
 import cn.hamm.spms.module.channel.purchaseprice.mapper.PurchasePriceMapper;
 import cn.hamm.spms.module.channel.purchaseprice.mapper.PurchasePriceReadShadowService;
 import cn.hamm.spms.module.channel.supplier.SupplierEntity;
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import jakarta.persistence.criteria.CriteriaBuilder;

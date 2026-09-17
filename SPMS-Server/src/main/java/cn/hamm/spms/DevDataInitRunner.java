@@ -44,7 +44,7 @@ import cn.hamm.spms.module.system.unit.UnitService;
 import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionSubjectType;
 import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyProvider;
 import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;

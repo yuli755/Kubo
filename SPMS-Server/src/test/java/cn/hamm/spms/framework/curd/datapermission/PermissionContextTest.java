@@ -1,4 +1,4 @@
-package cn.hamm.spms.module.system.datapermission.context;
+package cn.hamm.spms.framework.curd.datapermission;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -1,11 +1,11 @@
 package cn.hamm.spms.module.system.datapermission;
 
-import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
-import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionSubjectType;
 import cn.hamm.spms.module.system.datapermission.repository.DataFieldPolicyRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataPolicyRepository;

@@ -1,10 +1,10 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
-import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionDiffEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionOrmParityEntity;
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDiffRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionOrmParityRepository;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRule;
@@ -30,6 +30,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import cn.hamm.spms.framework.curd.datapermission.RowParityCounter;
 
 /**
  * <h1>影子双跑比对</h1>

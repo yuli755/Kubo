@@ -3,7 +3,7 @@ package cn.hamm.spms.module.system.datapermission.service;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
 import cn.hamm.spms.module.system.datapermission.repository.DataPolicyRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;

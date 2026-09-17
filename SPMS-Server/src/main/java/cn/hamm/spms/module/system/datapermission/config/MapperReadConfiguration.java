@@ -7,7 +7,7 @@ import cn.hamm.spms.module.system.datapermission.rule.SqlPermissionRuleRenderer;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionAudit;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionService;
 import cn.hamm.spms.module.system.datapermission.service.DataResourceBindingRegistry;
-import cn.hamm.spms.module.system.datapermission.service.RowParityCounter;
+import cn.hamm.spms.framework.curd.datapermission.RowParityCounter;
 import cn.hamm.spms.module.system.datapermission.service.RowParityRegistry;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.DataPermissionInterceptor;

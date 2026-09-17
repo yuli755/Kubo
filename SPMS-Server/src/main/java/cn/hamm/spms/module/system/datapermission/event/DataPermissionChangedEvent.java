@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.event;
 
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import lombok.Data;
 import lombok.experimental.Accessors;
 

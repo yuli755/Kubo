@@ -12,7 +12,7 @@ import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.channel.customer.mapper.CustomerMapper;
 import cn.hamm.spms.module.channel.customer.mapper.CustomerReadShadowService;
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import jakarta.persistence.criteria.CriteriaBuilder;

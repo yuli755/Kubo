@@ -1,11 +1,11 @@
 package cn.hamm.spms.module.system.datapermission.mybatis;
 
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
-import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
-import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRule;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleContext;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleTreeBuilder;

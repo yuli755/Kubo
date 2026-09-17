@@ -2,7 +2,7 @@ package cn.hamm.spms.module.system.datapermission.event;
 
 import cn.hamm.spms.core.Json;
 import cn.hamm.spms.framework.redis.RedisHelper;
-import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.PermissionChangeOutboxRecorder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -748,7 +748,9 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
    * 两种漂移都不会让任何一方报错，所以必须在这里对账 —— 而且**读的是 Java 源码**，
    * 不是这份测试里手抄一份名单（抄的那份同样会漂移）。
    */
-  const ENUM = join(SERVER, 'module/system/datapermission/enums/DataPermissionAction.java')
+  // 2026-09-18 分层搬迁：权限共享内核（枚举/上下文/对账探针）从业务域下移到框架层 ——
+  // 它被 base/BaseService 这类下层类使用，留在 module 里就是"下层依赖业务域"
+  const ENUM = join(SERVER, 'framework/curd/datapermission', 'DataPermissionAction.java')
   const DICT = join(ROOT, 'src/model/system/datapermission/DataPermissionActionType.ts')
 
   const backendActions = (): string[] => {
@@ -1089,7 +1091,7 @@ describe('mask contract · 部门层级闭包与主体判定只有一份', () =>
         .not
         .toMatch(/context\.departmentIds\(\)\.contains\(/)
     }
-    const ctx = readJavaCode(join(DPM, 'context', 'PermissionContext.java'))
+    const ctx = readJavaCode(join(SERVER, 'framework/curd/datapermission', 'PermissionContext.java'))
     expect(ctx, 'coversDepartment 的判据被改写：范围（含子部门）才是权限口径')
       .toMatch(/public boolean coversDepartment\(Long departmentId\) \{\s*return departmentId != null && departmentScopeIds\.contains\(departmentId\);/)
     expect(ctx, '兼容构造没了：全仓三十多处 7 参构造（含测试）会一起编译失败')
@@ -1742,7 +1744,7 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
   const CONFIG = join(DPM, 'config', 'MapperReadConfiguration.java')
   const SHADOW = join(DPM, 'service', 'ShadowDiffService.java')
   const REGISTRY = join(DPM, 'service', 'RowParityRegistry.java')
-  const COUNTER = join(DPM, 'service', 'RowParityCounter.java')
+  const COUNTER = join(SERVER, 'framework/curd/datapermission', 'RowParityCounter.java')
   const READINESS = join(DPM, 'service', 'DataResourceService.java')
   const PARITY_ENTITY = join(DPM, 'entity', 'DataPermissionOrmParityEntity.java')
   const DIFF_ENTITY = join(DPM, 'entity', 'DataPermissionDiffEntity.java')

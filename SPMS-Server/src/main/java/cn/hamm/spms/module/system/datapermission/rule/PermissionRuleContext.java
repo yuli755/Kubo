@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.rule;
 
-import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;

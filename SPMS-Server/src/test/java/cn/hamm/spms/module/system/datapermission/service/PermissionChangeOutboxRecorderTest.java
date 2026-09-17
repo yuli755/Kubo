@@ -13,7 +13,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Set;
 
-import static cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction.QUERY;
+import static cn.hamm.spms.framework.curd.datapermission.DataPermissionAction.QUERY;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
