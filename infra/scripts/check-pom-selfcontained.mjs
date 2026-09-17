@@ -48,7 +48,6 @@ const BOOT_BOM_GROUPS = new Set([
   'org.springframework',
   'io.micrometer',
   'com.h2database',
-  'org.flywaydb',
   'jakarta.validation',
 ])
 

@@ -1,3 +1,6 @@
+# 测试库是 H2（MODE=MySQL）+ schema-test.sql 内联建表（只是**用到的子集**）。
+# 生产/开发库的结构与数据在 infra/init-sql/{init,init_data}.sql 两个文件里（MySQL 8 方言），
+# 在 H2 上跑不了也不该跑 —— 后端测试不依赖 SQL 脚本，只依赖实体与 schema-test.sql 子集。
 # H2 集成测试配置
 spring:
   datasource:
@@ -40,10 +43,11 @@ kubo:
   data-permission:
     factory-dimension-enabled: false
 
-# 测试库是 H2（MODE=MySQL）+ schema-test.sql 内联建表；db/migration 下是 MySQL 方言
-# （存储过程、information_schema 探测），在 H2 上跑不了也不该跑 —— 关掉。
-# ⚠️ 生产 schema 变更**不允许**走 schema-test.sql：它只是测试子集，
-#    真正的事实源是 db/migration（见 docs/database/Flyway-S0·基线与收编.md）。
+# 测试库是 H2（MODE=MySQL）+ schema-test.sql 内联建表（只是**用到的子集**）。
+# 生产/开发库的结构与数据在 infra/init-sql/{init,init_data}.sql 两个文件里（MySQL 8 方言），
+# 在 H2 上跑不了也不该跑 —— 后端测试不依赖 SQL 脚本，只依赖实体与 schema-test.sql 子集。
 spring:
-  flyway:
-    enabled: false
+  # 无迁移框架：结构与数据脚本不进测试上下文（见文件头说明）
+  sql:
+    init:
+      mode: never

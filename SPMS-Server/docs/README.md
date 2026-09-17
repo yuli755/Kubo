@@ -27,7 +27,7 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [`DATABASE_MIGRATION_STRATEGY.md`](./DATABASE_MIGRATION_STRATEGY.md) | 手写幂等迁移的策略、约定与回滚 |
+| [`DATABASE_MIGRATION_STRATEGY.md`](./DATABASE_MIGRATION_STRATEGY.md) | **数据库脚本只有两个**（`infra/init-sql/init.sql` 结构 + `init_data.sql` 数据）：改什么、怎么执行、谁在守 |
 | [`API_DESIGN_GUIDE.md`](./API_DESIGN_GUIDE.md) | RESTful 设计规范、错误码、幂等、权限 |
 | [`API_VERSIONING_STRATEGY.md`](./API_VERSIONING_STRATEGY.md) | 语义化版本、废弃策略 |
 
@@ -44,7 +44,7 @@
 | [`02-Architecture/`](./02-Architecture/) | 二次改造设计文档（历史设计稿，已标注过时） |
 | [`04-Infrastructure/`](./04-Infrastructure/) | 基础设施（INFRASTRUCTURE_OVERVIEW） |
 | [`05-Development/`](./05-Development/) | 开发规范（DEVELOPMENT / CODE_STYLE / GIT_COMMIT / TESTING / SECURITY） |
-| [`database/`](./database/) | 迁移策略 + `tenant_readiness_matrix.md`；SQL 已收编为 Flyway `V1..V10`（`../src/main/resources/db/migration/`） |
+| [`database/`](./database/) | `tenant_readiness_matrix.md`；SQL 脚本本体在 `../../infra/init-sql/`（仅 `init.sql` + `init_data.sql`） |
 | [`archive/`](./archive/) | **已归档**的规划期过程文档（见 `archive/README.md`） |
 
 ## 前端文档

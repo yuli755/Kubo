@@ -45,7 +45,7 @@
 - Node.js 18+
 - pnpm 9+（`package.json` 已声明 `packageManager: pnpm@9.0.0`）
 - TypeScript 5.9+
-- MySQL 8+（后端用；表结构由 JPA `ddl-auto=validate` 校验，增量迁移是 Flyway 版本化脚本，见 `SPMS-Server/src/main/resources/db/migration/`）
+- MySQL 8+（后端用；表结构由 JPA `ddl-auto=validate` 校验，建库脚本只有 `infra/init-sql/init.sql` + `init_data.sql` 两份）
 - Redis（后端）
 - JDK 17+（后端，仅运行 SPMS-Server 时需要）
 

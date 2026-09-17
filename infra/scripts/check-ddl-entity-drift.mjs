@@ -2,8 +2,8 @@
 /**
  * 生产迁移 DDL ↔ JPA 实体列 漂移门禁
  * ============================================================================
- * 为什么要有这个脚本：`data_*` 这批表的真实结构只存在于 `SPMS-Server/src/main/resources/db/migration/*.sql`
- * （MySQL 8 方言：存储过程 + information_schema 判断 + DELIMITER），而 H2 那边是一份**手抄**的
+ * 为什么要有这个脚本：`data_*` 这批表的真实结构只存在于 `infra/init-sql/init.sql`
+ * （MySQL 8 方言），而 H2 那边是一份**手抄**的
  * `schema-test.sql`。后端 150+ 用例跑在 H2 上，所以"实体加了列、迁移脚本没加"这类漂移
  * 在 CI 里**完全不会红**（H2 用的是手抄那份），到了生产就变成启动期 `Schema-validation: missing column`。
  * 反过来，"迁移脚本加了列、实体没有"也没人拦。这个脚本把两边对齐成一件事：读文件、比对、非零退出。
@@ -33,9 +33,10 @@ const opt = (name, dft) => {
 
 const ENTITY_DIR = opt('entities', 'SPMS-Server/src/main/java/cn/hamm/spms/module/system/datapermission/entity')
 const APP_BASE = opt('app-base', 'SPMS-Server/src/main/java/cn/hamm/spms/base/BaseEntity.java')
-// 目录在 2026-09 的 S0 从 `docs/database/migration/` 迁到 Flyway 的默认位置；
-// 旧路径下已无 .sql，本门禁会直接判失败（"门禁空转"），所以路径必须跟着迁移走。
-const DDL_DIR = opt('ddl', 'SPMS-Server/src/main/resources/db/migration')
+// 路径史：2026-09 从 `docs/database/migration/` → Flyway 默认目录 → 2026-09-18 起
+// 只有两个脚本，住在 `infra/init-sql/`（init.sql 结构 + init_data.sql 数据）。
+// 旧路径下已无 .sql，本门禁会直接判失败（"门禁空转"），所以路径必须跟着脚本走。
+const DDL_DIR = opt('ddl', 'infra/init-sql')
 const TEST_SCHEMA = opt('test-schema', 'SPMS-Server/src/test/resources/schema-test.sql')
 const JSON_OUT = opt('json', '')
 const LIVE = opt('live-columns', '')
@@ -195,7 +196,7 @@ if (!ddlFiles.length) {
 }
 const ddl = parseDdl(ddlFiles)
 if (ddl.size === 0) {
-  console.error('✗ 迁移脚本里没解析到任何 CREATE TABLE —— 解析逻辑失效，别让门禁空转')
+  console.error('✗ init.sql 里没解析到任何 CREATE TABLE —— 解析逻辑失效，别让门禁空转')
   process.exit(1)
 }
 // 白名单自检：里面的列名若在所有表里都不存在，说明白名单本身过期了
@@ -261,7 +262,7 @@ for (const [table, list] of byTable) {
   baseColumns.forEach((c) => want.add(c))
   const have = ddl.get(table)
   if (!have) {
-    errors.push(`表 ${table}（${list.map((e) => e.file.split('/').pop()).join(', ')}）在迁移脚本里没有 CREATE TABLE —— 新表必须进 src/main/resources/db/migration（Flyway）`)
+    errors.push(`表 ${table}（${list.map((e) => e.file.split('/').pop()).join(', ')}）在 init.sql 里没有 CREATE TABLE —— 新表必须进 infra/init-sql/init.sql（全仓只有这两个 .sql）`)
     continue
   }
   const missing = [...want].filter((c) => !have.has(c))
@@ -270,10 +271,10 @@ for (const [table, list] of byTable) {
   const extra = [...have].filter((c) => !want.has(c) && !joined.has(c) && !FRAMEWORK_COLUMNS.has(c))
   rows.push({ table, ddlColumns: have.size, entityColumns: want.size, missing, extra })
   if (missing.length) {
-    errors.push(`${table}: 实体要求但迁移 DDL 缺列 → ${missing.join(', ')}`)
+    errors.push(`${table}: 实体要求但 init.sql 缺列 → ${missing.join(', ')}`)
   }
   if (extra.length) {
-    errors.push(`${table}: 迁移 DDL 有列但实体未映射 → ${extra.join(', ')}`)
+    errors.push(`${table}: init.sql 有列但实体未映射 → ${extra.join(', ')}`)
   }
 }
 
@@ -304,8 +305,8 @@ if (warnings.length) {
   warnings.forEach((w) => console.warn(`  · ${w}`))
 }
 if (errors.length) {
-  console.error(`\n✗ DDL↔实体漂移 ${errors.length} 处（${ddlFiles.length} 个迁移脚本 / ${entities.length} 个实体）：`)
+  console.error(`\n✗ DDL↔实体漂移 ${errors.length} 处（${ddlFiles.length} 个脚本 / ${entities.length} 个实体）：`)
   errors.forEach((e) => console.error(`  · ${e}`))
   process.exit(1)
 }
-console.log(`✓ DDL↔实体一致：${rows.length} 张表、${entities.length} 个实体、${ddlFiles.length} 个迁移脚本`)
+console.log(`✓ DDL↔实体一致：${rows.length} 张表、${entities.length} 个实体、${ddlFiles.length} 个脚本`)

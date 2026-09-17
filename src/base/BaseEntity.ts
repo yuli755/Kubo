@@ -5,7 +5,7 @@ import { PublishStatusEnum } from '@/model/common/PublishStatusEnum'
  * # 数据库实体基类（新底座）
  *
  * 所有业务实体的父类。`RootEntity`（`@/framework`）提供 `id` / `copyOnlyId()`；
- * 这里补上后端 `CurdEntity` + `TenantAwareEntity` 的公共列（见 Flyway 基线 V1）。
+ * 这里补上后端 `CurdEntity` + `TenantAwareEntity` 的公共列（见 `infra/init-sql/init.sql`）。
  *
  * ## 这是唯一一份基类（2026-09-18 大清理）
  * 之前有两套并行基类：`BaseEntity`（继承 airpower 的 `RootEntity`，装饰器写进 airpower

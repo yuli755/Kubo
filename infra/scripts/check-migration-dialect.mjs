@@ -1,25 +1,35 @@
 #!/usr/bin/env node
 /**
- * 迁移脚本 MySQL 8 方言语法完整性门禁
+ * 数据库脚本门禁（MySQL 8 方言 + 幂等 + "只有两个文件"）
  * ============================================================================
- * 为什么要有这个脚本：迁移脚本（SPMS-Server/src/main/resources/db/migration/*.sql，Flyway 版本化）用的是 MySQL 8 方言
- * （存储过程 + DELIMITER + information_schema + 动态 SQL PREPARE/EXECUTE），H2 那份
- * schema-test.sql 是手抄件、永远判不出方言问题。CI 的 Migrations job 用真实 MySQL 8
- * 跑，但沙箱既无 MySQL 也下不了镜像 —— 于是「DELIMITER 忘闭合」「存储过程没 END$$ 收尾」
- * 「CREATE TABLE 漏 IF NOT EXISTS」「PREPARE 漏 DEALLOCATE」这类**确定性错误**只能在
- * CI 或生产第一次执行时才炸。
+ * 2026-09-18 起，全仓只有两个数据库脚本，住在 `infra/init-sql/`：
  *
- * 本脚本把「不依赖数据库就能判定的语法完整性」提前到提交前：
- *   ① DELIMITER $$ / DELIMITER ; 必须成对、不得交叉、不得奇数；
- *   ② 每个存储过程 CREATE PROCEDURE 必须有 BEGIN、且以 END$$ 收尾（END$$ 数 = 过程数）；
- *   ③ 幂等性：CREATE TABLE 必须 IF NOT EXISTS；CREATE PROCEDURE 之前必须有对应 DROP PROCEDURE；
- *   ④ 动态 SQL：PREPARE 必须配 DEALLOCATE PREPARE（漏了会累积 prepared stmt）。
+ *     init.sql       结构（全部 CREATE TABLE IF NOT EXISTS）
+ *     init_data.sql  数据（默认租户 / 系统权限身份 / 根角色与绑定 / 归属列回填）
  *
- * 它**不替代** CI 的真实 MySQL 8 job（information_schema 反向核对列清单、连跑两遍判幂等
- * 仍然只有真库能判）；它拦的是「连真库都不用、读文件就能看出来的错」，让真库 job 只用来
- * 验证真正需要它验证的东西。
+ * 口径变了，判据也得跟着变。**Flyway 已退场**：不再有 V<n>__ 版本化迁移、
+ * 不再有 DELIMITER/存储过程/information_schema 探测 + 动态 SQL 的那套幂等技巧
+ * （历史脚本为了"在已有库上重复执行"必须写存储过程，现在结构由 init.sql 一次
+ * 建全，幂等靠 `IF NOT EXISTS` 与 `WHERE NOT EXISTS` 就够了）。
  *
- * 防空转：脚本内嵌自检（见 selfCheck），坏样本逐条判据反证，门禁失灵时 CI 立刻红。
+ * 本脚本拦的是「不连库、读文件就能看出来的错」：
+ *   ① 目录里**恰好两个** .sql，且名字就是 init.sql / init_data.sql
+ *      —— "只保留这两个文件"是用户的硬规则，这里让它变成机器判据；
+ *   ② 防空转：init.sql 至少 30 张表、init_data.sql 至少 1 条 INSERT；
+ *   ③ 幂等：CREATE TABLE 必须 IF NOT EXISTS；INSERT 必须自带幂等守卫
+ *      （WHERE NOT EXISTS / INSERT IGNORE / ON DUPLICATE KEY UPDATE）；
+ *   ④ 安全：初始化脚本里禁止 DROP / TRUNCATE / DELETE / REPLACE INTO
+ *      —— 建库脚本不该删数据（历史 DELETE 是"菜单路径规范化的存量脏数据"专用，随 V10 退役）；
+ *   ⑤ 方言：禁止 DELIMITER / CREATE PROCEDURE / PREPARE / RUNSCRIPT
+ *      （Flyway 时代的存量写法，新脚本一律不许出现）；
+ *   ⑥ 结构规范：每张表都要 ENGINE = InnoDB + utf8mb4。
+ *
+ * 它**不替代** CI 的 Migrations job（用真实 MySQL 8 空库跑两遍、information_schema
+ * 反查列清单）：真库能判的（能不能执行、是否真幂等）它判不了，它判的是提交前就能
+ * 看见的确定性错误。
+ *
+ * 防空转：脚本内嵌自检（见 selfCheck），坏样本逐条反证、好样本确认不误伤；
+ * 门禁自己失灵时 CI 立刻红。
  *
  * 用法：node infra/scripts/check-migration-dialect.mjs [--verbose]
  */
@@ -28,181 +38,194 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-// ⚠️ 2026-09 的 S0 把手工 SQL 收编成了 Flyway 版本化迁移（`V1__baseline_schema.sql` … `V10__…`），
-// 目录从 `docs/database/migration/` 移到了这里。旧路径下已无 `.sql`，本门禁会**空转通过**
-// （0 个脚本 ⇒ 0 处错误）—— 这正是 2026-09 残留审计抓到的问题：门禁还在跑，脚本早没了。
-// 所以下面除了改路径，还加了"一个脚本都没扫到就失败"的兜底。
-const DDL_DIR = join(REPO, 'SPMS-Server', 'src', 'main', 'resources', 'db', 'migration')
+const DDL_DIR = join(REPO, 'infra', 'init-sql')
+const SCHEMA_FILE = 'init.sql'
+const DATA_FILE = 'init_data.sql'
 const VERBOSE = process.argv.includes('--verbose')
 
+/** 幂等守卫：INSERT 必须带其中一种（`AND NOT EXISTS` 与 `WHERE NOT EXISTS` 都算） */
+const IDEMPOTENT_GUARD = /NOT\s+EXISTS|INSERT\s+IGNORE|ON\s+DUPLICATE\s+KEY\s+UPDATE/i
+/** 不许出现在建库脚本里的危险语句 / Flyway 时代写法 */
+const BANNED_STATEMENTS = [
+  { re: /^\s*DROP\b/im, why: 'DROP（建库脚本不该删对象）' },
+  { re: /^\s*TRUNCATE\b/im, why: 'TRUNCATE（建库脚本不该清数据）' },
+  { re: /^\s*DELETE\b/im, why: 'DELETE（建库脚本不该删数据）' },
+  { re: /^\s*REPLACE\s+INTO\b/im, why: 'REPLACE INTO（会隐式删行，改用 INSERT ... WHERE NOT EXISTS）' },
+  { re: /^\s*DELIMITER\b/im, why: 'DELIMITER（Flyway 时代存储过程写法）' },
+  { re: /^\s*CREATE\s+PROCEDURE\b/im, why: 'CREATE PROCEDURE（改用 IF NOT EXISTS / WHERE NOT EXISTS）' },
+  { re: /^\s*PREPARE\b/im, why: 'PREPARE 动态 SQL（同上）' },
+  { re: /RUNSCRIPT/i, why: 'RUNSCRIPT（H2 专有语法）' },
+]
+
 /**
- * 对一份迁移脚本文本做方言完整性检查，返回错误描述数组（空 = 通过）。
+ * 对一份脚本文本做检查，返回错误描述数组（空 = 通过）。
  * 主流程与自检共用此入口，避免两边行为漂移。
  */
-function checkDialect(name, src) {
+function checkScript(name, src) {
   const errors = []
   const fail = (msg) => errors.push(`${name}: ${msg}`)
 
-  // ① DELIMITER 配平：成对、奇数即错、$$ 开 ; 收
-  const delimiters = []
-  src.split('\n').forEach((line, i) => {
-    const m = /^\s*DELIMITER\s+(\S+)\s*$/.exec(line)
-    if (m) delimiters.push({ line: i + 1, delim: m[1] })
-  })
-  if (delimiters.length % 2 !== 0) {
-    const last = delimiters.at(-1)
-    fail(`DELIMITER 数量为奇数（${delimiters.length}），存在未闭合的 DELIMITER（最后是 \`${last.delim}\` @${last.line}）`)
-  } else {
-    for (let i = 0; i < delimiters.length; i += 2) {
-      const open = delimiters[i]
-      const close = delimiters[i + 1]
-      if (open.delim === close.delim) {
-        fail(`DELIMITER 未闭合：\`${open.delim}\` @${open.line} 配对的仍是 \`${close.delim}\` @${close.line}（应 $$ 开、; 收）`)
-      }
-      if (close.delim !== ';') {
-        fail(`DELIMITER @${close.line} 应为 \`;\` 恢复默认，实际是 \`${close.delim}\``)
-      }
+  // ① 危险语句 / 退役写法
+  for (const { re, why } of BANNED_STATEMENTS) {
+    const m = re.exec(src)
+    if (m) {
+      const line = src.slice(0, m.index).split('\n').length
+      fail(`出现禁止的写法：${why}（第 ${line} 行）`)
     }
   }
 
-  // ② 存储过程：CREATE PROCEDURE 必须有 BEGIN + END$$ 收尾；END$$ 数 = 过程数
-  const procs = []
-  {
-    const re = /CREATE\s+PROCEDURE\s+([a-zA-Z0-9_]+)/g
-    let m
-    while ((m = re.exec(src)) !== null) {
-      procs.push({ name: m[1], startIdx: m.index })
+  // ② CREATE TABLE 必须 IF NOT EXISTS + 必须声明存储引擎与字符集
+  const creates = [...src.matchAll(/^\s*CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?/gim)]
+  for (const m of creates) {
+    if (!m[1]) {
+      fail(`CREATE TABLE \`${m[2]}\` 缺 IF NOT EXISTS —— 重复执行会报 1050，脚本不再幂等`)
     }
   }
-  for (const proc of procs) {
-    const endMarker = src.indexOf('END$$', proc.startIdx)
-    if (endMarker < 0) {
-      fail(`存储过程 ${proc.name} 找不到 END$$ 收尾（可能 DELIMITER 未闭合）`)
-    } else if (!/\bBEGIN\b/.test(src.slice(proc.startIdx, endMarker))) {
-      fail(`存储过程 ${proc.name} 缺少 BEGIN（复合语句块起始）`)
-    }
-  }
-  const endMarkers = (src.match(/END\$\$/g) || []).length
-  if (endMarkers !== procs.length) {
-    fail(`END$$ 数量（${endMarkers}）与存储过程数量（${procs.length}）不一致`)
-  }
-
-  // ③ 幂等性：CREATE TABLE 必须 IF NOT EXISTS；CREATE PROCEDURE 前必须有 DROP PROCEDURE
-  {
-    const re = /CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)/gi
-    let m
-    while ((m = re.exec(src)) !== null) {
-      const lineNo = src.slice(0, m.index).split('\n').length
-      fail(`CREATE TABLE @${lineNo} 缺 IF NOT EXISTS（幂等性：脚本须可重复执行）`)
-    }
-  }
-  for (const proc of procs) {
-    const before = src.slice(0, proc.startIdx)
-    const dropped = new RegExp(`DROP\\s+PROCEDURE\\s+(IF\\s+EXISTS\\s+)?${proc.name}\\b`).test(before)
-    if (!dropped) {
-      fail(`存储过程 ${proc.name} 创建前没有 DROP PROCEDURE（幂等性：重复执行会因已存在而报错）`)
+  for (const m of src.matchAll(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+`(\w+)`\s*\(([\s\S]*?)\n\)\s*ENGINE([^;]*);/gi)) {
+    const tail = `ENGINE${m[3]}`
+    if (!/utf8mb4/i.test(tail)) {
+      fail(`表 \`${m[1]}\` 未声明 utf8mb4 字符集（中文注释会变问号，且与其余表不一致）`)
     }
   }
 
-  // ④ 动态 SQL 配平：PREPARE 与 DEALLOCATE PREPARE（DEALLOCATE 里的 PREPARE 不计入）
-  {
-    const prepareAll = (src.match(/\bPREPARE\b/g) || []).length
-    const deallocs = (src.match(/\bDEALLOCATE\s+PREPARE\b/g) || []).length
-    const prepares = prepareAll - deallocs
-    if (prepares !== deallocs) {
-      fail(`动态 SQL 配平失败：PREPARE ${prepares} 处 / DEALLOCATE PREPARE ${deallocs} 处（漏 DEALLOCATE 会累积 prepared stmt）`)
+  // ③ INSERT 必须自带幂等守卫
+  const inserts = [...src.matchAll(/^\s*INSERT\s+(?:IGNORE\s+)?INTO\b[\s\S]*?;/gim)]
+  for (const m of inserts) {
+    if (!IDEMPOTENT_GUARD.test(m[0])) {
+      const line = src.slice(0, m.index).split('\n').length
+      fail(`INSERT（第 ${line} 行）没有幂等守卫：加 WHERE NOT EXISTS / INSERT IGNORE / ON DUPLICATE KEY UPDATE`)
     }
   }
 
+  // ④ 防空转（文件级：至少一条可执行语句）
+  const statements = src.split('\n').filter(l => l.trim() && !l.trim().startsWith('--'))
+  if (!statements.length) {
+    fail('文件里没有任何可执行语句（只剩注释）')
+  }
   return errors
 }
 
-// ============================================================================
-// 门禁自检：证明每条判据真的能咬人，且不误伤合法写法
-// ============================================================================
+/** 目录级判据：恰好两个脚本、名字正确、分工正确 */
+function checkDirectory(files, texts) {
+  const errors = []
+  const sqlFiles = files.filter(f => f.endsWith('.sql')).sort()
+  if (sqlFiles.join(',') !== [DATA_FILE, SCHEMA_FILE].sort().join(',')) {
+    errors.push(`${join('infra', 'init-sql')} 下的 .sql 必须恰好是 ${SCHEMA_FILE} + ${DATA_FILE}`
+      + `（当前：${sqlFiles.join(', ') || '（无）'}）—— "全仓只有两个数据库脚本"是硬规则，`
+      + `新表/新列/新数据都改这两个文件，不要新增迁移文件`)
+  }
+  const schema = texts.get(SCHEMA_FILE) || ''
+  const data = texts.get(DATA_FILE) || ''
+  const tableCount = [...schema.matchAll(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS/gi)].length
+  if (tableCount < 30) {
+    errors.push(`${SCHEMA_FILE} 只解析到 ${tableCount} 张表（< 30）—— 解析失效或文件被截断，别让门禁空转`)
+  }
+  const insertCount = [...data.matchAll(/^\s*INSERT\s+(?:IGNORE\s+)?INTO\b/gim)].length
+  if (insertCount < 1) {
+    errors.push(`${DATA_FILE} 里没有 INSERT —— 要么解析失效，要么数据被搬走了（别让门禁空转）`)
+  }
+  const backfill = [...data.matchAll(/^\s*UPDATE\s+`(\w+)`/gim)].map(m => m[1])
+  const known = new Set([...schema.matchAll(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+`(\w+)`/gi)].map(m => m[1]))
+  for (const t of backfill) {
+    if (!known.has(t)) {
+      errors.push(`${DATA_FILE} 回填了 \`${t}\`，但 ${SCHEMA_FILE} 里没有这张表 —— 脚本会 1146 报错`)
+    }
+  }
+  return errors
+}
+
+/**
+ * 门禁自检：证明每条判据真的能咬人，且不误伤合法写法。
+ * 返回检查过的样本数；有问题直接打印并返回 null。
+ */
 function selfCheck() {
   const problems = []
   const cases = [
-    {
-      name: 'DELIMITER $$ 忘了闭合回 ;',
-      sql: 'DELIMITER $$\nCREATE PROCEDURE p()\nBEGIN\n  SELECT 1;\nEND$$\n',
-      expect: /DELIMITER 数量为奇数/,
-    },
-    {
-      name: '存储过程缺 END$$ 收尾',
-      sql: 'DROP PROCEDURE IF EXISTS p;\nDELIMITER $$\nCREATE PROCEDURE p()\nBEGIN\n  SELECT 1;\nEND;\nDELIMITER ;\n',
-      expect: /找不到 END\$\$ 收尾/,
-    },
-    {
-      name: 'CREATE TABLE 漏 IF NOT EXISTS',
-      sql: 'CREATE TABLE `foo` (\n  `id` BIGINT PRIMARY KEY\n);\n',
-      expect: /缺 IF NOT EXISTS/,
-    },
-    {
-      name: 'CREATE PROCEDURE 前无 DROP PROCEDURE',
-      sql: 'DELIMITER $$\nCREATE PROCEDURE p()\nBEGIN\n  SELECT 1;\nEND$$\nDELIMITER ;\n',
-      expect: /创建前没有 DROP PROCEDURE/,
-    },
-    {
-      name: 'PREPARE 漏 DEALLOCATE',
-      sql: 'DROP PROCEDURE IF EXISTS p;\nDELIMITER $$\nCREATE PROCEDURE p()\nBEGIN\n  SET @s = "SELECT 1";\n  PREPARE st FROM @s; EXECUTE st;\nEND$$\nDELIMITER ;\n',
-      expect: /动态 SQL 配平失败/,
-    },
-    {
-      name: '合法：DELIMITER 成对 + DROP 前置 + PREPARE/DEALLOCATE 配平',
-      sql: 'DROP PROCEDURE IF EXISTS p;\nDELIMITER $$\nCREATE PROCEDURE p()\nBEGIN\n  SET @s = "SELECT 1";\n  PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;\nEND$$\nDELIMITER ;\nCREATE TABLE IF NOT EXISTS `foo` (`id` BIGINT PRIMARY KEY);\n',
-      expect: null,
-    },
+    { name: '合法脚本', src: 'CREATE TABLE IF NOT EXISTS `t` (\n  `id` bigint\n) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;\n', expect: null },
+    { name: 'CREATE TABLE 缺 IF NOT EXISTS', src: 'CREATE TABLE `t` (\n  `id` bigint\n) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;', expect: 'IF NOT EXISTS' },
+    { name: '表缺字符集', src: 'CREATE TABLE IF NOT EXISTS `t` (\n  `id` bigint\n) ENGINE = InnoDB;', expect: 'utf8mb4' },
+    { name: '裸 INSERT（无幂等守卫）', src: 'INSERT INTO `t` (`id`) VALUES (1);', expect: '幂等守卫' },
+    { name: '带 WHERE NOT EXISTS 的 INSERT', src: 'INSERT INTO `t` (`id`)\nSELECT 1\nWHERE NOT EXISTS (SELECT 1 FROM `t` WHERE `id` = 1);', expect: null },
+    { name: 'INSERT IGNORE', src: 'INSERT IGNORE INTO `t` (`id`) VALUES (1);', expect: null },
+    { name: 'DROP TABLE 残留', src: 'DROP TABLE IF EXISTS `t`;\nCREATE TABLE IF NOT EXISTS `t` (\n `id` bigint\n) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;', expect: 'DROP' },
+    { name: 'DELETE 残留', src: 'DELETE FROM `t` WHERE `id` = 1;', expect: 'DELETE' },
+    { name: 'REPLACE INTO', src: 'REPLACE INTO `t` (`id`) VALUES (1);', expect: 'REPLACE' },
+    { name: 'DELIMITER / 存储过程（Flyway 时代写法）', src: 'DELIMITER $$\nCREATE PROCEDURE p()\nBEGIN\nEND$$\nDELIMITER ;', expect: 'DELIMITER' },
+    { name: 'PREPARE 动态 SQL', src: 'SET @s = "SELECT 1";\nPREPARE stmt FROM @s;', expect: 'PREPARE' },
+    { name: '空文件', src: '-- 只有注释\n', expect: '没有任何可执行语句' },
   ]
-  let checked = 0
   for (const c of cases) {
-    checked++
-    const errs = checkDialect('<self-test>', c.sql)
+    const errs = checkScript('自检', c.src)
     if (c.expect === null) {
-      if (errs.length > 0) {
+      if (errs.length) {
         problems.push(`自检：「${c.name}」被误判为错误（${errs.join(' / ')}）`)
       }
-      continue
-    }
-    if (!errs.some((e) => c.expect.test(e))) {
-      problems.push(`自检：「${c.name}」没有被检出（期望匹配 ${c.expect}）`)
+    } else if (!errs.some(e => e.includes(c.expect))) {
+      problems.push(`自检：「${c.name}」没有被检出（期望包含「${c.expect}」，实际 ${errs.join(' / ') || '（无错误）'}）`)
     }
   }
-  return { problems, checked }
+
+  // 目录级自检：少一个文件 / 多一个文件都要咬人
+  const dirCases = [
+    { name: '只有 init.sql', files: ['init.sql'], want: 1 },
+    { name: '多了一个迁移文件', files: ['init.sql', 'init_data.sql', 'V11__x.sql'], want: 1 },
+    { name: '恰好两个', files: ['init.sql', 'init_data.sql'], want: 0 },
+  ]
+  const okTexts = new Map([
+    ['init.sql', 'CREATE TABLE IF NOT EXISTS `user` (\n `id` bigint\n) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;\n'
+      + Array.from({ length: 30 }, (_, i) => `CREATE TABLE IF NOT EXISTS \`t${i}\` (\n \`id\` bigint\n) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;`).join('\n')],
+    ['init_data.sql', 'INSERT INTO `user` (`id`) SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM `user` WHERE `id` = 1);'],
+  ])
+  for (const c of dirCases) {
+    const errs = checkDirectory(c.files, okTexts)
+    if (errs.length !== c.want) {
+      problems.push(`自检（目录级）：「${c.name}」期望 ${c.want} 条错误，实际 ${errs.length} 条（${errs.join(' / ') || '（无）'}）`)
+    }
+  }
+  const badBackfill = new Map(okTexts)
+  badBackfill.set('init_data.sql', 'UPDATE `ghost` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL;')
+  if (!checkDirectory(['init.sql', 'init_data.sql'], badBackfill).length) {
+    problems.push('自检（目录级）：回填了脚本里不存在的表却没被检出')
+  }
+
+  if (problems.length) {
+    console.error('✗ check-migration-dialect 自检失败：门禁本身不可信，先修门禁再谈脚本')
+    problems.forEach(p => console.error(`   · ${p}`))
+    return null
+  }
+  return cases.length + dirCases.length + 1
 }
 
-// ============================================================================
-// 主流程
-// ============================================================================
-const sqlFiles = readdirSync(DDL_DIR).filter((f) => f.endsWith('.sql')).sort()
-if (sqlFiles.length === 0) {
-  console.error(`✗ ${DDL_DIR} 下没有 .sql —— 门禁空转（路径写错或脚本被搬走）。`)
-  console.error('  宁可红一次，也不要"0 个脚本 ⇒ 0 处错误"的假绿。')
+const checked = selfCheck()
+if (checked === null) {
   process.exit(1)
 }
-const allErrors = []
-for (const f of sqlFiles) {
-  const src = readFileSync(join(DDL_DIR, f), 'utf-8')
-  const errs = checkDialect(f, src)
-  if (errs.length) allErrors.push(...errs)
+
+let files
+try {
+  files = readdirSync(DDL_DIR).sort()
+} catch {
+  console.error(`✗ 读不到 ${DDL_DIR} —— 目录被删了？两个脚本必须住在这里（init.sql / init_data.sql）`)
+  process.exit(1)
+}
+const texts = new Map(files.filter(f => f.endsWith('.sql')).map(f => [f, readFileSync(join(DDL_DIR, f), 'utf8')]))
+
+const errors = [...checkDirectory(files, texts)]
+for (const [name, src] of texts) {
+  errors.push(...checkScript(name, src))
   if (VERBOSE) {
-    const procCount = (src.match(/CREATE\s+PROCEDURE\s+/g) || []).length
-    const delimCount = (src.match(/^\s*DELIMITER\s+/gm) || []).length
-    console.log(`  ${f}: ${procCount} 个存储过程 / ${delimCount} 个 DELIMITER / ${src.split('\n').length} 行`)
+    const tables = [...src.matchAll(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+`(\w+)`/gi)].length
+    const inserts = [...src.matchAll(/^\s*INSERT\s+(?:IGNORE\s+)?INTO\b/gim)].length
+    const updates = [...src.matchAll(/^\s*UPDATE\s+`\w+`/gim)].length
+    console.log(`   · ${name}: CREATE TABLE ${tables} · INSERT ${inserts} · UPDATE ${updates} · ${src.split('\n').length} 行`)
   }
 }
 
-const { problems, checked } = selfCheck()
-if (problems.length > 0) {
-  console.error('\n✗ check-migration-dialect 自检失败：门禁本身不可信，先修门禁再谈迁移脚本')
-  problems.forEach((p) => console.error(`  ${p}`))
+if (errors.length) {
+  console.error('\n✗ 数据库脚本检查失败：')
+  errors.forEach(e => console.error(`   · ${e}`))
   process.exit(1)
 }
-
-if (allErrors.length > 0) {
-  console.error(`✗ 迁移脚本方言语法完整性 ${allErrors.length} 处错误（${sqlFiles.length} 个脚本）：`)
-  allErrors.forEach((e) => console.error(`  · ${e}`))
-  process.exit(1)
-}
-
-console.log(`✓ 迁移方言静态检查通过：${sqlFiles.length} 个脚本，DELIMITER/存储过程/幂等性/动态 SQL 配平均正确；门禁自检 ${checked} 例通过`)
+const schemaTables = [...(texts.get(SCHEMA_FILE) || '').matchAll(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS/gi)].length
+console.log(`✓ 数据库脚本检查通过：2 个脚本（${SCHEMA_FILE} ${schemaTables} 张表 / ${DATA_FILE}），`
+  + '幂等守卫、危险语句、Flyway 时代写法、字符集全部合规；门禁自检 ' + checked + ' 例通过')

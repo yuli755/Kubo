@@ -66,7 +66,7 @@ docker rm -f kubo-mysql-drill
 | 项 | 判定 |
 | --- | --- |
 | 关键表行数 | `users/roles/menus/materials/devices/orders` 等非 0 且与备份时点吻合 |
-| schema | 在演练库跑迁移脚本（`src/main/resources/db/migration/*.sql`，经 Flyway 或按版本手工执行）不报错，或 `mysqldump --no-data` 比对表结构 |
+| schema | 在演练库跑 `infra/init-sql/init.sql` + `init_data.sql` 不报错（空库连跑两遍结果一致），或 `mysqldump --no-data` 比对表结构 |
 | 应用冒烟 | 临时把后端 datasource 指向演练库，启动成功 + 登录 + 拉一条列表（可选，最接近真实） |
 | PITR | 回放到指定时间点后，该时间点之后的数据**不**存在、之前的**存在**（用一条已知写入验证） |
 

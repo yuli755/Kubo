@@ -340,8 +340,8 @@ jobs:
   # 为什么不用 Testcontainers：那要往 pom 里加 testcontainers + mysql-connector 依赖，
   # 本 job 只要一个 service 容器 + mysql CLI，判定的却是同一件事（脚本能否在 MySQL 8 上执行、
   # 是否真幂等、建出来的列是否与脚本一致），而 H2 + schema-test.sql 那份手抄件永远判不出方言问题。
-  # 红线：这里跑的是 `src/main/resources/db/migration` 下的**生产迁移脚本**（Flyway 版本化，
-  # 2026-09 的 S0 从 `docs/database/migration/` 收编过来），绝不拿 schema-test.sql 顶替它。
+  # 红线：这里跑的是 `infra/init-sql/` 下的**生产脚本**（init.sql 结构 + init_data.sql 数据，
+  # 2026-09-18 起全仓只有这两个 .sql），绝不拿 schema-test.sql 顶替它。
   # ============================================================================
   migrations:
     name: Migrations (MySQL 8 dialect / idempotency)
@@ -393,11 +393,10 @@ jobs:
 
           for pass in 1 2; do
             : > "/tmp/err-$pass.txt"
-            for f in SPMS-Server/src/main/resources/db/migration/*.sql; do
+            for f in infra/init-sql/init.sql infra/init-sql/init_data.sql; do
               echo "::group::pass $pass — $f"
-              # --force 只为"前置业务表不存在"这一类已知缺口服务：这批脚本假定业务库已存在
-              # （框架表 permission/role、业务表 bom/contract… 由 Hibernate ddl-auto 生成，本仓没有它们的建表脚本）。
-              # 下面把 stderr 逐条分类：允许的只有 1146，其它错误照样判失败。
+              # 两个脚本要能把一个**空库**建到可用（join 表也已显式建出），
+              # 所以不再有"前置表不存在"的容错空间：任何 ERROR 都判失败。
               $MYSQL < "$f" >> "/tmp/err-$pass.txt" 2>&1
               echo "累计输出行数：$(wc -l < "/tmp/err-$pass.txt")"
               echo "::endgroup::"
@@ -410,19 +409,20 @@ jobs:
           # 只把 "ERROR ..." 行算成错误：客户端每次调用都往 stderr 写一条
           # "Using a password on the command line" 警告，按行数判会把噪音读成失败。
           errs=$(grep -cE "^ERROR [0-9]+" /tmp/err-all.txt)
-          missing=$(grep -cE "^ERROR 1146 .*doesn't exist" /tmp/err-all.txt)
-          other=$((errs - missing))
+          # 空库起步：不再有"前置表不存在"的已知缺口，任何一条 ERROR 都判失败
+          missing=0
+          other=$errs
           c1=$(wc -l < /tmp/after-1.txt)
           c2=$(wc -l < /tmp/after-2.txt)
-          note "02-stderr" "输出 $total 行 / ERROR 行 $errs / 预期内 1146 $missing / 预期外 $other"
+          note "02-stderr" "输出 $total 行 / ERROR 行 $errs（空库起步，零容忍）"
           note "02b-errors" "$(grep -E '^ERROR ' /tmp/err-all.txt | head -25)"
           note "03-schema" "第 1 遍后 $c1 列 / 第 2 遍后 $c2 列 / 表清单：$($MYSQL -N -B -e 'SHOW TABLES' 2>&1 | tr '\n' ' ')"
           note "03b-idempotency" "$(diff /tmp/after-1.txt /tmp/after-2.txt | head -25)"
 
           rc=0
           if [ "$other" -gt 0 ]; then
-            echo "✗ 迁移脚本在 MySQL 8 上产生了预期外的错误："
-            grep -E "^ERROR " /tmp/err-all.txt | grep -vE "^ERROR 1146 .*doesn't exist" | head -25
+            echo "✗ 两个 SQL 在 MySQL 8（空库）上产生了错误："
+            grep -E "^ERROR " /tmp/err-all.txt | head -25
             rc=1
           fi
           if [ "$c1" -le 0 ]; then
@@ -438,9 +438,9 @@ jobs:
           note "99-result" "rc=$rc（0 = 三条判据全过）"
           exit $rc
 
-      - name: Live schema must match migration scripts and entities
+      - name: Live schema must match init.sql and entities
         # 用真实库的 information_schema 反向核对脚本与实体：库里缺列 = 脚本其实没执行成功；
-        # 库里有而脚本没有 = 有人只改了库没补迁移脚本。空 --live-columns 文件会让脚本自己判失败。
+        # 库里有而脚本没有 = 有人只改了库没补 init.sql。空 --live-columns 文件会让脚本自己判失败。
         run: |
           set -e
           node infra/scripts/check-ddl-entity-drift.mjs --live-columns /tmp/live.txt --json /tmp/ddl-drift.json

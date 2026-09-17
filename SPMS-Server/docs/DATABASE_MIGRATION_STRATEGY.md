@@ -1,304 +1,80 @@
-# 数据库迁移策略文档
+# 数据库脚本策略（2026-09-18 定稿）
 
-> **版本**：v1.0
-> **状态**：🟢 已定稿，强制执行
-> **适用范围**：Kubo 平台全量数据迁移 (单体 → 微服务分库分表)
-> **迁移目标**：零停机、零数据丢失、可回滚、可验证
-
----
-
-## 1. 迁移总体策略
-
-### 1.1 迁移原则
-
-| 原则 | 说明 |
-|------|------|
-| **零停机** | 业务全程可用，无感知迁移 |
-| **零数据丢失** | RPO = 0，所有数据完整迁移 |
-| **可回滚** | 任意时刻可秒级回滚至旧架构 |
-| **可验证** | 全量/增量双重校验，差异零容忍 |
-| **分批迁移** | 按业务域分批、按表分批、灰度切换 |
-
-### 1.2 迁移架构
-
-```mermaid
-graph LR
-    A[旧单体应用] -->|双写| B[(旧库)]
-    A -->|双写| C[(新分片库)]
-    C -->|校验| D[校验服务]
-    D -->|差异报告| E[人工复核]
-    E -->|一致| F[流量切换]
-    F -->|灰度| G[100% 新架构]
-```
-
-### 1.3 迁移分批策略
-
-| 批次 | 业务域 | 表数量 | 预估数据量 | 风险等级 | 预计耗时 |
-|------|--------|--------|------------|----------|----------|
-| **第 1 批** | 系统管理 | 15 | < 10万 | 低 | 1 天 |
-| **第 2 批** | 字典/配置 | 10 | < 5万 | 低 | 0.5 天 |
-| **第 3 批** | 人事组织 | 20 | < 20万 | 低 | 1 天 |
-| **第 4 批** | 仓储核心 | 30 | 500万+ | 高 | 3 天 |
-| **第 5 批** | 制造执行 | 25 | 300万+ | 高 | 2 天 |
-| **第 6 批** | 财务核算 | 20 | 100万+ | 高 | 2 天 |
-| **第 7 批** | 采购/销售/资产 | 40 | 200万+ | 中 | 3 天 |
-| **第 8 批** | 物联/报表/日志 | 30 | 1000万+ | 中 | 2 天 |
+> **一句话**：全仓只有两个数据库脚本，住 `infra/init-sql/`：
+>
+> | 文件 | 管什么 | 内容 |
+> | --- | --- | --- |
+> | [`init.sql`](../../infra/init-sql/init.sql) | **结构** | 49 张表（`CREATE TABLE IF NOT EXISTS`，含索引与唯一键） |
+> | [`init_data.sql`](../../infra/init-sql/init_data.sql) | **数据** | 默认租户、4 个系统权限身份、`SYSTEM_ROOT` 角色与绑定、归属列回填 |
+>
+> **以后不管做什么数据库改动，都只改这两个文件**：加表/加列/改索引 → `init.sql`；加种子数据/回填写法 → `init_data.sql`。
+> **不再新增迁移文件**（`V11__xxx.sql` 这类一律不许出现），也**不再引入迁移框架**。
 
 ---
 
-## 2. 迁移技术方案
+## 1. 为什么是"两个文件"，而不是版本化迁移
 
-### 2.1 双写模式架构
+| 口径 | 版本化迁移（Flyway/Liquibase） | 两个文件（本仓现行） |
+| --- | --- | --- |
+| 结构事实源 | 迁移链（V1 + V2 + … 累加） | `init.sql` 一份最终状态，**打开就能读全表结构** |
+| 改结构时要做的 | 新写一个 `V<n>__` 文件（结构散在 N 个文件里，读"现在长什么样"要按顺序脑内执行） | 直接改 `init.sql` 里那张表 |
+| 存量库怎么演进 | 迁移框架按记账表逐条应用 | `init.sql` 幂等（`IF NOT EXISTS`），缺什么补什么；大改动走备份 + 重建 |
+| 工具依赖 | flyway-core + flyway-mysql + `flyway_schema_history` 记账表 + 校验和规则（改历史脚本会红） | **零依赖**，`mysql < 文件` 就能跑 |
+| 适合的场景 | 多环境长期演进、需要审计每次变更 | 单人/小团队的项目库，要的是"一眼看全 + 改了就跑" |
 
-```java
-// 双写切面示例
-@Aspect
-@Component
-@Order(1)
-public class DualWriteAspect {
+用户 2026-09-18 定为第二种。代价写在明处：**没有逐版本回滚**（回滚 = 用备份还原 + 重放脚本），
+**没有"谁在什么时候改的"审计**（`git log infra/init-sql/init.sql` 就是审计），
+所以两个脚本必须**始终幂等 + 只增不删数据**（见 §3 的机器判据）。
 
-    @Autowired
-    private OldRepository oldRepository;
-
-    @Autowired
-    private NewRepository newRepository;
-
-    @Around("@annotation(DualWrite)")
-    public Object dualWrite(ProceedingJoinPoint pjp) throws Throwable {
-        // 1. 执行旧库操作
-        Object result = pjp.proceed();
-
-        // 2. 异步写入新库 (不阻塞主流程)
-        CompletableFuture.runAsync(() -> {
-            try {
-                replicateToNew(pjp, result);
-            } catch (Exception e) {
-                log.error("双写新库失败", e);
-                // 记录失败，进入补偿队列
-                dualWriteFailureQueue.offer(new DualWriteFailure(pjp, result, e));
-            }
-        });
-
-        return result;
-    }
-}
-```
-
-### 2.2 迁移工具栈
-
-| 工具 | 用途 | 版本 |
-|------|------|------|
-| **Flyway** | 版本化 Schema 迁移 | 10.15+ |
-| **ShardingSphere** | 读写分离、分片路由 | 5.4+ |
-| **DataX / Canal** | 全量/增量同步 | 3.0+ / 1.1.7 |
-| **gh-ost / pt-osc** | 大表在线 DDL | 最新 |
-| **自研校验工具** | 全量/增量数据校验 | 自研 |
-
-### 2.3 分片规则设计
-
-```yaml
-# sharding-wms.yaml 示例
-sharding:
-  tables:
-    inventory_flow:
-      actualDataNodes: ds_${0..15}.inventory_flow_${0..11} # 16库 x 12个月分表
-      tableStrategy:
-        standard:
-          shardingColumn: warehouse_id
-          preciseAlgorithmClassName: cn.kubo.wms.sharding.WarehouseIdShardingAlgorithm
-        complex:
-          shardingColumns: warehouse_id, create_time
-          algorithmClassName: cn.kubo.wms.sharding.InventoryFlowComplexAlgorithm
-      keyGenerateStrategy:
-        column: id
-        keyGeneratorClassName: cn.kubo.common.sharding.SnowflakeKeyGenerator
-
-    stock_qty:
-      actualDataNodes: ds_${0..15}.stock_qty
-      tableStrategy:
-        standard:
-          shardingColumn: warehouse_id
-          preciseAlgorithmClassName: cn.kubo.wms.sharding.WarehouseIdShardingAlgorithm
-      keyGenerateStrategy:
-        column: id
-        keyGeneratorClassName: cn.kubo.common.sharding.SnowflakeKeyGenerator
-
-  # 广播表 (字典、配置、字典项等)
-  broadcastTables:
-    - sys_dict
-    - sys_dict_item
-    - sys_config
-    - sys_area
-```
-
----
-
-## 3. 迁移执行步骤
-
-### Phase 1: 准备阶段 (T-2 周)
-
-| 任务 | 负责 | 交付物 |
-|------|------|--------|
-| 1.1 编写 Flyway 迁移脚本 (Schema + 分片规则) | DBA | `V1.x.x__sharding_schema.sql` |
-| 1.2 搭建新库集群 (InnoDB Cluster) | DBA | 集群健康检查报告 |
-| 1.3 配置 ShardingSphere 分片规则 | 架构师 + DBA | `sharding-*.yaml` |
-| 1.4 开发双写切面 + 补偿队列 | 后端架构 | `kubo-common-dao` 双写模块 |
-| 1.5 开发全量/增量校验工具 | DBA + 后端 | `DataConsistencyChecker` |
-| 1.4 编写回滚预案 | 架构师 + DBA | `ROLLBACK_PLAYBOOK.md` |
-
-### Phase 2: 双写验证阶段 (T-1 周 ~ T+2 周)
-
-| 步骤 | 动作 | 验收标准 |
-|------|------|----------|
-| 2.1 | 部署双写版本到 Staging | 双写成功率 100% |
-| 2.2 | 全量历史数据同步 (DataX) | 行数一致、校验和一致 |
-| 2.3 | 开启增量同步 | 延迟 < 1s |
-| 2.3 | 持续校验 (每小时全量校验) | 差异 = 0 |
-| 2.4 | 压测验证 (双写模式下) | QPS 无下降、P99 < 200ms |
-| 2.5 | 模拟故障注入 (新库宕机/网络分区) | 双写降级不影响主业务 |
-
-### Phase 3: 分批切换阶段 (T+2 周 ~ T+8 周)
-
-| 批次 | 切换动作 | 回滚条件 | 验收 |
-|------|----------|----------|------|
-| 1. 系统/字典/人事 | 只读旧库 → 双写 → 只读新库 | 写入失败率 > 0.1% | 校验通过 |
-| 2. 仓储核心 | 灰度 10% → 50% → 100% | P99 > 200ms / 错误率 > 0.1% | 压测通过 |
-| 3. 制造/财务 | 同上 | 同上 | 同上 |
-| 4. 采购/销售/资产 | 同上 | 同上 | 同上 |
-| 5. 物联/报表/日志 | 同上 | 同上 | 同上 |
-
-### Phase 4: 收尾阶段 (T+8 周)
-
-| 任务 | 说明 |
-|------|------|
-| 4.1 移除双写代码 | 删除 `@DualWrite` 注解、双写切面 |
-| 4.2 下线旧库 | 确认 30 天无回滚需求后下线 |
-| 4.3 归档迁移文档 | 整理迁移报告、经验总结 |
-
----
-
-## 4. 校验方案
-
-### 4.1 校验维度
-
-| 校验类型 | 频率 | 校验内容 | 容忍度 |
-|----------|------|----------|--------|
-| **行数校验** | 每小时 | `COUNT(*)` 对比 | 0 差异 |
-| **校验和校验** | 每小时 | `CRC32/MD5` 聚合字段 | 0 差异 |
-| **抽样明细校验** | 每天 | 随机 1000 行逐字段对比 | 0 差异 |
-| **聚合指标校验** | 每小时 | SUM/COUNT/AVG 业务指标 | 相对误差 < 0.001% |
-| **增量同步延迟** | 实时监控 | Canal 延迟监控 | < 1s |
-
-### 4.2 校验工具设计
-
-```java
-@Component
-public class DataConsistencyChecker {
-
-    @Scheduled(cron = "0 0 * * * ?") // 每小时
-    public void hourlyFullCheck() {
-        List<String> tables = getShardedTables();
-        for (String table : tables) {
-            CheckResult result = checkTable(table);
-            if (!result.isConsistent()) {
-                alertService.sendAlert("数据不一致", table, result.getDiffDetails());
-                // 自动记录差异详情到审计表
-                auditLogService.logDataInconsistency(table, result);
-            }
-        }
-    }
-
-    private CheckResult checkTable(String table) {
-        // 1. 行数对比
-        long oldCount = oldJdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Long.class);
-        long newCount = newJdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Long.class);
-
-        // 2. 校验和对比 (业务关键字段)
-        String checksumSql = buildChecksumSql(table);
-        String oldChecksum = oldJdbcTemplate.queryForObject(checksumSql, String.class);
-        String newChecksum = newJdbcTemplate.queryForObject(checksumSql, String.class);
-
-        // 3. 抽样明细对比
-        List<Map<String, Object>> oldSample = oldJdbcTemplate.queryForList(
-            "SELECT * FROM " + table + " ORDER BY RAND() LIMIT 1000");
-        List<Map<String, Object>> newSample = newJdbcTemplate.queryForList(
-            "SELECT * FROM " + table + " ORDER BY RAND() LIMIT 1000");
-
-        return CheckResult.builder()
-            .tableName(table)
-            .rowCountMatch(oldCount == newCount)
-            .checksumMatch(Objects.equals(oldChecksum, newChecksum))
-            .sampleMatch(deepEqual(oldSample, newSample))
-            .build();
-    }
-}
-```
-
----
-
-## 5. 回滚预案
-
-### 5.1 回滚触发条件
-
-| 场景 | 触发条件 | 回滚级别 |
-|------|----------|----------|
-| 写入失败 | 写入失败率 > 0.1% 持续 5 分钟 | 单表/单库回滚 |
-| 性能劣化 | P99 延迟 > 2 倍基线持续 10 分钟 | 单库/全局回滚 |
-| 数据不一致 | 校验发现差异 > 0 | 立即冻结切换、人工介入 |
-| 严重 Bug | 核心业务流程阻断 | 全局秒级回滚 |
-
-### 5.2 回滚操作步骤
+## 2. 怎么执行
 
 ```bash
-# 1. 秒级流量切回 (Nginx/Gateway 权重 100% -> 旧版)
-kubectl patch virtualservice kubo-gateway -n kubo \
-  -p '{"spec":{"http":[{"route":[{"destination":{"host":"kubo-gateway-old"},"weight":100}]}}]}'
+# ① 全新环境（最省事）：compose 的 mysql 服务把 infra/init-sql 挂进
+#    /docker-entrypoint-initdb.d，容器**首次**启动（数据卷为空）时按文件名顺序自动执行
+docker compose up -d mysql
 
-# 2. 禁用双写 (配置中心动态关闭)
-kubectl exec -n kubo-config nconfig-cli -- set dualwrite.enabled=false
-
-# 3. 验证旧版业务正常
-curl -f http://kubo-gateway-old/health
-
-# 4. 通知相关方
-send_alert "ROLLBACK_EXECUTED" "已回滚至旧架构，原因: $REASON"
+# ② 已有库 / 手工建库
+mysql -h 127.0.0.1 -uroot -p kubo < infra/init-sql/init.sql
+mysql -h 127.0.0.1 -uroot -p kubo < infra/init-sql/init_data.sql
 ```
 
-### 5.3 回滚演练计划
+> 注意 `docker-entrypoint-initdb.d` 只在**数据目录为空**时生效：库已经在跑就不会重跑脚本，
+> 此时用 ② 手工执行（两个脚本都幂等，重复执行没有副作用）。
 
-| 频率 | 范围 | 参与方 | 验收标准 |
-|------|------|--------|----------|
-| 月度 | 单表/单库 | DBA + 后端 | RTO < 2min、RPO = 0 |
-| 季度 | 全局 | 全团队 | RTO < 5min、RPO = 0、业务无感知 |
+应用侧行为：`ddl-auto = validate`（local 目前是 `update`，J4 关掉）——**应用不建表、不改表**，
+库结构与脚本不一致时启动即报 `Schema-validation`，这正是我们要的"早失败"。
 
----
+## 3. 谁在守这两个文件（4 道机器判据）
 
-## 6. 监控与告警
+| 判据 | 命令 | 拦什么 |
+| --- | --- | --- |
+| 目录里**恰好两个** `.sql` | `pnpm migration:check` | 新增迁移文件、名字写错、漏文件；顺带查幂等守卫（`IF NOT EXISTS` / `WHERE NOT EXISTS`）、禁 `DROP/DELETE/TRUNCATE/DELIMITER/CREATE PROCEDURE`、查 `utf8mb4` |
+| 结构 ↔ 实体列漂移 | `pnpm ddl:check` | 实体加了列没改 `init.sql`（生产启动会缺列）；脚本有列没人映射 |
+| 实体 ↔ 脚本双向一致 | `npx vitest run src/config/__tests__/schemaContract.spec.ts` | 两边列名集合必须相等；`data_*` 表逐个核对 |
+| 真实 MySQL 8 空库连跑两遍 | CI `migrations` job | 能不能执行、是否真幂等（第二次执行后 `information_schema` 必须与第一次逐列相同）、**零 ERROR** |
 
-### 6.1 迁移期关键指标
+## 4. 改库结构的标准动作（照做）
 
-| 指标 | 来源 | 告警阈值 |
-|------|------|----------|
-| 双写成功率 | 应用埋点 | < 99.99% |
-| 双写延迟 P99 | 应用埋点 | > 100ms |
-| 同步延迟 | Canal 监控 | > 1s |
-| 校验差异计数 | 校验工具 | > 0 |
-| 新库写入 QPS | MySQL 监控 | 突变 > 50% |
-| 新库连接池使用率 | HikariCP | > 80% |
+1. 改实体（`XxxEntity.java`）——列的事实源是实体；
+2. 改 `infra/init-sql/init.sql` 里对应的 `CREATE TABLE`：新列/新索引/新唯一键一并写上；
+3. 若还有存量库要跟进（补列、回填），在 `init_data.sql` 里加幂等的 `INSERT ... WHERE NOT EXISTS`
+   / `UPDATE ... WHERE 列 IS NULL`（**不许** `DELETE` / `DROP`）；
+4. 跑 `pnpm check`（含上面 3 道离线判据）；
+5. 推送后看 CI 的 `migrations` job（真库那一遍）。
 
----
+## 5. 与历史的关系（2026-09 的三次收敛）
 
-## 7. 相关链接
+| 时间 | 状态 | 结果 |
+| --- | --- | --- |
+| 2026-09 之前 | 9 个手工 SQL，靠文档口口相传，**没人能一键建库** | 新环境起不了库 |
+| 2026-09-17 | 收编为 Flyway `V1__baseline_schema.sql` + `V2..V10`（基线 + 存量脚本，含存储过程幂等技巧） | 可执行了，但读"当前结构"要脑内执行 10 个文件 |
+| **2026-09-18** | **折叠成 `init.sql` + `init_data.sql` 两个文件，Flyway 整套退场** | 结构一眼看全；改动只在一处；判据从"版本号连续"改成"目录里恰好两个 + 幂等" |
 
-- [Flyway 官方文档](https://flywaydb.org/documentation/)
-- [ShardingSphere 官方文档](https://shardingsphere.apache.org/document/current/en/overview/)
-- [gh-ost 在线 DDL](https://github.com/github/gh-ost)
-- [Canal 官方文档](https://github.com/alibaba/canal)
-- [DataX 官方文档](https://github.com/alibaba/DataX)
-- 后续 ADR: [ADR-008: 部署发布策略](ADR-008-部署发布策略.md)
+折叠时逐条核对过（脚本可复查）：V2/V4 的 8 列（`contract_document`/`participant`/`personal_token`/`unit`
+的 `tenant_id`+`creator_id`）、28 个索引、20 个 `(tenant_id, 列)` 复合唯一键、`user_tenant`/`user_factory`、
+7 张 Hibernate 隐式命名关联表（`user_role_list` 等，历史上由 `ddl-auto: update` 建出、脚本里没有），
+全部落进 `init.sql`；数据类（租户/权限身份/角色绑定/归属回填）落进 `init_data.sql`。
 
----
-
-*文档版本：v1.0*
-*最后更新：2026-08-01*
-*状态：🟢 已定稿，强制执行*
+> 本文档原件是 ShardingSphere 分片 + DataX/Canal 双写 + gh-ost 在线 DDL 的**迁移方案设计**，
+> 那些工具与"第 1~8 批（含 MES/IoT/财务域）"从未落地（对应模块早已删除）。
+> 2026-09-18 按"过时文档直接删"的口径整篇改写成本文。

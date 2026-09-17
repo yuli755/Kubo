@@ -3,33 +3,34 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 /**
- * # schema 契约：JPA 实体 ↔ Flyway 基线 DDL
+ * # schema 契约：实体 ↔ `infra/init-sql/init.sql`
  *
  * ## 为什么需要这条门禁
  *
- * 项目跑的是 `ddl-auto: validate`（Hibernate 只校验、不建表），而**建表脚本一直不存在**——
- * 开发库是历史 `ddl-auto: update` 时代长出来的。这意味着：
+ * 项目跑的是 `ddl-auto: validate`（只校验、不建表），结构脚本是整个环境的唯一建库路径：
+ * 新同事/新环境把 `infra/init-sql/init.sql` + `init_data.sql` 一跑就该有个能用的库。
+ * 因此两边必须严丝合缝：
  *
- * - 新同事/新环境**起不了库**（没有可执行的建表路径）；
- * - 接下来要把写路径从 JPA 换到 MyBatis，没有 schema 基线就无从验证"换完表结构一致"；
- * - 改实体忘了改 schema 这类错误，在 `validate` 下要到**启动时**才炸，而且报的是
- *   "missing column" 这种不含前因后果的信息。
- *
- * 所以：实体定义 = 事实源，`V1__baseline_schema.sql` 由 `scripts/gen-flyway-baseline.mjs`
- * 生成，本用例把两边钉在一起。任何一边单独改动，CI 立刻红。
+ * - 改实体忘了改脚本 → 启动期 `Schema-validation: missing column`（信息难懂）；
+ * - 改脚本忘了改实体 → 库里多出没人映射的列（同样是漂移）。
  *
  * ## 覆盖范围
  * - 每个 `@Table(name=...)` 实体都有对应建表语句；
- * - 每个实体声明的列都出现在基线里（含 `@ManyToOne` 推导出的 `<字段>_id`）；
+ * - 每个实体声明的列都出现在脚本里（含 `@ManyToOne` 推导出的 `<字段>_id`）；
  * - 基类的公共列（id / create_time / update_time / is_disabled / is_published，
  *   归属实体再加 tenant_id / creator_id）每张表都有；
- * - 迁移文件版本号连续、命名符合 Flyway 约定（`V<n>__<描述>.sql`）。
+ * - `infra/init-sql/` 下**恰好两个** `.sql`（init.sql 结构 + init_data.sql 数据），
+ *   且数据脚本里每条 INSERT 都自带幂等守卫。
+ *
+ * 历史：这两条判据以前钉的是 Flyway 的 `V1__baseline_schema.sql`（版本号连续、V1..V10 顺序），
+ * 2026-09-18 用户定下"全仓只保留两个 SQL 文件、以后都改这两个"之后，Flyway 与其版本化命名一并退场。
  */
 
 const ROOT = process.cwd()
 const JAVA_ROOT = join(ROOT, 'SPMS-Server/src/main/java')
-const MIGRATION_DIR = join(ROOT, 'SPMS-Server/src/main/resources/db/migration')
-const BASELINE = join(MIGRATION_DIR, 'V1__baseline_schema.sql')
+const INIT_SQL_DIR = join(ROOT, 'infra/init-sql')
+const BASELINE = join(INIT_SQL_DIR, 'init.sql')
+const DATA_SQL = join(INIT_SQL_DIR, 'init_data.sql')
 
 function walk(dir: string): string[] {
   const out: string[] = []
@@ -129,10 +130,10 @@ function parseBaseline(): Map<string, Set<string>> {
 const entities = parseEntities()
 const baseline = parseBaseline()
 
-describe('schema 契约 · 实体 ↔ Flyway 基线', () => {
-  it('基线文件存在且有表（否则所有断言都会"空过"）', () => {
+describe('schema 契约 · 实体 ↔ init.sql', () => {
+  it('结构脚本存在且有表（否则所有断言都会"空过"）', () => {
     expect(entities.length, '没解析出任何 @Table 实体，解析器失效').toBeGreaterThan(30)
-    expect(baseline.size, '基线里没有建表语句').toBeGreaterThan(30)
+    expect(baseline.size, 'init.sql 里没有建表语句').toBeGreaterThan(30)
   })
 
   it('每个实体表都在基线里', () => {
@@ -166,9 +167,12 @@ describe('schema 契约 · 实体 ↔ Flyway 基线', () => {
     expect(problems, '基线有、实体没有的列（实体删了字段但没重新生成基线）').toEqual([])
   })
 
-  it('基线里每张表都有基类公共列', () => {
+  it('每个实体表都有基类公共列（关联表除外：它们没有实体，也没有审计列）', () => {
     const problems: string[] = []
+    const entityTables = new Set(entities.map(entity => entity.table))
     for (const [table, columns] of baseline) {
+      if (!entityTables.has(table))
+        continue
       for (const base of ['id', 'create_time', 'update_time', 'is_disabled', 'is_published']) {
         if (!columns.has(base))
           problems.push(`${table} 缺 ${base}`)
@@ -177,37 +181,26 @@ describe('schema 契约 · 实体 ↔ Flyway 基线', () => {
     expect(problems).toEqual([])
   })
 
-  it('迁移文件命名与版本号符合 Flyway 约定且连续', () => {
-    const files = readdirSync(MIGRATION_DIR).filter(file => file.endsWith('.sql'))
-    const versions = files
-      .map(file => Number(file.match(/^V(\d+)__/)?.[1]))
-      .filter(version => !Number.isNaN(version))
-      .sort((a, b) => a - b)
-    expect(versions.length, '有迁移文件不符合 V<n>__<描述>.sql 命名').toBe(files.length)
-    expect(versions, 'Flyway 版本号必须从 1 连续递增（跳号会被 out-of-order 策略拒绝）').toEqual(
-      Array.from({ length: versions.length }, (_, index) => index + 1),
-    )
+  it('目录里恰好两个 .sql：init.sql（结构）+ init_data.sql（数据）', () => {
+    const files = readdirSync(INIT_SQL_DIR).filter(file => file.endsWith('.sql')).sort()
+    expect(files, '全仓只有两个数据库脚本 —— 新增迁移文件会在这里红，新表/新列改 init.sql，新数据改 init_data.sql')
+      .toEqual(['init.sql', 'init_data.sql'])
   })
 
-  it('存量脚本按原日期顺序收编（V1 基线 + V2..V10 历史脚本，不能颠倒）', () => {
-    // 按**版本号**排序（不能按文件名字典序：V10 < V2）
-    const ordered = readdirSync(MIGRATION_DIR)
-      .filter(file => file.endsWith('.sql'))
-      .map(file => file)
-      .sort((a, b) => Number(a.match(/^V(\d+)/)![1]) - Number(b.match(/^V(\d+)/)![1]))
-    expect(ordered[0]).toBe('V1__baseline_schema.sql')
-    expect(ordered.at(-1)).toBe('V10__menu_canonical_paths.sql')
-    // 历史脚本必须保持原日期序：V2..V10 的描述里带日期或语义顺序
-    expect(ordered.slice(1)).toEqual([
-      'V2__data_permission_migrations.sql',
-      'V3__operation_log.sql',
-      'V4__role_tenant_backfill.sql',
-      'V5__file_creator_id.sql',
-      'V6__menu_permission.sql',
-      'V7__system_permission_identities.sql',
-      'V8__user_email_phone_unique_null_default.sql',
-      'V9__inventory_dimension_unique.sql',
-      'V10__menu_canonical_paths.sql',
-    ])
+  it('数据脚本里每条 INSERT 都自带幂等守卫（可重复执行）', () => {
+    const sql = readFileSync(DATA_SQL, 'utf8')
+    const inserts = [...sql.matchAll(/^\s*INSERT\s+(?:IGNORE\s+)?INTO\b[\s\S]*?;/gim)]
+    expect(inserts.length, 'init_data.sql 里没有 INSERT —— 解析失效或数据被搬走了').toBeGreaterThan(0)
+    const unguarded = inserts
+      .filter(m => !/NOT\s+EXISTS|INSERT\s+IGNORE|ON\s+DUPLICATE\s+KEY\s+UPDATE/i.test(m[0]))
+      .map(m => m[0].split('\n')[0].slice(0, 60))
+    expect(unguarded, '这些 INSERT 重复执行会报重复键：加 WHERE NOT EXISTS / INSERT IGNORE').toEqual([])
+  })
+
+  it('结构脚本里不许出现建库脚本的危险写法', () => {
+    const sql = readFileSync(BASELINE, 'utf8')
+    const banned = [/^\s*DROP\b/im, /^\s*TRUNCATE\b/im, /^\s*DELETE\b/im, /^\s*DELIMITER\b/im]
+    const hit = banned.filter(re => re.test(sql)).map(re => re.source)
+    expect(hit, 'init.sql 只建对象，不删对象/数据，也不用 Flyway 时代的过程式写法').toEqual([])
   })
 })

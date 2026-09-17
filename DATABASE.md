@@ -6,7 +6,7 @@
 > `data_resource` / `data_policy` / `data_field_policy` / `permission_change_outbox` /
 > `tenant` / `user_tenant` / `user_factory` / `data_permission_diff_log` /
 > `data_permission_deny_log` / `data_permission_orm_parity_log` 等——见
-> `SPMS-Server/src/main/resources/db/migration/V2__data_permission_migrations.sql`（原 9 个手工脚本已于 2026-09 收编为 Flyway V1–V10）
+> `infra/init-sql/init.sql` + `infra/init-sql/init_data.sql`（全仓只有这两个 SQL 脚本，2026-09-18 起；原 Flyway V1–V10 已折叠进它们）
 > 与 `SPMS-Server/docs/database/tenant_readiness_matrix.md`。
 
 ## 📊 数据库信息
@@ -366,8 +366,8 @@ ALTER TABLE `user` ADD COLUMN `wechat` varchar(255) DEFAULT '' COMMENT '微信�
 
 1. **ddl-auto: update** 只能增加字段，不能删除字段
 2. 修改字段类型需要谨慎，可能导致数据丢失
-3. 生产环境（`validate`）**先跑迁移再启动**：应用启动时由 **Flyway** 自动执行（存量库以 `baseline-on-migrate` 记为 baseline 1，不会被重放）；需要手工核对时按 `SPMS-Server/src/main/resources/db/migration/` 里的版本顺序执行
-4. 结构变更的约定：实体（JPA）是事实源，schema 由 **Flyway 版本化脚本**演进 —— 新表/补列/回填写成 `V<n>__<描述>.sql` 放进 `SPMS-Server/src/main/resources/db/migration/`（保持幂等：CI 用真实 MySQL 8 连跑两遍并比对 `information_schema`）。JPA 不用 `ddl-auto=update` 改结构
+3. 生产环境（`validate`）**先建库再启动**：`mysql < infra/init-sql/init.sql` + `init_data.sql`（compose 首次起库会自动跑，见 `docker-compose.yml` 的 `/docker-entrypoint-initdb.d` 挂载），**没有任何自动迁移框架**
+4. 结构变更的约定：**改表结构 = 改 `infra/init-sql/init.sql`，同时改实体**（`pnpm ddl:check` 与 `schemaContract.spec.ts` 双向对账）；新数据/新回填写进 `init_data.sql`。两个脚本都必须幂等（CI 用真实 MySQL 8 空库连跑两遍并比对 `information_schema`）。应用不建表（`ddl-auto: validate`）
 
 ---
 

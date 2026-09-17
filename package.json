@@ -14,7 +14,6 @@
     "deadcode:check": "node scripts/find-unused-frontend.mjs --check",
     "exports:check": "node scripts/find-unused-exports.mjs --check",
     "java:check": "node scripts/java-syntax-check.mjs SPMS-Server/src/main/java SPMS-Server/src/test/java",
-    "flyway:baseline": "node scripts/gen-flyway-baseline.mjs",
     "icons:gen": "node scripts/gen-pwa-icons.mjs",
     "lint": "eslint --fix",
     "lint:ci": "eslint .",
