@@ -546,3 +546,108 @@ public interface ICurdRepository<E extends CurdEntity<E>> extends BaseMapper<E> 
 | JPA 棘轮顺带下降 | ✅ 110/599/478 → **108/594/473**（基线已锁定；`@Query` 与两条原子 UPDATE 的 JPA API 引用消失） |
 | 契约测试 | ✅ 94/94（含改读 XML 的那条） |
 | 编译 | ❌ 沙箱无 JDK —— 新增的 Mapper/XML 需要你本机 `mvn -q compile` + 一次真实启动（MyBatis 在启动时校验 `namespace` 与 statement id，找不到会直接报 `Invalid bound statement`） |
+
+### 10.8 J2 前置实施清单（2026-09-18 实测，照做即可）
+
+> 这一节是在动手前把 J2 拆开量了一遍的产物。**先读它再动 J2**：下面每一条都是实测出来的，
+> 不是设计时想当然的。已经做完的（10.8.1）不必重做。
+
+#### 10.8.1 已完成：`@TableName` 回填 + 表名一致性判据
+
+JPA 读 `@Table(name)`，MyBatis-Plus 读 `@TableName`。**两个都不写时 MP 按类名推表名**
+（`ContractEntity` → `contract_entity`），而真表叫 `contract` —— 那不是报错，是**指向另一张表**：
+查不到数据、或查到别人的数据，编译与启动都不报。
+
+- 已给 37 个实体补 `@TableName("…")`（值与 `@Table(name=…)` 逐字相同），连同 J1 批已写的 4 个，
+  41 个实体全覆盖；实测 **`@Column(name=…)` 与 MP 默认驼峰转下划线 100% 一致**，所以不需要 `@TableField`。
+- 判据已进 `pnpm jpa:check`：`每个 @Entity 必须有同值的 @Table(name) 与 @TableName`（只查 `src/main/java`）。
+  反证做过一次（伪造一个只有 `@Table` 的实体 → 立刻红）。
+
+#### 10.8.2 必须同批的三条契约（改一处就得改这三处）
+
+| # | 契约 | 现在 | J2 要变成 | 不改的后果 |
+| --- | --- | --- | --- | --- |
+| 1 | `@MapperScan` 出现次数 | `maskContract.spec.ts` 钉住**恰好 1 处**（读侧，挂 `kubo.data-permission.mapper-read` 开关） | **恰好 2 处**：读侧不变 + 新增写侧（`markerInterface = ICurdRepository.class`，**不挂任何开关** —— 写路径不能跟着读侧灰度消失） | 断言会红；或写侧注册跟着开关跑 → 关闭读侧时写路径整体失效 |
+| 2 | `addSearchPredicate` 签名 | `(Root<E>, CriteriaBuilder, E)`，**15 个域覆写** | `(LambdaQueryWrapper<E> wrapper, E search)`，15 个覆写**同批**改 | 没改的覆写退化成普通方法：编译不报错、**运行时永不调用** —— 查询条件与权限条件一起静默消失 |
+| 3 | 44 个仓储的 **~30 个派生查询方法** | Spring Data 按方法名生成 SQL（`getByEmail` / `findTop100ByStatusAndNextRetryAtLessThanEqualOrderByIdAsc` …） | 改 `default` + wrapper 实现（§10.6 第 5 步） | 换底座后它们是**没有实现的抽象方法** → MP 绑定不到语句，`Invalid bound statement`（启动或首次调用才炸） |
+
+第 3 条的完整清单（实测，按接口列出）：
+
+```
+base/bill/detail/BaseBillDetailRepository      getAllByBillId
+channel/purchaseprice/PurchasePriceRepository  getBySupplierAndMaterial
+channel/saleprice/SalePriceRepository          getByCustomerAndMaterial
+personnel/user/UserRepository                  getByEmail, getByPhone
+personnel/user/token/PersonalTokenRepository   getByToken
+system/coderule/CodeRuleRepository             getByRuleField
+system/config/ConfigRepository                 getByFlag
+system/datapermission/DataFieldPolicyRepository  existsByResourceIdAndFieldName,
+                                                 findByResourceIdAndActionNameAndEnabledTrueOrderByPriorityDesc,
+                                                 findByResourceIdAndEnabledTrueOrderByPriorityDesc
+system/datapermission/DataPolicyRepository     existsByResourceIdAndActionNameAndSubjectType,
+                                               findByResourceIdAndActionNameAndEnabledTrueOrderByPriorityDesc,
+                                               findByResourceIdAndEnabledTrueOrderByPriorityDesc,
+                                               findByEnabledTrueOrderByPriorityDesc
+system/datapermission/DataResourceRepository   getByResourceKey, getByTableName
+system/datapermission/PermissionChangeOutboxRepository  getByEventKey,
+                                               findTop100ByStatusAndNextRetryAtLessThanEqualOrderByIdAsc,
+                                               findByStatusOrderByIdDesc
+system/file/FileRepository                     getByCategoryAndHashMd5, getListByCategoryAndHashMd5
+system/permission/PermissionRepository         getByIdentity
+system/tenant/TenantRepository                 getByCode
+system/tenant/UserTenantRepository             findByUserId, findByUserIdAndIsDefaultTrue
+wms/inventory/InventoryRepository              getByMaterialAndStorage, getByMaterialAndStructure
+```
+
+> 派生查询名是**隐式 SQL**：`findTop100…` 是 limit 100、`…OrderByIdAsc` 是排序、
+> `EnabledTrue` 是 `enabled = 1`。逐条翻译时最容易悄悄少一个条件 —— 而少了条件**不报错**，
+> 只是多出一些行。翻译完请顺手在 `maskContract.spec.ts` 里补一条"这些方法体必须用到
+> `LambdaQueryWrapper` 且条件数与方法名段数一致"的判据（或至少人工逐条对读）。
+
+#### 10.8.3 引擎照做表（含实测的坑）
+
+| 位置 | JPA 现状 | 换成 | 坑 |
+| --- | --- | --- | --- |
+| `CurdMapperConfiguration`（新增） | — | `@MapperScan(basePackages="cn.hamm.spms", markerInterface=ICurdRepository.class)` + **`PaginationInnerInterceptor`** | **不加分页插件，`selectPage` 不分页、`total` 恒 0**（静默）；写侧拦截器永远注册，不能跟读侧开关 |
+| `QueryHelper.getPredicateList(Root,CriteriaBuilder,…)` | Criteria | `createWrapper(E filter, boolean isEqual)` | `@Search.fullLike`→`like("%v%")`、`@Search`→`like("v%")`、其余→`eq`；`@SearchEmpty` 只决定"空串要不要参与"，`@Transient`/`@OneToMany`/`@ManyToMany` 跳过；`@ManyToOne` **JPA 走 join，MP 侧直接落到 FK 列**（`storage` → `storage_id`），语义等价且更快 |
+| `QueryHelper.createSort/createPageable` | Spring Data `Sort`/`Pageable` | `applySort(wrapper, sort)` + `PageData.newInstance(IPage)` | 默认排序是"create_time DESC, id DESC"且**指定 id 时不再追加**；这套规则必须逐字照搬，少一个 `id DESC` 会让分页在 create_time 相同的行上翻页重复/漏行 |
+| `PageData.newInstance(org.springframework.data.domain.Page)` | Spring Data | 新增 `newInstance(IPage)` 重载 | 旧重载先留着（shadow 线还在用），J2b 末删除 |
+| `CurdService#getById` | `entityManager.clear()` + `repository.findById` | 删 clear（MP 无一级缓存陈旧读）+ 垫片 | 删 clear 是本批**唯一可以放心删**的一处（§10.3 已写明依据） |
+| `CurdService#getForUpdate` | `entityManager.clear()` + `@Lock(PESSIMISTIC_WRITE)` | `last("FOR UPDATE")` + **显式事务校验** | 旧 `@Transactional(MANDATORY)` 写在 Mapper 接口上，是否真被织入存疑；`FOR UPDATE` 在 autocommit 下**等于没加锁**。做法：`TransactionSynchronizationManager.isActualTransactionActive()` 为假就抛，别赌 |
+| `CurdService#saveToDatabase` | `repository.saveAndFlush` | 垫片 `save`（id 为空 insert，否则 updateById） | MP 的 `updateById` 默认**跳过 null**，与引擎"null = 不改这列"的语义一致（引擎在更新前用库里那条补齐了 null 属性）——所以 `getEntityForUpdate` **不要动** |
+| `CurdService` 的 `withNull = true` 路径 | `saveAndFlush`（JPA 会把 null 合并进库） | 垫片 `saveWithNull`（`UpdateWrapper#set` 逐列写） | `withNull` 走不到 `getEntityForUpdate`，null 必须真的落库；用 `TableInfoHelper` 枚举列，**跳过 create_time**（引擎注释写着"更新不允许修改创建时间"，旧的 JPA 路径其实把 null 合并进去、真写了 NULL —— 按本意修正，这是本批唯一一处"行为与换轨前不同"） |
+| `CurdService#checkUnique` | `@Column(unique=true)` + `Example.of` | 读 `@TableField`（过渡期也读 `@Column`）+ `createWrapper(search, true).last("LIMIT 1")` | 唯一列判定换了注解来源，改漏一处 = 唯一校验静默失效 |
+| `CurdService#createSpecification` | `Specification` lambda | `createWrapper` + `addSearchPredicate(wrapper, filter)` | `beforeCreatePredicate` 保留：它在建条件前处理 filter 的**副本**，且**不影响** `addSearchPredicate` 的 `search` 参数（旧注释写明了） |
+
+#### 10.8.4 权限读侧：wrapper 化必须复用渲染器（别另写一套）
+
+- 规则树 → wrapper 的**正确做法是复用 `SqlPermissionRuleRenderer`**：它已经在读侧 Mapper 路径
+  （`KuboDataPermissionHandler` + `${fragment}` 注入）跑通了整条链路：
+  `PermissionRuleTreeBuilder.build(...)` → `render(rule, tableAlias, context)` → `RowPermissionPredicate`。
+  J2 只需加一个"渲染结果 → wrapper"的适配（`RowPermissionPredicate#toMybatisPlusFragment()`），
+  而不是新写一个 Criteria→wrapper 的翻译器 —— 那会变成第三套真值。
+- **三个实测坑**：
+  1. `wrapper.apply` 的占位符是 **`{name}`**（Map 重载）/ `{0}`（可变参），不是 `:name` 也不是 `#{name}`；
+     把 renderer 的产物直接塞进去会被当成字面量（不报错，条件恒不成立）。
+  2. renderer 对**含 `.` 的字段一律抛异常**（"P2 换轨时实现"）：`FACTORY:storage.id`（V2 迁移已给
+     `wms.inventory`/`wms.move` 回填）今天在 JPA 侧能跑（`JpaPathResolver` 走 `root.join`），
+     到 wrapper 世界会直接抛。照做：**一跳关联 → 本表 FK 列**（`storage.id` → `storage_id`；
+     Hibernate 对 `@ManyToOne` 的 `.get("id")` 本来也是直取 FK，没有 join）。
+  3. **多对多的中间表不在迁移里**：`UserEntity.departmentList` 走 `root.join`，而它的中间表
+     `user_department_list` 是 Hibernate 隐式命名的产物（V2 只回填了 `user_role_list`），
+     `ddl-auto: validate` 下没人管它。wrapper 化时要么显式写 `@JoinTable` + 补进迁移（J4），
+     要么这条筛选改成 EXISTS 子查询 —— **两条路都需要先确认真库里的表名与列名**（本仓无法离线验证）。
+- **shadow 线**（`ShadowDiffService` / `MapperShadowReadService` / `JpaRowVisibilityProbe` + 14 个
+  `*ReadShadowService`）：它们与 `DataPermissionSpecification` 的 Criteria 编译是同一个编译单元。
+  最小改动是把 `submitShadowDiff` 的参数从 `Root<T>` 换成 `Class<?>`（它只需要 `entityClass` 与规则树），
+  让 shadow 线**自持**、引擎侧不必再持有 Criteria；影子比对的"JPA 侧"去留单独一批决定（§10.5 的口径：
+  换完之后应当只剩一条路径）。
+
+#### 10.8.5 提交前判据（沙箱没有 javac，靠它们替编译器挡住静默错误）
+
+1. `旧钩子不得残留`：除 `framework/curd/base/CurdService.java` 外，任何文件不得出现
+   `List<Predicate> addSearchPredicate(` —— 它是"覆写悄悄变死代码"的钉子（§10.4）。
+2. `@MapperScan 恰好两处，且写侧那处不带 @ConditionalOnProperty`（读侧必须带）。
+3. `每个 @Entity 的 @Table(name) 与 @TableName 同值`（已落地，见 10.8.1）。
+4. `pnpm jpa:check -- --check` 的棘轮基线在 J2 完成后**按实测下调并固化**
+   （预期：文件 → 个位数，引用 → 只剩 shadow 线；J3/J4 后归零）。

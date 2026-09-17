@@ -18,12 +18,16 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
  * "关着的时候容器里根本没有这条读路径"。注册只走 {@code MapperReadConfiguration} 里的
  * {@code @MapperScan}（由测试钉住）。</p>
  *
- * <h2>二、暂时只用自己声明的 XML 语句</h2>
+ * <h2>二、表名解析：J2 起已经有单一真相（2026-09-18 更新）</h2>
  * <p>{@link BaseMapper} 注入的 {@code selectList / selectCount / selectPage} 会用
  * <b>MyBatis-Plus 自己的规则解析表名</b>（类名驼峰转下划线 + {@code @TableName}），它不读 JPA 的
- * {@code @Table}。{@code MaterialEntity} 恰好两边一致（{@code material}），但那是巧合不是约定：
- * 任何带包名/前缀差异的实体都会静默指到另一张表或报"表不存在"。所以在"逐个资源换轨"之前，
- * 本接口只许调用带 XML 实现的方法；哪天要用注入方法，先给那个实体验一遍表名解析（见施工图 §19.34）。</p>
+ * {@code @Table} —— {@code ContractEntity} 按类名推会得到 {@code contract_entity}，而真表是
+ * {@code contract}：那<b>不是报错，是指向另一张表</b>（施工图 §19.34 记的就是这个坑）。</p>
+ *
+ * <p>现在这条已经收口：41 个生产实体全部补上了与 {@code @Table(name=…)} 逐字相同的
+ * {@code @TableName(…)}，并由 {@code pnpm jpa:check} 的「实体表名一致性」判据钉住
+ * （只查 {@code src/main/java}；伪造一个只有 {@code @Table} 的实体会立刻红）。
+ * 所以注入方法可以放心用了 —— 但仍有一条纪律：<b>行级权限条件不许出现在 XML 里</b>（见下一条）。</p>
  *
  * <h2>三、权限条件不许出现在 XML 里</h2>
  * <p>行级条件只有一份实现：{@code SqlPermissionRuleRenderer} 渲染出的片段，经

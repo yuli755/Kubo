@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.entity;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
@@ -23,6 +24,7 @@ import org.hibernate.annotations.DynamicUpdate;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("permission_change_outbox")
 @Table(name = "permission_change_outbox", uniqueConstraints = @UniqueConstraint(name = "uk_permission_outbox_event", columnNames = "event_key"))
 @Description("权限变更消息")
 public class PermissionChangeOutboxEntity extends BaseEntity<PermissionChangeOutboxEntity> {

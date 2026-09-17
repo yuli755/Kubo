@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.personnel.department;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.interfaces.ITree;
@@ -32,6 +33,7 @@ import static cn.hamm.spms.base.coderule.CodeRuleField.DepartmentCode;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("department")
 @Table(name = "department")
 @Description("部门")
 public class DepartmentEntity extends TenantAwareEntity<DepartmentEntity> implements ITree<DepartmentEntity> {

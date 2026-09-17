@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.wms.move.detail;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.ReadOnly;
@@ -29,6 +30,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("move_detail")
 @Table(name = "move_detail")
 @Description("移库明细")
 public class MoveDetailEntity extends BaseBillDetailEntity<MoveDetailEntity> {

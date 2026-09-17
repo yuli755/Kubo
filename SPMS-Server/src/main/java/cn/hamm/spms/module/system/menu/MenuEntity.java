@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.system.menu;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.interfaces.ITree;
@@ -30,6 +31,7 @@ import java.util.List;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("menu")
 @Table(name = "menu")
 @Description("菜单")
 public class MenuEntity extends BaseEntity<MenuEntity> implements ITree<MenuEntity> {

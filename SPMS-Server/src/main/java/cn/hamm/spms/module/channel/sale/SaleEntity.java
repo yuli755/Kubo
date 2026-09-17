@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.channel.sale;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
 import cn.hamm.spms.core.annotation.Meta;
@@ -36,6 +37,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("sale")
 @Table(name = "sale")
 @Description("销售单")
 public class SaleEntity extends AbstractBaseBillEntity<SaleEntity, SaleDetailEntity> {

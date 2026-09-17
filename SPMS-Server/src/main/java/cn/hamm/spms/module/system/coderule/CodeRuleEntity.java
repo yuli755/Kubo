@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.system.coderule;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
 import cn.hamm.spms.core.annotation.Meta;
@@ -30,6 +31,7 @@ import org.hibernate.validator.constraints.Range;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("coderule")
 @Table(name = "coderule")
 @Description("编码规则")
 public class CodeRuleEntity extends BaseEntity<CodeRuleEntity> {

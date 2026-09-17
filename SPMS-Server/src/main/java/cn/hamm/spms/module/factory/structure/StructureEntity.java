@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.factory.structure;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
 import cn.hamm.spms.core.annotation.Export;
@@ -34,6 +35,7 @@ import static cn.hamm.spms.base.coderule.CodeRuleField.StructureCode;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("structure")
 @Table(name = "structure")
 @Description("生产单元")
 public class StructureEntity extends TenantAwareEntity<StructureEntity> implements ITree<StructureEntity> {

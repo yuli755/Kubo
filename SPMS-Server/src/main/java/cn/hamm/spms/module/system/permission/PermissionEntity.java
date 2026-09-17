@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.system.permission;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
 import cn.hamm.spms.core.annotation.Meta;
@@ -32,6 +33,7 @@ import java.util.List;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("permission")
 @Table(name = "permission")
 @Description("权限")
 @Schema(name = "PermissionEntity", description = "权限实体 - 权限树形结构管理")

@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.asset.contract.participant;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
 import cn.hamm.spms.core.annotation.Meta;
@@ -29,6 +30,7 @@ import org.hibernate.annotations.DynamicUpdate;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("participant")
 @Table(name = "participant")
 @Description("合同参与方")
 public class ParticipantEntity extends BaseEntity<ParticipantEntity> {

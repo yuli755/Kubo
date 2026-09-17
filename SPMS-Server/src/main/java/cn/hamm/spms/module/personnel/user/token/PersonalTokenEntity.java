@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.personnel.user.token;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Desensitize;
 import cn.hamm.spms.core.enums.DesensitizeType;
@@ -30,6 +31,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("personal_token")
 @Table(name = "personal_token")
 @Description("私人令牌")
 public class PersonalTokenEntity extends BaseEntity<PersonalTokenEntity> {

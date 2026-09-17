@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.system.unit;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.framework.curd.annotation.Search;
@@ -27,6 +28,7 @@ import static cn.hamm.spms.base.coderule.CodeRuleField.UnitCode;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("unit")
 @Table(name = "unit")
 @Description("单位")
 public class UnitEntity extends BaseEntity<UnitEntity> {

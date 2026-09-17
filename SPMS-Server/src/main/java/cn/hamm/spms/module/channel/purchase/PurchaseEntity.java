@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.channel.purchase;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
 import cn.hamm.spms.core.annotation.Meta;
@@ -33,6 +34,7 @@ import static cn.hamm.spms.base.coderule.CodeRuleField.PurchaseBillCode;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("purchase")
 @Table(name = "purchase")
 @Description("采购单")
 public class PurchaseEntity extends AbstractBaseBillEntity<PurchaseEntity, PurchaseDetailEntity> {

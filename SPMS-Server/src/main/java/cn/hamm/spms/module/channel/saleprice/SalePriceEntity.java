@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.channel.saleprice;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Export;
 import cn.hamm.spms.base.TenantAwareEntity;
@@ -30,6 +31,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("sale_price")
 @Table(name = "sale_price")
 @Description("销售价格")
 public class SalePriceEntity extends TenantAwareEntity<SalePriceEntity> implements ISalePriceAction {

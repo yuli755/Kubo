@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.channel.purchaseprice;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Export;
 import cn.hamm.spms.base.TenantAwareEntity;
@@ -30,6 +31,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("purchase_price")
 @Table(name = "purchase_price")
 @Description("采购价格")
 public class PurchasePriceEntity extends TenantAwareEntity<PurchasePriceEntity> implements IPurchasePriceAction {

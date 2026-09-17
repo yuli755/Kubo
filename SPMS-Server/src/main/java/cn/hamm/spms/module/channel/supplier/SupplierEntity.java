@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.channel.supplier;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Export;
 import cn.hamm.spms.core.annotation.Meta;
@@ -30,6 +31,7 @@ import static cn.hamm.spms.base.coderule.CodeRuleField.SupplierCode;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("supplier")
 @Table(name = "supplier")
 @Description("供应商")
 public class SupplierEntity extends TenantAwareEntity<SupplierEntity> {

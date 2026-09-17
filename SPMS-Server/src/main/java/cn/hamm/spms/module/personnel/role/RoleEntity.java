@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.personnel.role;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.base.TenantAwareEntity;
@@ -29,6 +30,7 @@ import static cn.hamm.spms.base.coderule.CodeRuleField.RoleCode;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("role")
 @Table(name = "role")
 @Description("角色")
 public class RoleEntity extends TenantAwareEntity<RoleEntity> implements IRoleAction {

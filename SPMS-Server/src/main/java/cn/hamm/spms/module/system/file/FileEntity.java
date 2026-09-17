@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.system.file;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.ReadOnly;
@@ -25,6 +26,7 @@ import org.hibernate.annotations.DynamicUpdate;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("file")
 @Table(name = "file")
 @Description("文件")
 public class FileEntity extends BaseEntity<FileEntity> {

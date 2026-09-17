@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.wms.input.detail;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.ReadOnly;
@@ -27,6 +28,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("input_detail")
 @Table(name = "input_detail")
 @Description("入库明细")
 public class InputDetailEntity extends BaseBillDetailEntity<InputDetailEntity> {

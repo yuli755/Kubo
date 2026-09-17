@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.entity;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
@@ -26,6 +27,7 @@ import org.hibernate.annotations.DynamicUpdate;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("data_resource")
 @Table(name = "data_resource", uniqueConstraints = @UniqueConstraint(name = "uk_data_resource_key", columnNames = "resource_key"))
 @Description("数据权限资源")
 public class DataResourceEntity extends BaseEntity<DataResourceEntity> {

@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.wms.output;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
 import cn.hamm.spms.core.annotation.Export;
@@ -36,6 +37,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("output")
 @Table(name = "output")
 @Description("出库单")
 public class OutputEntity extends AbstractBaseBillEntity<OutputEntity, OutputDetailEntity> {

@@ -195,6 +195,38 @@ for (const yml of walk(path.join(SERVER, 'src', 'main', 'resources')).filter(f =
   })
 }
 
+/**
+ * 跨 ORM 判据：实体的表名必须只有一份真相
+ *
+ * 为什么需要它（2026-09-18 实测）：JPA 读 `@Table(name)`，MyBatis-Plus 读 `@TableName`，
+ * **两个都不写时 MP 会按类名推表名**（`ContractEntity` → `contract_entity`）——
+ * 而真表叫 `contract`。那不是一个报错，是**指向另一张表**：查不到数据、或者查到别人的数据，
+ * 且编译/启动都不报。所以换轨期内钉死：每个 `@Entity` 必须同时有
+ * `@Table(name = "x")` 与 `@TableName("x")`，且 **x 相同**。
+ */
+const tableNameDrift = []
+for (const file of javaFiles) {
+  const rel = path.relative(ROOT, file).replaceAll('\\', '/')
+  // 只查生产实体：测试里的 @Entity 是给 JPA 用的局部夹具（它们不需要被 MP 认识），
+  // 要求测试夹具也写 @TableName 属于把判据推到它管不着的地方
+  if (!rel.includes('/src/main/java/')) {
+    continue
+  }
+  const source = stripJavaComments(fs.readFileSync(file, 'utf8'))
+  if (!/@Entity\b/.test(source)) {
+    continue
+  }
+  const jpaTable = /@Table\(\s*name\s*=\s*"([^"]+)"/.exec(source)
+  const mpTable = /@TableName\(\s*"([^"]+)"/.exec(source)
+  if (!jpaTable || !mpTable) {
+    tableNameDrift.push({ file: rel, reason: !jpaTable ? '缺 @Table(name)' : '缺 @TableName' })
+    continue
+  }
+  if (jpaTable[1] !== mpTable[1]) {
+    tableNameDrift.push({ file: rel, reason: `表名不一致：@Table=${jpaTable[1]} / @TableName=${mpTable[1]}` })
+  }
+}
+
 const totals = {
   javaFiles: javaFiles.length,
   jpaFiles: fileHits.length,
@@ -208,6 +240,7 @@ const report = {
   baseline: BASELINE,
   jpaStarterDeclared,
   ddlAuto,
+  tableNameDrift,
   byModule: [...moduleHits.entries()]
     .map(([module, refs]) => ({ module, refs }))
     .sort((a, b) => b.refs - a.refs),
@@ -233,6 +266,15 @@ if (process.argv.includes('--check')) {
   if (totals.imports > BASELINE.imports) {
     grows.push(`JPA import ${totals.imports} > 基线 ${BASELINE.imports}`)
   }
+  if (tableNameDrift.length) {
+    console.error('\n✗ 实体表名不一致（跨 ORM 判据）：\n')
+    for (const entry of tableNameDrift) {
+      console.error(`  · ${entry.file}：${entry.reason}`)
+    }
+    console.error('\nMyBatis-Plus 按 @TableName 解析表名；只有 @Table(name) 时它会按类名推断'
+      + '（ContractEntity → contract_entity），那是指向另一张表，编译与启动都不会报。\n')
+    process.exit(1)
+  }
   if (grows.length) {
     console.error('\n✗ JPA 足迹比基线更大：\n')
     for (const line of grows) {
@@ -246,6 +288,7 @@ if (process.argv.includes('--check')) {
     `✓ JPA 棘轮通过：文件 ${totals.jpaFiles}/${BASELINE.files} · `
     + `引用 ${totals.refs}/${BASELINE.refs} · import ${totals.imports}/${BASELINE.imports}（只许降）`,
   )
+  console.log('✓ 实体表名一致：每个 @Entity 的 @Table(name) 与 @TableName 同值（MP 不会指到别的表）')
   process.exit(0)
 }
 

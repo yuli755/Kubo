@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.asset.material;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
 import cn.hamm.spms.core.annotation.Export;
@@ -43,6 +44,7 @@ import org.hibernate.annotations.DynamicUpdate;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("material")
 @Table(name = "material")
 @Description("物料")
 @OperationLog

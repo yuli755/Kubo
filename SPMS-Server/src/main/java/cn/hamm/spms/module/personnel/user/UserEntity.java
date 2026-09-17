@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.personnel.user;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.module.system.datapermission.annotation.SensitiveField;
 
 import cn.hamm.spms.core.annotation.*;
@@ -40,6 +41,7 @@ import static com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("user")
 @Table(name = "user")
 @Description("用户")
 public class UserEntity extends TenantAwareEntity<UserEntity> implements IUserAction {

@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.wms.inventory;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
 import cn.hamm.spms.core.annotation.Export;
@@ -32,6 +33,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("inventory")
 @Table(name = "inventory", uniqueConstraints = {
         // 一行库存 = 一个维度组合。此前库面无任何唯一键，并发「查无则建」会插出
         // 重复行（实测并发入同一新仓两次产生 0~2 行不等），此后出库按单行读，

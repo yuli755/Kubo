@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.system.tenant;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
@@ -27,6 +28,7 @@ import org.hibernate.annotations.DynamicUpdate;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("tenant")
 @Table(name = "tenant", uniqueConstraints = @UniqueConstraint(name = "uk_tenant_code", columnNames = "code"))
 @Description("租户")
 public class TenantEntity extends BaseEntity<TenantEntity> {

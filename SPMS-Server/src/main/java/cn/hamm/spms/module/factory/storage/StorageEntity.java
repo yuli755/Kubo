@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.factory.storage;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Export;
 import cn.hamm.spms.core.annotation.Meta;
@@ -34,6 +35,7 @@ import static cn.hamm.spms.base.coderule.CodeRuleField.StorageCode;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("storage")
 @Table(name = "storage")
 @Description("仓库")
 public class StorageEntity extends TenantAwareEntity<StorageEntity> implements ITree<StorageEntity> {

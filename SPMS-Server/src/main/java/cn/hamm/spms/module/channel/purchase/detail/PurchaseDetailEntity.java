@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.channel.purchase.detail;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.ReadOnly;
@@ -30,6 +31,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("purchase_detail")
 @Table(name = "purchase_detail")
 @Description("采购明细")
 public class PurchaseDetailEntity extends BaseBillDetailEntity<PurchaseDetailEntity> {

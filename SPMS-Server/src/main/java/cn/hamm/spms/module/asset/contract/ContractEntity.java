@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.asset.contract;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
 import cn.hamm.spms.core.annotation.Export;
@@ -33,6 +34,7 @@ import java.util.Set;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("contract")
 @Table(name = "contract")
 @Description("合同")
 public class ContractEntity extends TenantAwareEntity<ContractEntity> {

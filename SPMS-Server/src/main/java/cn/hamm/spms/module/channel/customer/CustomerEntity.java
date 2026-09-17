@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.channel.customer;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Export;
 import cn.hamm.spms.core.annotation.Meta;
@@ -30,6 +31,7 @@ import static cn.hamm.spms.base.coderule.CodeRuleField.CustomerCode;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("customer")
 @Table(name = "customer")
 @Description("客户")
 public class CustomerEntity extends TenantAwareEntity<CustomerEntity> {

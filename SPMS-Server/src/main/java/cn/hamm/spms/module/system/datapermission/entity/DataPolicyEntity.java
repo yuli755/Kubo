@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.entity;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
@@ -26,6 +27,7 @@ import org.hibernate.annotations.DynamicUpdate;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("data_policy")
 @Table(name = "data_policy", uniqueConstraints = @UniqueConstraint(name = "uk_data_policy_code", columnNames = "policy_code"))
 @Description("数据权限策略")
 public class DataPolicyEntity extends BaseEntity<DataPolicyEntity> {

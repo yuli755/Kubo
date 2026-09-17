@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.asset.contract.document;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.framework.curd.annotation.Search;
@@ -25,6 +26,7 @@ import org.hibernate.annotations.DynamicUpdate;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("contract_document")
 @Table(name = "contract_document")
 @Description("合同附件")
 public class ContractDocumentEntity extends BaseEntity<ContractDocumentEntity> {

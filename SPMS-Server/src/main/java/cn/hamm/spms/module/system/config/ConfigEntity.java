@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.system.config;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
 import cn.hamm.spms.core.annotation.Meta;
@@ -34,6 +35,7 @@ import static com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY;
 @Data
 @DynamicInsert
 @DynamicUpdate
+@TableName("config")
 @Table(name = "config")
 @Description("配置信息")
 public class ConfigEntity extends BaseEntity<ConfigEntity> {
