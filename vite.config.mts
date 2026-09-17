@@ -33,8 +33,7 @@ export default defineConfig(({ mode }) => {
       // 此处在构建期剥离 element 部分，仅保留 airpower 自身样式（详见插件文件头注释），
       // vendor-airpower.css 52.2 KB → 4.5 KB（gzip）。
       airpowerCssStripPlugin(),
-      // vueDevTools() — 已禁用：开发模式底部注入的悬浮按钮影响页面预览
-      // vueDevTools(),
+      // 注：vite-plugin-vue-devtools 已从依赖里移除（开发模式底部注入的悬浮按钮会挡住页面预览）
 
       // PWA 支持 (离线缓存 + 预加载 + 后台同步)
       VitePWA({
