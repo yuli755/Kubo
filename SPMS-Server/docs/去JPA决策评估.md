@@ -459,7 +459,12 @@ public interface ICurdRepository<E extends CurdEntity<E>> extends BaseMapper<E> 
 
 > **为什么必须同批**：`addSearchPredicate` 换签名后，没改的覆写会退化成"普通方法"，
 > 编译**不报错**、运行时**永不调用** —— 查询条件与权限条件一起静默消失，比编译错误危险得多。
-> （`beforeCreatePredicate` 是另一条线，不动。"
+> （`beforeCreatePredicate` 是另一条线，不动。）
+>
+> **同批要补的门禁**：`src/config/__tests__/maskContract.spec.ts` 增加一条断言 —— main 里除
+> `framework/curd/base/CurdService.java` 外，任何文件都不得再出现 `List<Predicate> addSearchPredicate(`
+> 或 `Root<`/`CriteriaBuilder` 参数形状的同名方法。沙箱没有 javac，这条断言的唯一作用就是**替 javac
+> 挡住"旧钩子悄悄变成死代码"**：条件与权限一起消失时，`pnpm check` 必须红。"
 
 ### 10.5 数据权限读侧：Criteria → wrapper（本批最需要小心的地方）
 
