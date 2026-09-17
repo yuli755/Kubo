@@ -102,15 +102,16 @@ function listVueFiles(dir: string): string[] {
 describe('f4 · 批 2（asset）迁移完成度', () => {
   /**
    * 待迁清单（每条都写清卡在哪）：
-   * - `contract/component/editor.vue` + `editParticipant.vue`：合同编辑器要上传附件，
-   *   而框架层的上传组件还没实现（`DialogUtil.showUpload` 目前是 reject 占位）→ 批 2B；
-   * - `contract/component/selector.vue`、`material/component/selector.vue`：airpower `ASelector`，
-   *   被 wms / channel 的未迁移页面引用 → 批 4/5（连同 `useTanStackTable` 一起退场）。
+   * - `material/component/selector.vue`：airpower `ASelector`，物料选择器，被 **wms 入库/出库**
+   *   与 **channel 采购/销售** 的明细编辑器引用（那两域属于批 4/5）→ 随域迁移换成 `KSelector`。
+   *
+   * 2026-09 更新：合同那三件（`contract/component/{editor,editParticipant,selector}.vue`）与它们
+   * 的 barrel **从未被任何页面引用**（批 2 把合同列表改成 `KFormDialog` 后就成了孤岛，barrel 只被
+   * 自己人互相 import）→ 已按"零消费者"删除，不再需要"迁移"。
+   * ⚠️ 它们承载的**参与者/附件编辑**能力目前没有替代实现，重建时用新底座
+   * （`KFormDialog` + 上传件）在批 2B 或 system 批里补 —— 别把"删了死件"误读成"这功能不需要"。
    */
   const ALLOWED = [
-    'src/view/console/asset/contract/component/editParticipant.vue',
-    'src/view/console/asset/contract/component/editor.vue',
-    'src/view/console/asset/contract/component/selector.vue',
     'src/view/console/asset/material/component/selector.vue',
   ]
 

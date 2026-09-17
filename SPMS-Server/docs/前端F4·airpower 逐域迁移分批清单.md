@@ -115,7 +115,7 @@ vitest **48 文件 / 409 用例**全绿，其中逐页冒烟探针覆盖 asset �
 
 ### 3.3 批 2 的验收
 
-1. **域门禁** `src/config/__tests__/assetDomain.spec.ts`（6 用例）：域内 airpower 精确集合 = 4 个文件（`contract/{editor,editParticipant,selector}.vue` + `material/selector.vue`，全部卡在批 2B 的上传组件/选择器）、列表与详情走新底座、双注册且 `baseUrl` 一致、价格列 `money + hide`、参与方不足不发请求、终止需二次确认。
+1. **域门禁** `src/config/__tests__/assetDomain.spec.ts`（6 用例）：域内 airpower 精确集合 = **1 个文件**（`material/selector.vue`，被 wms/channel 共用；合同三件经复查是零消费者死件，已删，见 §3.6）、列表与详情走新底座、双注册且 `baseUrl` 一致、价格列 `money + hide`、参与方不足不发请求、终止需二次确认。
 2. **框架层行为** `src/config/__tests__/frameworkBatch2.spec.ts`（7 用例）：导出（去 page / 轮询重试 / 超时上限 / 空 `fileCode` 立即失败）、日期控件（渲染成 `ElDatePicker`、`valueFormat='x'`、提交的是数字）、`beforeSubmit` 返回 `null` 时不发写请求、`#cell-<key>` 槽位覆盖单元格。
 3. **全链**：vitest **47 文件 / 399 用例**全绿；`vue-tsc`、ESLint 干净；`pnpm build` 通过；体积 首屏 **370/450** · 总体 **745.1/900** KB；`demo:check`、`deadcode:check`、`exports:check` 全绿；逐页探针里两个 asset 页 ✅。
 4. **airpower 退场**：生产文件 **165 → 159**（本轮退 6 个：asset 三页 + 物料编辑器 + 单位编辑器/选择器）。新工具 `pnpm airpower` 统一口径（`scripts/find-airpower.mjs`，`--list` 列文件）。
@@ -198,18 +198,31 @@ vitest **48 文件 / 409 用例**全绿，其中逐页冒烟探针覆盖 asset �
 **验收**：`src/config/__tests__/frameworkUpload.spec.ts` 13 个用例（校验 / URL / category 字段 / 响应补齐 /
 组件选文件与删除 / 只读 / 命令式弹窗的确定与取消 / airpower 旧契约 `{ data: { category } }`）；全量 vitest 48 文件 412 用例。
 
-### 3.6 批 2B（剩余，现在已具备条件）
+### 3.6 「批 2B」的结论：不用迁了，其中三件是死件（2026-09 复查）
 
-`contract/{editor,editParticipant,selector}.vue`、`material/selector.vue` 仍是 airpower 组件：编辑器要传附件、选择器内嵌编辑器要传图片 —— **上传件现在有了**（§3.5），这一批可以直接开工。
-它们与「选择器里新增实体」这一能力一起卡在框架层上传组件（`DialogUtil.showUpload` 目前是 reject 占位）。
-`material/selector.vue` 里写清了失去"选择器内新增单位"入口的两条恢复路径（补上传组件 / 在物料表单里改用 KSelector 内联新增）。
+原本计划 2B 迁移 `contract/{editor,editParticipant,selector}.vue` + `material/selector.vue`。逐文件查消费者后发现两类情况：
+
+| 文件 | 真实状态 | 处置 |
+| --- | --- | --- |
+| `contract/component/{editor,editParticipant,selector}.vue` + `component/index.ts` | **零消费者**：批 2 把合同列表改成 `KFormDialog` 后，这个 barrel 只剩这几个文件**互相 import**（谁也没从外面引用它），`list.vue` 只 import `detail.vue` | ✅ **已删**（连同 barrel 4 个文件）。它们不是"待迁"，是"孤岛" |
+| `material/component/selector.vue` | 仍在用：**wms** 的入库/出库明细编辑器、**channel** 的采购/销售明细编辑器都靠它选物料 | 随批 4/5 一起换成 `KSelector`（提前删会把 wms/channel 打挂） |
+
+> ⚠️ **能力缺口（不是"不需要"）**：合同那三件承载的**参与方编辑与附件上传**，目前新底座里没有替代实现
+> （合同列表的 `KFormDialog` 只编字段，参与方是只读校验）。上传件已就位（§3.5），重建时用
+> `KFormDialog` + `KUpload` 补上；已写进 `assetDomain.spec.ts` 的注释，避免被误读成"这功能砍掉了"。
+
+同一轮复查还删掉了另外 12 个**零消费者的 airpower 选择器**（都不属于任何批次的"待迁移"，而是从来没人引用）：
+`channel/purchase/{selector,detailSelector}.vue`、`channel/sale/selector.vue`、`factory/structure/{selector.vue,index.ts}`、
+`personnel/user/selector.vue`、`system/{menu,permission}/selector.vue`、`wms/{input/detailSelector,input/selector,move/selector,output/selector}.vue`。
+处理方式是**收紧两个域门禁的 ALLOWED 集合**（`frameworkComponents.spec.ts` 2→1、`assetDomain.spec.ts` 4→1）——
+这正是那两条断言当初写成"精确集合"而不是"数量为 0"的目的：集合该变小时会被断言本身提示。
 
 ## 四、批 3~6：按域推进（先小后大，先低风险后高敏感）
 
 | 批次 | 域 | 视图文件 | 依赖缺口（除批 0 外） | 备注 |
 | --- | --- | --- | --- | --- |
 | 批 1 | factory + index | 6 + 1 | 无（已具备） | ✅ **本轮完成**：仓库/生产单元改用 `useTable({ tree: true })` + `KTable` + `KFormDialog`，首页 `APanel` → `KPanel`；两个跨域选择器**按设计保留**（wms 的入库/移库页仍用它们，属批 4） |
-| 批 2 | asset | 8 | `KSelector`、`useDetail` | ✅ **本轮完成**（除批 2B 的 4 个 airpower 组件：编辑器/参与方/两个选择器，卡上传组件）；另补了异步导出、日期控件、`cell-*` 插槽 |
+| 批 2 | asset | 8 | `KSelector`、`useDetail` | ✅ **本轮完成**；另补了异步导出、日期控件、`cell-*` 插槽。原计划的"批 2B"经复查撤销：合同三件是零消费者死件（已删），物料选择器随批 4/5 迁移（见 §3.6） |
 | 批 3 | personnel | 11 | `useTreeTable`（部门树）、`KSelector`（用户/角色选择器） | 角色页的权限树编辑器是唯一复杂点，单独拆子任务 |
 | 批 4 | wms | 20 | `KSelector`、`DialogUtil`、单据公共件（批 0 已备） | 单据闭环最完整（出入库/移库/库存），是**业务主线**，放在渠道域之前 |
 | 批 5 | channel | 23 | `KSelector`、`AMoney` | 采购/销售/价格 + 客户/供应商，文件最多但结构高度同构，可脚本化批量替换 |

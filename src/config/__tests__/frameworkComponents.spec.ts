@@ -109,13 +109,15 @@ describe('f4 · 批 1（factory + index）迁移完成度', () => {
    *
    * 这里断言的是**精确集合**而不是"数量为 0"：新增一处 airpower 用法会让用例变红，
    * 而选择器被真正替换掉（集合变空）时也会提示可以收紧断言。
+   *
+   * 2026-09 更新：`structure/component/selector.vue`（生产单元选择器）已经**没有任何消费者**
+   * （wms 只用了仓库选择器），连同它的 barrel 一起删除；集合因此从 2 收到 1。
    */
   const ALLOWED = [
     'src/view/console/factory/storage/component/selector.vue',
-    'src/view/console/factory/structure/component/selector.vue',
   ]
 
-  it('仓库 / 生产单元 / 首页已切新底座，仅剩两个跨域选择器', async () => {
+  it('仓库 / 生产单元 / 首页已切新底座，仅剩既有的仓库选择器', async () => {
     const { readdirSync, readFileSync } = await import('node:fs')
     const walk = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
