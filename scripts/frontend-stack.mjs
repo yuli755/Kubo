@@ -43,7 +43,9 @@ function walk(dir, out = []) {
 
 const allFiles = walk(ROOT)
 // package.json 只是"声明"，不算"使用"的证据；pnpm-lock 同理
-const codeFiles = allFiles.filter(f => CODE_EXT.test(f) && !f.endsWith('pnpm-lock.yaml') && !f.endsWith('package.json'))
+// 本脚本自己也不能算证据：ROLE 表里写着所有包名，会把"用在哪"全指向自己（第一次跑就中招了）
+const SELF = REL(path.join(ROOT, 'scripts/frontend-stack.mjs'))
+const codeFiles = allFiles.filter(f => CODE_EXT.test(f) && !f.endsWith('pnpm-lock.yaml') && !f.endsWith('package.json') && REL(f) !== SELF)
 const docFiles = allFiles.filter(f => DOC_EXT.test(f))
 
 /**
@@ -100,6 +102,23 @@ function countHits(name) {
   return { code, docs }
 }
 
+/**
+ * 引用点排序：源码 > 构建/测试配置 > 脚本与其他。
+ * 目的只是让"用在哪"这一列可读 —— 计数不受影响。
+ */
+function rank(hits) {
+  const weight = (file) => {
+    if (file.startsWith('src/'))
+      return 0
+    if (/^(?:vite|vitest|eslint)\.config/.test(file) || file === 'index.html')
+      return 1
+    if (file.startsWith('infra/'))
+      return 2
+    return 3
+  }
+  return [...hits].sort((a, b) => weight(a.file) - weight(b.file) || a.file.localeCompare(b.file))
+}
+
 function installedVersion(name) {
   try {
     const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'node_modules', name, 'package.json'), 'utf8'))
@@ -126,7 +145,7 @@ for (const [kind, deps] of sections) {
         role: 'core',
         why: 'workspace 共享包（脱敏策略等纯函数）',
         refs: code.length,
-        sample: code.slice(0, 2).map(x => x.file),
+        sample: rank(code).slice(0, 2).map(x => x.file),
         docRefs: docs.length,
       })
       continue
@@ -141,7 +160,8 @@ for (const [kind, deps] of sections) {
       role,
       why,
       refs: code.length,
-      sample: code.slice(0, 2).map(x => x.file),
+      // 展示顺序：先看 src/** 的真实用法，再看构建/配置文件，免得被测试注释带偏
+      sample: rank(code).slice(0, 2).map(x => x.file),
       docRefs: docs.length,
     }
     rows.push(row)
