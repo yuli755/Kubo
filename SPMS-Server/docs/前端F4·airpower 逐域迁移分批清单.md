@@ -3,6 +3,19 @@
 > 目的：把「换底座」从口号变成可勾选的清单。数字取自本次实测（`grep @airpower/web`）。
 > 上游：F1 契约替代（`src/framework`，commit `5659a341`）、F2 组件层（`useTable`/`KTable`/`KFormDialog`，commit `bc57dc9`）、试点页 `src/view/console/system/unit/list.vue`。
 
+## 〇、进度（每轮更新）
+
+| 批次 | 内容 | 状态 |
+| --- | --- | --- |
+| F2 第一批 | `useTable` / `KTable` / `KFormDialog` + `KEntity`，试点页 `system/unit` | ✅ `bc57dc9` |
+| **F2 第二批** | `KPanel` / `KSelector` / `KDetail` + `useDetail`、树表（`useTable({ tree })` + KTable 树渲染）、单元格与金额格式化（`framework/cell.ts`、`format.ts`）、字典兼容 airpower 枚举（`getEnumItems/getEnumLabel/getEnumColor`） | ✅ 本轮 |
+| **批 1** | `factory`（仓库 / 生产单元，树表）+ `index` 首页 | ✅ 本轮 |
+| 批 0 | 共享件 `src/component/{bill,user}/*`、`hook/useTanStackTable` 退役 | ⬜ 下一轮 |
+| 批 2~6 | asset → personnel → wms → channel → system | ⬜ |
+
+**本轮实测校验**：`vue-tsc` 干净、ESLint 干净、`pnpm build` 通过、体积 首屏 343/450 KB · 总体 715/900 KB；
+vitest 44 文件 / 373 用例全绿，其中逐页冒烟探针 27/27 页 ✅（含新迁的仓库管理与库位结构）。
+
 ## 一、现状数字（实测）
 
 | 范围 | 文件数 | 说明 |
@@ -12,23 +25,26 @@
 | 共享组件 / hook / 路由 | **12** | `src/component/{bill,user}/*`、`AuditFlow`、`PublishButton`、`UserCard`、`hook/useTanStackTable`、`hook/billTable/*`、`router/appRouter` |
 | 模型实体（`src/model/**`） | 72 | 只用到装饰器与枚举，随域迁移时同步换 `KEntity` |
 
-组件级用量（按**文件数**，同一文件可能同时用多个）：
+组件级用量（按**文件数**，同一文件可能同时用多个）。右列是**本轮补齐后**的真实状态：
 
 | airpower 成员 | 文件数 | 新底座对应物 | 状态 |
 | --- | --- | --- | --- |
-| `DialogProps` (60) / `ADialog` (42+) | 51 | `KFormDialog`（`:id` 有值=编辑） | ✅ 已有 |
-| `ATable` | 44 | `KTable` + `useTable` | ✅ 已有 |
-| `AFormField` | 35 | `KFormDialog` 自动生成 | ✅ 已有（选择器类字段还缺） |
-| `APanel` | 26 | 待补 `KPanel`（卡片壳 + 标题栏 + 右侧操作区） | ⬜ F2 第二批 |
-| `useEditor` | 20 | `KFormDialog` 内部状态 | ✅ 已有（`useEditor` 退役） |
-| `DialogUtil` | 16 | 待补 `KConfirm`（`confirm/alert/prompt` 语义化封装） | ⬜ F2 第二批 |
-| `ASelector` | 16 | 待补 `KSelector`（远程下拉/弹窗选择器，含单选与多选） | ⬜ F2 第二批 |
-| `AButton` / `AInput` / `ASelect` / `AGroup` / `AMoney` | 15 / 8 / 7 / 8 / 3 | 直接用 `ElButton`/`ElInput`/`ElSelect`；`AGroup` → `ElCard`+分栏；`AMoney` → 金额格式化（`@/framework` 里补 formatMoney） | ⬜ 轻量 |
-| `useTableTree` | 5 | 待补 `useTreeTable`（懒加载树 + 搜索） | ⬜ F2 第二批 |
-| `useDetail` | 5 | 待补 `useDetail`（详情只读渲染，基于 `@Descriptions` 元数据） | ⬜ F2 第二批 |
+| `DialogProps` (60) / `ADialog` (42+) / `useEditor` (20) | 51 | `KFormDialog`：`:id` 有值=编辑、rules 由 `@Form` 自动生成；`preset` 预置字段、`columns: 2` 两列布局、`#field-*` 覆盖控件、`#extra` 追加内容、`@loaded` 交出表单对象 | ✅ |
+| `ATable` | 44 | `KTable` + `useTable`：搜索/分页/排序/选择/行操作/空态，列与单元格走框架注册表 | ✅ |
+| `AFormField` | 35 | `KFormDialog` 自动生成（控件类型由 `@Form` 布尔标志推导） | ✅ |
+| `APanel` | 26 | `KPanel`（标题 + 右上角插槽 + 留白收敛） | ✅ 本轮 |
+| `DialogUtil` | 16 | `@/framework` 的 `DialogUtil.show/select/selectList`（**与 airpower 同契约，改 import 来源即可**）+ `FeedbackUtil`（toast/confirm/alert） | ✅ 无需新组件 |
+| `ASelector` | 16 | `KSelector`（单选/多选、回显、固定过滤、分页搜索）；存量 airpower 选择器可用 `DialogUtil` 继续打开，按域替换 | ✅ 本轮 |
+| `AButton` / `AInput` / `ASelect` | 15 / 8 / 7 | 直接用 `ElButton`/`ElInput`/`ElSelect`（显式 import，不依赖自动导入） | ✅ 轻量 |
+| `AGroup` | 8 | `KFormDialog` 的 `columns: 2`（两列表单）+ `#extra` 插槽 | ✅ 本轮 |
+| `AMoney` | 3 | `framework/format.ts` 的 `formatMoney`（金额列右对齐 + 千分位 + 两位小数），`@Table({ money: true })` 即生效 | ✅ 本轮 |
+| `useTableTree` | 5 | `useTable({ tree: true })` → `getTreeList`，KTable 自动树渲染（`row-key` + `children`）、隐藏分页器、给「添加子级」 | ✅ 本轮 |
+| `useDetail` | 5 | `useDetail` hook（按 id 重新查，避免列表快照过期）+ `KDetail`（元数据驱动的只读描述列表） | ✅ 本轮 |
 
-**结论**：F2 第二批的缺口集中在 5 个件：`KPanel`、`KSelector`、`KConfirm`、`useTreeTable`、`useDetail`（+ `formatMoney`）。
-在这 5 个件补齐前，任何一批页面迁移都会被迫在页面里手写这五类逻辑，等于把旧债原地平移。
+**结论（修正上一轮的判断）**：上一版把 `KConfirm`/`DialogUtil` 也算成"缺口"，其实 `@/framework` 的
+`FeedbackUtil` + `DialogUtil` 已经覆盖，迁移只需改 import 来源；真正的缺口是 4 个件
+（`KPanel`、`KSelector`、树表、`useDetail`）加一套统一单元格渲染，**本轮已全部补齐**，
+批 0 与批 2 起不再需要"边迁边造轮子"。
 
 ## 二、批 0：共享件先换（所有域的共同依赖）
 
@@ -52,7 +68,7 @@
 
 | 批次 | 域 | 视图文件 | 依赖缺口（除批 0 外） | 备注 |
 | --- | --- | --- | --- | --- |
-| 批 1 | factory + index | 6 + 1 | `useTreeTable`（storage / structure 均为树表） | 最小域，先打通「树表 + 表单」全链路 |
+| 批 1 | factory + index | 6 + 1 | 无（已具备） | ✅ **本轮完成**：仓库/生产单元改用 `useTable({ tree: true })` + `KTable` + `KFormDialog`，首页 `APanel` → `KPanel`；两个跨域选择器**按设计保留**（wms 的入库/移库页仍用它们，属批 4） |
 | 批 2 | asset | 8 | `KSelector`、`useDetail` | 合同域有明细行编辑器（`editParticipant`）与只读详情页，正好验证 `useDetail` |
 | 批 3 | personnel | 11 | `useTreeTable`（部门树）、`KSelector`（用户/角色选择器） | 角色页的权限树编辑器是唯一复杂点，单独拆子任务 |
 | 批 4 | wms | 20 | `KSelector`、`DialogUtil`、单据公共件（批 0 已备） | 单据闭环最完整（出入库/移库/库存），是**业务主线**，放在渠道域之前 |
@@ -63,7 +79,10 @@
 
 ## 四、每批的完成定义（DoD，缺一不可）
 
-1. **零 airpower import**：该域所有 `.vue` 内 `import ... from '@airpower/web'` 为 0（门禁用剥注释后的源码断言）。
+1. **零 airpower import**：该域所有 `.vue` 内 `import ... from '@airpower/web'` 为 0。批 1 的门禁断言的是
+   **精确剩余集合**（两个跨域选择器）而不是"数量为 0" —— 新增一处 airpower 用法会让用例变红，
+   集合变空时也提示可以收紧断言。见 `src/config/__tests__/frameworkComponents.spec.ts` 的
+   `f4 · 批 1（factory + index）迁移完成度`。
 2. **探针全绿**：`src/demo/__tests__/menuSmoke.probe.spec.ts`（逐页独立挂载，`errorHandler`/`console.error` 计硬错误）在该域页面全部 ✅。
 3. **新增域门禁 spec**：仿 `src/config/__tests__/frameworkComponents.spec.ts`，至少覆盖「请求体契约 + 元数据驱动渲染 + 该域独有交互」三件事。
 4. **类型与体积**：`vue-tsc --noEmit`、`eslint src` 干净；`pnpm build && pnpm size` 达标（当前 首屏 343/450 KB · 总体 712.1/900 KB）。
@@ -85,3 +104,5 @@
 | 单据页共享件（批 0）被改坏 → 多域同时炸 | 批 0 独立提交 + 探针全绿后再开批 1；批 0 期间冻结单据相关页面改动 |
 | 权限树 / 菜单树迁移期自锁（改坏就进不了后台） | 放在批 6；迁移前先确认超管旁路可用，并保留 `git revert` 单批回滚能力 |
 | 模型层双装饰器遗漏 → 页面「字段不见了」但不报错 | 域门禁 spec 断言「实体字段数 == 表格列数 + 表单字段数」，用数量对账替代肉眼检查 |
+| 双底座**枚举基类不同**：airpower 的 `WebEnum` 只有 `toArray()/getLabel()`，本仓是 `getList()` —— 新表格读 airpower 枚举会「列头有、值是数字」 | `framework/enums.ts` 统一取值 `getEnumItems/getEnumLabel/getEnumColor`（两种形状都吃），并有单测钉住；`IWebEnumConstructor` 的静态方法声明为可选 |
+| 迁移中把**跨域公共件**（选择器、单据组件）一起改掉，会连带打挂尚未迁移的域 | 只改"叶子页"，跨域件按"最后一个使用方"排期；新页面通过 `DialogUtil` 打开存量 airpower 选择器（契约一致，可混用） |

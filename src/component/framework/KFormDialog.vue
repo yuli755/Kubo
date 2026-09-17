@@ -1,9 +1,9 @@
 <script lang="ts" setup generic="E extends IIdentifiableEntity">
 import type { FormInstance } from 'element-plus'
 import type { AbstractCurdService, IFormField, IIdentifiableEntity } from '@/framework'
-import { ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElOption, ElSelect, ElSwitch } from 'element-plus'
+import { ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElSelect, ElSwitch } from 'element-plus'
 import { computed, nextTick, ref, watch } from 'vue'
-import { FeedbackUtil, getFormConfigList, getModelName, WebValidator } from '@/framework'
+import { FeedbackUtil, getEnumItems, getFormConfigList, getModelName, WebValidator } from '@/framework'
 
 /**
  * # KFormDialog —— 自研表单弹窗（替代 airpower `ADialog` + `useEditor` 的组合）
@@ -43,15 +43,47 @@ const props = withDefaults(defineProps<{
   closeOnSaved?: boolean
   /** 弹窗宽度 */
   width?: string
+  /**
+   * 新增时的预置字段（如「添加子级」要带上 `parentId`）。
+   * 只在新增（`:id` 为空）时生效 —— 编辑时以服务端详情为准，预置值不能覆盖真实数据。
+   */
+  preset?: Record<string, unknown>
+  /** 表单列数（2 列用于字段多的实体，替代原库 `AGroup :column="2"`） */
+  columns?: 1 | 2
 }>(), {
   closeOnSaved: true,
   width: '560px',
+  columns: 1,
 })
 
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void
   (event: 'saved', id: number): void
   (event: 'closed'): void
+  /**
+   * 表单已初始化（新增重置完成 / 编辑详情加载完成）。
+   *
+   * 为什么要把表单对象交出去：页面偶尔需要在**表单之外**动数据（如「所属部门」多选、
+   * 明细行），而这些数据是提交体的一部分。交出去的引用在每次初始化后都会重新 emit，
+   * 页面持有最新的一份即可，不需要在弹窗内部开洞。
+   */
+  (event: 'loaded', form: Record<string, unknown>): void
+}>()
+
+/**
+ * 插槽声明。
+ *
+ * 不写 `defineSlots` 时，页面用 `#extra` / `#field-xxx` 会报
+ * `Property 'extra' does not exist on type '__VLS_Slots'` —— 泛型组件在 vue-tsc 下
+ * 必须显式声明插槽，否则页面「明明能跑、类型却过不了」。
+ */
+defineSlots<{
+  /** 页面自定义内容（多选标签、明细行等），放在元数据字段之后 */
+  extra?: (props: { form: Record<string, unknown> }) => unknown
+  /** 覆盖任意字段的控件（选择器/上传等） */
+  [key: `field-${string}`]: (props: { field: IFormField, form: Record<string, unknown> }) => unknown
+  /** 覆盖底部按钮区 */
+  footer?: (props: { submit: () => void, cancel: () => void, submitting: boolean }) => unknown
 }>()
 
 /**
@@ -117,6 +149,23 @@ function fieldType(field: IFormField): 'textarea' | 'switch' | 'select' | 'passw
   return 'input'
 }
 
+/**
+ * 「所属上级」的展示文本。
+ *
+ * 取 `preset.parent`（页面点「添加子级」时带进来的父行）或详情里的 `parent`，
+ * 两者都没有就不渲染（新增顶级节点时本来就没有上级）。
+ */
+const parentLabel = computed(() => {
+  const parent = (form.value.parent ?? props.preset?.parent) as { name?: string, code?: string } | undefined
+  if (!parent || typeof parent !== 'object') {
+    return ''
+  }
+  if (!parent.name) {
+    return ''
+  }
+  return parent.code ? `${parent.name}(${parent.code})` : parent.name
+})
+
 function resetForm() {
   const Ctor = EntityClass.value
   const instance = new Ctor() as Record<string, unknown>
@@ -124,7 +173,12 @@ function resetForm() {
   for (const field of fields.value) {
     next[field.key] = instance[field.key] ?? ''
   }
+  // 预置字段（如 parentId）覆盖实体默认值：值可能是 0，所以要按 key 存在与否判断而不是真值
+  for (const [key, value] of Object.entries(props.preset ?? {})) {
+    next[key] = value
+  }
   form.value = next
+  emit('loaded', form.value)
 }
 
 async function loadDetail(id: number) {
@@ -132,6 +186,7 @@ async function loadDetail(id: number) {
   try {
     const entity = await service.value.getDetail(id)
     form.value = { ...(entity as unknown as Record<string, unknown>) }
+    emit('loaded', form.value)
   }
   finally {
     isLoading.value = false
@@ -205,8 +260,18 @@ function onCancel() {
       :model="form"
       :rules="rules"
       label-width="110px"
+      :class="{ 'k-form-dialog--two-columns': columns === 2 }"
       @submit.prevent="onSubmit"
     >
+      <!-- 树形实体（仓库/生产单元/部门/菜单）的「所属上级」：不在 @Form 里，
+           由页面通过 `preset` 带进来，只读展示，避免用户以为可以在这里改父级 -->
+      <ElFormItem
+        v-if="parentLabel"
+        label="所属上级"
+      >
+        <span class="k-form-dialog__readonly">{{ parentLabel }}</span>
+      </ElFormItem>
+
       <ElFormItem
         v-for="field in fields"
         :key="field.key"
@@ -231,12 +296,20 @@ function onCancel() {
             class="k-form-dialog__control"
           >
             <ElOption
-              v-for="option in field.dictionary?.getList?.() ?? []"
+              v-for="option in getEnumItems(field.dictionary)"
               :key="option.key"
               :label="option.label"
               :value="option.key"
             />
           </ElSelect>
+          <ElInputNumber
+            v-else-if="fieldType(field) === 'number'"
+            v-model="form[field.key] as number"
+            :min="field.min"
+            :max="field.max"
+            :precision="field.precision"
+            class="k-form-dialog__control"
+          />
           <ElInput
             v-else
             v-model="form[field.key] as string"
@@ -250,16 +323,23 @@ function onCancel() {
     </ElForm>
 
     <template #footer>
-      <ElButton @click="onCancel">
-        取消
-      </ElButton>
-      <ElButton
-        type="primary"
-        :loading="isSubmitting"
-        @click="onSubmit"
+      <slot
+        name="footer"
+        :submit="onSubmit"
+        :cancel="onCancel"
+        :submitting="isSubmitting"
       >
-        保存
-      </ElButton>
+        <ElButton @click="onCancel">
+          取消
+        </ElButton>
+        <ElButton
+          type="primary"
+          :loading="isSubmitting"
+          @click="onSubmit"
+        >
+          保存
+        </ElButton>
+      </slot>
     </template>
   </ElDialog>
 </template>
@@ -267,5 +347,20 @@ function onCancel() {
 <style scoped>
 .k-form-dialog__control {
   width: 100%;
+}
+
+.k-form-dialog__readonly {
+  color: var(--el-text-color-regular);
+}
+
+/* 两列表单：字段多的实体（单据、合同）在一列里滚太长，扫读成本高 */
+.k-form-dialog--two-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+}
+
+.k-form-dialog--two-columns :deep(.el-form-item:has(textarea)) {
+  grid-column: span 2;
 }
 </style>

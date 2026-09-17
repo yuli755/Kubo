@@ -13,13 +13,17 @@
  * - `validate`  表单校验
  * - `datetime`  时间工具
  * - `enums`     枚举字典/颜色/脱敏
+ * - `format`    金额/数量格式化
+ * - `cell`      单元格文本/颜色/对齐（表格与详情页共用一套渲染规则）
  */
 
+export * from './cell'
 export * from './config'
 export * from './datetime'
 export * from './entity'
 export * from './enums'
 export * from './feedback'
+export * from './format'
 export * from './http'
 export * from './metadata'
 export * from './query'

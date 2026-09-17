@@ -31,8 +31,20 @@ export interface IWebEnumItem<K extends EnumKey = EnumKey> {
   disabled?: boolean
 }
 
+/**
+ * 字典构造器（枚举类本身）。
+ *
+ * ⚠️ 这里把静态方法声明为**可选**：迁移期实体同时挂 airpower 与 `@/framework` 两套装饰器，
+ * 而两边枚举基类的静态 API 不同 —— 本仓 `WebEnum` 是 `getList()`，airpower 的 `WebEnum`
+ * 只有 `toArray()` / `getLabel()` / `get()`。若要求必须实现 `getList()`，
+ * `StructureTypeEnum`（airpower 枚举）就传不进 `@KField({ dictionary })`。
+ * 取值统一走本文件的 `getEnumItems/getEnumLabel/getEnumColor`，两种形状都能吃。
+ */
 export interface IWebEnumConstructor<K extends EnumKey = EnumKey> {
-  getList: () => IWebEnumItem<K>[]
+  getList?: () => IWebEnumItem<K>[]
+  toArray?: () => IWebEnumItem<K>[]
+  getLabel?: (key: never, defaultLabel?: string) => string
+  getColor?: (key: never) => string | undefined
 }
 
 /** 字段基础配置：字段名（装饰器内部回填，业务不传） */

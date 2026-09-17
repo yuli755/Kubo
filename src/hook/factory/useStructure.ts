@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { unref } from 'vue'
 import { structureApi } from '@/api/factory'
 
+// 新底座服务（F2 起的页面用）
+export { KStructureService } from '@/model/factory/structure/KStructureService'
 // F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`。
 // 生产单元的 CRUD 走 airpower 的 Service 类，由本 hook 模块统一转发（wms/inventory 等跨模块视图也从这里取）。
 export { StructureService } from '@/model/factory/structure/StructureService'

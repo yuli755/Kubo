@@ -1,8 +1,13 @@
 import type { Ref } from 'vue'
-import type { AbstractCurdService, IIdentifiableEntity } from '@/framework'
+import type { AbstractCurdService, IIdentifiableEntity, QueryResponsePage } from '@/framework'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
-import { FeedbackUtil, QueryRequestPage as FrameworkQueryRequestPage, QuerySort } from '@/framework'
+import {
+  FeedbackUtil,
+  QueryRequestPage as FrameworkQueryRequestPage,
+  QueryRequest,
+  QuerySort,
+} from '@/framework'
 
 /**
  * # 自研 `useTable` —— 表格页的状态与数据流（替代 airpower `useTable`）
@@ -35,6 +40,11 @@ export interface IUseTableOption<E extends IIdentifiableEntity, S extends Abstra
   DetailView?: unknown
   /** 默认每页条数 */
   defaultPageSize?: number
+  /**
+   * 树形数据（`getTreeList`）：仓库/生产单元/部门/菜单这类实体后端返回的是**嵌套树**，
+   * 不分页、不带 `page` 参数。置 `true` 后 `KTable` 会自动开树渲染（`row-key` + 子节点）。
+   */
+  tree?: boolean
   /** 默认过滤条件（如按父级 id 过滤） */
   defaultFilter?: Partial<E>
   /** 默认排序字段 */
@@ -71,6 +81,16 @@ export function useTable<E extends IIdentifiableEntity, S extends AbstractCurdSe
    * 请求体：后端契约是 `{ filter, page: { pageNum, pageSize }, sort: { field, direction } }`
    * （见 `framework/query.ts` 与 `docs` 里的接口约定；`getPage` 会把响应 fill 成实体实例）。
    */
+  /** 排序对象（分页与树查询共用） */
+  function buildSort(): QuerySort | undefined {
+    if (!sort.value) {
+      return undefined
+    }
+    return new QuerySort()
+      .setField(sort.value.field)
+      .setDirection(sort.value.desc ? 'DESC' : 'ASC')
+  }
+
   const request = computed(() => {
     const payload = new FrameworkQueryRequestPage<E>(EntityClass as never)
     payload.page.pageNum = page.value
@@ -78,10 +98,22 @@ export function useTable<E extends IIdentifiableEntity, S extends AbstractCurdSe
     if (Object.keys(filter.value).length) {
       payload.filter = filter.value as E
     }
-    if (sort.value) {
-      payload.sort = new QuerySort()
-        .setField(sort.value.field)
-        .setDirection(sort.value.desc ? 'DESC' : 'ASC')
+    const nextSort = buildSort()
+    if (nextSort) {
+      payload.sort = nextSort
+    }
+    return payload
+  })
+
+  /** 树查询请求体：`{ filter, sort }`，**没有** `page`（后端 `getTreeList` 不接受分页） */
+  const treeRequest = computed(() => {
+    const payload = new QueryRequest<E>(EntityClass as never)
+    if (Object.keys(filter.value).length) {
+      payload.filter = filter.value as E
+    }
+    const nextSort = buildSort()
+    if (nextSort) {
+      payload.sort = nextSort
     }
     return payload
   })
@@ -91,15 +123,46 @@ export function useTable<E extends IIdentifiableEntity, S extends AbstractCurdSe
     { page: page.value, pageSize: pageSize.value, sort: sort.value, filter: filter.value },
   ])
 
-  const query = useQuery({
+  /**
+   * 分页接口返回 `QueryResponsePage`、树接口返回 `E[]`，两种形状都要能装进同一个 query。
+   * 显式标注泛型：不写的话 TanStack 会按「两个重载二选一」推断，报
+   * `Promise<QueryResponsePage<E>> is not assignable to Promise<E[]>`。
+   */
+  const query = useQuery<E[] | QueryResponsePage<E>>({
     queryKey,
-    queryFn: () => service.getPage(request.value),
+    queryFn: async (): Promise<E[] | QueryResponsePage<E>> =>
+      (option.tree ? service.getTreeList(treeRequest.value) : service.getPage(request.value)),
     // 翻页/改排序时保留上一页数据，避免表格整块闪空（这是 WMS 列表的日常操作）
     placeholderData: keepPreviousData,
   })
 
-  const list = computed<E[]>(() => (query.data.value?.list ?? []) as E[])
-  const total = computed<number>(() => query.data.value?.total ?? 0)
+  /**
+   * 列表数据。
+   * 分页接口返回 `QueryResponsePage`，树接口返回 `E[]` —— 两者都在这里归一成数组，
+   * 组件层不需要知道走的是哪个接口。
+   */
+  const list = computed<E[]>(() => {
+    const data = query.data.value
+    if (!data) {
+      return []
+    }
+    return Array.isArray(data) ? data : data.list
+  })
+  /** 总数：树数据没有服务端总数，用展开后的节点数兜底（分页器在树模式下不渲染） */
+  const total = computed<number>(() => {
+    const data = query.data.value
+    if (!data) {
+      return 0
+    }
+    if (Array.isArray(data)) {
+      const count = (nodes: E[]): number => nodes.reduce((sum, node) => {
+        const children = (node as unknown as { children?: E[] }).children
+        return sum + 1 + (children?.length ? count(children) : 0)
+      }, 0)
+      return count(data)
+    }
+    return data.total ?? 0
+  })
   const isLoading = computed(() => query.isFetching.value)
 
   function invalidate() {
@@ -178,6 +241,8 @@ export function useTable<E extends IIdentifiableEntity, S extends AbstractCurdSe
     onDelete,
     onToggleEnable,
     reload: invalidate,
+    /** 是否树模式（KTable 据此渲染树 + 隐藏分页器 + 显示「添加子级」） */
+    isTree: computed(() => !!option.tree),
     // 组件与元数据（供 KTable / 弹窗使用）
     service,
     entityClass: EntityClass,

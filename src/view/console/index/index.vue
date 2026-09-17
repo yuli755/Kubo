@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import type { IJson } from '@airpower/web'
-import { APanel } from '@airpower/web'
+import type { IJson } from '@/framework'
 import { computed, ref } from 'vue'
+import KPanel from '@/component/framework/KPanel.vue'
 import { Permissions } from '@/config/permissions'
 import { getRouter } from '@/router/appRouter'
 import { usePermissionStore } from '@/stores/permission'
@@ -59,7 +59,7 @@ function goPage(path: string) {
 </script>
 
 <template>
-  <APanel>
+  <KPanel>
     <div class="home">
       <BusinessOverview class="business" />
       <SecurityDashboard
@@ -93,7 +93,7 @@ function goPage(path: string) {
         </div>
       </div>
     </div>
-  </APanel>
+  </KPanel>
 </template>
 
 <style lang="scss" scoped>

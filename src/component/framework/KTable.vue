@@ -4,10 +4,10 @@ import type { AbstractCurdService, IIdentifiableEntity, ISearchField, ITableColu
 import type { UseTableReturn } from '@/hook/kubo/useTable'
 // 显式 import 而不是只靠 `unplugin-vue-components` 自动导入：
 // 视图中出现 <el-*> 就依赖全局注册，在 vitest（不加载该插件）与任何独立挂载场景下
-// 都会退化成一个未知元素 —— 表格列的 `#default=\"{ row }\"` 拿不到 row，直接抛错。
+// 都会退化成一个未知元素 —— 表格列的 `#default="{ row }"` 拿不到 row，直接抛错。
 import { ElButton, ElEmpty, ElForm, ElFormItem, ElInput, ElPagination, ElTable, ElTableColumn } from 'element-plus'
-import { computed, ref, watch } from 'vue'
-import { getDictionary, getSearchConfigList, getTableConfigList } from '@/framework'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
+import { getCellColor, getCellText, getColumnAlign, getDictionary, getSearchConfigList, getTableConfigList } from '@/framework'
 
 /**
  * # KTable —— 自研表格（替代 airpower `ATable`）
@@ -18,20 +18,19 @@ import { getDictionary, getSearchConfigList, getTableConfigList } from '@/framew
  * | --- | --- | --- |
  * | 列/搜索项 | 组件内部读 airpower 的元数据注册表 | 读 `src/framework` 的注册表（**同一份**装饰器写的） |
  * | 数据 | 组件直接读写 `useHook.request` / `response` | 只读 `list/total/isLoading`，条件通过 `search/onPageChanged/onSortChanged` 回传 |
- * | 行操作 | 内置 add/edit/delete/enable/disable 按钮 + `permission` 判断权限码 | 同样内置，但权限码由页面传入（`permissions` 对象），组件不认识业务常量 |
- * | 空态 | 自动文案 | 区分"没数据"与"有筛选但没匹配"（后者要引导用户改条件，而不是让人以为表是空的） |
+ * | 行操作 | 内置 add/edit/delete/enable 按钮 + `permission` 判断权限码 | 同样内置，但权限码由页面传入（`permissions` 对象），组件不认识业务常量 |
+ * | 单元格 | 组件内一堆 if | 统一走 `@/framework` 的 `getCellText`（金额/日期/脱敏/关联对象/字典同一套规则） |
+ * | 空态 | 自动文案 | 区分“没数据”与“有筛选但没匹配”（后者要引导用户改条件，而不是让人以为表是空的） |
  *
- * ## 为什么不做成"上帝组件"
+ * ## 为什么不做成“上帝组件”
  * airpower 的 `ATable` 有 40+ 个 prop、内部还管弹窗与权限，改一处怕碰别处。
- * 这里把职责切干净：**KTable 只负责"显示 + 交互回传"**，CRUD、Dialog 由 `useTable` 与页面决定。
+ * 这里把职责切干净：**KTable 只负责“显示 + 交互回传”**，CRUD、Dialog 由 `useTable` 与页面决定。
  *
  * ## 用法
  * ```vue
- * <KTable :table="table" :permissions="{ add, edit, delete }" />
+ * <KTable :table="table" :permissions="{ add, edit, delete }" @edit="openEditor" />
  * ```
  */
-
-type DictLike = { getLabel?: (value: unknown) => string, getColor?: (value: unknown) => string } | undefined
 
 interface RowAction {
   /** 权限码（不传则不校验） */
@@ -47,25 +46,32 @@ interface RowAction {
 const props = withDefaults(defineProps<{
   /** `useTable` 的返回值 */
   table: UseTableReturn<E, S>
-  /** 行操作权限码（add/edit/delete/enable/disable） */
+  /** 行操作权限码（add/addChild/edit/delete/enable） */
   permissions?: Record<string, string | undefined>
   /** 是否隐藏新增按钮 */
   hideAdd?: boolean
   /** 是否隐藏刷新按钮 */
   hideRefresh?: boolean
+  /** 是否隐藏整列行操作（选择器场景用） */
+  hideActions?: boolean
   /** 是否显示序号列 */
   showIndex?: boolean
   /** 是否可选（多选） */
   selectable?: boolean
+  /** 已选中的 id（选择器回显用；变化后自动勾选对应行） */
+  selectedIds?: number[]
   /** 额外的行操作（在编辑/删除之前展示） */
   actions?: RowAction[]
   /** 表格高度（默认自适应容器） */
   height?: string | number
   /** 行数据的唯一键字段 */
   rowKey?: string
+  /** 该行是否禁止删除（如树节点下有子级）；返回 true 时删除按钮置灰 */
+  disableDelete?: (row: E) => boolean
 }>(), {
   showIndex: true,
   hideRefresh: false,
+  hideActions: false,
   rowKey: 'id',
 })
 
@@ -74,6 +80,15 @@ const emit = defineEmits<{
   (event: 'edit', row: E): void
   (event: 'detail', row: E): void
   (event: 'add'): void
+  (event: 'addChild', row: E): void
+}>()
+
+/** 插槽声明（同 KFormDialog：泛型组件不声明插槽时页面用不了） */
+defineSlots<{
+  /** 工具条左侧（新增按钮之后） */
+  'toolbar-left'?: (props: { selection: E[] }) => unknown
+  /** 工具条右侧（刷新按钮之前） */
+  'toolbar-right'?: (props: { selection: E[] }) => unknown
 }>()
 
 const EntityClass = computed(() => props.table.entityClass as unknown as object)
@@ -83,6 +98,9 @@ const columns = computed<ITableColumn[]>(() => getTableConfigList(EntityClass.va
 
 /** 搜索项：来自 `@Search` 元数据 */
 const searchFields = computed<ISearchField[]>(() => getSearchConfigList(EntityClass.value))
+
+/** 树模式：数据来自 `getTreeList`，用 Element Plus 的树表格渲染（不分页） */
+const isTree = computed(() => props.table.isTree.value)
 
 /** 搜索表单草稿：编辑中不直接影响列表，点「搜索」才提交（否则每个字符都触发请求） */
 const searchDraft = ref<Record<string, unknown>>({})
@@ -116,31 +134,55 @@ function onResetSearch() {
   props.table.reset()
 }
 
-/** 单元格文本：字典字段显示 label，日期字段格式化，其余直接转字符串 */
+/** 单元格文本：金额/日期/脱敏/关联对象/字典由框架层统一处理 */
 function cellText(row: E, column: ITableColumn): string {
-  const value = (row as unknown as Record<string, unknown>)[column.key]
-  if (value === null || value === undefined || value === '')
-    return '-'
-  const dictionary = getDictionary(EntityClass.value, column.key) as DictLike
-  if (dictionary?.getLabel) {
-    const label = dictionary.getLabel(value)
-    if (label)
-      return label
-  }
-  if (typeof value === 'boolean')
-    return value ? '是' : '否'
-  return String(value)
+  return getCellText(row, column, getDictionary(EntityClass.value, column.key))
 }
 
 /** 状态色：字典带颜色时给单元格上色（数据密集场景靠颜色扫读，比读文字快） */
 function cellStyle(row: E, column: ITableColumn): CSSProperties {
-  const dictionary = getDictionary(EntityClass.value, column.key) as DictLike
-  const value = (row as unknown as Record<string, unknown>)[column.key]
-  const color = dictionary?.getColor?.(value)
+  const color = getCellColor(getDictionary(EntityClass.value, column.key), (row as unknown as Record<string, unknown>)[column.key])
   return color ? { color } : {}
 }
 
-const selection = ref<E[]>([])
+/**
+ * 已选行。
+ * 用 `shallowRef`：`ref<E[]>` 会被深度解包成 `UnwrapRefSimple<E>[]`，
+ * 传给插槽（声明为 `E[]`）或 emit 时会报「E 可能是别的子类型」。
+ */
+const selection = shallowRef<E[]>([])
+/**
+ * ElTable 实例（只用到 `toggleRowSelection`）。
+ * 不能写 `InstanceType<typeof ElTable>`：EP 的表格是**泛型函数组件**，`InstanceType`
+ * 需要 `new (...)` 签名，直接报 TS2344。
+ */
+interface IElTableInstance {
+  toggleRowSelection: (row: unknown, selected?: boolean) => void
+}
+const tableRef = ref<IElTableInstance>()
+
+function onSelectionChange(rows: E[]) {
+  selection.value = rows
+  emit('selectionChanged', rows)
+}
+
+/** 回显已选：数据到达后按 id 勾选（选择器再次打开时能看到上次选的） */
+watch(
+  [() => props.selectedIds, () => props.table.list.value, tableRef],
+  async () => {
+    if (!props.selectable || !props.selectedIds?.length) {
+      return
+    }
+    await nextTick()
+    const ids = new Set(props.selectedIds)
+    for (const row of props.table.list.value) {
+      if (ids.has(row.id)) {
+        tableRef.value?.toggleRowSelection(row as never, true)
+      }
+    }
+  },
+  { immediate: true },
+)
 
 /**
  * ElTable 的 sort-change 载荷（`prop: string | null`，不是可选字段 —— 直接内联箭头函数
@@ -156,29 +198,33 @@ function onSortChange(payload: ITableSortPayload) {
   props.table.onSortChanged(payload.prop && payload.order ? { field: payload.prop, desc: payload.order === 'descending' } : null)
 }
 
-function onSelectionChange(rows: E[]) {
-  selection.value = rows
-  emit('selectionChanged', rows)
-}
-
 /** 行是否处于禁用态（用于「启用/禁用」按钮的切换与置灰） */
 function isDisabled(row: E): boolean {
   return !!(row as unknown as { isDisabled?: boolean }).isDisabled
 }
 
-async function onAdd() {
-  emit('add')
+/** 该行是否还能删除（树模式下有子级不能删，否则会留下孤儿节点） */
+function isDeleteDisabled(row: E): boolean {
+  if (props.disableDelete?.(row)) {
+    return true
+  }
+  if (isTree.value) {
+    const children = (row as unknown as { children?: E[] }).children
+    return !!children?.length
+  }
+  return false
 }
 
-function onEdit(row: E) {
-  emit('edit', row)
-}
-
-const hasRowActions = computed(
-  () => true, // 编辑/删除始终存在；是否可用由权限码决定
-)
+const hasRowActions = computed(() => !props.hideActions)
 
 const tableHeight = computed(() => props.height ?? undefined)
+
+/** 空态文案：区分「本来就没有」与「筛选后没有」 */
+const emptyText = computed(() =>
+  Object.keys(props.table.filter.value).length
+    ? '没有符合条件的记录，试试放宽筛选条件'
+    : '暂无数据',
+)
 </script>
 
 <template>
@@ -223,7 +269,7 @@ const tableHeight = computed(() => props.height ?? undefined)
           v-if="!hideAdd"
           v-permission="permissions?.add"
           type="primary"
-          @click="onAdd"
+          @click="emit('add')"
         >
           新增
         </ElButton>
@@ -249,10 +295,13 @@ const tableHeight = computed(() => props.height ?? undefined)
 
     <!-- 表格：data 直接来自 TanStack Query，加载中用 loading 覆盖而不是清空 data（避免整块闪空） -->
     <ElTable
+      ref="tableRef"
       v-loading="table.isLoading.value"
       :data="table.list.value"
       :row-key="rowKey"
       :height="tableHeight"
+      :default-expand-all="isTree"
+      :tree-props="{ children: 'children' }"
       border
       stripe
       class="k-table__body"
@@ -279,6 +328,7 @@ const tableHeight = computed(() => props.height ?? undefined)
         :label="column.label"
         :width="column.width"
         :min-width="column.minWidth ?? 120"
+        :align="getColumnAlign(column)"
         :sortable="column.sortable ? 'custom' : false"
         show-overflow-tooltip
       >
@@ -307,10 +357,19 @@ const tableHeight = computed(() => props.height ?? undefined)
             {{ action.label }}
           </ElButton>
           <ElButton
+            v-if="isTree"
+            v-permission="permissions?.addChild"
+            link
+            type="primary"
+            @click="emit('addChild', row as E)"
+          >
+            添加子级
+          </ElButton>
+          <ElButton
             v-permission="permissions?.edit"
             link
             type="primary"
-            @click="onEdit(row as E)"
+            @click="emit('edit', row as E)"
           >
             编辑
           </ElButton>
@@ -326,6 +385,7 @@ const tableHeight = computed(() => props.height ?? undefined)
             v-permission="permissions?.delete"
             link
             type="danger"
+            :disabled="isDeleteDisabled(row as E)"
             @click="table.onDelete((row as E).id)"
           >
             删除
@@ -334,12 +394,16 @@ const tableHeight = computed(() => props.height ?? undefined)
       </ElTableColumn>
 
       <template #empty>
-        <ElEmpty :description="Object.keys(table.filter.value).length ? '没有符合条件的记录，试试放宽筛选条件' : '暂无数据'" />
+        <ElEmpty :description="emptyText" />
       </template>
     </ElTable>
 
-    <!-- 分页：条数变化时回到第 1 页（否则会停在不存在的页码，表格空白但没人知道为什么） -->
-    <div class="k-table__pagination">
+    <!-- 分页：条数变化时回到第 1 页（否则会停在不存在的页码，表格空白但没人知道为什么）；
+         树数据不分页，隐藏分页器 -->
+    <div
+      v-if="!isTree"
+      class="k-table__pagination"
+    >
       <ElPagination
         :current-page="table.page.value"
         :page-size="table.pageSize.value"

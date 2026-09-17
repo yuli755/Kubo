@@ -14,7 +14,7 @@
  * ```
  */
 
-import type { EnumKey } from './types'
+import type { EnumKey, IWebEnumConstructor, IWebEnumItem } from './types'
 
 /** 语义色（与 Element Plus 的 success/warning/danger/info 对齐） */
 export enum WebColor {
@@ -151,4 +151,56 @@ export enum DateTimeType {
   WEEK = 'week',
   YEAR = 'year',
   MONTH = 'month',
+}
+
+// ────────────────────────── 字典取值（兼容两套枚举基类） ──────────────────────────
+
+/**
+ * 取字典选项列表。
+ *
+ * 兼容三件套，顺序即优先级：
+ * 1. 本仓 `WebEnum` 的 `getList()`；
+ * 2. airpower `WebEnum` 的 `toArray()`（存量实体的枚举类都是这种）；
+ * 3. 兜底扫静态字段（自定义枚举类只写了 static 实例、没继承基类）。
+ */
+export function getEnumItems<K extends EnumKey>(dictionary?: IWebEnumConstructor<K> | null): IWebEnumItem<K>[] {
+  if (!dictionary) {
+    return []
+  }
+  if (typeof dictionary.getList === 'function') {
+    return dictionary.getList() as IWebEnumItem<K>[]
+  }
+  if (typeof dictionary.toArray === 'function') {
+    return dictionary.toArray() as IWebEnumItem<K>[]
+  }
+  return Object.values(dictionary as unknown as Record<string, unknown>)
+    .filter((item): item is IWebEnumItem<K> => !!item && typeof item === 'object' && 'key' in (item as object))
+}
+
+/** 字典 key → 文案（找不到返回 undefined，调用方决定兜底） */
+export function getEnumLabel<K extends EnumKey>(dictionary: IWebEnumConstructor<K> | null | undefined, key: unknown): string | undefined {
+  if (!dictionary) {
+    return undefined
+  }
+  if (typeof dictionary.getLabel === 'function') {
+    const label = (dictionary.getLabel as unknown as (value: unknown) => string)(key)
+    if (label && label !== '-') {
+      return label
+    }
+  }
+  return getEnumItems(dictionary).find(item => item.key === key)?.label
+}
+
+/** 字典 key → 颜色（表格/标签上色用，找不到返回 undefined） */
+export function getEnumColor<K extends EnumKey>(dictionary: IWebEnumConstructor<K> | null | undefined, key: unknown): string | undefined {
+  if (!dictionary) {
+    return undefined
+  }
+  if (typeof dictionary.getColor === 'function') {
+    const color = (dictionary.getColor as unknown as (value: unknown) => string | undefined)(key)
+    if (color) {
+      return color
+    }
+  }
+  return getEnumItems(dictionary).find(item => item.key === key)?.color
 }

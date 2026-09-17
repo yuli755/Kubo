@@ -28,9 +28,9 @@
 | --- | --- | --- |
 | **F1 地基** | `src/framework/`：元数据装饰器、实体基类与序列化、查询模型、HTTP 与服务基类、校验、时间、反馈、枚举、配置 | ✅ 本批完成（20 个契约测试） |
 | **F2 组件层（第一批·已完成）** | `KTable`（搜索区/分页/排序/权限按钮/启停删）、`KFormDialog`（`:id` 有值=编辑，rules 由 `@Form` 元数据生成）、`useTable`（TanStack 数据流 + 请求体契约 `{ filter, page, sort }`）；配套 `src/base/KEntity.ts` 新底座实体基类 | ✅ `bc57dc9` |
-| **F2 组件层（第二批·待做）** | 5 个缺口件：`KPanel`（卡片壳，26 处 `APanel`）、`KSelector`（远程/弹窗选择器，16 处 `ASelector`）、`KConfirm`（16 处 `DialogUtil`）、`useTreeTable`（5 处）、`useDetail`（5 处）；`AGroup`/`AButton`/`AInput`/`ASelect` 直接映射 `El*`，`AMoney` 补 `formatMoney` | ⬜ |
+| **F2 组件层（第二批·已完成）** | `KPanel`、`KSelector`、`KDetail` + `useDetail`、树表（`useTable({ tree: true })` + KTable 树渲染）、`framework/cell.ts` 统一单元格渲染、`framework/format.ts` 金额格式化、字典兼容两套枚举基类；`KFormDialog` 增补 `preset`/`columns`/`#extra`/`#field-*`/`@loaded`。原列的 `KConfirm` 经核实**不需要**：`@/framework` 的 `FeedbackUtil`/`DialogUtil` 与 airpower 同契约，改 import 来源即可 | ✅ 本轮 |
 | **F3 试点** | `system/unit` 列表 + 编辑弹窗已切新底座（源码零 airpower import，逐页探针 ✅，体积 343/450 KB）；选择器待 F2 第二批 `KSelector` 落地后补 | ✅ 基本完成（`bc57dc9`） |
-| **F4 批量迁移** | 实测 177 个文件仍 import `@airpower/web`（视图 90 / 7 域）。分批顺序改为**先公共件再按域**：批 0 共享件（`src/component/{bill,user}/*`、`useTanStackTable` 退役）→ factory+index 7 → asset 8 → personnel 11 → wms 20 → channel 23 → system 21。清单、依赖缺口、每批 DoD、风险对策见 `docs/前端F4·airpower 逐域迁移分批清单.md` | 待做（清单已出） |
+| **F4 批量迁移** | 实测 177 个文件仍 import `@airpower/web`（视图 90 / 7 域）。分批顺序改为**先公共件再按域**：批 0 共享件（`src/component/{bill,user}/*`、`useTanStackTable` 退役）→ **批 1 factory+index ✅ 本轮完成**（仅剩 2 个跨域选择器，随 wms 域迁移时替换）→ asset 8 → personnel 11 → wms 20 → channel 23 → system 21。清单、依赖缺口、每批 DoD、风险对策见 `docs/前端F4·airpower 逐域迁移分批清单.md` | 批 1 已完成，批 0/2~6 待做 |
 | **F5 拆伞** | 删 `@airpower/web` 依赖、`src/config/airpower-bootstrap.ts`、`infra/plugins/airpower-*.ts` 两个 Vite 插件、airpower 样式；复核门禁与体积 | 待做 |
 
 ## 四、风险与对策

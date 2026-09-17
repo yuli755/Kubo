@@ -57,6 +57,7 @@ export { ElCheckTag } from 'element-plus/es/components/check-tag/index.mjs'
 export { ElCheckbox } from 'element-plus/es/components/checkbox/index.mjs'
 export { provideGlobalConfig } from 'element-plus/es/components/config-provider/src/hooks/use-global-config.mjs'
 export { ElDatePicker } from 'element-plus/es/components/date-picker/index.mjs'
+export { ElDescriptions, ElDescriptionsItem } from 'element-plus/es/components/descriptions/index.mjs'
 export { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
 export { ElDrawer } from 'element-plus/es/components/drawer/index.mjs'
 // dropdown 子路径同时导出 ElDropdown / ElDropdownItem / ElDropdownMenu
