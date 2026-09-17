@@ -1,9 +1,3 @@
-import type { Ref } from 'vue'
-import type { StructureEntity } from '@/api/factory/types'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { unref } from 'vue'
-import { structureApi } from '@/api/factory'
-
 // 新底座服务（F2 起的页面用）
 export { KStructureService } from '@/model/factory/structure/KStructureService'
 // F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`。
@@ -20,12 +14,6 @@ export { StructureService } from '@/model/factory/structure/StructureService'
  * const { data, isFetching } = useStructureTree()
  * ```
  */
-export function useStructureTree() {
-  return useQuery<StructureEntity[]>({
-    queryKey: ['factory:structure', 'tree'],
-    queryFn: () => structureApi.getList(),
-  })
-}
 
 /**
  * # Factory 生产单元详情查询 Hook
@@ -35,25 +23,9 @@ export function useStructureTree() {
  * const { data, isLoading } = useStructureDetail(1)
  * ```
  */
-export function useStructureDetail(id: Ref<number | undefined> | number | undefined) {
-  return useQuery<StructureEntity>({
-    queryKey: ['factory:structure', 'detail', id],
-    queryFn: () => structureApi.getDetail(unref(id)!),
-    enabled: () => unref(id) !== undefined && unref(id) !== null,
-  })
-}
 
 /**
  * # Factory 生产单元发布 Mutation
  *
  * 发布成功后自动失效树数据缓存。
  */
-export function useStructurePublish() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (data: { id: number }) => structureApi.publish(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['factory:structure'] })
-    },
-  })
-}

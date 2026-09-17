@@ -1,9 +1,8 @@
 import { inputApi } from './input'
-import { inventoryApi } from './inventory'
 import { moveApi } from './move'
 import { outputApi } from './output'
 
-export { inputApi, inventoryApi, moveApi, outputApi }
+export { inputApi, moveApi, outputApi }
 
 /**
  * # WMS 模块 API 统一入口
@@ -16,9 +15,3 @@ export { inputApi, inventoryApi, moveApi, outputApi }
  * const list = await wmsApi.inventory.getPage({ page: 1, pageSize: 20 })
  * ```
  */
-export const wmsApi = {
-  inventory: inventoryApi,
-  input: inputApi,
-  output: outputApi,
-  move: moveApi,
-}

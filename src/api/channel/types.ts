@@ -25,7 +25,7 @@ export interface BillFinishRequest {
 // 销售单 (Sale)
 // ──────────────────────────────────────────
 
-export interface SaleDetailEntity {
+interface SaleDetailEntity {
   id: number
   billId: number
   materialId: number
@@ -65,7 +65,7 @@ export interface SaleQuery {
 // 采购单 (Purchase)
 // ──────────────────────────────────────────
 
-export interface PurchaseDetailEntity {
+interface PurchaseDetailEntity {
   id: number
   billId: number
   materialId: number
@@ -102,96 +102,14 @@ export interface PurchaseQuery {
 // 客户 (Customer)
 // ──────────────────────────────────────────
 
-export interface CustomerEntity {
-  id: number
-  createTime: string
-  updateTime: string
-  isPublished: boolean
-  isDeleted: boolean
-
-  code: string
-  name: string
-  phone: string
-}
-
-export interface CustomerQuery {
-  page?: number
-  pageSize?: number
-  filter?: { name?: string, code?: string, phone?: string }
-}
-
 // ──────────────────────────────────────────
 // 供应商 (Supplier)
 // ──────────────────────────────────────────
-
-export interface SupplierEntity {
-  id: number
-  createTime: string
-  updateTime: string
-  isPublished: boolean
-  isDeleted: boolean
-
-  code: string
-  name: string
-  phone: string
-}
-
-export interface SupplierQuery {
-  page?: number
-  pageSize?: number
-  filter?: { name?: string, code?: string, phone?: string }
-}
 
 // ──────────────────────────────────────────
 // 采购价 (PurchasePrice)
 // ──────────────────────────────────────────
 
-export interface PurchasePriceEntity {
-  id: number
-  createTime: string
-  updateTime: string
-  isPublished: boolean
-  isDeleted: boolean
-
-  materialId: number
-  materialCode: string
-  materialName: string
-  supplierId: number
-  supplierCode: string
-  supplierName: string
-  price: number
-  material?: { id: number, code: string, name: string }
-  supplier?: { id: number, code: string, name: string, phone: string }
-}
-
-export interface PurchasePriceQuery {
-  page?: number
-  pageSize?: number
-}
-
 // ──────────────────────────────────────────
 // 销售价 (SalePrice)
 // ──────────────────────────────────────────
-
-export interface SalePriceEntity {
-  id: number
-  createTime: string
-  updateTime: string
-  isPublished: boolean
-  isDeleted: boolean
-
-  materialId: number
-  materialCode: string
-  materialName: string
-  customerId: number
-  customerCode: string
-  customerName: string
-  price: number
-  material?: { id: number, code: string, name: string }
-  customer?: { id: number, code: string, name: string, phone: string }
-}
-
-export interface SalePriceQuery {
-  page?: number
-  pageSize?: number
-}

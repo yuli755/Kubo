@@ -75,6 +75,12 @@ jobs:
       - name: No unreferenced frontend files (dead code)
         run: pnpm deadcode:check
 
+      # 文件级之外还有导出级：文件在用，但里面某些 `export` 全仓没人 import
+      # （重构只删调用方忘了删定义、内部辅助被顺手 export）。尺度与上面一致：
+      # 只要有人 import、或**测试文本里提到**（本仓有读源码字符串的契约测试）就不算死。
+      - name: No unreferenced exports
+        run: pnpm exports:check
+
       - name: Typecheck
         run: pnpm typecheck
 

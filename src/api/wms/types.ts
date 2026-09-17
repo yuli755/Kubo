@@ -9,40 +9,11 @@
 // 库存 (Inventory)
 // ──────────────────────────────────────────
 
-export interface InventoryEntity {
-  id: number
-  createTime: string
-  updateTime: string
-  isPublished: boolean
-  isDeleted: boolean
-
-  materialCode: string
-  materialName: string
-  quantity: number
-  unitName: string
-  storageName: string
-  structureName: string
-  type: number
-  material?: { id: number, code: string, name: string }
-  storage?: { id: number, name: string, code: string }
-  structure?: { id: number, name: string, code: string }
-}
-
-export interface InventoryQuery {
-  page?: number
-  pageSize?: number
-  filter?: {
-    type?: number
-    storage?: { id: number }
-    structure?: { id: number }
-  }
-}
-
 // ──────────────────────────────────────────
 // 入库单 (Input)
 // ──────────────────────────────────────────
 
-export interface InputDetailEntity {
+interface InputDetailEntity {
   id: number
   createTime: string
   updateTime: string
@@ -92,7 +63,7 @@ export interface InputQuery {
 // 出库单 (Output)
 // ──────────────────────────────────────────
 
-export interface OutputDetailEntity {
+interface OutputDetailEntity {
   id: number
   createTime: string
   updateTime: string
@@ -141,7 +112,7 @@ export interface OutputQuery {
 // 移库单 (Move)
 // ──────────────────────────────────────────
 
-export interface MoveDetailEntity {
+interface MoveDetailEntity {
   id: number
   createTime: string
   updateTime: string

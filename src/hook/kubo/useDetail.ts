@@ -16,7 +16,7 @@ import { computed, unref } from 'vue'
  * detail.entity.value?.status
  * ```
  */
-export interface IUseDetailOption {
+interface IUseDetailOption {
   /** TanStack Query 缓存键（同域共享，如 `['wms:input']`） */
   queryKey: string[]
   /** 记录 id（可传 ref，弹窗里通常是 props.id） */
@@ -49,6 +49,3 @@ export function useDetail<E extends IIdentifiableEntity, S extends AbstractCurdS
     entityClass: service.entityClass,
   }
 }
-
-export type UseDetailReturn<E extends IIdentifiableEntity, S extends AbstractCurdService<E>>
-  = ReturnType<typeof useDetail<E, S>>

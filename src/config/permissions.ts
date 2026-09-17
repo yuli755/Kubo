@@ -250,10 +250,3 @@ export const Permissions = {
 } as const
 
 /** 权限码类型（用于需要提取所有权限码的场景） */
-export type PermissionCode
-  = | (typeof Permissions.Wms)[keyof typeof Permissions.Wms][keyof (typeof Permissions.Wms)[keyof typeof Permissions.Wms]]
-    | (typeof Permissions.Channel)[keyof typeof Permissions.Channel][keyof (typeof Permissions.Channel)[keyof typeof Permissions.Channel]]
-    | (typeof Permissions.Asset)[keyof typeof Permissions.Asset][keyof (typeof Permissions.Asset)[keyof typeof Permissions.Asset]]
-    | (typeof Permissions.Personnel)[keyof typeof Permissions.Personnel][keyof (typeof Permissions.Personnel)[keyof typeof Permissions.Personnel]]
-    | (typeof Permissions.Factory)[keyof typeof Permissions.Factory][keyof (typeof Permissions.Factory)[keyof typeof Permissions.Factory]]
-    | (typeof Permissions.System)[keyof typeof Permissions.System][keyof (typeof Permissions.System)[keyof typeof Permissions.System]]

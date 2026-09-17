@@ -1,10 +1,3 @@
-import type { PermissionEntity } from '@kubo/shared'
-import type { Ref } from 'vue'
-import { useQuery } from '@tanstack/vue-query'
-import { unref } from 'vue'
-import { request } from '@/api/axios'
-import { permissionApi } from '@/api/system'
-
 // F3 数据层收敛（D5）：CRUD 走 airpower 的 Service 类，由本 hook 模块统一转发。
 export { PermissionService } from '@/model/system/permission/PermissionService'
 
@@ -18,12 +11,6 @@ export { PermissionService } from '@/model/system/permission/PermissionService'
  * const { data, isFetching } = usePermissionTree()
  * ```
  */
-export function usePermissionTree() {
-  return useQuery<PermissionEntity[]>({
-    queryKey: ['system:permission', 'tree'],
-    queryFn: () => permissionApi.getTree(),
-  })
-}
 
 /**
  * # System 权限详情查询 Hook
@@ -33,13 +20,6 @@ export function usePermissionTree() {
  * const { data, isLoading } = usePermissionDetail(1)
  * ```
  */
-export function usePermissionDetail(id: Ref<number | undefined> | number | undefined) {
-  return useQuery<PermissionEntity>({
-    queryKey: ['system:permission', 'detail', id],
-    queryFn: () => permissionApi.getDetail(unref(id)!),
-    enabled: () => unref(id) !== undefined && unref(id) !== null,
-  })
-}
 
 /**
  * # 当前用户权限标识列表查询 Hook
@@ -52,10 +32,3 @@ export function usePermissionDetail(id: Ref<number | undefined> | number | undef
  * const { data, isFetching } = useUserPermissionList()
  * ```
  */
-export function useUserPermissionList() {
-  return useQuery<string[]>({
-    queryKey: ['user:permission', 'list'],
-    queryFn: () => request.post('/user/getMyPermissionList') as Promise<string[]>,
-    staleTime: 5 * 60_000, // 5分钟内不重新请求
-  })
-}

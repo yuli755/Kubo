@@ -6,23 +6,13 @@
  */
 
 export type {
-  ApiResponse,
-  BaseEntity,
+
   ChangePasswordRequest,
-  DepartmentEntity,
-  DictionaryEntity,
-  ExportConfig,
-  FileUploadResponse,
-  LoginRequest,
-  LoginResponse,
-  PageRequest,
-  PageResponse,
-  PermissionEntity,
-  QueryParams,
+
   RefreshTokenRequest,
   RefreshTokenResponse,
-  RoleEntity,
+
   TenantOption,
   UserEntity,
-  VoidResponse,
+
 } from '@kubo/shared'

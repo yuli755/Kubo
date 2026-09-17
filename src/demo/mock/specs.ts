@@ -513,6 +513,3 @@ export function totalOf(resourceKey: string): number {
 }
 
 /** 资源中文名 */
-export function labelOf(resourceKey: string): string {
-  return RESOURCE_SPECS[resourceKey]?.label ?? resourceKey
-}

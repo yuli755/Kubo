@@ -1,7 +1,5 @@
-import type { Ref } from 'vue'
-import type { BillAuditRequest, BillFinishRequest, BillRejectRequest, MoveEntity, MoveQuery } from '@/api/wms/types'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, unref } from 'vue'
+import type { BillAuditRequest, BillRejectRequest } from '@/api/wms/types'
+import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { moveApi } from '@/api/wms'
 
 // F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`。
@@ -13,26 +11,10 @@ export { MoveService } from '@/model/wms/move/MoveService'
 /**
  * # WMS 移库单列表查询 Hook
  */
-export function useMoveList(query: Ref<MoveQuery> | MoveQuery) {
-  const resolvedQuery = computed(() => unref(query))
-
-  return useQuery<{ list: MoveEntity[], total: number }>({
-    queryKey: ['wms:move', 'list', resolvedQuery],
-    queryFn: () => moveApi.getPage(resolvedQuery.value),
-    placeholderData: keepPreviousData,
-  })
-}
 
 /**
  * # WMS 移库单详情查询 Hook
  */
-export function useMoveDetail(id: Ref<number | undefined> | number | undefined) {
-  return useQuery<MoveEntity>({
-    queryKey: ['wms:move', 'detail', id],
-    queryFn: () => moveApi.getDetail(unref(id)!),
-    enabled: () => unref(id) !== undefined && unref(id) !== null,
-  })
-}
 
 /**
  * # WMS 移库单审核 Mutation
@@ -63,15 +45,6 @@ export function useMoveReject() {
 /**
  * # WMS 移库单完成明细 Mutation
  */
-export function useMoveFinish() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (data: BillFinishRequest) => moveApi.setBillDetailsAllFinished(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['wms:move'] })
-    },
-  })
-}
 
 /**
  * # WMS 移库单添加完成数量 Mutation
@@ -79,12 +52,3 @@ export function useMoveFinish() {
  * 对应后端 `BaseBillController.addFinish`（`/move/addFinish`）。
  * 阶段 E-H1：来源库存由后端按明细 ID 从库中读取，载荷只需 `id` 与本次 `quantity`。
  */
-export function useMoveAddFinish() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (data: { id: number, quantity: number }) => moveApi.addDetailFinishQuantity(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['wms:move'] })
-    },
-  })
-}

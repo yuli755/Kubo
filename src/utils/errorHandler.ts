@@ -28,7 +28,7 @@ export interface ErrorReport {
   time: number
 }
 
-export type ErrorReporter = (report: ErrorReport) => void
+type ErrorReporter = (report: ErrorReport) => void
 
 let reporter: ErrorReporter = (report) => {
   const ctx = report.context ? ` (context=${report.context})` : ''

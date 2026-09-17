@@ -10,7 +10,7 @@ import { registerSW } from 'virtual:pwa-register'
 import { reportError } from '@/utils/errorHandler'
 
 /** Service Worker 注册结果 */
-export interface SWRegistrationResult {
+interface SWRegistrationResult {
   /** 是否需要刷新（新版本可用） */
   needRefresh: boolean
   /** 更新 Service Worker */

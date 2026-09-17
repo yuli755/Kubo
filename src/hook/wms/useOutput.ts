@@ -1,7 +1,5 @@
-import type { Ref } from 'vue'
-import type { BillAuditRequest, BillFinishRequest, BillRejectRequest, OutputEntity, OutputQuery } from '@/api/wms/types'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, unref } from 'vue'
+import type { BillAuditRequest, BillRejectRequest } from '@/api/wms/types'
+import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { outputApi } from '@/api/wms'
 
 // F3 数据层收敛（D5）：视图层禁止直接 import `@/model/**Service`。
@@ -13,26 +11,10 @@ export { OutputService } from '@/model/wms/output/OutputService'
 /**
  * # WMS 出库单列表查询 Hook
  */
-export function useOutputList(query: Ref<OutputQuery> | OutputQuery) {
-  const resolvedQuery = computed(() => unref(query))
-
-  return useQuery<{ list: OutputEntity[], total: number }>({
-    queryKey: ['wms:output', 'list', resolvedQuery],
-    queryFn: () => outputApi.getPage(resolvedQuery.value),
-    placeholderData: keepPreviousData,
-  })
-}
 
 /**
  * # WMS 出库单详情查询 Hook
  */
-export function useOutputDetail(id: Ref<number | undefined> | number | undefined) {
-  return useQuery<OutputEntity>({
-    queryKey: ['wms:output', 'detail', id],
-    queryFn: () => outputApi.getDetail(unref(id)!),
-    enabled: () => unref(id) !== undefined && unref(id) !== null,
-  })
-}
 
 /**
  * # WMS 出库单审核 Mutation
@@ -63,15 +45,6 @@ export function useOutputReject() {
 /**
  * # WMS 出库单完成明细 Mutation
  */
-export function useOutputFinish() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (data: BillFinishRequest) => outputApi.setBillDetailsAllFinished(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['wms:output'] })
-    },
-  })
-}
 
 /**
  * # WMS 出库单添加完成数量 Mutation

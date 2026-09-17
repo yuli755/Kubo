@@ -1,5 +1,3 @@
-import type { Component } from 'vue'
-
 /**
  * # 路由级预加载
  *
@@ -47,4 +45,3 @@ export function useRoutePreload() {
 /**
  * 预加载组件类型约束（仅用于类型推导，运行时不依赖）
  */
-export type PreloadableComponent = () => Promise<Component>
