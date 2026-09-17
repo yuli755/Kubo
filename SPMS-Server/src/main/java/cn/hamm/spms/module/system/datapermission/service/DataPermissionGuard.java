@@ -4,6 +4,7 @@ import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties
 import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
+import cn.hamm.spms.base.spi.DataPermissionEnforcer;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import org.springframework.stereotype.Component;
 
@@ -31,7 +32,7 @@ import java.util.List;
  * @author Hamm.cn
  */
 @Component
-public class DataPermissionGuard {
+public class DataPermissionGuard implements DataPermissionEnforcer {
 
     private final DataPermissionService dataPermissionService;
 
@@ -53,6 +54,7 @@ public class DataPermissionGuard {
      * @param resourceKey 数据资源标识（如 {@code wms.input}）
      * @param action      写入动作（CREATE / UPDATE / DELETE）
      */
+    @Override
     public void enforce(String resourceKey, DataPermissionAction action) {
         PermissionContext context = PermissionContextHolder.current().orElse(null);
         if (context == null) {

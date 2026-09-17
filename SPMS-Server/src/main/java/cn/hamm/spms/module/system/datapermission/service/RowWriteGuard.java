@@ -4,6 +4,7 @@ import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
+import cn.hamm.spms.base.spi.RowPermissionEnforcer;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -41,7 +42,7 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-public class RowWriteGuard {
+public class RowWriteGuard implements RowPermissionEnforcer {
 
     /**
      * 既存行可见性探针（JPA 实现在 {@link JpaRowVisibilityProbe}）
@@ -81,6 +82,7 @@ public class RowWriteGuard {
      * @param resourceKey 资源标识；{@code null} 表示该服务未登记数据资源 ⇒ 不参与
      * @param action      UPDATE / DELETE（CREATE 直接放行，见类注释）
      */
+    @Override
     public void enforce(BaseEntity<?> entity, String resourceKey, DataPermissionAction action) {
         if (entity == null || resourceKey == null) {
             return;

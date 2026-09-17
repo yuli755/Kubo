@@ -4,6 +4,7 @@ import cn.hamm.spms.core.DateTimeUtil;
 import cn.hamm.spms.core.DictionaryUtil;
 import cn.hamm.spms.core.ReflectUtil;
 import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.base.spi.CodeRuleAllocator;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.system.coderule.enums.CodeRuleField;
@@ -30,7 +31,7 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleParam.*;
  * @author Hamm.cn
  */
 @Service
-public class CodeRuleService extends BaseService<CodeRuleEntity, CodeRuleRepository> {
+public class CodeRuleService extends BaseService<CodeRuleEntity, CodeRuleRepository> implements CodeRuleAllocator {
     /**
      * {@code Label}
      */
@@ -146,6 +147,7 @@ public class CodeRuleService extends BaseService<CodeRuleEntity, CodeRuleReposit
      *
      * @param entity 实体
      */
+    @Override
     public <E extends BaseEntity<E>> void fillFieldAutoCode(@NotNull E entity) {
         List<Field> fields = ReflectUtil.getFieldList(entity.getClass());
         for (Field field : fields) {

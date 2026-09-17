@@ -1,33 +1,39 @@
 package cn.hamm.spms.base;
 
-import cn.hamm.spms.framework.curd.base.CurdService;
-import cn.hamm.spms.common.CsvFormulaSanitizer;
-import cn.hamm.spms.module.system.SystemServices;
-import cn.hamm.spms.module.system.coderule.CodeRuleService;
-import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
-import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
-import cn.hamm.spms.framework.curd.audit.OperationLog;
-import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.base.permission.AttributionWriteProtection;
-import cn.hamm.spms.module.system.datapermission.service.ColumnMaskingService;
-import cn.hamm.spms.module.system.datapermission.service.DataPermissionGuard;
-import cn.hamm.spms.module.system.datapermission.service.DataPermissionRuntime;
+import cn.hamm.spms.base.spi.CodeRuleAllocator;
+import cn.hamm.spms.base.spi.DataPermissionEnforcer;
+import cn.hamm.spms.base.spi.ExportColumnProtector;
+import cn.hamm.spms.base.spi.OperationLogSink;
+import cn.hamm.spms.base.spi.RowPermissionEnforcer;
+import cn.hamm.spms.base.spi.SensitiveFieldProtector;
+import cn.hamm.spms.common.CsvFormulaSanitizer;
+import cn.hamm.spms.framework.curd.audit.OperationLog;
+import cn.hamm.spms.framework.curd.base.CurdService;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionResourceResolver;
-import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
-import cn.hamm.spms.framework.curd.datapermission.MaskedInputRegistry;
-import cn.hamm.spms.module.system.datapermission.service.OperationLogRecorder;
-import cn.hamm.spms.module.system.datapermission.service.RowWriteGuard;
-import cn.hamm.spms.module.system.datapermission.service.SensitiveWriteProtection;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 
-import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
-
 /**
  * <h1>基础服务类</h1>
+ *
+ * <p><b>本类与业务域的关系（2026-09-18 分层整改 L2b）</b>：底座要在"所有落库路径的必经点"上挂
+ * 若干能力（自动取号、动作级/行级数据权限、受限字段写保护、导出遮蔽、操作审计），
+ * 而这些能力的实现都属于 {@code module.*}。为了不出现"下层依赖上层"，它们一律走
+ * {@link cn.hamm.spms.base.spi} 里的接口：<b>契约在 base，实现在业务域</b>，
+ * 依赖方向是 {@code module → base}（允许的那一档）。整改前这里 import 了 9 个业务域类型，
+ * 只能靠白名单放行。</p>
+ *
+ * <p>字段一律 {@code @Autowired(required = false)} 并在调用点判空，有两个真实原因：
+ * ① 测试会直接 {@code new XxxService()}（不经过 Spring），那种实例上依赖本来就是 {@code null}；
+ * ② 容器里没有该能力时应当"跳过"，与整改前的 {@code SystemServices.getXxx() == null} 语义一致。
+ * <b>但 SPI 的实现类必须是常驻 Bean（不许条件装配）</b> —— 实现缺席等于静默少做一件事，
+ * 而"少做的"往往是权限或脱敏。</p>
  *
  * @param <E> 实体
  * @param <R> 数据源
@@ -40,10 +46,41 @@ public class BaseService<
         > extends CurdService<E, R> {
 
     /**
-     * 通用操作审计记录器（P3）。可选注入：容器未装配该 Bean 时，审计静默跳过，不影响任何业务路径。
+     * 自动编码取号（实现：{@code module.system.coderule.CodeRuleService}）
      */
     @Autowired(required = false)
-    private OperationLogRecorder operationLogRecorder;
+    private CodeRuleAllocator codeRuleAllocator;
+
+    /**
+     * 动作级数据权限（实现：{@code module.system.datapermission.service.DataPermissionGuard}）
+     */
+    @Autowired(required = false)
+    private DataPermissionEnforcer dataPermissionEnforcer;
+
+    /**
+     * 行级写保护（实现：{@code module.system.datapermission.service.RowWriteGuard}）
+     */
+    @Autowired(required = false)
+    private RowPermissionEnforcer rowPermissionEnforcer;
+
+    /**
+     * 受限字段写保护（实现：{@code module.system.datapermission.service.SensitiveFieldProtectorAdapter}）
+     */
+    @Autowired(required = false)
+    private SensitiveFieldProtector sensitiveFieldProtector;
+
+    /**
+     * 导出列遮蔽（实现：{@code module.system.datapermission.service.ExportColumnProtectorAdapter}）
+     */
+    @Autowired(required = false)
+    private ExportColumnProtector exportColumnProtector;
+
+    /**
+     * 通用操作审计记录器（P3，实现：{@code module.system.datapermission.service.OperationLogRecorder}）。
+     * 可选注入：容器未装配该 Bean 时，审计静默跳过，不影响任何业务路径。
+     */
+    @Autowired(required = false)
+    private OperationLogSink operationLogSink;
 
     /**
      * 更新前的「旧值」暂存：{@code beforeUpdate} 回表取到的既存行先存这里，
@@ -63,8 +100,9 @@ public class BaseService<
 
     @Override
     protected final @NotNull E beforeSaveToDatabase(@NotNull E entity) {
-        CodeRuleService codeRuleService = SystemServices.getCodeRuleService();
-        codeRuleService.fillFieldAutoCode(entity);
+        if (codeRuleAllocator != null) {
+            codeRuleAllocator.fillFieldAutoCode(entity);
+        }
         // 行级写保护挂在这里而不是 beforeUpdate：beforeSaveToDatabase 是所有落库路径的必经点
         // （BaseService.publish 直接调 updateToDatabase，不经过 beforeUpdate —— 挂在那里等于给发布动作留了缺口）
         enforceRowPermission(entity, entity.getId() == null ? DataPermissionAction.CREATE : DataPermissionAction.UPDATE);
@@ -77,22 +115,24 @@ public class BaseService<
      * <p>与 {@link #enforceDataPermission} 是两层不同的事实：那边问"这个动作配了策略没有"，
      * 这边问"<b>这一行</b>归不归你管"。缺了后者，"只能改本仓单据"这类规则在写侧是空的。</p>
      *
+     * <p>"本资源纳不纳管"由实现判定（未纳管的资源直接放行）—— 底座不复制那份登记表。</p>
+     *
      * @param entity 待写入实体
      * @param action 写入动作
      */
     private void enforceRowPermission(@NotNull E entity, @NotNull DataPermissionAction action) {
-        RowWriteGuard guard = SystemServices.getRowWriteGuard();
-        if (guard == null) {
-            // 容器未就绪（@Profile("!test")）或本资源不纳管：与 DataPermissionGuard 同口径直接返回
+        if (rowPermissionEnforcer == null) {
             return;
         }
-        guard.enforce(entity, DataPermissionResourceResolver.resolve(getClass()), action);
+        rowPermissionEnforcer.enforce(entity, DataPermissionResourceResolver.resolve(getClass()), action);
     }
 
     @Override
     protected E beforeAdd(@NotNull E entity) {
         // 敏感字段被提交成掩码时，新增没有原值可恢复 -> 明确拒绝（否则就是把 **** 建进库）
-        SensitiveWriteProtection.rejectMaskedOnAdd(entity);
+        if (sensitiveFieldProtector != null) {
+            sensitiveFieldProtector.rejectMaskedOnAdd(entity);
+        }
         E result = super.beforeAdd(entity);
         enforceDataPermission(DataPermissionAction.CREATE);
         return result;
@@ -142,47 +182,27 @@ public class BaseService<
      *
      * <p>为什么放在 {@code BaseService} 而不是各业务 service：漏接一个实体的后果是
      * 把 {@code 138****000} 永久写进真实列。判定与恢复都在
-     * {@link SensitiveWriteProtection}，这里只负责"回表取原值"这一次额外查询，
-     * 且仅在<b>本次请求确实收到过掩码</b>时才查（正常保存零开销）。</p>
+     * {@code module.system.datapermission.service.SensitiveWriteProtection}
+     * （经 {@link SensitiveFieldProtector} 适配进来），这里只负责"把库中既存行交给判定方"。</p>
      *
-     * <p>{@code beforeUpdate} 在框架语义下可能收到"已合并"的实体，也可能收到"仅提交值"，
-     * 本实现两种都成立：只替换被登记为掩码的字段，其余字段原样保留。</p>
+     * <p>取数动作作为 {@link java.util.function.Supplier} 交出去，<b>由判定方决定要不要真取数</b>：
+     * 两条识别路径都不命中时一次库都不查，正常保存仍是一次 UPDATE。</p>
      *
      * @param entity 待更新实体
      */
     private void protectSensitiveFields(@NotNull E entity) {
-        // 两条互补的识别路径：
-        //   1) 登记命中 —— 反序列化阶段认出"像掩码"的占位值（星号口径，零成本，无需回表）；
-        //   2) 输出复算 —— 拿库里原值套用同一份生效策略算出"这个用户本该看到的串"再比对，
-        //      覆盖 maskExpression 配成非星号文本（如"已隐藏"）的情况，代价是多一次按主键取数。
-        // 顺序不能反：登记命中时连策略都不用查就能直接恢复。
+        if (sensitiveFieldProtector == null) {
+            return;
+        }
         Long id = entity.getId();
         if (id == null) {
             return;
         }
-        boolean fromRegistry = SensitiveWriteProtection.guards(entity.getClass())
-                && MaskedInputRegistry.hasAny()
-                && SensitiveWriteProtection.hasMaskedInput(entity.getClass());
-        ColumnMaskingService maskingService = DataPermissionRuntime.maskingService();
-        PermissionContext context = PermissionContextHolder.current().orElse(null);
-        boolean fromOutputMatch = SensitiveWriteProtection.mayContainMaskedOutput(
-                entity.getClass(), maskingService, context);
-        if (!fromRegistry && !fromOutputMatch) {
-            return;
-        }
-        E stored = repository.findById(id).orElse(null);
-        if (stored == null) {
-            if (fromRegistry) {
-                // 取不到原值就没法恢复。此时放行等于把 null 写进该列（比报错糟得多），
-                // 所以宁可失败：这条记录的敏感字段本来就只对有权角色可见
-                PARAM_INVALID.show("记录不存在或无权访问，敏感字段的脱敏值无法安全处理，请刷新后重试");
-            }
-            return;
-        }
-        SensitiveWriteProtection.restoreOnUpdate(entity, stored);
-        SensitiveWriteProtection.restoreMatchingMaskedOutput(entity, stored, maskingService, context);
-        // 消费完即清，避免非 HTTP 入口（异步任务、测试）残留到下一次调用
-        MaskedInputRegistry.clear();
+        sensitiveFieldProtector.restoreOnUpdate(
+                entity,
+                PermissionContextHolder.current().orElse(null),
+                () -> repository.findById(id).orElse(null)
+        );
     }
 
     @Override
@@ -191,7 +211,7 @@ public class BaseService<
         enforceDataPermission(DataPermissionAction.DELETE);
         enforceRowPermission(entity, DataPermissionAction.DELETE);
         // P3 通用操作审计：删除记「删掉的那条」
-        recordOperationLog(OperationLogRecorder.ACTION_DELETE, entity.getId(), entity, null);
+        recordOperationLog(OperationLogSink.ACTION_DELETE, entity.getId(), entity, null);
     }
 
     /**
@@ -200,15 +220,14 @@ public class BaseService<
      * @param action 写入动作
      */
     protected void enforceDataPermission(@NotNull DataPermissionAction action) {
-        DataPermissionGuard dataPermissionGuard = SystemServices.getDataPermissionGuard();
-        if (dataPermissionGuard == null) {
+        if (dataPermissionEnforcer == null) {
             return;
         }
         String resourceKey = DataPermissionResourceResolver.resolve(getClass());
         if (resourceKey == null) {
             return;
         }
-        dataPermissionGuard.enforce(resourceKey, action);
+        dataPermissionEnforcer.enforce(resourceKey, action);
     }
 
     /**
@@ -243,7 +262,7 @@ public class BaseService<
     @Override
     protected final void afterAdd(long id, @NotNull E source) {
         // P3 通用操作审计：新增记「建出来的那条」
-        recordOperationLog(OperationLogRecorder.ACTION_CREATE, id, null, source);
+        recordOperationLog(OperationLogSink.ACTION_CREATE, id, null, source);
         afterAppAdd(id, source);
     }
 
@@ -253,7 +272,7 @@ public class BaseService<
     @Override
     protected void afterUpdate(long id, @NotNull E source) {
         // P3 通用操作审计：更新记「改前 + 改后」；旧值来自 beforeUpdate 暂存
-        recordOperationLog(OperationLogRecorder.ACTION_UPDATE, id, operationLogBeforeSnapshot.get(), source);
+        recordOperationLog(OperationLogSink.ACTION_UPDATE, id, operationLogBeforeSnapshot.get(), source);
         operationLogBeforeSnapshot.remove();
         afterAppUpdate(id, source);
     }
@@ -267,7 +286,7 @@ public class BaseService<
      * <p>只对标记了 {@link OperationLog} 的实体回表取旧值；未标记的零开销。</p>
      */
     private void stashOperationLogBefore(@NotNull E entity) {
-        if (operationLogRecorder == null || !isOperationLogged(entity)) {
+        if (operationLogSink == null || !isOperationLogged(entity)) {
             return;
         }
         Long id = entity.getId();
@@ -286,7 +305,7 @@ public class BaseService<
      * 与 {@code data_resource.resource_key} 一字不差；未开启审计或解析不到资源时静默返回。
      */
     private void recordOperationLog(@NotNull String action, Long targetId, E before, E after) {
-        if (operationLogRecorder == null) {
+        if (operationLogSink == null) {
             return;
         }
         E source = after != null ? after : before;
@@ -297,7 +316,7 @@ public class BaseService<
         if (resourceKey == null) {
             return;
         }
-        operationLogRecorder.record(resourceKey, action, targetId, before, after);
+        operationLogSink.record(resourceKey, action, targetId, before, after);
     }
 
     /**
@@ -309,10 +328,14 @@ public class BaseService<
      * {@code afterExportQuery} 是 {@code CurdService} 上唯一还能插手这批行的位置
      * （{@code createExportTask} 是 final、{@code queryPageToSaveExportFile} 是 private —— 均由 javap 确认）。</p>
      *
-     * <p>语义见 {@link ExportColumnMasker}：只改副本、按 QUERY 口径生成掩码、拿到 EXPORT 明文授权的列保留原值。</p>
+     * <p>遮蔽语义见 {@link ExportColumnProtector}：只改副本、按 QUERY 口径生成掩码、
+     * 拿到 EXPORT 明文授权的列保留原值。</p>
      */
     @Override
     protected List<E> afterExportQuery(List<E> entities) {
-        return CsvFormulaSanitizer.sanitize(ExportColumnMasker.maskForExport(entities));
+        if (exportColumnProtector == null) {
+            return CsvFormulaSanitizer.sanitize(entities);
+        }
+        return CsvFormulaSanitizer.sanitize(exportColumnProtector.protectForExport(entities));
     }
 }

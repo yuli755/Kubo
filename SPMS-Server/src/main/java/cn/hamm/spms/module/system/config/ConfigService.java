@@ -2,8 +2,9 @@ package cn.hamm.spms.module.system.config;
 
 import cn.hamm.spms.core.DictionaryUtil;
 import cn.hamm.spms.base.BaseService;
-import cn.hamm.spms.module.system.config.enums.ConfigFlag;
-import cn.hamm.spms.module.system.config.enums.ConfigType;
+import cn.hamm.spms.base.spi.SystemConfigSwitch;
+import cn.hamm.spms.base.config.ConfigFlag;
+import cn.hamm.spms.base.config.ConfigType;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
 
@@ -16,7 +17,7 @@ import static cn.hamm.spms.common.exception.Errors.FORBIDDEN_DELETE;
  * @author Hamm.cn
  */
 @Service
-public class ConfigService extends BaseService<ConfigEntity, ConfigRepository> {
+public class ConfigService extends BaseService<ConfigEntity, ConfigRepository> implements SystemConfigSwitch {
     /**
      * String {@code "0"}
      */
@@ -25,6 +26,21 @@ public class ConfigService extends BaseService<ConfigEntity, ConfigRepository> {
      * String {@code "1"}
      */
     public static final String STRING_ONE = "1";
+
+    /**
+     * 该开关是否处于开启状态（{@link cn.hamm.spms.base.spi.SystemConfigSwitch} 的实现）
+     *
+     * <p>与 {@link #get(ConfigFlag)} 的区别只有一个：这里把"开着吗"回答成一个布尔值，
+     * 供底座（{@code base/bill/AbstractBaseBillService}）在不认识 {@link ConfigEntity} 的前提下使用。
+     * 配置缺失仍然抛错 —— 那不是"开关关了"，而是环境没初始化好。</p>
+     *
+     * @param flag 配置标识
+     * @return 是否开启
+     */
+    @Override
+    public boolean isEnabled(@NotNull ConfigFlag flag) {
+        return Boolean.TRUE.equals(get(flag).booleanConfig());
+    }
 
     /**
      * 根据配置枚举获取配置信息

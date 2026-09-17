@@ -19,7 +19,7 @@ import cn.hamm.spms.module.channel.sale.detail.SaleDetailService;
 import cn.hamm.spms.module.channel.sale.enums.SaleStatus;
 import cn.hamm.spms.module.channel.sale.mapper.SaleMapper;
 import cn.hamm.spms.module.channel.sale.mapper.SaleReadShadowService;
-import cn.hamm.spms.module.system.config.enums.ConfigFlag;
+import cn.hamm.spms.base.config.ConfigFlag;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
@@ -40,7 +40,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static cn.hamm.spms.module.system.config.enums.ConfigFlag.SALE_BILL_AUTO_AUDIT;
+import static cn.hamm.spms.base.config.ConfigFlag.SALE_BILL_AUTO_AUDIT;
 
 /**
  * <h1>Service</h1>

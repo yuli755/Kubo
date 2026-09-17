@@ -13,7 +13,7 @@ import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
-import cn.hamm.spms.module.system.config.enums.ConfigFlag;
+import cn.hamm.spms.base.config.ConfigFlag;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
@@ -47,7 +47,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static cn.hamm.spms.module.system.config.enums.ConfigFlag.MOVE_BILL_AUTO_AUDIT;
+import static cn.hamm.spms.base.config.ConfigFlag.MOVE_BILL_AUTO_AUDIT;
 
 /**
  * <h1>Service</h1>

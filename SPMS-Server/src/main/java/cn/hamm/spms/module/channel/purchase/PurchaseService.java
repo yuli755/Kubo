@@ -18,7 +18,7 @@ import cn.hamm.spms.module.channel.purchase.detail.PurchaseDetailService;
 import cn.hamm.spms.module.channel.purchase.enums.PurchaseStatus;
 import cn.hamm.spms.module.channel.purchase.mapper.PurchaseMapper;
 import cn.hamm.spms.module.channel.purchase.mapper.PurchaseReadShadowService;
-import cn.hamm.spms.module.system.config.enums.ConfigFlag;
+import cn.hamm.spms.base.config.ConfigFlag;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
@@ -39,7 +39,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import static cn.hamm.spms.module.system.config.enums.ConfigFlag.PURCHASE_BILL_AUTO_AUDIT;
+import static cn.hamm.spms.base.config.ConfigFlag.PURCHASE_BILL_AUTO_AUDIT;
 
 /**
  * <h1>Service</h1>

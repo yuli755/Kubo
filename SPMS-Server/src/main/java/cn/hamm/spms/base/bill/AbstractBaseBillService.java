@@ -10,9 +10,8 @@ import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.bill.detail.BaseBillDetailEntity;
 import cn.hamm.spms.base.bill.detail.BaseBillDetailRepository;
 import cn.hamm.spms.base.bill.detail.BaseBillDetailService;
-import cn.hamm.spms.module.system.SystemServices;
-import cn.hamm.spms.module.system.config.ConfigEntity;
-import cn.hamm.spms.module.system.config.enums.ConfigFlag;
+import cn.hamm.spms.base.config.ConfigFlag;
+import cn.hamm.spms.base.spi.SystemConfigSwitch;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +23,9 @@ import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
 
 /**
  * <h1>单据 Service 基类</h1>
+ *
+ * <p>自动审核开关走 {@link SystemConfigSwitch}（契约在 base、实现在 {@code module.system.config}）：
+ * 底座只需要回答"这个开关现在是开的吗"，不需要认识 {@code ConfigEntity} 与配置表。</p>
  *
  * @param <E>   单据实体
  * @param <R>   单据数据源
@@ -46,6 +48,15 @@ public abstract class AbstractBaseBillService<
 
     @Autowired
     protected TransactionHelper transactionHelper;
+
+    /**
+     * 系统开关读取（实现：{@code module.system.config.ConfigService}）
+     *
+     * <p>可选注入：测试会直接 {@code new XxxService()}，那种实例上没有容器注入的依赖；
+     * 缺它就是"读不到开关"，不构成业务失败。</p>
+     */
+    @Autowired(required = false)
+    private SystemConfigSwitch systemConfigSwitch;
 
     /**
      * 获取自动审核配置
@@ -226,11 +237,9 @@ public abstract class AbstractBaseBillService<
         E bill = get(billId);
         saveDetails(billId, source.getDetails());
         ConfigFlag configFlag = getAutoAuditConfigFlag();
-        if (Objects.nonNull(configFlag)) {
-            ConfigEntity config = SystemServices.getConfigService().get(configFlag);
-            if (config.booleanConfig()) {
-                audit(bill.getId());
-            }
+        if (Objects.nonNull(configFlag) && Objects.nonNull(systemConfigSwitch)
+                && systemConfigSwitch.isEnabled(configFlag)) {
+            audit(bill.getId());
         }
         TaskUtil.run(() -> afterBillAdd(bill.getId()));
     }

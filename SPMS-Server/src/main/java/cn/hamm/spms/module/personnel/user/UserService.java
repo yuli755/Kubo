@@ -19,7 +19,7 @@ import cn.hamm.spms.module.personnel.department.DepartmentEntity;
 import cn.hamm.spms.module.personnel.user.enums.UserTokenType;
 import cn.hamm.spms.module.system.SystemServices;
 import cn.hamm.spms.module.system.config.ConfigEntity;
-import cn.hamm.spms.module.system.config.enums.ConfigFlag;
+import cn.hamm.spms.base.config.ConfigFlag;
 import cn.hamm.spms.module.system.menu.MenuEntity;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;

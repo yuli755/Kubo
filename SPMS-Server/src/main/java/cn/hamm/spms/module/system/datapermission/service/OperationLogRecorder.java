@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
+import cn.hamm.spms.base.spi.OperationLogSink;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.entity.OperationLogEntity;
@@ -32,11 +33,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @Component
-public class OperationLogRecorder {
-
-    public static final String ACTION_CREATE = "CREATE";
-    public static final String ACTION_UPDATE = "UPDATE";
-    public static final String ACTION_DELETE = "DELETE";
+public class OperationLogRecorder implements OperationLogSink {
 
     /**
      * 一条操作审计事件（值对象：全部字段在业务线程上定稿，后台线程只做持久化）
@@ -81,6 +78,7 @@ public class OperationLogRecorder {
      * @param before      变更前实体（可为 null）
      * @param after       变更后实体（可为 null）
      */
+    @Override
     public void record(String resourceKey, String action, Long targetId, Object before, Object after) {
         OperationLogEvent event = toEvent(resourceKey, action, targetId, before, after);
         try {

@@ -32,6 +32,11 @@ import { describe, expect, it } from 'vitest'
  *    沉默（一个自查面板不该打断列表页），于是路径写错在运行期毫无痕迹 —— 只能由 CI 对账。
  * 8. **`infra/scripts/check-*.mjs` 必须真的被 CI 调用**。"脚本存在且本地跑绿"不等于每轮都跑；
  *    而没人调用的门禁与没有门禁等价，更糟的是它给出"已经防住了"的错觉。
+ * 9. **底座的守卫必须走契约注入，且实现必须是常驻 Bean**（2026-09-18 分层整改 L2b）。
+ *    `base` 曾经 import 了 9 个业务域类型（守卫、脱敏、审计、取号），只能靠白名单放行；
+ *    整改后契约在 `base/spi`、实现在 `module.*`。这里钉住的是整改最容易被悄悄推翻的两点：
+ *    契约字段真的被注入了（不是摆设），以及实现类没有被条件装配摘掉 —— 后者一发生，
+ *    钩子还在、保护没了，而日志里一行痕迹都没有。
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
@@ -2262,5 +2267,84 @@ describe('mask contract · 归属迁移（B1 余半块）', () => {
     // 于是从业务域搬到 base 层 —— 判据（"唯一豁免挂在专用接口上"）没变，只是文件换了位置
     const protection = readJavaCode(join(SERVER, 'base/permission/AttributionWriteProtection.java'))
     expect(protection, '归属防篡改的默认实现被删：唯一豁免反而把默认门拆了').toContain('restoreOnUpdate(')
+  })
+})
+
+describe('mask contract · 分层 SPI 接线（L2b：底座不许再认识业务域）', () => {
+  /**
+   * 2026-09-18 分层整改 L2b：`base` 里的业务钩子改走 `base/spi` 契约，
+   * 实现留在业务域并 `implements` 契约 —— 依赖方向从 `base → module`（反向）
+   * 改成 `module → base`（允许的那一档），白名单从 12 条归零。
+   *
+   * 这里断言的只有两件容易悄悄失效的事：
+   *   1. 契约字段**真的被注入了**（接口立在那儿但没人用 = 保护变成摆设）；
+   *   2. 实现类是**常驻 Bean**（被 `@Profile` 之类摘掉时，底座会静默跳过 —— 本仓吃过这个亏：
+   *      整改前走 `SystemServices`（`@Profile("!test")`），test profile 下守卫就是 null）。
+   * 依赖方向本身由 `infra/scripts/check-layering.mjs` 管，不在这里重复。
+   */
+  const DPM_SERVICE = join(SERVER, 'module', 'system', 'datapermission', 'service')
+  const BASE_SERVICE = join(SERVER, 'base', 'BaseService.java')
+  const BILL_SERVICE = join(SERVER, 'base', 'bill', 'AbstractBaseBillService.java')
+
+  /** 能力契约 → 业务域实现。接口住在"使用它的最下层"（base），不是 framework。 */
+  const WIRING: Array<[string, string]> = [
+    ['CodeRuleAllocator', 'module/system/coderule/CodeRuleService.java'],
+    ['DataPermissionEnforcer', 'module/system/datapermission/service/DataPermissionGuard.java'],
+    ['RowPermissionEnforcer', 'module/system/datapermission/service/RowWriteGuard.java'],
+    ['SensitiveFieldProtector', 'module/system/datapermission/service/SensitiveFieldProtectorAdapter.java'],
+    ['ExportColumnProtector', 'module/system/datapermission/service/ExportColumnProtectorAdapter.java'],
+    ['OperationLogSink', 'module/system/datapermission/service/OperationLogRecorder.java'],
+    ['SystemConfigSwitch', 'module/system/config/ConfigService.java'],
+  ]
+
+  it('七个能力都有 base/spi 契约、都被底座注入、都有业务域实现', () => {
+    const contracts = collect(join(SERVER, 'base', 'spi'), '.java').map(baseName)
+    const baseCode = readJavaCode(BASE_SERVICE) + readJavaCode(BILL_SERVICE)
+    for (const [capability, impl] of WIRING) {
+      expect(contracts, `base/spi 缺 ${capability}：能力没有契约，底座只能又去 import 业务域`).toContain(`${capability}.java`)
+      expect(baseCode, `${capability} 立了契约却没被注入：保护/审计变成摆设（接口存在 ≠ 有人用它）`)
+        .toMatch(new RegExp(`private\\s+${capability}\\s+\\w`))
+      expect(readJavaCode(join(SERVER, impl)), `${impl} 没实现 ${capability}：底座注入的是哪个实现？`)
+        .toMatch(new RegExp(`implements[^{]*\\b${capability}\\b`))
+    }
+  })
+
+  it('实现类必须是常驻 Bean：条件装配会让保护静默缺席', () => {
+    for (const [capability, impl] of WIRING) {
+      const code = readJavaCode(join(SERVER, impl))
+      expect(code, `${baseName(impl)} 没有 @Component/@Service：容器里没有这个 Bean，${capability} 永远注入不到`)
+        .toMatch(/@(?:Component|Service)\b/)
+      expect(code, `${baseName(impl)} 带了条件装配：某些 profile 下它会缺席，而底座那边只是静默跳过 —— 钩子还在、保护没了`)
+        .not
+        .toMatch(/@(?:Profile|Conditional|ConditionalOn\w+)\b/)
+    }
+  })
+
+  it('脱敏判定仍是不可替换的静态工具，适配器只许转发', () => {
+    // 本仓的教训（见 `DataPermissionDenial` 那条）：把判定做成可被 mock 的 Bean，
+    // 替身就能把"该拒绝"喂成"放行"，而所有用例都是绿的。适配器保留这一形状。
+    for (const name of ['SensitiveWriteProtection.java', 'ExportColumnMasker.java']) {
+      expect(readJavaCode(join(DPM_SERVICE, name)), `${name} 变成 Bean 之后就能被替身替换掉`)
+        .not
+        .toMatch(/@(?:Component|Service)\b/)
+    }
+    expect(readJavaCode(join(DPM_SERVICE, 'SensitiveWriteProtection.java')), '静态出口不见了：适配器转发到哪去？')
+      .toContain('static <E> boolean restoreOnUpdate(')
+    expect(readJavaCode(join(DPM_SERVICE, 'ExportColumnMasker.java')), '静态出口不见了：适配器转发到哪去？')
+      .toContain('static <E> List<E> maskForExport(')
+
+    const adapter = readJavaCode(join(DPM_SERVICE, 'SensitiveFieldProtectorAdapter.java'))
+    expect(adapter, '适配器自己实现了恢复逻辑：判定从此有两份真相')
+      .toContain('SensitiveWriteProtection.restoreOnUpdate(')
+    expect(adapter, '适配器没走"登记命中"这条路径：星号掩码的回写保护会漏')
+      .toContain('MaskedInputRegistry.hasAny()')
+  })
+
+  it('底座把取数动作交给判定方：不命中时一次库都不查', () => {
+    const body = methodBody(readJavaCode(BASE_SERVICE), 'private void protectSensitiveFields(')
+    expect(body, '受限字段保护没走契约：底座又在直接调业务域的类型了')
+      .toContain('sensitiveFieldProtector.restoreOnUpdate(')
+    expect(body, '底座改成无条件回表了：每次更新都多一次查询（判定方决定要不要取数才是这个接口的意义）')
+      .toContain('() -> repository.findById(id)')
   })
 })
