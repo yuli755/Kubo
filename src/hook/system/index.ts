@@ -1,5 +1,0 @@
-export { useCodeRuleDetail, useCodeRuleFieldList, useCodeRuleList, useCodeRuleParamList } from './useCodeRule'
-export { useConfigDelete, useConfigDetail, useConfigList } from './useConfig'
-export { useMenuDelete, useMenuDetail, useMenuList, useMenuTree } from './useMenu'
-export { usePermissionDetail, usePermissionTree, useUserPermissionList } from './usePermission'
-export { useUnitDelete, useUnitDetail, useUnitList } from './useUnit'

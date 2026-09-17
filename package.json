@@ -7,6 +7,7 @@
   "author": "Hamm",
   "scripts": {
     "dev": "vite",
+    "deadcode:check": "node scripts/find-unused-frontend.mjs --check",
     "s": "vite",
     "lint": "eslint --fix",
     "lint:ci": "eslint .",
@@ -23,7 +24,7 @@
     "monitoring:check": "node infra/scripts/check-monitoring-config.mjs",
     "drill:check": "node infra/scripts/check-backup-drill.mjs",
     "perms:report": "node infra/scripts/check-permission-codes.mjs --verbose",
-    "check": "pnpm lint:ci && pnpm typecheck && pnpm test:coverage && pnpm perms:check && pnpm auth:check && pnpm text:check && pnpm ddl:check && pnpm migration:check && pnpm monitoring:check && pnpm drill:check && pnpm build && pnpm demo:check && pnpm size",
+    "check": "pnpm lint:ci && pnpm deadcode:check && pnpm typecheck && pnpm test:coverage && pnpm perms:check && pnpm auth:check && pnpm text:check && pnpm ddl:check && pnpm migration:check && pnpm monitoring:check && pnpm drill:check && pnpm build && pnpm demo:check && pnpm size",
     "build": "vite build --mode production",
     "production": "vite build --mode production",
     "api:generate": "node infra/scripts/generate-api.mjs",
@@ -43,7 +44,6 @@
     "flatted": "^3.4.4",
     "pinia": "^3.0.4",
     "vue": "^3.5.25",
-    "vue-draggable-plus": "^0.6.0",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {

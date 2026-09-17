@@ -68,6 +68,13 @@ jobs:
       - name: Lint
         run: pnpm lint:ci
 
+      # 换底座/砍功能之后最容易留下的东西：**没有任何 import 指向的文件**（旧适配器、被替代的
+      # 组件、删了一半的模块）。它们不进 bundle，体积门禁与测试都发现不了，只能靠静态引用图。
+      # 脚本保守判定：相对路径/别名/动态 import/路径字符串（路由与菜单靠字符串懒加载页面）都算引用；
+      # 视图页不参与删除判定（页面级孤儿由 menuContract.spec.ts 用真实菜单树对账）。
+      - name: No unreferenced frontend files (dead code)
+        run: pnpm deadcode:check
+
       - name: Typecheck
         run: pnpm typecheck
 
