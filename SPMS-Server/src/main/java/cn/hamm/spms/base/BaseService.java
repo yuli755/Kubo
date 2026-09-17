@@ -24,7 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 
-import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
+import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
 
 /**
  * <h1>基础服务类</h1>

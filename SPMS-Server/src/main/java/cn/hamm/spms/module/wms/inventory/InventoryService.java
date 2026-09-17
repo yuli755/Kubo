@@ -10,7 +10,7 @@ import cn.hamm.airpower.curd.model.query.QueryListRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageRequest;
 import cn.hamm.airpower.curd.model.query.QueryPageResponse;
 import cn.hamm.airpower.curd.model.query.Sort;
-import cn.hamm.airpower.exception.Errors;
+import cn.hamm.spms.common.exception.Errors;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;

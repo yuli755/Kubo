@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
+import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
 
 /**
  * <h1>数据资源管理服务</h1>

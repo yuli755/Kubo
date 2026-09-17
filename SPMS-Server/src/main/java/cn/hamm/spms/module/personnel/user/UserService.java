@@ -43,7 +43,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static cn.hamm.airpower.exception.Errors.*;
+import static cn.hamm.spms.common.exception.Errors.*;
 import static cn.hamm.spms.common.exception.CustomError.*;
 
 /**

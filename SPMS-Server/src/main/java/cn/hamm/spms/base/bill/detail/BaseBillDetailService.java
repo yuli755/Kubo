@@ -10,7 +10,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
+import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
 
 /**
  * <h1>单据明细 Service 基类</h1>

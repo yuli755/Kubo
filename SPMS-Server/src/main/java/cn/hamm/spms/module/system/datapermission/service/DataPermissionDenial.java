@@ -2,7 +2,7 @@ package cn.hamm.spms.module.system.datapermission.service;
 
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 
-import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
+import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
 
 /**
  * <h1>数据权限的拒答出口（唯一一份）</h1>

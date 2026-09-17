@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.deser.ContextualDeserializer;
 
 import java.io.IOException;
 
-import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
+import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
 
 /**
  * <h1>敏感字段的写入侧反序列化器</h1>

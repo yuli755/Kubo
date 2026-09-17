@@ -16,7 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Objects;
 
-import static cn.hamm.airpower.exception.Errors.FORBIDDEN_EDIT;
+import static cn.hamm.spms.common.exception.Errors.FORBIDDEN_EDIT;
 
 /**
  * <h1>Controller</h1>

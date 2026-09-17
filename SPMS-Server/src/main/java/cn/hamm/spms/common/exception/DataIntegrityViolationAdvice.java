@@ -1,7 +1,7 @@
 package cn.hamm.spms.common.exception;
 
 import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.exception.Errors;
+import cn.hamm.spms.common.exception.Errors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;

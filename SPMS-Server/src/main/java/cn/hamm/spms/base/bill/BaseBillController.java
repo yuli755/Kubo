@@ -17,7 +17,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
+import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
 
 /**
  * <h1>单据控制器基类</h1>

@@ -12,7 +12,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-import static cn.hamm.airpower.exception.Errors.FORBIDDEN_EDIT;
+import static cn.hamm.spms.common.exception.Errors.FORBIDDEN_EDIT;
 
 /**
  * <h1>实体控制器基类</h1>

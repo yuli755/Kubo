@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
-import static cn.hamm.airpower.exception.Errors.PARAM_INVALID;
+import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
 
 /**
  * <h1>脱敏占位值的写侧防护</h1>

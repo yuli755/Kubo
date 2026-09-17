@@ -20,7 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.util.List;
 import java.util.Objects;
 
-import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
+import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
 
 /**
  * <h1>单据 Service 基类</h1>

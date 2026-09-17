@@ -11,7 +11,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.Set;
 
-import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
+import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
 
 /**
  * <h1>租户上下文解析器</h1>

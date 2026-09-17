@@ -42,8 +42,15 @@ const SERVER = path.join(ROOT, 'SPMS-Server')
  *   **文件数反而 +3 是预期内的**：自建件本身会引用框架符号（`EmailHelper` 还引用 `Errors.EMAIL_ERROR`；
  *   `Application` 里那行 `exclude = cn.hamm.airpower.cookie.Auto.class` 是显式的接管声明）——
  *   退场是"引用集中到少数适配点、再一次性拔掉"，不是"每批都让所有数字下降"。
+ * - 2026-09-18 第二批（B0 摘父 POM + B1 错误码层自持）：174 / 60 / 603
+ *   · B0 只动 pom（不再继承 cn.hamm:airpower）、不改代码，所以数字不动；
+ *   · B1 把 `cn.hamm.airpower.exception.Errors` **逐行等价**搬进
+ *     `cn.hamm.spms.common.exception.Errors`，替换 49 个文件的静态导入 ——
+ *     **exception 模块整块归零**（55 → 0）。
+ *   · core 285（+3）：新 Errors 引用 core 的 IException / IDictionary / ServiceException，
+ *     这三样是 B2 的活（接口与异常运行时），错不在这一批。
  */
-const BASELINE = { files: 183, symbols: 72, references: 655 }
+const BASELINE = { files: 174, symbols: 60, references: 603 }
 
 
 /**

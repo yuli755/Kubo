@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
-import static cn.hamm.airpower.exception.Errors.FORBIDDEN_EDIT;
+import static cn.hamm.spms.common.exception.Errors.FORBIDDEN_EDIT;
 
 /**
  * <h1>Controller</h1>

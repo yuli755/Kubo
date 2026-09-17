@@ -199,3 +199,50 @@ find src/main/java -name '*Repository.java' | wc -l   # 61
 find src/main/java -name '*Mapper.java' | wc -l       # 22
 grep -rl "@SpringBootTest" src/test --include=*.java | wc -l   # 31
 ```
+
+---
+
+## 8. 选型复核：有没有「现成库」可以顶上（2026-09-18，联网查证）
+
+使用方的要求是**「不要自研，能换现成的就换」**。逐条查证如下：
+
+| 候选 | 是什么 | 能不能用 | 结论 |
+| --- | --- | --- | --- |
+| **`easybest/spring-data-mybatis`**（原 hatunet） | 把 Spring Data 的 Repository 语义架在 MyBatis 上，**实体仍用 JPA 注解**、方法名派生查询、透明审计 | ❌ **不能**：最新 release 是 **2.0.1 / 2020-08-31**（GitHub Releases 显示 11 个 release，2.0.1 为最后）；那是 Spring Data 2.x / `javax.persistence` 时代，**不支持 Jakarta（`jakarta.persistence`）与 Spring Boot 3**，五年无更新。装上去等于把已停维护的库引进来 | **排除** |
+| **Spring Data REST** | 直接由 Repository 生成 REST 端点 | ❌ 它只认 Spring Data 的 Repository 抽象；MyBatis 不是 Spring Data 实现（业界共识：MyBatis 不是 JPA 实现，两者不可互换），要它生效就得回到 JPA | **排除**（与「去 JPA」目标相反） |
+| **MyBatis-Plus**（**已在栈内，3.5.9**） | `BaseMapper` + `IService/ServiceImpl` 覆盖单表 CRUD；`MybatisPlusInterceptor` 一栈挂齐 **`PaginationInnerInterceptor`（分页）/ `TenantLineInnerInterceptor`（多租户行级）/ `DataPermissionInterceptor`（数据权限，可自定义 `DataPermissionHandler` 用 JSqlParser 拼条件）/ `OptimisticLockerInnerInterceptor`（乐观锁）**；`MetaObjectHandler` 做审计字段填充；`FieldStrategy` 控制动态更新 | ✅ **这就是那个「现成方案」**：本项目**已经装了它**（读链路 + 数据权限拦截器已在跑），写链路切过来即可，**不需要新增任何依赖** | **采用** |
+
+**一句话**：JPA 那一侧（Hibernate 的 `Specification`/`CriteriaBuilder`/`ddl-auto`/脏检查）在现成生态里**没有等价物可以平移**——
+要么回到 JPA，要么换 ORM。既然目标栈里写的就是 MyBatis-Plus，且它自带多租户/数据权限/分页/乐观锁/审计填充五个拦截器，
+**正确答案就是「把 JPA 的活交给已经在栈里的 MyBatis-Plus」**，而不是再引一个库。
+
+> 与本仓既有一致：`SPMS-Server/docs/数据权限目标态落地施工图.md` §裁决 B 早已写明
+> 「拦截器不手写，用 MyBatis-Plus 的 `DataPermissionInterceptor` + `DataPermissionHandler`」——
+> 本次查证的结果是**维持该裁决**，并确认没有更省事的外来方案。
+
+### 8.1 实测现状（2026-09-18，较 §1 的变化）
+
+| 维度 | §1（2026-09-17） | 现在 | 说明 |
+| --- | --- | --- | --- |
+| Service | 87 | **61** | 部分已合并/删除 |
+| Repository（JPA） | 61 | **43** | 读侧换轨在推进 |
+| Mapper（MyBatis） | 22 | **15**（另有 `@Mapper` 3 处） | 口径按 `*Mapper.java` 文件数 |
+| 实体文件 | —— | 45 | `*Entity.java` |
+| `@Entity` / `@Table` / `@Column` | —— | 41 / 45 / **223** | 写侧仍全量 JPA |
+| `@ManyToMany` / `@ManyToOne` | 20 / 54 | 13 / 37 | 关系映射是迁移中最难的一环（MyBatis 侧无对象图，只有 join） |
+| `Specification` / `CriteriaBuilder` | 61 / 28 文件 | **127 / 56 处引用** | 筛选翻译层 + 行级权限条件 |
+| `ddl-auto` | `validate`（prod） | prod/main `validate`，**local `update`** | S0 未完成：本地仍由 JPA 建表 |
+
+### 8.2 下一步（按 §5 路线，S0 是唯一的前置）
+
+S0 需要**真实库结构**做基线（`mysqldump --no-data`）才能把 DDL 交给 Flyway——
+沙箱里没有 MySQL、也没有 JDK/Maven，所以 S0 的落盘必须由你在有库的机器上配合一步：
+
+```bash
+# 在有数据库的机器上（任意一个已有数据的实例即可）
+mysqldump -h 127.0.0.1 -u<user> -p --no-data --skip-comments --skip-add-drop-table <db> > schema-baseline.sql
+```
+
+拿到这份 schema 后，我可以：① 生成 `V__baseline.sql`（对齐现有 10 个迁移）；② 把 `ddl-auto` 全切 `none`；
+③ 扩 `ddl:check` 覆盖面到全部 45 个实体；④ 之后按域（wms → factory → channel → asset → system/personnel）迁写侧。
+**在此之前**，JPA 的删除只能停在「盘点 + 门禁」，动它就等于盲改 87 个 Service 的持久化语义。

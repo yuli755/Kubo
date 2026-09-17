@@ -33,8 +33,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static cn.hamm.airpower.exception.Errors.FORBIDDEN;
-import static cn.hamm.airpower.exception.Errors.UNAUTHORIZED;
+import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
+import static cn.hamm.spms.common.exception.Errors.UNAUTHORIZED;
 
 /**
  * <h1>请求拦截器</h1>

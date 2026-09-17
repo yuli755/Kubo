@@ -9,7 +9,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
-import static cn.hamm.airpower.exception.Errors.EMAIL_ERROR;
+import static cn.hamm.spms.common.exception.Errors.EMAIL_ERROR;
 
 /**
  * <h1>邮件发送助手（自建，取代 airpower-email）</h1>

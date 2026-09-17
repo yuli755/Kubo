@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Objects;
 
-import static cn.hamm.airpower.exception.Errors.FORBIDDEN_DELETE;
+import static cn.hamm.spms.common.exception.Errors.FORBIDDEN_DELETE;
 
 /**
  * <h1>Service</h1>

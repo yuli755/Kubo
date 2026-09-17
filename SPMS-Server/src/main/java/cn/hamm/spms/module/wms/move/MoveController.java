@@ -18,7 +18,7 @@ import cn.hamm.spms.module.wms.move.detail.MoveDetailService;
 
 import static cn.hamm.airpower.curd.base.Curd.GetDetail;
 import static cn.hamm.airpower.curd.base.Curd.GetPage;
-import static cn.hamm.airpower.exception.Errors.DATA_NOT_FOUND;
+import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 
 /**
  * <h1>Controller</h1>

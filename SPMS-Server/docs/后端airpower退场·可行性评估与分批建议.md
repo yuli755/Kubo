@@ -102,7 +102,7 @@
 | 批 | 自建什么 | 替换哪些符号 | 验收 |
 | --- | --- | --- | --- |
 | **B0** ✅ 2026-09-18 已做 | 摘掉 `cn.hamm:airpower` 父 POM，构建基线自持（Java 17 / UTF-8 / `spring-boot-dependencies` 3.4.4 BOM import / `springboot.version` / `airpower.version`） | —— | `pnpm pom:check` 离线闸门 ✅（无版本依赖在 BOM 家族白名单内、`${...}` 属性都有定义、无发版插件残留）；**待在有 JDK 的机器上补跑 `mvn -q compile && mvn test`**；`pnpm airpower:backend -- --check` 数字不变（只换版本管理，不动代码） |
-| **B1** | `cn.hamm.spms.framework.error`（收编 `Errors.*` 55 处到项目自定义错误码） | `Errors.*`（12 个常量） | 错误码门禁 `pnpm auth:check` / 集成测试；错误响应的 code 值与旧值映射表留档 |
+| **B1** ✅ 2026-09-18 已做 | `cn.hamm.spms.common.exception.Errors`（**整只枚举逐行搬来**：常量名 / code 数值 / 文案一字未改），49 个文件的静态导入改指向本包 —— **exception 模块归零（55 → 0）** | `Errors.*`（12 个常量 + 全量枚举为将来兜底） | ✅ `pnpm text:check` / `java:check` / `auth:check` / `perms:check` 全绿；棘轮 174/60/603；**code 与文案零变化**（前端 axios 按 code 分流，故本批只搬不改） |
 | **B2** | `framework.json`（`Json` 34 处）+ `framework.util`（`CollectionUtil`/`TreeUtil`/`DictionaryUtil`/`NumberUtil`/`ReflectUtil`/`DateTimeUtil`/`RandomUtil`/`TaskUtil`/`FileUtil`/`TraceUtil`/`AccessTokenUtil` ≈ 60 处） | core 工具类 | 单测覆盖（这些是纯函数，最容易先做） |
 | **B3** | 元数据注解自建：`@Description`(79) `@Meta`(26) `@Dictionary`(13) `@ReadOnly`(12) `@Export`(12) `@ExposeAll`/`@Phone`/`@Desensitize` → `framework.metadata` | core 注解 ≈ 150 处 | 注解是**行为开关**（导出列、只读、脱敏），必须与 `ExportHelper`/`Permission` 的使用处一起切；`pnpm java:check` + 现有 `maskContract` 契约测试 |
 | **B4** | 查询模型：`QueryPageRequest`(40) `QueryListRequest`(32) `Page`(25) `Sort`(17) `QueryPageResponse`(14) → `framework.query` | curd 查询 ≈ 130 处 | 124 个端点的分页/排序/搜索回归；前端 `useTable` 的请求体形状不变（`pnpm test` 里的请求体契约用例是现成的验收） |

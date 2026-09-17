@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static cn.hamm.airpower.exception.Errors.FORBIDDEN_EXIST;
+import static cn.hamm.spms.common.exception.Errors.FORBIDDEN_EXIST;
 
 /**
  * <h1>Service</h1>

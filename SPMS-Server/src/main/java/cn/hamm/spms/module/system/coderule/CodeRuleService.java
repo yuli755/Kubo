@@ -20,8 +20,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static cn.hamm.airpower.exception.Errors.FORBIDDEN_DELETE;
-import static cn.hamm.airpower.exception.Errors.SERVICE_ERROR;
+import static cn.hamm.spms.common.exception.Errors.FORBIDDEN_DELETE;
+import static cn.hamm.spms.common.exception.Errors.SERVICE_ERROR;
 import static cn.hamm.spms.module.system.coderule.enums.CodeRuleParam.*;
 
 /**
