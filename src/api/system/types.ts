@@ -2,7 +2,7 @@
  * # System 模块 API 类型定义
  */
 
-import type { MaskType } from '@kubo/shared'
+import type { MaskType } from '@/framework/mask'
 
 // ──────────────────────────────────────────
 // 菜单 (Menu) — 树形实体
@@ -147,10 +147,10 @@ export interface CodeRuleParam {
 // ──────────────────────────────────────────
 
 /**
- * 后端脱敏类型与策略类型由 @kubo/shared 承载，这里仅做再导出，
- * 保持 `@/api/system/types` 的历史导入路径可用。
+ * 脱敏类型与策略类型由框架层承载（`@/framework/mask`），这里再导出，
+ * 保持 `@/api/system/types` 这一历史导入路径可用。
  */
-export type { MaskPolicy, MaskType } from '@kubo/shared'
+export type { MaskPolicy, MaskType } from '@/framework/mask'
 
 /**
  * ### 列级脱敏字段策略实体
@@ -496,7 +496,7 @@ export interface DashboardOverviewItem {
 //
 // origin：`src/api/types.ts`（那个"兼容 shim"在 2026-09 残留清理时整文件删除，
 // 它当时的 5 条 re-export 里只有 `TenantOption` 有真实消费者，其余 4 条迁到这里）。
-// `TenantOption` 是跨应用共享类型，仍然由 `@kubo/shared` 承载，这里只做转发。
+// `TenantOption` 原先放在 workspace 包 `@kubo/shared`（2026-09-17 删除），现已回归本文件。
 // ──────────────────────────────────────────
 
 /** 刷新 Token 请求 */
@@ -535,4 +535,12 @@ export interface CurrentUserInfo {
   status?: number
 }
 
-export type { TenantOption } from '@kubo/shared'
+/**
+ * 当前用户可切换的租户（后端 `user/getMyTenantList` 返回项）
+ */
+export interface TenantOption {
+  id: number
+  code: string
+  name: string
+  isDefault: boolean
+}

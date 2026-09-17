@@ -4,9 +4,9 @@ trustPolicy: no-downgrade
 
 # pnpm workspace 配置
 #
-# kubo-platform 统一仓库（SPMS-Web + SPMS-Server）
-# 当前仓库根目录仍是前端应用（kubo-web），未来迁移至 apps/web
-packages:
-  - 'apps/*'
-  - 'packages/*'
-  - 'tools/*'
+# kubo-platform 统一仓库（SPMS-Web + SPMS-Server）。
+# **当前没有任何 workspace 子包**：根目录本身就是前端应用（kubo-web），
+# 原先唯一的包 `packages/shared`（@kubo/shared，脱敏策略等纯函数）已于 2026-09-17 删除 ——
+# 它唯一的消费者就是本应用，留在 workspace 里只多出协议依赖与工具特殊分支；
+# 代码已并入 `src/framework/mask.ts`。将来真的裂出第二个应用/包时，在下面加回 glob 即可。
+packages: []

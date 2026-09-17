@@ -1,4 +1,57 @@
-import type { MaskPolicy, MaskType } from '../types/mask'
+/**
+ * # 列级脱敏（字段权限）—— 前端实现
+ *
+ * 本文件原本是 workspace 包 `@kubo/shared`（`packages/shared/`）里的两个文件
+ * （`types/mask.ts` + `utils/mask.ts`）。2026-09-17 复核：该包的**唯一消费者就是这个前端应用自己**
+ * （6 个 import 点全在 `src/` 内），却带来了 workspace 协议依赖、`vitest` 额外 include、
+ * 两个扫描脚本的特殊分支，以及 `src/config/Constant.ts` 那样的转发 shim —— 属于"为将来可能的
+ * 第二个应用提前付出的抽象成本"。故并入框架层（`@/framework/mask`），需要时再提取。
+ *
+ * ## 契约：必须与后端一致
+ *
+ * 后端实现在 `cn.hamm.spms.module.system.datapermission.ColumnMaskingService#applyMask`。
+ * `src/config/__tests__/maskContract.spec.ts` 会把 Java 源码里的 `case` 标签抓出来与
+ * 下面的 `MaskType` union 比对，后端新增类型而前端未跟随时 CI 直接失败
+ * （前端漏一个分支的后果是落进"未知类型"，被按最严格的 `****` 处理 —— 过度遮蔽，
+ * 用户看到满屏星号却查不出原因）。
+ */
+
+/**
+ * ### 后端脱敏类型
+ *
+ * 与 {@code DataFieldPolicyEntity.maskType} 的取值一致：
+ * - `FULL` — 完全遮蔽（返回固定星号 / 表达式）
+ * - `PARTIAL` — 部分遮蔽（保留首尾字符，中间星号）
+ * - `REPLACE` — 替换为固定表达式
+ * - `LAST4` — 只保留末四位（长度不足整体遮蔽）
+ * - `HASH` — 不可逆摘要（`h:` + SHA-256 前 12 位十六进制），同值同码可比对
+ */
+export type MaskType = 'FULL' | 'PARTIAL' | 'REPLACE' | 'LAST4' | 'HASH'
+
+/**
+ * ### 列级脱敏字段策略
+ *
+ * 对应后端 {@code DataFieldPolicyEntity} 的 JSON 表示。
+ * `my-mask` 端点未命中策略时返回 `null`，表示该列对当前用户无需脱敏。
+ */
+export interface MaskPolicy {
+  /** 脱敏类型 */
+  maskType: MaskType
+  /** REPLACE 类型使用的替换表达式 */
+  maskExpression?: string
+  /** 是否允许明文（true 时不脱敏） */
+  allowPlaintext?: boolean
+  /** 策略优先级（数字越大越优先） */
+  priority?: number
+  /** 是否启用 */
+  enabled?: boolean
+  /** 字段名 */
+  fieldName?: string
+  /** 角色编码 */
+  roleCode?: string
+  /** 动作名（如 QUERY） */
+  actionName?: string
+}
 
 /**
  * 后端 `applyMask` 的兜底遮蔽值（`maskExpression` 缺省时使用）

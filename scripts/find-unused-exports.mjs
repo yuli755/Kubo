@@ -39,10 +39,9 @@ const ts = require('typescript')
 
 const ROOT = resolve(import.meta.dirname, '..')
 const SRC = join(ROOT, 'src')
-const SHARED = join(ROOT, 'packages', 'shared', 'src')
 
 /** 参与扫描的源码目录 */
-const SCAN_DIRS = [SRC, SHARED].filter(existsSync)
+const SCAN_DIRS = [SRC]
 /** 报告里排除的路径前缀 */
 const SKIP_REPORT = [/^src\/framework\//]
 const EXT = ['.ts', '.vue', '.mts']
@@ -78,8 +77,6 @@ export function resolveModule(fromFile, specifier) {
   let base
   if (specifier.startsWith('@/'))
     base = join(SRC, specifier.slice(2))
-  else if (specifier === '@kubo/shared')
-    base = join(SHARED, 'index.ts')
   // vite.config.mts 把裸 `element-plus` 与 `element-plus/es` 都指向聚合入口
   else if (specifier === 'element-plus' || specifier === 'element-plus/es')
     base = join(SRC, 'types', 'element-plus-aggregate.ts')

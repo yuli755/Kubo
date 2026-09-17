@@ -28,7 +28,7 @@
 | `/`（根） | 前端 **kubo-web**（Vue 3 + Vite + Pinia + Element Plus + TanStack Query） |
 | `SPMS-Server/` | 后端 **SPMS-Server**（Spring Boot 3 + JPA/MyBatis + airpower 框架） |
 | `SPMS-Server/docs/` | 后端/全栈文档（见 [文档索引](./SPMS-Server/docs/README.md)） |
-| `packages/shared/` | 前后端共享的脱敏/权限类型与工具（`@kubo/shared`） |
+| `src/framework/` | 新底座框架层（元数据/实体/HTTP/脱敏策略等），业务只从 `@/framework` 取能力 |
 
 ## 快速开始
 

@@ -1,4 +1,4 @@
-import type { MaskPolicy, MaskType } from '../../types/mask'
+import type { MaskPolicy, MaskType } from '../mask'
 import { describe, expect, it } from 'vitest'
 import { applyMaskPolicy, looksMasked, normalizeMaskPolicy } from '../mask'
 
@@ -29,7 +29,8 @@ describe('normalizeMaskPolicy', () => {
   })
 
   it('未声明 maskType 时按 FULL 兜底（安全默认：遮蔽优先）', () => {
-    expect(normalizeMaskPolicy({ allowPlaintext: false }).maskType).toBe('FULL')
+    // 后端可能省略 maskType（历史数据 / 手写策略），类型上仍按必填声明，故这里显式断言缺省行为
+    expect(normalizeMaskPolicy({ allowPlaintext: false } as MaskPolicy).maskType).toBe('FULL')
   })
 
   it('需脱敏时返回 masked=true 且透传 REPLACE 表达式', () => {

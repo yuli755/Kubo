@@ -1,7 +1,7 @@
-import type { MaskPolicy } from '@kubo/shared'
-import { applyMaskPolicy, looksMasked, normalizeMaskPolicy } from '@kubo/shared'
+import type { MaskPolicy } from '@/framework/mask'
 import { computed, shallowReactive } from 'vue'
 import { dataFieldPolicyApi } from '@/api/system'
+import { applyMaskPolicy, looksMasked, normalizeMaskPolicy } from '@/framework/mask'
 import { useUserStore } from '@/stores/user'
 
 /**

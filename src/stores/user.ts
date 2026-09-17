@@ -1,4 +1,4 @@
-import type { TenantOption } from '@kubo/shared'
+import type { TenantOption } from '@/api/system/types'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { airpowerToken } from '@/utils/airpowerCompat'

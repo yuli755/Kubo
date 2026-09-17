@@ -62,7 +62,6 @@ const ROLE = {
   'axios': ['core', 'HTTP（framework/http.ts 与 airpower Http 共用实例）'],
   'echarts': ['core', '看板图表'],
   'flatted': ['core', 'pinia 持久化序列化'],
-  '@kubo/shared': ['core', 'workspace 共享包（脱敏策略等纯函数）'],
   '@airpower/web': ['transition', '旧栈，F4 逐域迁完即删（F5）'],
   '@vitejs/plugin-vue': ['dev', 'Vue SFC 编译'],
   'vite': ['dev', '构建/开发服务器'],
@@ -133,23 +132,6 @@ const rows = []
 const dead = []
 for (const [kind, deps] of sections) {
   for (const [name, declared] of Object.entries(deps)) {
-    if (name === '@kubo/shared') {
-      // workspace 包：版本取 packages/shared/package.json，引用点照常统计
-      const wsManifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'packages/shared/package.json'), 'utf8'))
-      const { code, docs } = countHits(name)
-      rows.push({
-        name,
-        kind,
-        declared,
-        installed: `${wsManifest.version}（workspace）`,
-        role: 'core',
-        why: 'workspace 共享包（脱敏策略等纯函数）',
-        refs: code.length,
-        sample: rank(code).slice(0, 2).map(x => x.file),
-        docRefs: docs.length,
-      })
-      continue
-    }
     const { code, docs } = countHits(name)
     const [role, why] = ROLE[name] ?? ['core', '（未登记，建议补 ROLE 说明）']
     const row = {

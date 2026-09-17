@@ -105,7 +105,7 @@ describe('mask contract · 前后端脱敏口径', () => {
     const backend = [...body.slice(0, 1500).matchAll(/case "([A-Z0-9_]+)"/g)].map(m => m[1]).sort()
     expect(backend.length).toBeGreaterThanOrEqual(5)
 
-    const types = read(join(ROOT, 'packages', 'shared', 'src', 'types', 'mask.ts'))
+    const types = read(join(ROOT, 'src', 'framework', 'mask.ts'))
     const union = (types.match(/export type MaskType =([^\n]+)/)?.[1] ?? '')
       .split('|')
       .map(part => part.trim().replace(/'/g, ''))

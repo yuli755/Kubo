@@ -145,8 +145,8 @@ vitest **48 文件 / 409 用例**全绿，其中逐页冒烟探针覆盖 asset �
 | --- | --- |
 | 根目录 `.env.production` + `src/env.d.ts` 里 `VITE_APP_NAME`/`VITE_APP_API_URL` 的声明 + README 对应段落 | 两个变量**全仓零读取**（代码只读 `import.meta.env.MODE`），API 地址由 Vite 代理/nginx 承担；README 那段还在教人配它们 |
 | `src/types/element-plus-aggregate.ts` 的 5 条 re-export（`ElDropdown*`、`ElTimeline*`） | 全仓零引用，且**不在** airpower shim 的具名清单里（`ElCheckTag`/`ElPopover` 在其中 → 留到 F5） |
-| `src/api/types.ts`（整文件）+ `packages/shared/src/types/api.ts`（18 个类型只活 1 个） | 前者是"兼容 shim"，零 import；后者是脚手架遗留（`PageResponse` 还是 Spring Data 的 `content/totalElements` 口径，与本仓 `{ list, total }` 相冲突）。保留的 `TenantOption` 迁到 `packages/shared/src/types/tenant.ts` |
-| `packages/shared/src/utils/mask.ts` 的 `maskPolicyKeepTail` | 唯一调用方是它自己的 spec；`useMaskPolicy` + `applyMaskPolicy` 已覆盖遮蔽计算 |
+| `src/api/types.ts`（整文件）+ `packages/shared/src/types/api.ts`（18 个类型只活 1 个） | 前者是"兼容 shim"，零 import；后者是脚手架遗留（`PageResponse` 还是 Spring Data 的 `content/totalElements` 口径，与本仓 `{ list, total }` 相冲突）。保留的 `TenantOption` 先迁到 `packages/shared/src/types/tenant.ts`，**2026-09-17 该包删除后回到 `src/api/system/types.ts`** |
+| `packages/shared/src/utils/mask.ts` 的 `maskPolicyKeepTail`（该包 2026-09-17 删除，mask 实现并入 `src/framework/mask.ts`） | 唯一调用方是它自己的 spec；`useMaskPolicy` + `applyMaskPolicy` 已覆盖遮蔽计算 |
 | `src/demo/mock/specs.ts` 的 `app`/`notify` 两个演示规格 | 对应域早删、后端 `module/` 下也没有对应模块 —— 留着只会生成没有页面消费的假数据 |
 | `package.json` 的 `production` / `s` 两个脚本别名 | 分别是 `build` / `dev` 的重复别名（`s` 全仓零引用） |
 | 文档僵引用 3 处 | `DEVELOPMENT_GUIDE` 的 `pnpm run production`、`--mode=analyze` + `dist/stats.html`（**仓库没有 rollup-plugin-visualizer**，那个模式不存在）→ 改成 `pnpm build` / `pnpm size:report`；`API_DOCS_GUIDE` 里 `git add src/api/types.ts`（文件已删） |

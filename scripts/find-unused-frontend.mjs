@@ -9,7 +9,7 @@
  *
  * ## 判定口径（保守）
  * 一个文件被判定为「未被引用」，必须同时满足：
- * 1. 没有任何文件 `import` / `require` 它（相对路径、`@/` 别名、`@kubo/shared` 都解析）；
+ * 1. 没有任何文件 `import` / `require` 它（相对路径、`@/` 别名都解析）；
  * 2. 它的**路径片段**没有以字符串形式出现在任何源码里（视图页是靠路由/菜单里的
  *    `'system/unit/list'` 这种字符串被懒加载的，字符串匹配是防漏判的关键）；
  * 3. 不是入口（`src/main.ts`、`index.html` 引用）、不是配置、不是 `.d.ts`、不是测试。
@@ -27,10 +27,8 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const SRC = join(ROOT, 'src')
-const SHARED = join(ROOT, 'packages/shared/src')
-
 /** 扫描范围（只看会进产物的源码，脚本与文档不在其列） */
-const SCAN_ROOTS = [SRC, SHARED].filter(existsSync)
+const SCAN_ROOTS = [SRC]
 const EXTENSIONS = ['.ts', '.vue', '.mts', '.js']
 /**
  * 入口：从这些文件开始走引用图。
@@ -109,10 +107,6 @@ function resolveSpecifier(specifier, fromFile) {
   let base
   if (specifier.startsWith('@/'))
     base = join(SRC, specifier.slice(2))
-  else if (specifier === '@kubo/shared')
-    base = join(SHARED, 'index.ts')
-  else if (specifier.startsWith('@kubo/shared/'))
-    base = join(SHARED, specifier.slice('@kubo/shared/'.length))
   else if (specifier.startsWith('.'))
     base = resolve(dirname(fromFile), specifier)
   else

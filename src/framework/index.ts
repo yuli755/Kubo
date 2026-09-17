@@ -17,6 +17,7 @@
  * - `enums`     枚举字典/颜色/脱敏
  * - `format`    金额/数量格式化
  * - `cell`      单元格文本/颜色/对齐（表格与详情页共用一套渲染规则）
+ * - `mask`      列级脱敏策略（与后端 ColumnMaskingService 逐分支对齐，契约由 maskContract.spec 守）
  */
 
 export * from './cell'
@@ -28,6 +29,7 @@ export * from './export'
 export * from './feedback'
 export * from './format'
 export * from './http'
+export * from './mask'
 export * from './metadata'
 export * from './query'
 export * from './types'

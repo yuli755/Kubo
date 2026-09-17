@@ -1,7 +1,7 @@
-import type { MaskPolicy } from '@kubo/shared'
 import type { Directive, DirectiveBinding } from 'vue'
-import { applyMaskPolicy } from '@kubo/shared'
+import type { MaskPolicy } from '@/framework/mask'
 import { ensureMaskPolicy, maskPolicyEntry } from '@/composables/useMaskPolicy'
+import { applyMaskPolicy } from '@/framework/mask'
 
 /**
  * # 脱敏掩码类型

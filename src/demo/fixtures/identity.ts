@@ -3,13 +3,13 @@
  *
  * 形状对齐真实接口：
  * - `user/getMyInfo` → `UserEntity`
- * - `user/getMyTenantList` → `TenantOption[]`（见 `@kubo/shared`）
+ * - `user/getMyTenantList` → `TenantOption[]`（见 `@/api/system/types`）
  *
  * 用途：跳过登录后，控制台初始化（`Console.vue`）仍能拿到「用户 + 租户 + 权限 + 菜单」，
  * 从而把管理端完整渲染出来。
  */
 
-import type { TenantOption } from '@kubo/shared'
+import type { TenantOption } from '@/api/system/types'
 
 /** 当前登录用户（全权限管理员） */
 export function demoUserInfo(): Record<string, unknown> {

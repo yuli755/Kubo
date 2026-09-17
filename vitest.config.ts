@@ -5,9 +5,8 @@ import { defineConfig } from 'vitest/config'
 /**
  * # Vitest 配置
  *
- * 覆盖两类可测单元：
- * 1. `packages/shared`：纯函数（脱敏策略归一化等），无 DOM 依赖；
- * 2. `src/**`：指令 / hook 适配器 / 权限码常量不变量，需要 jsdom。
+ * 覆盖 `src/**` 的可测单元：纯函数（脱敏策略归一化等）走默认 node 环境，
+ * 指令 / hook 适配器 / 权限码常量不变量需要 jsdom（文件头写 `// @vitest-environment jsdom`）。
  *
  * 注意：这里**不加载** vite.config.mts 的 PWA / airpower shim 插件，
  * 避免测试环境被构建期插件影响（shim 只服务于产物体积）。
@@ -22,7 +21,7 @@ export default defineConfig({
   test: {
     // 默认 node 环境（纯函数最快）；需要 DOM 的用例在文件头写 `// @vitest-environment jsdom`
     environment: 'node',
-    include: ['src/**/*.spec.ts', 'packages/shared/**/*.spec.ts'],
+    include: ['src/**/*.spec.ts'],
     // 冷启动时模块链首次编译可能超过默认 5s（appConfig 首次 import airpower shim 实测 ~3s，
     // CI 上依赖包未预热会更慢），抬高到 15s 消除平台相关的偶发超时。
     testTimeout: 15000,
@@ -43,7 +42,9 @@ export default defineConfig({
         'src/directives/**/*.ts',
         'src/config/**/*.ts',
         'src/guard/**/*.ts',
-        'packages/shared/src/**/*.ts',
+        // 框架层只把"与后端逐分支对齐的纯逻辑"纳入基线（脱敏策略）；
+        // 其余框架模块是元数据/HTTP/校验胶水，纳入会稀释阈值而不是提高质量
+        'src/framework/mask.ts',
       ],
       exclude: [
         '**/__tests__/**',
