@@ -32,7 +32,7 @@ import cn.hamm.spms.module.personnel.user.UserService;
 import cn.hamm.spms.module.system.SystemServices;
 import cn.hamm.spms.module.system.coderule.CodeRuleEntity;
 import cn.hamm.spms.module.system.coderule.CodeRuleService;
-import cn.hamm.spms.module.system.coderule.enums.CodeRuleField;
+import cn.hamm.spms.base.coderule.CodeRuleField;
 import cn.hamm.spms.module.system.config.ConfigEntity;
 import cn.hamm.spms.module.system.config.ConfigService;
 import cn.hamm.spms.base.config.ConfigFlag;

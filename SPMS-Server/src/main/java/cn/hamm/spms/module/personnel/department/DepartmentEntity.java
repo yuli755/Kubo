@@ -5,7 +5,7 @@ import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.interfaces.ITree;
 import cn.hamm.spms.framework.curd.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
-import cn.hamm.spms.common.annotation.AutoGenerateCode;
+import cn.hamm.spms.base.coderule.AutoGenerateCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -19,7 +19,7 @@ import org.hibernate.annotations.DynamicUpdate;
 
 import java.util.List;
 
-import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.DepartmentCode;
+import static cn.hamm.spms.base.coderule.CodeRuleField.DepartmentCode;
 
 /**
  * <h1>实体</h1>

@@ -6,9 +6,9 @@ import cn.hamm.spms.core.Json;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.framework.curd.permission.Permission;
 import cn.hamm.spms.base.BaseController;
-import cn.hamm.spms.module.system.coderule.enums.CodeRuleField;
+import cn.hamm.spms.base.coderule.CodeRuleField;
 import cn.hamm.spms.module.system.coderule.enums.CodeRuleParam;
-import cn.hamm.spms.module.system.coderule.enums.SerialNumberUpdate;
+import cn.hamm.spms.base.coderule.SerialNumberUpdate;
 import org.springframework.web.bind.annotation.PostMapping;
 
 /**

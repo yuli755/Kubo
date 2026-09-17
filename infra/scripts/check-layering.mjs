@@ -22,10 +22,16 @@
  * - **L1**：`framework` 不得 import `base` / `module` / `config`
  * - **L2**：`base` 不得 import `module.*`，例外：① `*Configuration.java`（组合根）② 白名单
  * - **L6**：跨业务域不得 import 对方的 `repository` / `mapper` / `controller`（只许经 Service 或共享值类型）
+ * - **L7**：`common` 不得 import `module.*`（例外：Spring 装配类，逐条打印）
  * - **L3**：`module/**&#47;mapper|repository` 不得 import `.service.` / `.controller.` / `*Controller`
  * - **L4**：`*Entity.java` 不得 import `.service.` / `.mapper.` / `.repository.` / `.controller.`
  * - **L5**：`*Controller.java` 不得**注入** `*Repository` / `*Mapper`（字段或构造器参数）——
  *   控制器是 HTTP 出入口，回表要么走 service，要么走读侧 mapper 的**服务封装**
+ *
+ * ## 判据口径（实测踩过的两个盲区）
+ *
+ * 1. `import static X.*;` 必须能被解析 —— 否则整行免检（通配符静态导入曾让一处 `base → module` 漏网）；
+ * 2. 组合根按**注解**判定（L7）而不是只按文件名 —— `AppConfig` 这类名字里没有 "Configuration" 的装配类是盲区。
  *
  * ## 白名单纪律
  * 每条白名单是「文件 → import」的精确匹配，**必须写理由**；脚本会检查两件事：
@@ -116,17 +122,17 @@ const RESPONSIBILITY_RULES = [
     // `module/**/mapper/` 下还住着 *ReadShadowService 这类实现类（它们属于服务层，
     // 放在 mapper 目录只是为了和读侧 Mapper 挨着），按目录判定会误报（第一版就是这么错的）
     matchFile: f => /(Repository|Mapper)\.java$/.test(f),
-    regs: [/^import\s+cn\.hamm\.spms\..*\.service\./, /^import\s+cn\.hamm\.spms\..*Controller;/],
+    regs: [/^import\s+(?:static\s+)?cn\.hamm\.spms\..*\.service\./, /^import\s+(?:static\s+)?cn\.hamm\.spms\..*Controller;/],
   },
   {
     id: 'L4',
     desc: '实体不得依赖 service / mapper / repository / controller',
     matchFile: f => /Entity\.java$/.test(f),
     regs: [
-      /^import\s+cn\.hamm\.spms\..*\.service\./,
-      /^import\s+cn\.hamm\.spms\..*\.mapper\./,
-      /^import\s+cn\.hamm\.spms\..*\.repository\./,
-      /^import\s+cn\.hamm\.spms\..*Controller;/,
+      /^import\s+(?:static\s+)?cn\.hamm\.spms\..*\.service\./,
+      /^import\s+(?:static\s+)?cn\.hamm\.spms\..*\.mapper\./,
+      /^import\s+(?:static\s+)?cn\.hamm\.spms\..*\.repository\./,
+      /^import\s+(?:static\s+)?cn\.hamm\.spms\..*Controller;/,
     ],
   },
 ]
@@ -153,6 +159,24 @@ function domainOf(rel) {
   return parts[0] === 'module' && parts.length > 2 ? parts[1] : null
 }
 
+/**
+ * L7：`common` 是**横切包**，不是"什么都能放"的包 —— 只许依赖 `core` / `framework` / `base`、
+ * JDK 与第三方库，**不许 import `module.*`**。
+ *
+ * 为什么单列一条：`common` 在旧口径里被写成"任意层"的免检区，于是它成了越层的藏身处 ——
+ * 实测曾有 18 处伸手进业务域（应用请求管线、灰度引擎、跨域声明式注解），
+ * 每一处都让"common 能不能依赖业务域"这个问题失去答案。
+ *
+ * **例外：Spring 装配类**（带 `@Configuration` / `@ConfigurationProperties` /
+ * `@SpringBootApplication`），逐条打印在输出里。两条说明：
+ *   · 按**注解**判定，不按文件名 —— `AppConfig` / `OpenApiConfig` 这类名字不含 "Configuration"，
+ *     按名字判会漏（L0–L2 的组合根判据就是这个形状，这里刻意用更强的一条）；
+ *   · 这条放宽**只作用于 L7**：framework / base 里的装配类是"框架自己的装配"，
+ *     去认识业务域是真越层，仍按原口径拦。
+ */
+const L7_DESC = 'common 不得依赖 module（装配类 @Configuration 例外）'
+const ASSEMBLY_ANNOTATION_RE = /@(?:Configuration|ConfigurationProperties|SpringBootApplication)\b/
+
 function walkJava(dir, rel = '', acc = []) {
   if (!fs.existsSync(dir)) return acc
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -169,12 +193,17 @@ const isController = rel => /Controller\.java$/.test(rel)
 const files = walkJava(SRC)
 const violations = []
 const allowlistSeen = new Set()
+/** L7 的装配类例外（只记账、不报红，但会打印出来给人看） */
+const l7Exemptions = []
 
 for (const { rel, abs } of files) {
   const raw = fs.readFileSync(abs, 'utf8')
   const code = stripJavaComments(raw)
-  const imports = [...code.matchAll(/^import\s+(?:static\s+)?(cn\.hamm\.spms\.[\w.]+?)(?:\.\w+)?;\s*$/gm)].map(m => m[1])
-  const importLines = [...code.matchAll(/^import\s+(?:static\s+)?(cn\.hamm\.spms\.[\w.]+);\s*$/gm)].map(m => m[1])
+  // 通配符必须一起认：`import static X.Y.*;` 在旧判据里**整行解析不到**（`[\w.]+` 遇 `*` 不匹配），
+  // 于是它成了免检通道 —— 实测就是这么漏掉一处 `base → module` 的（L7 那批搬 CodeRuleField 时撞到的）。
+  const importLines = [...code.matchAll(/^import\s+(?:static\s+)?(cn\.hamm\.spms\.[\w.]+(?:\.\*)?);\s*$/gm)]
+    .map(m => m[1].replace(/\.\*$/, ''))
+  const imports = importLines.map(fqn => fqn.replace(/\.[\w$]+$/, ''))
 
   // 层规则
   for (const rule of LAYER_RULES) {
@@ -224,6 +253,22 @@ for (const { rel, abs } of files) {
     }
   }
 
+  // L7：common 的边界（装配类例外，逐条记账）
+  if (rel.startsWith('common/')) {
+    const assembly = ASSEMBLY_ANNOTATION_RE.test(code)
+    for (const fqn of importLines) {
+      if (!fqn.replace('cn.hamm.spms.', '').startsWith('module.')) continue
+      if (assembly) {
+        l7Exemptions.push({ file: rel, fqn })
+        continue
+      }
+      violations.push({
+        rule: 'L7', file: `src/main/java/cn/hamm/spms/${rel}`, type: 'import',
+        detail: fqn, desc: L7_DESC,
+      })
+    }
+  }
+
   // L5：控制器不得注入仓储 / Mapper（字段或构造器参数）
   if (isController(rel)) {
     const fieldRe = /^\s*(?:private|protected|public)\s+(?:final\s+)?[\w.$.]*(?:Repository|Mapper)\s+\w+\s*;/gm
@@ -253,11 +298,11 @@ const json = process.argv.includes('--json')
 if (json) {
   console.log(JSON.stringify({ files: files.length, violations, allowlist: ALLOWLIST.length, stale }, null, 2))
 } else {
-  console.log('代码分层门禁：依赖方向（L0–L2）+ 层内职责（L3–L5）+ 跨域数据面（L6）')
+  console.log('代码分层门禁：依赖方向（L0–L2）+ 层内职责（L3–L5）+ 跨域数据面（L6）+ common 边界（L7）')
   console.log(`  扫描：${files.length} 个 .java（cn.hamm.spms 下，剥注释）`)
   console.log(`  白名单：${ALLOWLIST.length}/${MAX_ALLOWLIST} 条（base→module；已清空，新增即红）`)
   if (violations.length === 0) {
-    console.log('✓ 依赖方向、层内职责与跨域数据面均无违规')
+    console.log('✓ 依赖方向、层内职责、跨域数据面与 common 边界均无违规')
   } else {
     console.log(`✗ ${violations.length} 处违规：`)
     for (const v of violations) {
@@ -274,6 +319,10 @@ if (json) {
   if (violations.length === 0 && stale.length === 0 && !tooMany) {
     console.log('  层次：L0 core → L1 framework → L2 base → L3 module（组合根 common/config 例外）')
     console.log('  跨域：只许 module.<A> → module.<B>.service / 共享值类型（0 处数据面越界）')
+    console.log(`  common：只许依赖 core/framework/base；装配类例外 ${new Set(l7Exemptions.map(e => e.file)).size} 个文件 / ${l7Exemptions.length} 条语句`)
+    for (const e of l7Exemptions) {
+      console.log(`    · ${e.file} → ${e.fqn}`)
+    }
   }
 }
 

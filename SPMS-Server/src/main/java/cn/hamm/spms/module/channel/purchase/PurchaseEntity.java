@@ -6,7 +6,7 @@ import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.annotation.ReadOnly;
 import cn.hamm.spms.framework.curd.annotation.Search;
 import cn.hamm.spms.base.bill.AbstractBaseBillEntity;
-import cn.hamm.spms.common.annotation.AutoGenerateCode;
+import cn.hamm.spms.base.coderule.AutoGenerateCode;
 import cn.hamm.spms.module.channel.purchase.detail.PurchaseDetailEntity;
 import cn.hamm.spms.module.channel.purchase.enums.PurchaseStatus;
 import jakarta.persistence.Column;
@@ -20,7 +20,7 @@ import org.hibernate.annotations.DynamicInsert;
 import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.validator.constraints.Length;
 
-import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.PurchaseBillCode;
+import static cn.hamm.spms.base.coderule.CodeRuleField.PurchaseBillCode;
 
 /**
  * <h1>采购单实体</h1>

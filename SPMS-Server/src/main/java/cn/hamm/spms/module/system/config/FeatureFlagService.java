@@ -1,7 +1,5 @@
-package cn.hamm.spms.common.feature;
+package cn.hamm.spms.module.system.config;
 
-import cn.hamm.spms.module.system.config.ConfigEntity;
-import cn.hamm.spms.module.system.config.ConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -45,6 +43,10 @@ import java.util.Locale;
  * 后续若要把开关源切到 Nacos（docker-compose 已含 nacos 服务，但后端尚未接 Spring Cloud Alibaba），
  * 只需把本服务「读配置」这步替换为 Nacos 数据源，决策 DSL 与调用方不变（见
  * {@code docs/功能开关与灰度发布方案.md} §3）。</p>
+ *
+ * <p><b>2026-09-18 分层整改（L7）</b>：本类从 {@code common/feature} 搬到
+ * {@code module/system/config} —— 它的存储面就是 {@code config} 表（复用 {@link ConfigService}），
+ * 归到配置域比留在"通用横切包"更清楚。</p>
  *
  * @author Hamm.cn
  */

@@ -1,4 +1,4 @@
-package cn.hamm.spms.common.feature;
+package cn.hamm.spms.module.system.config;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

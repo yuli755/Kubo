@@ -6,7 +6,7 @@ import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.annotation.ReadOnly;
 import cn.hamm.spms.framework.curd.annotation.Search;
 import cn.hamm.spms.base.bill.AbstractBaseBillEntity;
-import cn.hamm.spms.common.annotation.AutoGenerateCode;
+import cn.hamm.spms.base.coderule.AutoGenerateCode;
 import cn.hamm.spms.module.channel.customer.CustomerEntity;
 import cn.hamm.spms.module.channel.sale.detail.SaleDetailEntity;
 import cn.hamm.spms.module.channel.sale.enums.SaleStatus;
@@ -22,7 +22,7 @@ import org.hibernate.annotations.DynamicInsert;
 import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.validator.constraints.Length;
 
-import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.SaleBillCode;
+import static cn.hamm.spms.base.coderule.CodeRuleField.SaleBillCode;
 import static jakarta.persistence.FetchType.EAGER;
 
 /**

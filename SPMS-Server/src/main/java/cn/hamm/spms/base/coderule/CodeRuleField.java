@@ -1,14 +1,18 @@
-package cn.hamm.spms.module.system.coderule.enums;
+package cn.hamm.spms.base.coderule;
 
 import cn.hamm.spms.core.interfaces.IDictionary;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.jetbrains.annotations.Contract;
 
-import static cn.hamm.spms.module.system.coderule.enums.SerialNumberUpdate.*;
+import static cn.hamm.spms.base.coderule.SerialNumberUpdate.*;
 
 /**
  * <h1>编码规则表格枚举</h1>
+ *
+ * <p><b>2026-09-18 分层整改（L7）</b>：本枚举从 {@code module/system/coderule/enums} 搬到
+ * {@code base/coderule}（与声明它的 {@link AutoGenerateCode} 同处）。它是纯字典值类型，
+ * 被各业务域的实体使用 —— 留在业务域就是"各域依赖 system.coderule 的内部字典"。</p>
  *
  * @author Hamm.cn
  */

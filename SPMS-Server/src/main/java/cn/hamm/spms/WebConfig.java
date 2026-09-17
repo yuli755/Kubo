@@ -4,7 +4,6 @@ import cn.hamm.spms.framework.curd.interceptor.filter.RequestFilter;
 import cn.hamm.spms.common.Configs;
 import cn.hamm.spms.common.filter.BearerTokenNormalizationFilter;
 import cn.hamm.spms.common.filter.SecurityHeadersFilter;
-import cn.hamm.spms.common.interceptor.RequestInterceptor;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;

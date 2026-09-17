@@ -1,10 +1,15 @@
-package cn.hamm.spms.common.interceptor;
+package cn.hamm.spms;
 
+import cn.hamm.spms.common.security.AccessTokenRevocationService;
+import cn.hamm.spms.common.tree.HierarchyClosure;
 import cn.hamm.spms.core.AccessTokenUtil;
 import cn.hamm.spms.core.DictionaryUtil;
+import cn.hamm.spms.framework.curd.datapermission.MaskedInputRegistry;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
+import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
 import cn.hamm.spms.framework.curd.interceptor.CurdRequestInterceptor;
-import cn.hamm.spms.common.tree.HierarchyClosure;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
+import cn.hamm.spms.module.factory.storage.StorageHierarchyIndex;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;
 import cn.hamm.spms.module.personnel.department.DepartmentHierarchyIndex;
 import cn.hamm.spms.module.personnel.role.RoleEntity;
@@ -13,20 +18,20 @@ import cn.hamm.spms.module.personnel.user.UserService;
 import cn.hamm.spms.module.personnel.user.enums.UserTokenType;
 import cn.hamm.spms.module.personnel.user.token.PersonalTokenEntity;
 import cn.hamm.spms.module.personnel.user.token.PersonalTokenService;
-import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
-import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
-import cn.hamm.spms.framework.curd.datapermission.MaskedInputRegistry;
+import cn.hamm.spms.module.system.datapermission.service.ExportBypassGuard;
 import cn.hamm.spms.module.system.datapermission.service.SystemPermissionService;
 import cn.hamm.spms.module.system.datapermission.service.TenantContextResolver;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
 import cn.hamm.spms.module.system.permission.PermissionService;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import java.util.Objects;
@@ -38,6 +43,11 @@ import static cn.hamm.spms.common.exception.Errors.UNAUTHORIZED;
 
 /**
  * <h1>请求拦截器</h1>
+ *
+ * <p><b>2026-09-18 分层整改（L7）</b>：本类从 {@code common/interceptor} 搬到根包 ——
+ * 它是<b>跨域编排</b>（人员域的令牌与用户、系统域的权限与数据权限、工厂域的仓库范围），
+ * 不是"通用横切件"。放在 {@code common} 里会让那个包看起来可以随便认识业务域，
+ * 而根包（与 {@code WebConfig} 并列）本就是组合根：认识所有域是它的职责，不是越界。</p>
  *
  * @author Hamm.cn
  */
@@ -60,7 +70,7 @@ public class RequestInterceptor extends CurdRequestInterceptor {
     private TenantContextResolver tenantContextResolver;
 
     @Autowired
-    private cn.hamm.spms.module.system.datapermission.service.ExportBypassGuard exportBypassGuard;
+    private ExportBypassGuard exportBypassGuard;
 
     @Autowired
     private DataPermissionProperties dataPermissionProperties;
@@ -69,13 +79,13 @@ public class RequestInterceptor extends CurdRequestInterceptor {
     private DepartmentHierarchyIndex departmentHierarchyIndex;
 
     @Autowired
-    private cn.hamm.spms.module.factory.storage.StorageHierarchyIndex storageHierarchyIndex;
+    private StorageHierarchyIndex storageHierarchyIndex;
 
     @Autowired
-    private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+    private TransactionTemplate transactionTemplate;
 
     @Autowired
-    private cn.hamm.spms.common.security.AccessTokenRevocationService accessTokenRevocationService;
+    private AccessTokenRevocationService accessTokenRevocationService;
 
     /**
      * 加载启用用户并<b>在只读事务内</b>初始化权限上下文需要的懒集合。

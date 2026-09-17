@@ -1,4 +1,4 @@
-package cn.hamm.spms.common.interceptor;
+package cn.hamm.spms;
 
 import cn.hamm.spms.core.AccessTokenUtil;
 import cn.hamm.spms.common.tree.HierarchyClosure;

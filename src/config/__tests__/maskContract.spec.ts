@@ -1115,7 +1115,9 @@ describe('mask contract · 部门层级闭包与主体判定只有一份', () =>
     expect(sw, 'application.yml 里没有 hierarchy.department-enabled：没人看见的开关等于没有开关').not.toBeNull()
     expect(sw![1], '层级展开默认必须关（见 §19.28）').toBe('false')
 
-    const interceptor = readJavaCode(join(SERVER, 'common', 'interceptor', 'RequestInterceptor.java'))
+    // 2026-09-18 分层整改（L7）：它是跨域编排（人员/系统/工厂三个域），不是通用横切件，
+    // 所以从 common/interceptor 搬到根包（组合根本来就该认识所有域）
+    const interceptor = readJavaCode(join(SERVER, 'RequestInterceptor.java'))
     expect(interceptor, '没判开关就展开：默认关闭时代价必须为零').toMatch(/isDepartmentEnabled\(\)/)
     expect(interceptor, '展开结果没进 context 的部门范围：等于白算')
       .toMatch(/departmentIds,[ \t]*\n[ \t]*departmentScopeIds,/)
@@ -1164,7 +1166,9 @@ describe('mask contract · 部门层级闭包与主体判定只有一份', () =>
     expect(sw, 'application.yml 里没有 hierarchy.factory-enabled：没人看见的开关等于没有开关').not.toBeNull()
     expect(sw![1], '工厂层级展开默认必须关（见 §19.28）').toBe('false')
 
-    const interceptor = readJavaCode(join(SERVER, 'common', 'interceptor', 'RequestInterceptor.java'))
+    // 2026-09-18 分层整改（L7）：它是跨域编排（人员/系统/工厂三个域），不是通用横切件，
+    // 所以从 common/interceptor 搬到根包（组合根本来就该认识所有域）
+    const interceptor = readJavaCode(join(SERVER, 'RequestInterceptor.java'))
     expect(interceptor, '没判维度开关就解析 factoryIds：维度默认关闭时代价必须为零')
       .toMatch(/isFactoryDimensionEnabled\(\)/)
     expect(interceptor, '没判层级开关就展开：工厂闭包默认必须关').toMatch(/isFactoryEnabled\(\)/)

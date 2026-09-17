@@ -6,7 +6,7 @@ import cn.hamm.spms.core.annotation.Export;
 import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.framework.curd.annotation.Search;
 import cn.hamm.spms.base.bill.AbstractBaseBillEntity;
-import cn.hamm.spms.common.annotation.AutoGenerateCode;
+import cn.hamm.spms.base.coderule.AutoGenerateCode;
 import cn.hamm.spms.module.channel.sale.SaleEntity;
 import cn.hamm.spms.module.wms.move.MoveEntity;
 import cn.hamm.spms.module.wms.output.detail.OutputDetailEntity;
@@ -22,7 +22,7 @@ import lombok.experimental.Accessors;
 import org.hibernate.annotations.DynamicInsert;
 import org.hibernate.annotations.DynamicUpdate;
 
-import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.OutputBillCode;
+import static cn.hamm.spms.base.coderule.CodeRuleField.OutputBillCode;
 import static jakarta.persistence.FetchType.EAGER;
 
 /**

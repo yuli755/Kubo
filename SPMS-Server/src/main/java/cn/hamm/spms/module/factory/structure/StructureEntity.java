@@ -7,7 +7,7 @@ import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.interfaces.ITree;
 import cn.hamm.spms.framework.curd.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
-import cn.hamm.spms.common.annotation.AutoGenerateCode;
+import cn.hamm.spms.base.coderule.AutoGenerateCode;
 import cn.hamm.spms.module.factory.structure.enums.StructureType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -21,7 +21,7 @@ import org.hibernate.validator.constraints.Length;
 import java.util.List;
 import java.util.Set;
 
-import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.StructureCode;
+import static cn.hamm.spms.base.coderule.CodeRuleField.StructureCode;
 
 /**
  * <h1>生产单元实体</h1>

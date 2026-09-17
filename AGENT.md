@@ -59,6 +59,8 @@ pnpm java:imports    # Java 导入可达性（没有 JDK 时的半个编译器�
 pnpm jpa:check       # JPA 足迹棘轮（去 JPA 的尺子：文件 / 引用 / import 只许降；`-- --json` 出机器版）
 pnpm sql:check       # SQL 分层门禁：禁止 .java 写 SQL，只能住 mapper XML（测试夹具住 src/test/resources/sql）
 pnpm layer:check     # 分层门禁：依赖方向（core→framework→base→module）+ 层内职责（控制器不注入仓储、实体不依赖服务…）+ 跨域数据面（跨域只许调对方 Service）
+                     #   反例测试：src/config/__tests__/layeringGate.spec.ts（夹具树跑真脚本，逐条断言"会红"）；
+                     #   规则细节见 SPMS-Server/docs/架构分层设计.md
 ```
 
 体积红线：首屏 ≤ 450 KB、总体 ≤ 900 KB（`pnpm size`）；第一次超预算基本都是"把懒加载页面的依赖挪进了首屏"。
