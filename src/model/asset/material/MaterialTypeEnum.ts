@@ -1,4 +1,4 @@
-import { WebColor, WebEnum } from '@airpower/web'
+import { WebColor, WebEnum } from '@/framework'
 
 export class MaterialTypeEnum extends WebEnum {
   static readonly PRODUCT = new MaterialTypeEnum(1, '自产品')

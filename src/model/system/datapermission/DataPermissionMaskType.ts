@@ -1,4 +1,4 @@
-import { WebColor, WebEnum } from '@airpower/web'
+import { WebColor, WebEnum } from '@/framework'
 
 /**
  * # 列级脱敏类型

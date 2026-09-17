@@ -1,5 +1,11 @@
-import { Field, Form, Model, Search, Table } from '@airpower/web'
 import { BaseEntity } from '@/base/BaseEntity'
+import {
+  Field as KField,
+  Form as KForm,
+  Model as KModel,
+  Search as KSearch,
+  Table as KTable,
+} from '@/framework'
 import { BooleanYesNoDictionary } from '@/model/common/BooleanYesNoDictionary'
 import { DataPermissionActionType } from './DataPermissionActionType'
 import { DataPermissionMaskType } from './DataPermissionMaskType'
@@ -9,17 +15,17 @@ import { DataPermissionMaskType } from './DataPermissionMaskType'
  *
  * 与后端 `cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity` 对齐。
  */
-@Model({
+@KModel({
   label: '列级脱敏策略',
 })
 export class DataFieldPolicyEntity extends BaseEntity {
-  @Table({
+  @KTable({
     width: 110,
   })
-  @Form({
+  @KForm({
     requiredNumber: true,
   })
-  @Field({
+  @KField({
     label: '数据资源ID',
   })
   resourceId!: number
@@ -28,73 +34,73 @@ export class DataFieldPolicyEntity extends BaseEntity {
    * 后端返回的嵌套资源对象；前端只用 resourceKey 展示，不参与编辑
    * （编辑走 resourceId，避免提交时把整个资源实体回传）
    */
-  @Table({
+  @KTable({
     hide: true,
   })
-  @Field({
+  @KField({
     label: '数据资源',
   })
   resource!: { resourceKey?: string }
 
-  @Search()
-  @Table({
+  @KSearch()
+  @KTable({
     width: 140,
     copy: true,
   })
-  @Form({
+  @KForm({
     requiredString: true,
   })
-  @Field({
+  @KField({
     label: '字段名',
   })
   fieldName!: string
 
-  @Table({
+  @KTable({
     width: 110,
   })
-  @Field({
+  @KField({
     label: '角色编码（default 为通配）',
   })
   roleCode!: string
 
-  @Table({
+  @KTable({
     width: 100,
   })
-  @Form({
+  @KForm({
     // 库里 `action_name` 是 NOT NULL：不声明必填的话，留空会提交成空串/undefined，
     // 报错发生在后端持久层，界面只给一个 500。
     requiredString: true,
   })
-  @Field({
+  @KField({
     dictionary: DataPermissionActionType,
     label: '动作',
   })
   actionName!: string
 
-  @Table({
+  @KTable({
     width: 110,
   })
-  @Form({
+  @KForm({
     requiredString: true,
   })
-  @Field({
+  @KField({
     dictionary: DataPermissionMaskType,
     label: '脱敏类型',
   })
   maskType!: string
 
-  @Table({
+  @KTable({
     width: 120,
   })
-  @Field({
+  @KField({
     label: '遮蔽表达式',
   })
   maskExpression!: string
 
-  @Table({
+  @KTable({
     width: 90,
   })
-  @Field({
+  @KField({
     // 挂布尔字典：key 就是 true/false，AFormField 会渲染成下拉并提交真布尔
     // （不挂的话会退化成文本框，提交 "true"/"" 这种字符串，空串还可能把非空列写成 null）
     dictionary: BooleanYesNoDictionary,
@@ -102,18 +108,18 @@ export class DataFieldPolicyEntity extends BaseEntity {
   })
   allowPlaintext!: boolean
 
-  @Table({
+  @KTable({
     width: 90,
   })
-  @Field({
+  @KField({
     label: '优先级',
   })
   priority!: number
 
-  @Table({
+  @KTable({
     width: 90,
   })
-  @Field({
+  @KField({
     // 挂布尔字典：key 就是 true/false，AFormField 会渲染成下拉并提交真布尔
     // （不挂的话会退化成文本框，提交 "true"/"" 这种字符串，空串还可能把非空列写成 null）
     dictionary: BooleanYesNoDictionary,

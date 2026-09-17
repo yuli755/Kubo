@@ -16,20 +16,23 @@
 | **批 3** | `personnel`：部门（树）/ 角色（+菜单与权限授权）/ 用户（部门树筛选 + 角色部门多选），连带改 `factory/structure` 的部门选择器 | ✅ 本轮（§3.7） |
 | **批 4** | `wms`：入库 / 出库 / 移库 / 库存（**单据闭环最完整的一域**），连带删掉 `factory/storage` 的仓库选择器 | ✅ 本轮（§3.8） |
 | **批 5** | `channel`：客户 / 供应商 / 采购 / 销售 / 采购价 / 销售价（**旧链最乱、并线最多的一域**：typed client + 旧服务 + 页面直连三层并存），连带重指 `wms ↔ channel` 的两个详情接缝 | ✅ 本轮（§3.9） |
+| **批 6（并入收官）** | `system`：菜单 / 权限 / 编码规则 / 参数 / 日志 / 数据权限（策略 / 资源 / 列级） | ✅ 收官（§3.10）：批 6 不再单独分批，与"一次删净"合并执行 |
+| **收官 · airpower 整体退场** | 删依赖 + `airpower-bootstrap` + `airpowerCompat` + `useTanStackTable` + 两个 Vite 插件；重写 `UserCard`/`user/*`/`error.vue`/`appRouter`；`pnpm airpower:check` 从度量转硬门禁 | ✅ **0 引用**（2026-09-18） |
 
-**本轮实测校验（批 5 · channel）**：`vue-tsc` 干净、`eslint .` 全量干净、`pnpm build` 通过、`pnpm check` exit=0 —— **51 文件 / 457 用例**全绿，体积 首屏 **367.9/450 KB** · 总体 **735.7/900 KB**（总体 +3.1 KB：channel 六页走懒加载分包；首屏 −0.3 KB 与删除的三个 0B 死件相抵）；
-airpower 生产足迹 **120 → 92**。新增 `channelDomain.spec.ts` 13 例（见 §3.9 验收表）+ `sharedComponents.spec.ts` 追加 2 例（命令式弹窗的应用上下文回归）。
-**批 4 复核值（保留对照）**：50 文件 / 441 用例、首屏 368.2 KB、总体 732.6 KB、airpower 120。
-**批 3 复核值（保留对照）**：49 文件 / 426 用例、首屏 369.7 KB、总体 722.8 KB。
+**收官实测校验（批 6 + 整体退场）**：`vue-tsc` 干净、`eslint .` 全量干净、`pnpm build` 通过、`pnpm check` exit=0 —— **51 文件 / 459 用例**全绿，
+体积 首屏 **270.4/450 KB** · 总体 **630.4/900 KB**（对比退场前：首屏 −97.5 KB、总体 −105.3 KB —— airpower 单体与它强拉进来的 EP 组件壳退出首屏闭包），
+**airpower 引用 92 → 0**。新增 `elementPlusAggregate.spec.ts`（2 例：别名聚合入口缺导出只在 `pnpm build` 炸，静态钉住）+ `authStorage.spec.ts`（4 例：token/权限缓存的 key 不变）。
+**批 5 复核值（保留对照）**：51 文件 / 457 用例、首屏 367.9 KB、总体 735.7 KB、airpower 120 → 92。
+**批 4 / 批 3 复核值**：50 文件 / 441 用例（首屏 368.2 KB、总体 732.6 KB）；49 文件 / 426 用例（首屏 369.7 KB、总体 722.8 KB）。
 
 ## 一、现状数字（实测）
 
 | 范围 | 文件数 | 说明 |
 | --- | --- | --- |
-| `import ... from '@airpower/web'` 的文件 | **92** | 生产代码（口径见 `pnpm airpower`（`scripts/find-airpower.mjs`）：剥注释后的真实 import；批 5 后实测。历史上 177/160/156/159/145/135/120 来自 `grep` 或不同批次，口径不同，往后统一用该脚本） |
-| 视图页面（`src/view/**`） | **17** | 只剩 **system 16**（batch 6 收口）+ `view/error.vue`；五个业务域全部 0（asset / channel / wms / factory / personnel） |
-| 共享组件 / hook / 路由 | **8** | `src/component/{user/*,UserCard}`（4）、`base/{BaseEntity,AbstractBaseService,bill/*}`（4）、`hook/useTanStackTable`、`router/appRouter`、`config/airpower-bootstrap`、`utils/airpowerCompat`（`hook/billTable/*` 与 `component/bill/*` 已于批 5 删除） |
-| 模型实体（`src/model/**`） | 63 | 只用到装饰器与枚举：视图迁完后页面已不再读这些装饰器，**保留双注册只为 airpower 的 `BaseEntity`/转换器仍在用**，F5 一次性摘掉 |
+| `import ... from '@airpower/web'` 的文件 | **0** | 2026-09-18 收官（口径见 `pnpm airpower:check`：剥注释后的真实 import + 依赖表；该命令已从"进度度量"改为硬门禁）。历史数字：92（批 5 后）→ 120 → 135 → 145 → 159 → 165；更早的 177/160/156 来自 `grep` 粗口径，不可直接比较 |
+| 视图页面（`src/view/**`） | **0** | system 最后 17 个视图（coderule / config / datapermission 三页 / log / menu / permission / error）在收官轮全部换到 K 底座 |
+| 共享组件 / hook / 路由 | **0** | `UserCard` + `user/*` 重写为 K 底座（上传走 `DialogUtil.showUpload`）；`appRouter.ts` 换成 native `vue-router`；`airpower-bootstrap` / `airpowerCompat` / `useTanStackTable` 三件直接删除 |
+| 模型实体（`src/model/**`） | **0** | 实体只挂 K 装饰器（`@KModel/@KTable/@KForm/@KField/@KSearch`）；`BaseEntity` 仍作继承根（F5 换 `KEntity`），但它已不再 import airpower |
 
 组件级用量（按**文件数**，同一文件可能同时用多个）。右列是**本轮补齐后**的真实状态：
 
@@ -326,6 +329,46 @@ airpower 生产足迹 **135 → 120**（净 −15）：wms 四个子域 16 个�
 
 **删除清单（34 个已跟踪文件）**：8 个旧服务 + `api/channel/*` 4 件 + 5 个 barrel + 7 个旧视图件（customer 详情/编辑器/选择器、supplier 编辑器/选择器、两处 price 编辑器）+ 物料选择器三件（`asset/material/component/{selector.vue,index.ts}` + `MaterialService.ts`）+ `component/bill/{BillFormCode,BillFormMoreDetail}.vue` 与 `component/index.ts` + `hook/billTable/*`（2）+ `base/bill/AbstractBaseBillService.ts`。
 airpower 生产足迹 **120 → 92**（−28 = 重写 16 个文件不再 import + 删除 12 个 airpower 文件）。剩余 92 个里 **36 个是 system 域**（批 6 一次收口），其余是各域实体的双注册装饰器与 F5 拆伞项。
+
+### 3.10 批 6（system）+ 整体退场：**一次删净，再成批修复**
+
+**范围**：system 域最后 17 个视图（menu / permission / coderule / config / log 列表与详情 / datapermission 的策略、资源、列级三页 + 三页编辑器 + `view/error.vue`），加上所有还挂在 airpower 上的基础设施件 —— 一次做完。
+
+**为什么改口径（这一步推翻的是本文件前面"按域分批"的原则，值得记下原因）**：边删边补时，
+每迁一个域都要重跑全链才能发现"下一处缺什么"，而缺口的形状高度相似（旧基类、旧服务、旧装饰器、旧适配器），
+一次修一处等于把同一类判断做几十遍。收官这一步改成：**先把 airpower 的调用面一次砍掉（接受构建红）→ 让编译器把缺口全列出来 → 成批修**。
+实测从 typecheck ~200 处降到 0 用了两轮（框架补口一轮、页面重写一轮），比逐域快得多。
+
+**成批修复清单（编译器列出来的，不是猜的）**
+
+| 类别 | 内容 |
+| --- | --- |
+| 框架补口 | `KTable.hideEdit` / `disableAddChild(row)`；`IFormModel`（KFormDialog 的 `@loaded` 与插槽类型）；`WebValidator.ifNotOnlyNumberAndLetter()`；`requiredString` 支持自定义消息串；`Permissions.System.Config.delete`（后端 `ConfigController` 未排除删除，前端原先没有这个码）；`element-plus` 聚合入口补回 `ElAvatar` / `ElDropdown*` |
+| 重写 | `UserCard.vue`（头像上传改走 `DialogUtil.showUpload`，登出只走 `userStore.logout()`）、`user/{UserAccount,ModifyPassword,PersonalToken}.vue`（不再用 `AUser`/`ADialog`/`DesensitizeType`）、`error.vue`、`appRouter.ts`、`authStorage.ts`（原 `airpowerCompat`） |
+| 删除 | `airpower-bootstrap.ts`、`useTanStackTable.ts`（零消费者）、`infra/plugins/airpower-{css-strip,element-plus-shim}.ts` + `vite.config.mts` 接线 + vendor-airpower 分包、`@airpower/web` 依赖、`find-airpower.mjs`（改写成门禁） |
+| 连带死码 | `FileEntity` / `PermissionService` / `ParticipantRoleEnum` / `UserGenderEnum`（失去最后消费者，`deadcode:check` 抓出） |
+
+**收官轮修掉的两个静默缺陷**
+
+1. **EP 语言包从未生效**：它挂在 `WebConfig.elementPlusLocale` 上等 airpower 组件来读，而按需导入下项目没有
+   `app.use(ElementPlus)` —— 日期选择器、分页器、`ElMessageBox` 的文案一直是英文。改为
+   `main.ts` 的 `provideGlobalConfig({ locale: zhCn }, app, true)`（app 级 provide，命令式弹窗那棵独立树同样继承）。
+2. **`error.vue` 的 5 秒熔断后门**：旧版停留 5 秒就把 `WebConfig.isTimeout` 置真，而 `RouterUtil.initVueRouter()`
+   在它置真时跳过全部动态菜单注册 —— 症状是"进错一次页面，整个控制台点哪都是 404"。新版按路径直接判 403/404/500，
+   不再有任何全局开关。`sharedComponents.spec.ts` 里那条断言同步改成"路由层不该再有 isTimeout"。
+
+**验收**
+
+| 项 | 结果 |
+| --- | --- |
+| airpower 引用 | **0**（`pnpm airpower:check`：`src/`、`infra/`、`scripts/`、根配置、`package.json` 共 365 个文件，剥注释后 0 命中；注释里的历史提及 27 处不计） |
+| `pnpm check` | exit=0：**51 文件 / 459 用例**、首屏 **270.4/450 KB**、总体 **630.4/900 KB**、死件 0 / 未引用导出 0 |
+| 体积 | 对比退场前（367.9 / 735.7）：**首屏 −97.5 KB、总体 −105.3 KB** |
+| 新增门禁 | `elementPlusAggregate.spec.ts`（2 例，钉住"源码里 `from 'element-plus'` 的具名导入必须在别名聚合入口里有导出"—— 这个坑本轮踩了两次，只在 `pnpm build` 炸）+ `authStorage.spec.ts`（4 例，钉住 localStorage key 不变） |
+| 演示 | `pnpm dev:demo` 登录 → 控制台（顶栏菜单/账号安全/令牌/头像上传入口）→ 各域列表页正常渲染 |
+
+**残留（已知，不在本轮范围）**：`BaseEntity` / `AbstractBaseService` 仍是实体的继承根（它们已不 import airpower，属 F5 的收尾重命名/收敛）；`ITableColumn.hide` 在新底座里等价于"列仍显示"（没有列选择器），
+`metadata.spec.ts` 里把这个语义写死为契约 —— 14 处 `hide: true` 的列因此比 airpower 时代更显眼，要收口需先决定"加列选择器"还是"改成不渲染"。
 
 ## 四、批 3~6：按域推进（先小后大，先低风险后高敏感）
 

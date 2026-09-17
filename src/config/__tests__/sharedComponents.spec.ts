@@ -7,19 +7,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 
 /**
- * # F4 批 0A：共享件换底座（应用外壳 + 单据弹窗 + 审核按钮）
+ * # 共享件契约（应用外壳 + 单据弹窗 + 审核按钮）
  *
- * 这一批把**所有域的共同依赖**先换掉，避免后面每迁一个域都要回头改同一批公共组件。
  * 本文件锁两件事：
  *
- * 1. **迁移完成度（精确剩余集合）**：`src/component/**` 里还 import `@airpower/web` 的文件，
- *    必须是**明确列出的那几个**。多一个（新写的代码又用了 airpower）就红；
- *    少一个（又迁完一个）也提示可以收紧断言 —— 数量断言"=5"会让人看不懂为什么是 5，
- *    精确集合才能表达"谁还没迁、为什么"。
+ * 1. **airpower 彻底退场（从\"精确剩余集合\"收紧为空集）**：`src/component/**`
+ *    里**不允许**再出现任何一行 `@airpower/web` 导入 —— 这条曾经是\"待迁清单\"，
+ *    2026-09-18 最后四个（`UserCard` + `user/*`）迁完后变成硬门禁。
  * 2. **命令式弹窗的契约**：`DialogUtil.show(View, param)` 打开的弹窗靠
  *    `param / onConfirm / onCancel` 三个 props 通信（见 `framework/feedback.ts`
- *    的 `IDialogActionProps`）。批 0 把两个单据弹窗从 airpower `ADialog` 换成 `KDialog`，
- *    如果契约被改坏，**未迁移的 wms/channel/asset 单据页会静默失效**（弹窗能开、走不完），
+ *    的 `IDialogActionProps`）。单据弹窗从 airpower `ADialog` 换成 `KDialog` 时，
+ *    如果契约被改坏，**wms/channel/asset 单据页会静默失效**（弹窗能开、走不完），
  *    所以这里逐条钉住：标题取 param、确认按钮禁用条件、确认回传的数据。
  */
 
@@ -49,8 +47,8 @@ function importsAirpower(source: string): boolean {
   return /^\s*import[^\n]*from\s+'@airpower\/web'/m.test(code)
 }
 
-describe('f4 · 批 0A 共享件迁移完成度', () => {
-  it('src/component/** 里仍依赖 airpower 的文件 = 明确的待迁集合', async () => {
+describe('共享件 · airpower 退场完成度', () => {
+  it('src/component/** 里不允许再有 airpower 依赖', async () => {
     const { readFileSync } = await import('node:fs')
     const { readdirSync, statSync } = await import('node:fs')
     const { join, relative } = await import('node:path')
@@ -75,30 +73,14 @@ describe('f4 · 批 0A 共享件迁移完成度', () => {
       .sort()
 
     /**
-     * 待迁清单（每一条都写清卡在哪）：
-     * - `UserCard` + `user/*`：头像上传依赖上传组件（原库 `AImage` + `FileEntity`），
-     *   框架层 `DialogUtil.showUpload` 尚未实现 —— 属于"还缺一个件"，不是"忘了迁"。
-     *
-     * 批 5 变化：`bill/BillFormCode`、`bill/BillFormMoreDetail` 与它们的 barrel `component/index.ts`
-     * 已随 channel 迁移**删除**（channel 详情改用 `ElDescriptions` + `@KTable` 元数据渲染，
-     * 这两个组件失去最后一批消费者）—— 它们不是"待迁"，是"没人要了"。
+     * 2026-09-18：`UserCard` + `user/*`（最后四个）随 airpower 整体退场迁完，
+     * 清单从「精确剩余集合」收紧成空数组 —— 这里是硬门禁：`src/component/**`
+     * 只要再冒出任何一行 `@airpower/web` 导入，本用例立刻翻红。
      */
-    const expected = [
-      'src/component/UserCard.vue',
-      'src/component/user/ModifyPassword.vue',
-      'src/component/user/PersonalToken.vue',
-      'src/component/user/UserAccount.vue',
-    ]
-
-    expect(
-      files,
-      files.length === 0
-        ? '全部迁完，可以删掉这条断言改成 `toEqual([])` 了'
-        : `共享件还有 airpower 依赖，若已迁完请同步收紧本用例的 expected 集合`,
-    ).toEqual(expected)
+    expect(files, '共享件不应再有 airpower 依赖').toEqual([])
   })
 
-  it('批 0A 已迁的文件：外壳 / 两个单据弹窗 / 审核按钮 / KDialog 都不再 import airpower', async () => {
+  it('外壳 / 两个单据弹窗 / 审核按钮 / KDialog 都不再 import airpower', async () => {
     const { readFileSync } = await import('node:fs')
     const migrated = [
       'src/component/Console.vue',
@@ -121,12 +103,13 @@ describe('f4 · 批 0A 共享件迁移完成度', () => {
     expect(envTypes.includes('VITE_LEGACY_SHELL')).toBe(false)
   })
 
-  it('webConfig.isTimeout 复位跟着消费它的调用走（router 层），不再散在外壳里', async () => {
+  it('路由层不再为 airpower 拨任何全局开关（isTimeout 熔断随库删除）', async () => {
     const { readFileSync } = await import('node:fs')
     const router = readFileSync('src/router/appRouter.ts', 'utf8')
     const console_ = readFileSync('src/component/Console.vue', 'utf8')
-    expect(router).toContain('WebConfig.isTimeout = false')
-    // 外壳里不该再有对这个标志位的**读写**（注释里提一句没关系）
+    // 路由实例现在由项目自己的 vue-router 创建，不再需要"先复位 airpower 标志位再注册"
+    expect(router).toContain('createRouter({')
+    expect(router.includes('isTimeout'), '路由层不该再有 isTimeout 开关').toBe(false)
     expect(/^\s*import[^\n]*WebConfig/m.test(console_), 'Console 不该 import WebConfig').toBe(false)
     expect(importsAirpower(console_), 'Console 不该 import airpower').toBe(false)
   })

@@ -1,5 +1,11 @@
-import { Field, Form, Model, Search, Table } from '@airpower/web'
 import { BaseEntity } from '@/base/BaseEntity'
+import {
+  Field as KField,
+  Form as KForm,
+  Model as KModel,
+  Search as KSearch,
+  Table as KTable,
+} from '@/framework'
 import { BooleanYesNoDictionary } from '@/model/common/BooleanYesNoDictionary'
 import { ConfigType } from '@/model/system/config/ConfigType'
 
@@ -8,84 +14,84 @@ import { ConfigType } from '@/model/system/config/ConfigType'
  *
  * @author Hamm.cn
  */
-@Model({
+@KModel({
   label: '配置',
 })
 export class ConfigEntity extends BaseEntity {
-  @Table({
+  @KTable({
     copy: true,
     order: 88,
   })
-  @Form({
+  @KForm({
     requiredString: true,
   })
-  @Field({
+  @KField({
     label: '配置名称',
   })
-  @Search()
+  @KSearch()
   name!: string
 
-  @Field({
+  @KField({
     label: '配置描述',
   })
   description!: string
 
-  @Table({
+  @KTable({
     copy: true,
     width: 300,
     order: 99,
   })
-  @Search()
-  @Form({
+  @KSearch()
+  @KForm({
     requiredString: true,
   })
-  @Field({
+  @KField({
     label: '配置标识',
   })
   flag!: string
 
-  @Search({
+  @KSearch({
     width: 120,
   })
-  @Table({
+  @KTable({
     color: true,
     width: 100,
     order: 77,
   })
-  @Form({
+  @KForm({
     requiredNumber: true,
     clearable: false,
     defaultValue: ConfigType.BOOLEAN.key,
   })
-  @Field({
+  @KField({
     label: '配置类型',
     dictionary: ConfigType,
   })
   type!: number
 
-  @Table({
+  @KTable({
     color: true,
     width: 80,
     order: 66,
   })
-  @Field({
+  @KField({
     label: '系统配置',
     dictionary: BooleanYesNoDictionary,
   })
   isSystem!: boolean
 
-  @Table({
+  @KTable({
     width: 200,
   })
-  @Form({
+  @KForm({
     requiredString: true,
   })
-  @Field({
+  @KField({
     label: '配置参数',
   })
   config!: string
 
-  @Table({
+  @KTable({
     removed: true,
   })
   declare updateTime: number

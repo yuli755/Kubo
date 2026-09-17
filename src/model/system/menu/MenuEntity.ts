@@ -1,63 +1,65 @@
-import type { IMenu } from '@airpower/web'
 import type { RouteMeta } from 'vue-router'
-import { Field, Form, Model, Search, Table, Type } from '@airpower/web'
+import type { IMenu } from '@/framework'
 import { BaseEntity } from '@/base/BaseEntity'
-// 只先补 `@KType`（不补整套 K 装饰器）：角色授权弹窗（F4 批 3）用
-// `KMenuService.getTreeList` 取菜单树，`fill()` 靠这个类型提示把 `children`
-// 递归实例化成 `MenuEntity` —— 少了它，勾选子级菜单后提交会调不到 `copyOnlyId()`
-// （`KRoleService.authorizeMenu` 会对每一项调它）。system 域整体迁移时再补齐其余装饰器。
-import { Type as KType } from '@/framework'
+import {
+  Field as KField,
+  Form as KForm,
+  Model as KModel,
+  Search as KSearch,
+  Table as KTable,
+  Type as KType,
+} from '@/framework'
 
 /**
  * # 菜单
  * @author Hamm.cn
  */
-@Model({
+@KModel({
   label: '菜单',
 })
 export class MenuEntity extends BaseEntity implements IMenu {
-  @Table({
+  @KTable({
     force: true,
   })
-  @Search()
-  @Form({
+  @KSearch()
+  @KForm({
     requiredString: true,
   })
-  @Field({
+  @KField({
     label: '菜单名称',
   })
   name!: string
 
-  @Table({
+  @KTable({
     copy: true,
     force: true,
   })
-  @Form({
+  @KForm({
     requiredString: true,
   })
-  @Field({
+  @KField({
     label: '菜单路径',
   })
-  @Search()
+  @KSearch()
   path!: string
 
-  @Form()
-  @Field({
+  @KForm()
+  @KField({
     label: '菜单图标',
   })
   icon!: string
 
-  @Table({
+  @KTable({
     copy: true,
   })
-  @Form()
-  @Field({
+  @KForm()
+  @KField({
     label: '组件地址',
   })
-  @Search()
+  @KSearch()
   component!: string
 
-  @Form({
+  @KForm({
     max: 1000,
     min: 0,
     number: true,
@@ -65,30 +67,30 @@ export class MenuEntity extends BaseEntity implements IMenu {
     requiredNumber: true,
     defaultValue: 1,
   })
-  @Table({
+  @KTable({
     width: 100,
   })
-  @Field({
+  @KField({
     label: '排序编号',
   })
   orderNo!: number
 
-  @Field({
+  @KField({
     label: '父级ID',
   })
   parentId!: number
 
-  @Field({})
-  @Type(MenuEntity, true)
+  @KField({})
+  @KType(MenuEntity)
   @KType(MenuEntity)
   children!: this[]
 
-  @Type(MenuEntity)
+  @KType(MenuEntity)
   parent!: this
 
   /** 菜单绑定的权限标识（后端返回，用于注入路由 meta.permission） */
-  @Form()
-  @Field({
+  @KForm()
+  @KField({
     label: '权限标识',
   })
   permission?: string

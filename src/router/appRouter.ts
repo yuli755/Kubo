@@ -1,46 +1,31 @@
 /**
- * # 应用路由（airpower `RouterUtil` 的薄封装）
+ * # 应用路由（native vue-router · 2026-09-18 拔掉 airpower 后重写）
  *
- * ## ⚠️ 为什么**不能**用 vue-router 原生 API 自己复刻 `RouterUtil`
+ * ## 这里以前为什么是 `RouterUtil` 的薄封装
+ * 迁移期 `@airpower/web` 的 dist **内联了一份自己的 vue-router 副本**，于是存在两套注入键：
+ * 项目自建 router provide 的是项目那份 vue-router 的 `routerKey`，而所有 airpower 组件
+ * （`APanel` 标题、`useLink`、表格内部跳转）inject 的是**它内联副本**的键 —— 结果
+ * `inject(routerKey)` 得到 `undefined`，`useRouter().currentRoute` 抛 TypeError，
+ * 整页只剩「页面渲染异常」错卡（症状是「预览打不开」，静态检查却全绿）。
  *
- * 本文件曾经为了「首屏不引入 airpower 单体」而用 vue-router 原生 API 复刻过 `RouterUtil`
- * （语义逐行对齐、typecheck/lint 全绿），但它在**运行时是致命的**：
+ * 因此当时只能让 airpower 创建 router。**现在 airpower 已连根拔除**，`routerKey` 只剩一份，
+ * 直接用本仓 `vue-router` 即可 —— 这一层薄封装随之失去意义，故重写为 native 实现。
  *
- * `@airpower/web` 的 dist **内联了一份自己的 vue-router 副本**（见其 `dist/main.js`
- * 中 `routerKey = Symbol("router")` 的独立定义与 `app.provide(routerKey, router)`），
- * 于是存在**两套注入键**：
- *
- * | 谁 | provide 的键 | 谁在 inject |
- * | --- | --- | --- |
- * | 项目自建 router（`vue-router` 包） | 项目这份 vue-router 的 `routerKey` | 项目自己的 `useRoute()` |
- * | airpower 内联副本 | airpower 副本里的 `routerKey` | **所有 airpower 组件**（`APanel` 标题、`useLink`、菜单/表格内部跳转…） |
- *
- * 结果是 airpower 组件 `inject(routerKey)` 得到 `undefined` →
- * `useRouter().currentRoute` 抛 `TypeError`（`APanel` 计算标题时必踩）→ 异常冒泡到
- * `Console.vue` 的 `onErrorCaptured` → 整页只剩「**页面渲染异常**」错卡。
- * 症状是「预览打不开、看不到任何效果」，而静态检查全绿。
- *
- * ## ✅ 正确做法
- * 路由实例**必须由 airpower 创建**（`RouterUtil.createRouter`），这样 `app.use(router)`
- * 时 provide 的就是 airpower 副本的注入键，airpower 组件才注入得到；
- * 项目侧只做一层薄封装，不再自己造 router。
- *
- * ## 代价（已知并接受）
- * 静态引入 `RouterUtil` 会把 airpower 单体带进首屏 chunk（`pnpm size` 实测仍在预算内）。
- * 这是**必付成本**：airpower 组件是存量 144 个页面的基础组件，其标题/跳转都依赖路由注入。
- * 想省这 80KB 就得改 airpower 组件本身（不可行），或让所有页面放弃 airpower 组件（等于重写前端）。
- *
- * ## `useAppRoute()` 存在的理由
- * 项目侧代码原来 `import { useRoute } from 'vue-router'` —— 那读的是**项目那份**的
- * `routeLocationKey`，同样注入不到（返回 `undefined`）。这里提供 `useAppRoute()` 作为替代：
- * 返回一个**响应式**的路由对象（getter 指向 `router.currentRoute`），API 与 `useRoute()` 一致，
- * 业务代码 `route.query.xxx` / `route.path` 的写法无需改动。
+ * ## 与旧实现逐条对齐的行为（menuNavigation / menuClick / consoleMount 三套 spec 在守）
+ * 1. `createRouter({ history: createWebHistory(), routes })` —— 与 `RouterUtil.createRouter` 同款
+ *    （history 模式 + nginx SPA fallback，改 hash 会改变所有已发布的菜单地址）；
+ * 2. 每次导航后 `window.scrollTo(0, 0)`；
+ * 3. 标题守卫 `标题 - Kubo`（旧实现拼的是 `WebConfig.product`，首屏导航时它还没初始化，
+ *    会出现「xxx - undefined」；这里固定产品名）；
+ * 4. 动态菜单路由：`registerRoute` 的遍历顺序（先子后父）、**用菜单 id 当路由名**、
+ *    组件从 `componentsMap` 按 `${componentsDirectory}${component}.vue` 取、
+ *    带 `redirect` 的菜单只注册重定向、同名路由不重复注册（`hasRoute(id)`）。
  */
 import type { RouteLocationNormalizedLoaded, RouteMeta, Router, RouteRecordRaw } from 'vue-router'
-import { RouterUtil, WebConfig } from '@airpower/web'
 import { reactive } from 'vue'
+import { createRouter, createWebHistory } from 'vue-router'
 
-/** 菜单项最小结构（airpower `registerRoute` 所需字段，`MenuEntity` 结构上满足） */
+/** 菜单项最小结构（后端 `/user/getMyMenuList` 下发，`MenuEntity` 结构上满足） */
 export interface MenuItem {
   id: number
   name: string
@@ -57,30 +42,107 @@ export interface MenuItem {
   meta?: RouteMeta
 }
 
-/**
- * 创建路由实例（airpower `RouterUtil.createRouter`）。
- *
- * `ignoreGuard = true`：跳过 airpower 自带的标题守卫 —— 它拼的是 `WebConfig.product`，
- * 而 `WebConfig` 要等业务页（`airpower-bootstrap`）才初始化，首屏导航时还是 undefined，
- * 会出现「xxx - undefined」的标题。这里改为自己注册同语义的守卫（产品名固定 Kubo）。
- */
+/** 当前路由实例（`createAppRouter` 成功后才有值） */
+let appRouter: Router | null = null
+
+/** 创建路由实例（替代 airpower `RouterUtil.createRouter`） */
 export function createAppRouter(routes: RouteRecordRaw[]): Router {
-  const router = RouterUtil.createRouter(routes, true)
+  const router = createRouter({
+    history: createWebHistory(),
+    routes,
+  })
+  router.afterEach(() => {
+    window.scrollTo(0, 0)
+  })
   router.beforeEach((to, _from, next) => {
     if (to.meta.name || to.name) {
       window.document.title = `${to.meta.name || to.name} - Kubo`
     }
     next()
   })
+  appRouter = router
   return router
 }
 
-/** 获取全局路由实例（airpower 的 `RouterUtil.router` 静态属性） */
+/** 获取全局路由实例 */
 export function getRouter(): Router {
-  if (!RouterUtil.router) {
+  if (!appRouter) {
     throw new Error('请先调用 createAppRouter 创建路由')
   }
-  return RouterUtil.router
+  return appRouter
+}
+
+/**
+ * 动态注册菜单路由（替代 airpower `RouterUtil.initVueRouter`）。
+ *
+ * `componentsMap` 由 `Console.vue` 用 `import.meta.glob` 递归收集 `/src/view` 下所有 `.vue` ——
+ * 键是**绝对路径**（`/src/view/system/menu/list.vue`），与后端菜单里的 `component`
+ * 拼出的键一致；拼错时组件是 `undefined`，vue-router 会静默渲染空白页，
+ * 所以 `menuContract.spec.ts` 里有一条「每个菜单的 component 都能在 map 里找到」的断言。
+ */
+export function initVueRouter(
+  menuList: MenuItem[],
+  componentsMap: Record<string, () => Promise<unknown>>,
+  componentsDirectory = '/src/view',
+  parentRouter = 'console',
+): void {
+  const router = getRouter()
+
+  const addRoute = (menu: MenuItem, componentPath?: string) => {
+    const routeRawData = {
+      path: menu.path as string,
+      name: menu.id.toString(),
+      meta: {
+        ...menu.meta,
+        name: menu.name,
+        ...(menu.permission ? { permission: menu.permission } : {}),
+      },
+    }
+    if (componentPath) {
+      router.addRoute(parentRouter, {
+        ...routeRawData,
+        component: componentsMap[`${componentsDirectory}${componentPath}.vue`] as never,
+      })
+      return
+    }
+    if (menu.redirect) {
+      router.addRoute(parentRouter, { ...routeRawData, redirect: menu.redirect })
+    }
+  }
+
+  const registerRoute = (list: MenuItem[]) => {
+    list.forEach((item) => {
+      if (!item.name) {
+        throw new Error('路由初始化失败，缺少参数')
+      }
+      // 同名路由不重复注册：登录后刷新菜单会再调一次，重复 addRoute 会覆盖已有路由
+      if (router.hasRoute(item.id.toString())) {
+        return
+      }
+      if (item.children?.length) {
+        registerRoute(item.children)
+      }
+      if (!item.path) {
+        return
+      }
+      if (item.redirect) {
+        addRoute(item)
+        return
+      }
+      const componentPath = item.component || item.path
+      if (componentPath) {
+        addRoute(item, componentPath)
+      }
+    })
+  }
+
+  registerRoute(menuList)
+}
+
+/** 重载当前路由（替代 airpower `RouterUtil.reloadCurrentRoute`） */
+export async function reloadCurrentRoute(): Promise<void> {
+  const router = getRouter()
+  await router.replace(router.currentRoute.value.fullPath)
 }
 
 /** 路由尚未创建时的空路由（只读兜底，避免渲染期抛错） */
@@ -112,44 +174,16 @@ function toReactiveRoute(read: () => RouteLocationNormalizedLoaded): RouteLocati
 }
 
 /**
- * 当前路由（响应式对象，替代 `vue-router` 的 `useRoute()`）。
+ * 当前路由（响应式对象）。
  *
- * 与 `useRoute()` 的差异：只暴露路由位置字段（path/query/params/meta/matched…），
- * 不含 `useRoute()` 附带的内部属性；项目内用法（读 query、判当前路径、拼面包屑）均已覆盖。
- *
- * ⚠️ 路由尚未创建时返回**空路由**而不是抛错：本函数的调用点在渲染期
- * （如 `ErrorBoundary` 展示错误页），在渲染期抛错会「错误叠错误」、把兜底 UI 自己打崩。
+ * 保留这个函数而不是直接用 vue-router 的 `useRoute()`：它在**渲染期**被 `ErrorBoundary`
+ * 调用（错误页），`useRoute()` 在路由尚未创建时会抛错 —— 那是「错误叠错误」，
+ * 会把兜底 UI 自己打崩。这里退化成空路由。
  */
 export function useAppRoute(): RouteLocationNormalizedLoaded {
-  const router = RouterUtil.router
+  const router = appRouter
   if (!router) {
     return toReactiveRoute(() => EMPTY_ROUTE)
   }
   return toReactiveRoute(() => router.currentRoute.value as unknown as RouteLocationNormalizedLoaded)
-}
-
-/** 动态注册菜单路由（airpower `RouterUtil.initVueRouter`） */
-export function initVueRouter(
-  menuList: MenuItem[],
-  componentsMap: Record<string, () => Promise<unknown>>,
-  dir = '/src/view',
-  parentRouter = 'console',
-) {
-  // ⚠️ 必须先复位 `WebConfig.isTimeout` 再注册路由：airpower 的 `initVueRouter()` 在
-  // `isTimeout === true` 时**直接跳过整个动态路由注册**，且没有任何地方会把它复位。
-  // 该标志原本只由 404 兜底页置真（已修），但为防存量构建/第三方写入，这里每次初始化
-  // 都显式复位一次 —— 否则「点任何菜单都进 404」且刷新也难自愈。
-  //
-  // 放在这里而不是 `Console.vue`：这个 WebConfig 只被下面的 airpower 调用消费，
-  // 应用外壳不该为了别人的标志位 import 一个库。`appRouter` 本身是 F5 的拆除对象
-  // （要等 airpower 组件全部退场才能换掉 `RouterUtil`，见 F4 文档批 0 说明）。
-  WebConfig.isTimeout = false
-  // airpower 的入参类型是它自己的 `IMenu & RootEntity`；项目用结构类型 MenuItem，
-  // 运行期字段一致（id/name/path/component/redirect/children），故此处断言收敛在边界上。
-  RouterUtil.initVueRouter(menuList as never, componentsMap, dir, parentRouter)
-}
-
-/** 重载当前路由（airpower `RouterUtil.reloadCurrentRoute`） */
-export async function reloadCurrentRoute() {
-  await RouterUtil.reloadCurrentRoute()
 }

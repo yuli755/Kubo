@@ -1,4 +1,4 @@
-import { WebColor, WebEnum } from '@airpower/web'
+import { WebColor, WebEnum } from '@/framework'
 
 export class InventoryTypeEnum extends WebEnum {
   static readonly STORAGE = new InventoryTypeEnum(1, '按仓库')

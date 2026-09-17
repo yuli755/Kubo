@@ -1,4 +1,4 @@
-import { WebColor, WebEnum } from '@airpower/web'
+import { WebColor, WebEnum } from '@/framework'
 
 export class StructureTypeEnum extends WebEnum {
   static readonly SINGLE_STATION = new StructureTypeEnum(1, '单人工位')

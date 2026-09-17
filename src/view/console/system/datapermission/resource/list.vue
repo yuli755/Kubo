@@ -1,6 +1,8 @@
 <script lang="ts" setup>
-import { APanel, ATable, FeedbackUtil } from '@airpower/web'
-import { ElAlert } from 'element-plus'
+import { ElAlert, ElButton } from 'element-plus'
+import { ref } from 'vue'
+import KPanel from '@/component/framework/KPanel.vue'
+import KTable from '@/component/framework/KTable.vue'
 import { useDataPermissionRuntimeStatus } from '@/composables/useDataPermissionRuntimeStatus'
 import { useDenyLogReport } from '@/composables/useDenyLogReport'
 import { useDimensionBindingRiskReport } from '@/composables/useDimensionBindingRiskReport'
@@ -10,9 +12,10 @@ import { useInertPolicyReport } from '@/composables/useInertPolicyReport'
 import { useOperationLogReport } from '@/composables/useOperationLogReport'
 import { useOutboxDead } from '@/composables/useOutboxDead'
 import { Permissions } from '@/config/permissions'
+import { FeedbackUtil } from '@/framework'
+import { useTable } from '@/hook/kubo/useTable'
 import { DataResourceService } from '@/hook/system/useDataResource'
-import { useTanStackTable } from '@/hook/useTanStackTable'
-import { DataResourceEditor } from './component'
+import DataResourceEditor from './component/editor.vue'
 
 // 两个独立自查：缺什么（要补）与有什么多余的（要清）。分开取数，一个失败不牵连另一个。
 const { count: inertCount } = useInertPolicyReport()
@@ -77,14 +80,29 @@ async function onDiscard(eventKey: string) {
   FeedbackUtil.toastSuccess('死信已丢弃')
 }
 
-const hook = useTanStackTable(DataResourceService, {
-  queryKey: ['system:datapermission:resource'],
-  editView: DataResourceEditor,
-})
+// ── 列表与编辑器（页面自己开弹窗：hook 不再决定"编辑时开哪个组件"）──
+const table = useTable(DataResourceService, { queryKey: ['system:datapermission:resource'] })
+
+const editorVisible = ref(false)
+const editingId = ref<number | null>(null)
+
+function openCreate() {
+  editingId.value = null
+  editorVisible.value = true
+}
+
+function openEdit(row: { id: number }) {
+  editingId.value = row.id
+  editorVisible.value = true
+}
+
+function onSaved() {
+  table.reload()
+}
 </script>
 
 <template>
-  <APanel>
+  <KPanel>
     <ElAlert
       v-if="gapSummary.entries"
       class="gap-warning"
@@ -268,14 +286,14 @@ const hook = useTanStackTable(DataResourceService, {
     >
       <div class="parity-panel__title parity-panel__title--actions">
         <span>权限变更死信（连续重投仍失败，需人工处置；处置需 data-permission:outbox 权限）</span>
-        <el-button
+        <ElButton
           size="small"
           type="primary"
           plain
           @click="onReplayAll"
         >
           重放全部
-        </el-button>
+        </ElButton>
       </div>
       <div
         v-for="item in outboxItems"
@@ -285,22 +303,22 @@ const hook = useTanStackTable(DataResourceService, {
         <strong class="parity-panel__key">{{ item.eventKey }}</strong>
         <span class="parity-panel__muted">{{ item.eventType }} · 重试 {{ item.retryCount }} 次 · {{ item.lastError || '无错误信息' }}</span>
         <span class="parity-panel__actions">
-          <el-button
+          <ElButton
             size="small"
             link
             type="primary"
             @click="onReplay(item.eventKey)"
           >
             重放
-          </el-button>
-          <el-button
+          </ElButton>
+          <ElButton
             size="small"
             link
             type="danger"
             @click="onDiscard(item.eventKey)"
           >
             丢弃
-          </el-button>
+          </ElButton>
         </span>
       </div>
     </section>
@@ -313,13 +331,23 @@ const hook = useTanStackTable(DataResourceService, {
       title="未能取得死信列表"
       description="刷新本页或检查 /dataResource/outbox-dead 是否可用；取不到结果时不会显示为「没有死信」。"
     />
-    <ATable
-      :use-hook="hook"
-      :add-permission="Permissions.System.DataResource.add"
-      :delete-permission="Permissions.System.DataResource.delete"
-      :edit-permission="Permissions.System.DataResource.update"
+    <KTable
+      :table="table"
+      :permissions="{
+        add: Permissions.System.DataResource.add,
+        edit: Permissions.System.DataResource.update,
+        delete: Permissions.System.DataResource.delete,
+      }"
+      @add="openCreate"
+      @edit="openEdit"
     />
-  </APanel>
+
+    <DataResourceEditor
+      :id="editingId"
+      v-model="editorVisible"
+      @saved="onSaved"
+    />
+  </KPanel>
 </template>
 
 <style lang="scss" scoped>

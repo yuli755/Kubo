@@ -17,8 +17,8 @@ export class PersonalTokenService extends AbstractBaseService<PersonalTokenEntit
   async createMyPersonalToken(name: string): Promise<string> {
     const personalToken = new PersonalTokenEntity()
     personalToken.name = name
-    const result = await this.api('createMy').requestRaw(personalToken)
-    return result.toString()
+    // 后端这里返回的是**明文字符串**（不是包裹过的实体），故显式给 `requestRaw` 泛型参数
+    return this.api('createMy').requestRaw<string>(personalToken)
   }
 
   async enableMyPersonalToken(item: PersonalTokenEntity) {

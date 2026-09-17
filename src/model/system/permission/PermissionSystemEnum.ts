@@ -1,4 +1,4 @@
-import { WebColor, WebEnum } from '@airpower/web'
+import { WebColor, WebEnum } from '@/framework'
 
 export class PermissionSystemEnum extends WebEnum<boolean> {
   static NORMAL = new PermissionSystemEnum(false, '普通权限')

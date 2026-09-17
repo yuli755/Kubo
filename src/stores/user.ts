@@ -1,13 +1,14 @@
 import type { TenantOption } from '@/api/system/types'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { airpowerToken } from '@/utils/airpowerCompat'
+import { authToken } from '@/utils/authStorage'
 /**
  * # 用户状态 Store
  *
- * 与 @airpower/web 的 WebConfig 保持双向同步（key `Authorization`）：
- * - `setToken` 同时写入 airpower 同 key 的 localStorage（兼容业务页 airpower 组件）
- * - 同时通过 persist 插件持久化到 localStorage（key: `kubo:user`）
+ * 登录态有**两处**落盘，职责不同，别合并：
+ * - `authToken`（localStorage key `Authorization`，见 `@/utils/authStorage`）：
+ *   请求拦截器/刷新页面时的**权威来源**，同步写、同步读；
+ * - persist 插件（key `kubo:user`）：带上租户、刷新令牌等，异步水合。
  *
  * 供 `src/api/axios.ts` 请求拦截器使用。
  */
@@ -16,9 +17,9 @@ export const useUserStore = defineStore(
   () => {
     /**
      * ### 访问令牌
-     * 初始化时从 airpower 同 key 的 localStorage 恢复（支持页面刷新后 token 不丢失）
+     * 初始化时从 `authToken` 恢复（支持页面刷新后 token 不丢失）
      */
-    const token = ref<string>(airpowerToken.get() || '')
+    const token = ref<string>(authToken.get() || '')
 
     /**
      * ### 刷新令牌（用于 refreshToken 流程）
@@ -49,7 +50,7 @@ export const useUserStore = defineStore(
 
     function setToken(val: string) {
       token.value = val
-      airpowerToken.save(val)
+      authToken.save(val)
     }
 
     function setTenantId(val: number | undefined) {
@@ -111,7 +112,7 @@ export const useUserStore = defineStore(
       tenantList.value = []
       userInfo.value = null
       refreshTokenValue.value = ''
-      airpowerToken.remove()
+      authToken.remove()
       localStorage.removeItem('kubo:user')
       // 阶段 E-M5：身份切换后跨用户缓存必须清零。react-query 缓存 key 不带
       // 用户身份（['wms:input','list'] 等），脱敏策略缓存按"登出/切租户应调用"
@@ -149,14 +150,13 @@ export const useUserStore = defineStore(
       // 持久化只会把 PII 留在 XSS/物理接触可读的地方，且随 C-1 场景穿越登出。
       pick: ['token', 'refreshTokenValue', 'tenantId', 'tenantList'],
       /**
-       * 阶段 E-C1：@airpower/web 内置退出按钮只删 `Authorization` 键 + 跳登录页，
-       * 既不调 /user/logout 也不清 kubo:user。若放任恢复，下一个页面加载会从
-       * 快照复活 token/refreshToken —— 共享电脑上的"注销"形同虚设。
-       * 规则：Authorization 键已不存在（被内置登出删除，或从未登录）而快照里
-       * 还有 token → 判定会话已注销，丢弃快照。
+       * 阶段 E-C1（保留的防线）：只要 `authToken` 里的 token 不在了 —— 被别的标签页登出、
+       * 被外部脚本/开发者工具清掉、或从未登录 —— 而 `kubo:user` 快照里还留着
+       * token/refreshToken，就判定会话已注销并**丢弃快照**。
+       * 少了这一条，快照会在下一次加载时把 token 复活，共享电脑上的"注销"形同虚设。
        */
       onRestore: (state) => {
-        if (!airpowerToken.get() && ((state as { token?: string }).token || (state as { refreshTokenValue?: string }).refreshTokenValue)) {
+        if (!authToken.get() && ((state as { token?: string }).token || (state as { refreshTokenValue?: string }).refreshTokenValue)) {
           return null
         }
         return state

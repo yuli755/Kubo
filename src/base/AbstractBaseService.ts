@@ -1,32 +1,21 @@
 import type { BaseEntity } from './BaseEntity'
-import { AbstractCurdService, FeedbackUtil } from '@airpower/web'
-import { getActivePinia } from 'pinia'
-import { useUserStore } from '@/stores/user'
+import { AbstractCurdService, FeedbackUtil } from '@/framework'
 
 /**
- * # 抽象服务基类
- * @author Hamm.cn
+ * # 抽象服务基类（新底座）
+ *
+ * 业务服务继承它即可获得全部 CRUD（`@/framework` 的 `AbstractCurdService`）。
+ *
+ * ## 历史上这里做了什么
+ * 原实现继承 airpower 的 `AbstractCurdService`，并覆写 `api()` 给请求补
+ * `X-Tenant-Id`（多租户账号不带租户头会回到默认租户）。换底座后**租户头已经统一在
+ * `src/api/axios.ts` 的请求拦截器里注入**（`tenantAware !== false` 时自动带），
+ * 所以这一层不再需要覆写 `api()` —— 留着会让"租户头从哪来"这件事有两个答案。
+ *
+ * `publish()` 保留：后端 `CurdController` 有 `publish` 端点，合同/物料等页面在用，
+ * 且它要在成功后统一给一次提示（页面各写一遍必然漂移）。
  */
 export abstract class AbstractBaseService<E extends BaseEntity> extends AbstractCurdService<E> {
-  /**
-   * ### 创建带当前租户意图的 AirPower HTTP 客户端
-   *
-   * AirPower 的默认客户端只带 access token；后端租户解析器还需要
-   * `X-Tenant-Id`，否则多租户账号每次都会回到默认租户。租户 ID 仍由
-   * 后端返回的可选列表驱动，服务器会再次校验成员关系，前端 header 不是信任边界。
-   */
-  protected override api(url: string, baseUrl?: string) {
-    const http = super.api(url, baseUrl)
-    const pinia = getActivePinia()
-    if (pinia) {
-      const userStore = useUserStore(pinia)
-      if (userStore.tenantId !== undefined) {
-        http.addHttpHeader('X-Tenant-Id', userStore.tenantId.toString())
-      }
-    }
-    return http
-  }
-
   /**
    * ### 发布实体
    * @param entity 实体

@@ -5,8 +5,6 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import Components from 'unplugin-vue-components/vite'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
-import { airpowerCssStripPlugin } from './infra/plugins/airpower-css-strip'
-import { airpowerElementPlusShimPlugin } from './infra/plugins/airpower-element-plus-shim'
 import { demoGatePlugin } from './infra/plugins/demo-gate'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -25,14 +23,8 @@ export default defineConfig(({ mode }) => {
         resolvers: [ElementPlusResolver()],
         dts: 'src/types/components.d.ts',
       }),
-      // airpower 预构建产物含 `import ElementPlus from "element-plus"` 默认导入，
-      // 会触发 element-plus 全量 80 组件进入 bundle（详见插件文件头注释）。
-      // 此处在构建期将其替换为最小 shim（仅 v-loading 指令 + locale），恢复树摇。
-      airpowerElementPlusShimPlugin(),
-      // airpower 整包 web.css 内嵌了 element-plus 全量样式（341 KB，与项目按需引入重复）。
-      // 此处在构建期剥离 element 部分，仅保留 airpower 自身样式（详见插件文件头注释），
-      // vendor-airpower.css 52.2 KB → 4.5 KB（gzip）。
-      airpowerCssStripPlugin(),
+      // 注：迁移期这里挂着两个 airpower 专用构建插件（EP 默认导入 shim、整包 CSS 剥离），
+      // 2026-09-18 随 `@airpower/web` 一起删除：没有 airpower 产物，就没有要打的补丁。
       // 注：vite-plugin-vue-devtools 已从依赖里移除（开发模式底部注入的悬浮按钮会挡住页面预览）
 
       // PWA 支持 (离线缓存 + 预加载 + 后台同步)
@@ -75,8 +67,7 @@ export default defineConfig(({ mode }) => {
         // （→ defaults.mjs → 全量 80 组件），在 minify:false 下也能恢复树摇。
         //
         // 两类 source 都需命中：
-        //  1. 裸 `element-plus`（项目源码 `import { ElMessage } from 'element-plus'`、
-        //     airpower dist 经 shim 替换后的具名 import）
+        //  1. 裸 `element-plus`（项目源码 `import { ElMessage } from 'element-plus'`）
         //  2. `element-plus/es`（unplugin-vue-components 的 ElementPlusResolver 注入的
         //     `from`，按版本会解析到 `es/index.mjs`，同样含顶层副作用）
         // 正则的 `$` 锚点确保 `element-plus/es/components/...` 子路径不受影响。
@@ -92,12 +83,11 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       assetsDir: 'assets',
-      // 使用 terser 压缩，保留类名以兼容 airpower 反射机制
+      // 使用 terser 压缩。`keep_classnames` 保留：自研元数据层按构造器取值，
+      // 且日志/错误上报里的类名是排查线索，省这点体积不值得。
       minify: 'terser',
       terserOptions: {
         compress: {
-        // keep_classnames: 保留类名——airpower 的 class-transformer 反射用
-        // `constructor.name === Transformer.name` 做类名字符串比较，类名必须保留。
         // keep_fnames: 普通函数名对反射无意义，去掉可省约 30 KB（实测）。
           keep_classnames: true,
           keep_fnames: false,
@@ -127,14 +117,8 @@ export default defineConfig(({ mode }) => {
               if (id.includes('@tanstack/vue-query') || id.includes('@tanstack/query-core')) {
                 return 'vendor-query'
               }
-              // axios 单独成 chunk：airpower 的 Http 也依赖 axios，若不拆出，axios 会被
-              // 归入 vendor-airpower，导致首屏仅因 `@/api/axios` 引用 axios 就整包加载
-              // airpower 单体（~100 KB gzip）。拆出后首屏只按需加载 vendor-axios（~13 KB）。
               if (id.includes('axios')) {
                 return 'vendor-axios'
-              }
-              if (id.includes('@airpower/web') || id.includes('@airpower/core')) {
-                return 'vendor-airpower'
               }
             }
             return undefined

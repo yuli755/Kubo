@@ -1,13 +1,13 @@
-import { Field } from '@airpower/web'
 import { BaseEntity } from '@/base/BaseEntity'
+import { Field as KField } from '@/framework'
 
 export class PersonalTokenEntity extends BaseEntity {
-  @Field({
+  @KField({
     label: '令牌名称',
   })
   name!: string
 
-  @Field({
+  @KField({
     label: '令牌',
   })
   token!: string

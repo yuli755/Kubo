@@ -1,5 +1,11 @@
-import { Field, Form, Model, Search, Table } from '@airpower/web'
 import { BaseEntity } from '@/base/BaseEntity'
+import {
+  Field as KField,
+  Form as KForm,
+  Model as KModel,
+  Search as KSearch,
+  Table as KTable,
+} from '@/framework'
 import { SerialNumberUpdateEnum } from '@/model/system/coderule/SerialNumberUpdateEnum'
 
 /**
@@ -7,87 +13,87 @@ import { SerialNumberUpdateEnum } from '@/model/system/coderule/SerialNumberUpda
  *
  * @author Hamm.cn
  */
-@Model({
+@KModel({
   permissionPrefix: 'CodeRule',
   label: '编码规则',
 })
 export class CodeRuleEntity extends BaseEntity {
-  @Form({
+  @KForm({
     requiredNumber: true,
   })
-  @Table({
+  @KTable({
     force: true,
   })
-  @Field({
+  @KField({
     label: '编码所属字段',
   })
   ruleField!: number
 
-  @Form({
+  @KForm({
     maxLength: 10,
     minLength: 1,
     requiredString: true,
     defaultValue: '',
   })
-  @Table({
+  @KTable({
     force: true,
   })
-  @Field({
+  @KField({
     label: '规则前缀',
   })
   prefix!: string
 
-  @Form({
+  @KForm({
     max: 10,
     min: 1,
     number: true,
     requiredNumber: true,
     defaultValue: 4,
   })
-  @Table({
+  @KTable({
     width: 160,
     force: true,
   })
-  @Field({
+  @KField({
     label: '序列号初始长度',
   })
   snLength!: number
 
-  @Table({
+  @KTable({
     force: true,
   })
-  @Form({
+  @KForm({
     defaultValue: '',
     clearable: true,
     maxLength: 64,
   })
-  @Field({
+  @KField({
     label: '规则模板',
   })
-  @Search()
+  @KSearch()
   template!: string
 
-  @Form({
+  @KForm({
     clearable: false,
     defaultValue: SerialNumberUpdateEnum.DAY.key,
     requiredNumber: true,
   })
-  @Table({
+  @KTable({
     color: true,
     width: 100,
     force: true,
   })
-  @Field({
+  @KField({
     label: '序列号更新',
     dictionary: SerialNumberUpdateEnum,
   })
-  @Search({
+  @KSearch({
     width: 130,
   })
   snType!: number
 
-  @Table()
-  @Field({
+  @KTable()
+  @KField({
     label: '下一个编码',
   })
   nextCode!: string

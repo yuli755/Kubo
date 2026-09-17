@@ -21,7 +21,7 @@ export interface ICurdServiceConstructor<E, S> {
 }
 
 /** 枚举键 */
-export type EnumKey = number | string
+export type EnumKey = number | string | boolean
 
 /** 下拉/标签用的枚举实力类型（WebEnum 的实例形状） */
 export interface IWebEnumItem<K extends EnumKey = EnumKey> {
@@ -105,7 +105,7 @@ export interface IFormField extends IBaseField {
   hide?: boolean
   /** 数字输入 */
   number?: boolean
-  requiredString?: boolean
+  requiredString?: boolean | string
   requiredNumber?: boolean
   requiredPayload?: boolean
   min?: number
@@ -165,7 +165,7 @@ export interface ISearchField extends IBaseField {
  * 实体最小结构：只要求 `id`。
  *
  * ⚠️ 为什么不用 `RootEntity` 做约束：迁移期存在**两套实体基类** ——
- * 存量 `@/base/BaseEntity`（继承 airpower 的 `RootEntity`）与新底座 `@/base/KEntity`
+ * 存量 `@/base/BaseEntity`（继承 airpower 的 `RootEntity`）与新底座 `@/base/BaseEntity`
  * （继承本仓 `RootEntity`）。两者的 `copy()` 泛型签名不同，用任一方做约束都会把另一方挡在门外。
  * 新底座的组件只需要「有 id、能被 `fill` 填充」，所以按这个最小结构约束。
  */
@@ -179,6 +179,13 @@ export interface IModelConfig {
   label?: string
   /** 「新增子级」权限动作名 */
   addChildPermission?: string
+  /**
+   * 权限码前缀（如 `CodeRule` → 页面对应的 `System.CodeRule.*`）。
+   *
+   * 由后端/配置声明，前端只透传展示（`getModelConfig()` 读得到）。
+   * 保留它是为了不让"模型与权限码的对应关系"只在后端存在。
+   */
+  permissionPrefix?: string
 }
 
 /** 字段/表单配置允许省略 `key`（装饰器会回填） */
@@ -197,3 +204,49 @@ export interface ITree {
   children?: ITree[]
   isDisabled?: boolean
 }
+
+// ────────────────────────────── 存量造型接口 ──────────────────────────────
+// 三个「业务实体长什么样」的接口：原先由 airpower 提供，实体用 `implements IUser`
+// 之类的写法表达"我满足某个通用造型"（上传组件收 `IFile`、用户卡片收 `IUser`、
+// 路由构建读 `IMenu`）。定义很薄，但删掉它们会让消费方退化成 `any`。
+
+/** 上传/附件实体的通用造型（`KUpload`、合同附件都用它） */
+export interface IFile {
+  /** 文件名 */ name: string
+  /** 访问地址 */ url: string
+  /** 字节数 */ size?: number
+  /** 扩展名 */ extension?: string
+  /** 分类（`FileCategory`） */ category?: number
+  /** 内容摘要 */ hashMd5?: string
+}
+
+/** 用户实体的通用造型（用户卡片、当前登录人展示用） */
+export interface IUser {
+  /** 昵称 */ nickname: string
+  /** 头像地址 */ avatar?: string
+  /** 手机号 */ phone?: string
+  /** 邮箱 */ email?: string
+  /** 真实姓名 */ realName?: string
+}
+
+/** 菜单实体的通用造型（路由构建、菜单树用） */
+export interface IMenu {
+  /** 菜单名称 */ name: string
+  /** 菜单路径 */ path: string
+  /** 图标 */ icon?: string
+  /** 组件地址 */ component?: string
+  /** 排序 */ orderNo?: number
+  /** 父级 id */ parentId?: number
+  /** 子菜单 */ children?: IMenu[] | unknown[]
+  /** 绑定权限标识 */ permission?: string
+}
+
+/**
+ * 动态表单对象的类型。
+ *
+ * `KFormDialog` 的表单模型是**按元数据生成的**：编译期不知道有哪些键，运行时键由
+ * `@KForm` 决定。用 `Record<string, any>` 而不是 `unknown`，是因为页面需要
+ * 「按实体读字段」（`form.quantity`、`form as MaterialEntity`）这类操作 ——
+ * 用 `unknown` 会把每一次访问都逼成 `as unknown as`，那不是更安全，只是更长。
+ */
+export type IFormModel = Record<string, any>

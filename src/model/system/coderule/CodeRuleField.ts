@@ -1,4 +1,4 @@
-import { Field, Transformer } from '@airpower/web'
+import { Field as KField, Transformer } from '@/framework'
 
 /**
  * # 编码规则表格
@@ -6,17 +6,17 @@ import { Field, Transformer } from '@airpower/web'
  * @author Hamm.cn
  */
 export class CodeRuleField extends Transformer {
-  @Field({
+  @KField({
     label: '默认前缀',
   })
   defaultPrefix!: string
 
-  @Field({
+  @KField({
     label: '编码字段名称',
   })
   label!: string
 
-  @Field({
+  @KField({
     label: '表格ID',
   })
   key!: number

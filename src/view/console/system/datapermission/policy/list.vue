@@ -1,12 +1,14 @@
 <script lang="ts" setup>
-import { APanel, ATable } from '@airpower/web'
 import { ElAlert } from 'element-plus'
+import { ref } from 'vue'
+import KPanel from '@/component/framework/KPanel.vue'
+import KTable from '@/component/framework/KTable.vue'
 import { usePolicyResourceRiskReport } from '@/composables/usePolicyResourceRiskReport'
 import { useRowPolicyRiskReport } from '@/composables/useRowPolicyRiskReport'
 import { Permissions } from '@/config/permissions'
+import { useTable } from '@/hook/kubo/useTable'
 import { DataPolicyService } from '@/hook/system/useDataPolicy'
-import { useTanStackTable } from '@/hook/useTanStackTable'
-import { DataPolicyEditor } from './component'
+import DataPolicyEditor from './component/editor.vue'
 
 // 行级"永不命中"盘点：判定与原因都在后端，这里只列出来
 const { count: riskCount, preview: riskPreview, failed: riskFailed } = useRowPolicyRiskReport()
@@ -18,14 +20,29 @@ const {
   failed: refRiskFailed,
 } = usePolicyResourceRiskReport()
 
-const hook = useTanStackTable(DataPolicyService, {
-  queryKey: ['system:datapermission:policy'],
-  editView: DataPolicyEditor,
-})
+// 列表与编辑器：页面自己开弹窗（与其它新底座页面同一写法）
+const table = useTable(DataPolicyService, { queryKey: ['system:datapermission:policy'] })
+
+const editorVisible = ref(false)
+const editingId = ref<number | null>(null)
+
+function openCreate() {
+  editingId.value = null
+  editorVisible.value = true
+}
+
+function openEdit(row: { id: number }) {
+  editingId.value = row.id
+  editorVisible.value = true
+}
+
+function onSaved() {
+  table.reload()
+}
 </script>
 
 <template>
-  <APanel>
+  <KPanel>
     <ElAlert
       v-if="riskCount"
       class="risk-warning"
@@ -62,13 +79,23 @@ const hook = useTanStackTable(DataPolicyService, {
       title="未能取得策略资源引用盘点结果"
       description="刷新本页或检查 /dataResource/policy-resource-risks 是否可用；取不到结果时不会显示为「没有风险」。"
     />
-    <ATable
-      :use-hook="hook"
-      :add-permission="Permissions.System.DataPolicy.add"
-      :delete-permission="Permissions.System.DataPolicy.delete"
-      :edit-permission="Permissions.System.DataPolicy.update"
+    <KTable
+      :table="table"
+      :permissions="{
+        add: Permissions.System.DataPolicy.add,
+        edit: Permissions.System.DataPolicy.update,
+        delete: Permissions.System.DataPolicy.delete,
+      }"
+      @add="openCreate"
+      @edit="openEdit"
     />
-  </APanel>
+
+    <DataPolicyEditor
+      :id="editingId"
+      v-model="editorVisible"
+      @saved="onSaved"
+    />
+  </KPanel>
 </template>
 
 <style lang="scss" scoped>

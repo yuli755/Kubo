@@ -5,10 +5,10 @@
  * 为什么需要它：技术栈分散在 `package.json`、`vite.config.mts`、`vitest.config.ts`、`eslint.config.js`
  * 和几十个 `import` 里，"现在到底跑的是什么"每次都要重新翻。这份报表把它固定下来：
  *
- * 1. **运行时/构建依赖**：声明版本、实际安装版本、在仓库里的引用点、归属（目标栈 / 过渡期 / 开发工具）
+ * 1. **运行时/构建依赖**：声明版本、实际安装版本、在仓库里的引用点、归属（目标栈 / 开发工具）
  * 2. **死重量**：全仓没有任何引用的依赖、`public/` 里没人用的资源（这些是"纯删"的对象）
- * 3. **airpower 退场进度**：与 `pnpm airpower` 同口径
- * 4. **体积**：`dist/size-report.json`（先跑 `pnpm build && pnpm size`）
+ * 3. **airpower 退场确认**：0 引用（门禁见 `pnpm airpower:check`）
+ * 4. **体积**：`dist/size-report.json`（先跑 `pnpm build && pnpm size:report`）
  *
  * 用法：
  * ```
@@ -59,10 +59,9 @@ const ROLE = {
   'element-plus': ['core', 'UI 库（经 types/element-plus-aggregate 按需聚合）'],
   '@element-plus/icons-vue': ['core', '图标'],
   '@tanstack/vue-query': ['core', '数据层（useTable / useDetail）'],
-  'axios': ['core', 'HTTP（framework/http.ts 与 airpower Http 共用实例）'],
+  'axios': ['core', 'HTTP（framework/http.ts 单一实例 + 拦截器）'],
   'echarts': ['core', '看板图表'],
   'flatted': ['core', 'pinia 持久化序列化'],
-  '@airpower/web': ['transition', '旧栈，F4 逐域迁完即删（F5）'],
   '@vitejs/plugin-vue': ['dev', 'Vue SFC 编译'],
   'vite': ['dev', '构建/开发服务器'],
   'vite-plugin-pwa': ['dev', 'PWA（离线缓存）'],
@@ -208,6 +207,13 @@ function stripComments(code) {
   return out
 }
 
+/**
+ * airpower 退场确认（2026-09-18 已删净）。
+ *
+ * 扫描口径与门禁 `scripts/check-airpower-gone.mjs` 一致：剥注释后的真实 import。
+ * 这里保留一个计数而不是直接写 0，是为了**报表能自己发现倒退** ——
+ * 谁把 airpower 引回来，`pnpm stack` 就会显示非 0，不必等 CI。
+ */
 const srcFiles = codeFiles.filter(f => REL(f).startsWith('src/'))
 let airpowerFiles = 0
 let airpowerSpecFiles = 0
@@ -266,7 +272,7 @@ for (const [kind, title] of [['dependencies', '运行时依赖'], ['devDependenc
 }
 
 console.log('── 退场与死重量 ────────────────────────────────────────────')
-console.log(`  airpower 仍在 import：${airpowerFiles} 个生产文件${airpowerSpecFiles ? `（另 ${airpowerSpecFiles} 个测试文件）` : ''}`)
+console.log(`  airpower 引用：${airpowerFiles === 0 && airpowerSpecFiles === 0 ? '0 ✅（2026-09-18 已整体退场，门禁 pnpm airpower:check）' : `${airpowerFiles} 个生产文件 + ${airpowerSpecFiles} 个测试文件 ❌`}`)
 console.log(`  没有任何引用的依赖：${dead.length === 0 ? '无 ✅' : dead.map(d => d.name).join(', ')}`)
 console.log(`  public/ 里没人用的资源：${deadPublic.length === 0 ? '无 ✅' : deadPublic.join(', ')}`)
 

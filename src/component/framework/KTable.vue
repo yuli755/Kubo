@@ -62,6 +62,8 @@ const props = withDefaults(defineProps<{
    * 否则用户会看到一个点下去必然报错的按钮（如移库单：后端 `@Extends(exclude = Curd.Delete)`）。
    */
   hideDelete?: boolean
+  /** 是否隐藏「编辑」按钮（纯只读列表用，如操作日志） */
+  hideEdit?: boolean
   /**
    * 是否隐藏「启用/禁用」按钮。
    *
@@ -83,6 +85,13 @@ const props = withDefaults(defineProps<{
   rowKey?: string
   /** 该行是否禁止删除（如树节点下有子级）；返回 true 时删除按钮置灰 */
   disableDelete?: (row: E) => boolean
+  /**
+   * 该行是否禁止「添加子级」（树表）；返回 true 时按钮置灰。
+   *
+   * 判据同样来自业务：系统内置权限（`isSystem`）不允许挂子权限 ——
+   * 它们是后端 `@Permission` 注解的镜像，从界面加子级只会造成两边不一致。
+   */
+  disableAddChild?: (row: E) => boolean
   /**
    * 该行是否禁止编辑；返回 true 时「编辑」按钮置灰。
    *
@@ -450,11 +459,13 @@ const emptyText = computed(() =>
             v-permission="permissions?.addChild"
             link
             type="primary"
+            :disabled="disableAddChild?.(row as E)"
             @click="emit('addChild', row as E)"
           >
             添加子级
           </ElButton>
           <ElButton
+            v-if="!hideEdit"
             v-permission="permissions?.edit"
             link
             type="primary"

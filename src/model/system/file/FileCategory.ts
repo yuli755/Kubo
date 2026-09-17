@@ -1,4 +1,4 @@
-import { WebEnum } from '@airpower/web'
+import { WebEnum } from '@/framework'
 
 export class FileCategory extends WebEnum {
   static readonly TEMP = new FileCategory(0, '临时文件')

@@ -1,4 +1,4 @@
-import { WebColor, WebEnum } from '@airpower/web'
+import { WebColor, WebEnum } from '@/framework'
 
 export class ContractTypeEnum extends WebEnum {
   static readonly OTHER = new ContractTypeEnum(0, '其他合同')

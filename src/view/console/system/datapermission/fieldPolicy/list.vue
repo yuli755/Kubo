@@ -1,23 +1,39 @@
 <script lang="ts" setup>
-import { APanel, ATable } from '@airpower/web'
 import { ElAlert } from 'element-plus'
+import { ref } from 'vue'
+import KPanel from '@/component/framework/KPanel.vue'
+import KTable from '@/component/framework/KTable.vue'
 import { useInertPolicyReport } from '@/composables/useInertPolicyReport'
 import { Permissions } from '@/config/permissions'
+import { useTable } from '@/hook/kubo/useTable'
 import { DataFieldPolicyService } from '@/hook/system/useDataFieldPolicy'
-import { useTanStackTable } from '@/hook/useTanStackTable'
-import { DataFieldPolicyEditor } from './component'
+import DataFieldPolicyEditor from './component/editor.vue'
 
 // 存量盘点：哪些行是"配了但没人读"的动作。判定在后端，这里只负责列出来。
 const { count: inertCount, preview: inertPreview, failed: inertFailed } = useInertPolicyReport()
 
-const hook = useTanStackTable(DataFieldPolicyService, {
-  queryKey: ['system:datapermission:fieldPolicy'],
-  editView: DataFieldPolicyEditor,
-})
+const table = useTable(DataFieldPolicyService, { queryKey: ['system:datapermission:fieldPolicy'] })
+
+const editorVisible = ref(false)
+const editingId = ref<number | null>(null)
+
+function openCreate() {
+  editingId.value = null
+  editorVisible.value = true
+}
+
+function openEdit(row: { id: number }) {
+  editingId.value = row.id
+  editorVisible.value = true
+}
+
+function onSaved() {
+  table.reload()
+}
 </script>
 
 <template>
-  <APanel>
+  <KPanel>
     <ElAlert
       v-if="inertCount"
       class="inert-warning"
@@ -36,13 +52,23 @@ const hook = useTanStackTable(DataFieldPolicyService, {
       title="未能取得存量盘点结果"
       description="刷新本页或检查 /dataResource/inert-policies 是否可用；取不到结果时不会显示为「没有孤儿策略」。"
     />
-    <ATable
-      :use-hook="hook"
-      :add-permission="Permissions.System.DataFieldPolicy.add"
-      :delete-permission="Permissions.System.DataFieldPolicy.delete"
-      :edit-permission="Permissions.System.DataFieldPolicy.update"
+    <KTable
+      :table="table"
+      :permissions="{
+        add: Permissions.System.DataFieldPolicy.add,
+        edit: Permissions.System.DataFieldPolicy.update,
+        delete: Permissions.System.DataFieldPolicy.delete,
+      }"
+      @add="openCreate"
+      @edit="openEdit"
     />
-  </APanel>
+
+    <DataFieldPolicyEditor
+      :id="editingId"
+      v-model="editorVisible"
+      @saved="onSaved"
+    />
+  </KPanel>
 </template>
 
 <style lang="scss" scoped>

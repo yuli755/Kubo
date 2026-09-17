@@ -12,9 +12,6 @@ importers:
 
   .:
     dependencies:
-      '@airpower/web':
-        specifier: ^2.9.1
-        version: 2.9.1(@types/crypto-js@4.2.2)(crypto-js@4.2.0)(typescript@5.9.3)
       '@element-plus/icons-vue':
         specifier: ^2.3.2
         version: 2.3.2(vue@3.5.41(typescript@5.9.3))
@@ -90,25 +87,6 @@ importers:
         version: 3.3.9(typescript@5.9.3)
 
 packages:
-
-  '@airpower/enum@2.9.0':
-    resolution: {integrity: sha512-aWnp8jv9FHFsX9PMjbYlSHEZ6fyHnsYWWaEJKk7gPZ6p6upAcJJmpUUA0XF34VbOtzh45YKuglb2YqHbKOaoVQ==}
-
-  '@airpower/i18n@2.9.0':
-    resolution: {integrity: sha512-a3+BRm8XP55h0becrjdJj5Av7j8dhBCaOLzDJh1LXZKbm6jiWPwXN1Q+QN+NrAVEAy3op3hzrKDyIgjII5fJYg==}
-
-  '@airpower/transformer@2.9.0':
-    resolution: {integrity: sha512-K7GW9PAo7v2dYJY2R1ROaKmg74SuPkDIfngjgGVC9m3/GgomoXKzRlnc0ItYuA6mu71+g1VaFn1uAm0csW9w2A==}
-
-  '@airpower/util@2.9.0':
-    resolution: {integrity: sha512-vX0bcTM8KyVTQFUrFz/8xv38znovxWOHzNcMa1FDStgWTa4AbcpakaZXpraqCvw3yyYeKoNZXlwMXm79M0Kb5Q==}
-    peerDependencies:
-      '@airpower/enum': ^2.9.0
-      '@types/crypto-js': ^4.2.2
-      crypto-js: ^4.2.0
-
-  '@airpower/web@2.9.1':
-    resolution: {integrity: sha512-+N+wf4J1w1Mgepam3CMIBWuXeZs60bmbcyOKwASV9GjlXLtnLmSwFZuCY/eKZ5a9BJVrGeU7YrO90j7U2HnHtQ==}
 
   '@antfu/eslint-config@6.7.3':
     resolution: {integrity: sha512-0tYYzY59uLnxWgbP9xpuxpvodTcWDacj439kTAJZB3sn7O0BnPfVxTnRvleGYaKCEALBZkzdC/wCho9FD7ICLw==}
@@ -1344,9 +1322,6 @@ packages:
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
 
-  '@types/crypto-js@4.2.2':
-    resolution: {integrity: sha512-sDOLlVbHhXpAUAL0YHDUUwDZf3iN4Bwi4W6a0W0b+QcAezUbRtH4FVb+9J4h+XFPW7l/gQ9F8qC7P+Ec4k8QVQ==}
-
   '@types/debug@4.1.13':
     resolution: {integrity: sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==}
 
@@ -1778,9 +1753,6 @@ packages:
     resolution: {integrity: sha512-GfisEZEJvzKrmGWkvfhgzcz/BllN1USeqD2V6tg14OAOgaCD2Z/PUEuxnAZ/nPvmaHRG7a8y77p1T/IRQ4D1Hw==}
     engines: {node: '>=4'}
 
-  clipboard@2.0.11:
-    resolution: {integrity: sha512-C+0bbOqkezLIsmWSvlsXS0Q0bmkugu7jcfMIACB+RDEntIzQIkdr148we28AfSloQLRdZlYL/QYyrq05j/3Faw==}
-
   color-convert@2.0.1:
     resolution: {integrity: sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ==}
     engines: {node: '>=7.0.0'}
@@ -1845,10 +1817,6 @@ packages:
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
-
-  crypto-js@4.2.0:
-    resolution: {integrity: sha512-KALDyEYgpY+Rlob/iriUtjV6d5Eq+Y191A5g4UqLAi8CyGP9N1+FdVbkc1SxKc2r4YAYqG8JzO2KGL+AizD70Q==}
-    deprecated: Active development of CryptoJS has been discontinued. This library is no longer maintained.
 
   crypto-random-string@2.0.0:
     resolution: {integrity: sha512-v1plID3y9r/lPhviJ1wrXpLeyUIGAZ2SHNYTEapm7/8A9nLPoyvVp3RK/EPFqn5kEznyWgYZNsRtYYIWbuG8KA==}
@@ -1918,9 +1886,6 @@ packages:
   delayed-stream@1.0.0:
     resolution: {integrity: sha512-ZySD7Nf91aLB0RxL4KGrKHBXl7Eds1DAmEdcoVawXnLD7SDhpNgtuII2aAkg7a7QS41jxPSZ17p4VdGnMHk3MQ==}
     engines: {node: '>=0.4.0'}
-
-  delegate@3.2.0:
-    resolution: {integrity: sha512-IofjkYBZaZivn0V8nnsMJGBr4jVLxHDheKSW88PyxS5QC4Vo9ZbZVvhzlSxY87fVq3STR6r+4cGepyHkcWOQSw==}
 
   dequal@2.0.3:
     resolution: {integrity: sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA==}
@@ -2411,9 +2376,6 @@ packages:
 
   globrex@0.1.2:
     resolution: {integrity: sha512-uHJgbwAMwNFf5mLst7IWLNg14x1CkeqglJb/K3doi4dw6q2IvAAmM/Y81kevy83wP+Sst+nutFTYOGg3d1lsxg==}
-
-  good-listener@1.2.2:
-    resolution: {integrity: sha512-goW1b+d9q/HIwbVYZzZ6SsTr4IgE+WA44A0GmPIQstuOrgsFcT7VEJ48nmr9GaRtNu0XTKacFLGnBPAM6Afouw==}
 
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
@@ -3155,11 +3117,6 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
 
-  qrcode.vue@3.6.0:
-    resolution: {integrity: sha512-vQcl2fyHYHMjDO1GguCldJxepq2izQjBkDEEu9NENgfVKP6mv/e2SU62WbqYHGwTgWXLhxZ1NCD1dAZKHQq1fg==}
-    peerDependencies:
-      vue: ^3.0.0
-
   quansync@0.2.11:
     resolution: {integrity: sha512-AifT7QEbW9Nri4tAwR5M/uzpBuqfZf+zwaEM/QkzEjj7NBuFD2rBuy0K3dE+8wltbezDV7JMA0WfnCPYRSYbXA==}
 
@@ -3260,9 +3217,6 @@ packages:
   scslre@0.3.0:
     resolution: {integrity: sha512-3A6sD0WYP7+QrjbfNA2FN3FsOaGGFoekCVgTyypy53gPxhbkCIjtO6YWgdrfM+n/8sI8JeXZOIxsHjMTNxQ4nQ==}
     engines: {node: ^14.0.0 || >=16.0.0}
-
-  select@1.1.2:
-    resolution: {integrity: sha512-OwpTSOfy6xSs1+pwcNrv0RBMOzI39Lp3qQKUTPVVPRjCdNa5JH/oPRiqsesIskK8TVgmRiHwO4KXlV2Li9dANA==}
 
   semver@6.3.1:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
@@ -3432,9 +3386,6 @@ packages:
     resolution: {integrity: sha512-CN9BVxWhgS/hRxtUMjtC2uRWSTcSfQFHMDWma6sKKfIivCD91sM+FOPfvwoaRMqCSrUpe1nv3jDamd9eEQ4y+w==}
     engines: {node: '>=10'}
     hasBin: true
-
-  tiny-emitter@2.1.0:
-    resolution: {integrity: sha512-NB6Dk1A9xgQPMoGqC5CVXn123gWyte215ONT5Pp5a0yt4nlEoO1ZWeCwpncaekPHXO60i47ihFnZPiRPjRMq4Q==}
 
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
@@ -3735,9 +3686,6 @@ packages:
   vscode-uri@3.1.0:
     resolution: {integrity: sha512-/BpdSx+yCQGnCvecbyXdxHDkuk55/G3xwnC0GqY4gmQ3j+A+g8kzzgB4Nk/SINjqn6+waqw3EgbVF2QKExkRxQ==}
 
-  vue-clipboard3@2.0.0:
-    resolution: {integrity: sha512-Q9S7dzWGax7LN5iiSPcu/K1GGm2gcBBlYwmMsUc5/16N6w90cbKow3FnPmPs95sungns4yvd9/+JhbAznECS2A==}
-
   vue-component-type-helpers@3.3.9:
     resolution: {integrity: sha512-3c/UfMe0SqyEfcGTyH7mfshHagJ9QTCbppCb0/uGpHZpFug7+If3GeGZN7I0YheKEExemx3xldQPoO7PQSOLQg==}
 
@@ -3916,38 +3864,6 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
-
-  '@airpower/enum@2.9.0': {}
-
-  '@airpower/i18n@2.9.0': {}
-
-  '@airpower/transformer@2.9.0': {}
-
-  '@airpower/util@2.9.0(@airpower/enum@2.9.0)(@types/crypto-js@4.2.2)(crypto-js@4.2.0)':
-    dependencies:
-      '@airpower/enum': 2.9.0
-      '@types/crypto-js': 4.2.2
-      crypto-js: 4.2.0
-
-  '@airpower/web@2.9.1(@types/crypto-js@4.2.2)(crypto-js@4.2.0)(typescript@5.9.3)':
-    dependencies:
-      '@airpower/enum': 2.9.0
-      '@airpower/i18n': 2.9.0
-      '@airpower/transformer': 2.9.0
-      '@airpower/util': 2.9.0(@airpower/enum@2.9.0)(@types/crypto-js@4.2.2)(crypto-js@4.2.0)
-      '@element-plus/icons-vue': 2.3.2(vue@3.5.41(typescript@5.9.3))
-      axios: 1.20.0
-      element-plus: 2.14.4(vue@3.5.41(typescript@5.9.3))
-      qrcode.vue: 3.6.0(vue@3.5.41(typescript@5.9.3))
-      vue: 3.5.41(typescript@5.9.3)
-      vue-clipboard3: 2.0.0
-      vue-router: 4.6.4(vue@3.5.41(typescript@5.9.3))
-    transitivePeerDependencies:
-      - '@types/crypto-js'
-      - crypto-js
-      - debug
-      - supports-color
-      - typescript
 
   '@antfu/eslint-config@6.7.3(@typescript-eslint/typescript-estree@8.67.0(typescript@5.9.3))(@typescript-eslint/utils@8.67.0(eslint@9.39.5)(typescript@5.9.3))(@vue/compiler-sfc@3.5.41)(eslint@9.39.5)(typescript@5.9.3)(vitest@4.1.11(@types/node@22.20.1)(@vitest/coverage-v8@4.1.11)(jsdom@30.0.1)(vite@7.3.6(@types/node@22.20.1)(sass@1.102.0)(terser@5.50.0)(yaml@2.9.0)))':
     dependencies:
@@ -5194,8 +5110,6 @@ snapshots:
       '@types/deep-eql': 4.0.2
       assertion-error: 2.0.1
 
-  '@types/crypto-js@4.2.2': {}
-
   '@types/debug@4.1.13':
     dependencies:
       '@types/ms': 2.1.0
@@ -5712,12 +5626,6 @@ snapshots:
     dependencies:
       escape-string-regexp: 1.0.5
 
-  clipboard@2.0.11:
-    dependencies:
-      good-listener: 1.2.2
-      select: 1.1.2
-      tiny-emitter: 2.1.0
-
   color-convert@2.0.1:
     dependencies:
       color-name: 1.1.4
@@ -5768,8 +5676,6 @@ snapshots:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
-
-  crypto-js@4.2.0: {}
 
   crypto-random-string@2.0.0: {}
 
@@ -5836,8 +5742,6 @@ snapshots:
       object-keys: 1.1.1
 
   delayed-stream@1.0.0: {}
-
-  delegate@3.2.0: {}
 
   dequal@2.0.3: {}
 
@@ -6494,10 +6398,6 @@ snapshots:
       gopd: 1.2.0
 
   globrex@0.1.2: {}
-
-  good-listener@1.2.2:
-    dependencies:
-      delegate: 3.2.0
 
   gopd@1.2.0: {}
 
@@ -7392,10 +7292,6 @@ snapshots:
 
   punycode@2.3.1: {}
 
-  qrcode.vue@3.6.0(vue@3.5.41(typescript@5.9.3)):
-    dependencies:
-      vue: 3.5.41(typescript@5.9.3)
-
   quansync@0.2.11: {}
 
   readdirp@5.1.1: {}
@@ -7539,8 +7435,6 @@ snapshots:
       '@eslint-community/regexpp': 4.12.2
       refa: 0.12.1
       regexp-ast-analysis: 0.7.1
-
-  select@1.1.2: {}
 
   semver@6.3.1: {}
 
@@ -7728,8 +7622,6 @@ snapshots:
       acorn: 8.18.0
       commander: 2.20.3
       source-map-support: 0.5.21
-
-  tiny-emitter@2.1.0: {}
 
   tinybench@2.9.0: {}
 
@@ -7979,10 +7871,6 @@ snapshots:
       - msw
 
   vscode-uri@3.1.0: {}
-
-  vue-clipboard3@2.0.0:
-    dependencies:
-      clipboard: 2.0.11
 
   vue-component-type-helpers@3.3.9: {}
 

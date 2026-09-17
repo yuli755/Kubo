@@ -1,84 +1,90 @@
-import { Field, Form, Model, Search, Table } from '@airpower/web'
 import { BaseEntity } from '@/base/BaseEntity'
+import {
+  Field as KField,
+  Form as KForm,
+  Model as KModel,
+  Search as KSearch,
+  Table as KTable,
+} from '@/framework'
 
 /**
  * # 数据资源
  *
  * 与后端 `cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity` 对齐。
  */
-@Model({
+@KModel({
   label: '数据资源',
 })
 export class DataResourceEntity extends BaseEntity {
-  @Search()
-  @Table({
+  @KSearch()
+  @KTable({
     copy: true,
     force: true,
     width: 180,
   })
-  @Form({
+  @KForm({
     requiredString: true,
   })
-  @Field({
+  @KField({
     label: '资源标识',
   })
   resourceKey!: string
 
-  @Table({
+  @KTable({
     width: 140,
   })
-  @Form({
+  @KForm({
     requiredString: true,
   })
-  @Field({
+  @KField({
     label: '表名',
   })
   tableName!: string
 
-  @Table({
+  @KTable({
     hide: true,
   })
-  @Field({
+  @KField({
     label: '表别名',
   })
   tableAlias!: string
 
-  @Table({
+  @KTable({
     hide: true,
   })
-  @Field({
+  @KField({
     label: '租户列',
   })
   tenantColumn!: string
 
-  @Table({
+  @KTable({
     width: 200,
   })
-  @Field({
+  @KField({
     label: '归属列（可按维度登记）',
   })
   ownerColumns!: string
 
-  @Table({
+  @KTable({
     width: 200,
   })
-  @Field({
+  @KField({
     label: '可过滤列（条件树白名单）',
   })
   filterableColumns!: string
 
-  @Table({
+  @KTable({
     width: 200,
   })
-  @Field({
+  @KField({
     label: '支持的动作',
   })
   supportedActions!: string
 
-  @Table({
+  @KTable({
     width: 100,
   })
-  @Field({
+  @KField({
     label: '状态',
   })
   status!: string

@@ -1,4 +1,4 @@
-import { WebColor, WebEnum } from '@airpower/web'
+import { WebColor, WebEnum } from '@/framework'
 
 export class BooleanYesNoDictionary extends WebEnum<boolean> {
   static readonly YES = new BooleanYesNoDictionary(true, '是')

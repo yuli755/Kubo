@@ -72,6 +72,23 @@ export class RootModel {
   static parse<T extends object>(json: unknown, Class: ITransformerConstructor<T>): T {
     return fill(new Class(), json)
   }
+
+  /**
+   * 从 JSON 建实例（原库写法：`Entity.fromJson(json)`）。
+   *
+   * 与 `parse(json, Class)` 是同一件事，两种写法都在用 —— 保留是因为存量代码里
+   * `XxxEntity.fromJson(...)` 更常见，删掉它会把调用点改成传一长串参数，收益为零。
+   */
+  static fromJson<T extends object>(this: ITransformerConstructor<T> | void, json: unknown, Class?: ITransformerConstructor<T>): T {
+    const Target = (Class ?? (this as unknown as ITransformerConstructor<T>))
+    return fill(new Target(), json)
+  }
+
+  /** 从 JSON 数组建实例数组（原库写法） */
+  static fromJsonArray<T extends object>(this: ITransformerConstructor<T> | void, json: unknown, Class?: ITransformerConstructor<T>): T[] {
+    const Target = (Class ?? (this as unknown as ITransformerConstructor<T>))
+    return Array.isArray(json) ? json.map(item => fill(new Target(), item)) : []
+  }
 }
 
 /** 把 JSON 填充进已有实例（递归处理 `@Type` 标注的嵌套实体，数组也会逐项实例化） */

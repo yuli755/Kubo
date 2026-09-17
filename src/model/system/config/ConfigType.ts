@@ -1,4 +1,4 @@
-import { WebColor, WebEnum } from '@airpower/web'
+import { WebColor, WebEnum } from '@/framework'
 
 export class ConfigType extends WebEnum {
   static readonly STRING = new ConfigType(0, '字符串')

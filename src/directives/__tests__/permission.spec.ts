@@ -1,14 +1,8 @@
 import { mount } from '@vue/test-utils'
 // @vitest-environment jsdom
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { defineComponent, h, nextTick, ref, withDirectives } from 'vue'
-
-// v-permission 依赖 airpower 的 PermissionUtil 做持久化；单元测试里隔离掉，
-// 只验证「指令 → 显隐」这层本项目自己的逻辑。
-vi.mock('@airpower/web', () => ({
-  PermissionUtil: { saveList: vi.fn(), checkPermission: vi.fn(() => true) },
-}))
 
 const { vPermission } = await import('../permission')
 const { usePermissionStore } = await import('@/stores/permission')

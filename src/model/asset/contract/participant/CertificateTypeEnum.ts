@@ -1,4 +1,4 @@
-import { WebColor, WebEnum } from '@airpower/web'
+import { WebColor, WebEnum } from '@/framework'
 import { ParticipantTypeEnum } from '@/model/asset/contract/participant/ParticipantTypeEnum'
 
 export class CertificateTypeEnum extends WebEnum {

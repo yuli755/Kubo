@@ -1,9 +1,13 @@
-import type { ITree } from '@airpower/web'
-import { Field, Form, Model, Search, Table, Type } from '@airpower/web'
+import type { ITree } from '@/framework'
 import { BaseEntity } from '@/base/BaseEntity'
-// 同 `MenuEntity`：先补 `@KType` 让授权弹窗拿到的权限树能递归实例化（见那边的说明），
-// 其余 K 装饰器随 system 域迁移补齐。
-import { Type as KType } from '@/framework'
+import {
+  Field as KField,
+  Form as KForm,
+  Model as KModel,
+  Search as KSearch,
+  Table as KTable,
+  Type as KType,
+} from '@/framework'
 import { PermissionSystemEnum } from './PermissionSystemEnum'
 import { PermissionTypeEnum } from './PermissionTypeEnum'
 
@@ -11,88 +15,88 @@ import { PermissionTypeEnum } from './PermissionTypeEnum'
  * # 权限
  * @author Hamm.cn
  */
-@Model({
+@KModel({
   label: '权限',
 })
 export class PermissionEntity extends BaseEntity implements ITree {
-  @Table({
+  @KTable({
     width: 100,
   })
   declare id: number
 
-  @Table({
+  @KTable({
     force: true,
   })
-  @Search()
-  @Form({
+  @KSearch()
+  @KForm({
     requiredString: true,
   })
-  @Field({
+  @KField({
     label: '权限名称',
   })
   name!: string
 
-  @Table({
+  @KTable({
     force: true,
     copy: true,
   })
-  @Form({
+  @KForm({
     requiredString: '请输入权限标识...',
   })
-  @Field({
+  @KField({
     label: '权限标识',
   })
-  @Search()
+  @KSearch()
   identity!: string
 
-  @Table({
+  @KTable({
     color: true,
     width: 100,
   })
-  @Search({
+  @KSearch({
     width: 120,
   })
-  @Field({
+  @KField({
     label: '权限类型',
     dictionary: PermissionTypeEnum,
   })
   type!: number
 
-  @Table({
+  @KTable({
     color: true,
     width: 100,
     order: -100,
   })
-  @Field({
+  @KField({
     label: '系统权限',
     dictionary: PermissionSystemEnum,
   })
   isSystem!: boolean
 
-  @Field({
+  @KField({
     label: '父级ID',
   })
   parentId!: number
 
-  @Field({})
-  @Type(PermissionEntity, true)
+  @KField({})
+  @KType(PermissionEntity)
   @KType(PermissionEntity)
   children!: this[]
 
-  @Type(PermissionEntity)
+  @KType(PermissionEntity)
   parent!: this
 
-  @Table({
+  @KTable({
     removed: true,
   })
   declare createTime: number
 
-  @Table({
+  @KTable({
     removed: true,
   })
   declare updateTime: number
 
-  @Table({
+  @KTable({
     removed: true,
   })
   declare isDisabled: boolean

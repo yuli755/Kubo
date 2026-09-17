@@ -36,9 +36,8 @@ export const routes: RouteRecordRaw[] = [
         /**
          * `/console` 是「进入控制台」的入口地址（登录后回跳、门户页按钮、文档里都这么写），
          * 但它本身不是任何页面：动态菜单路由都是 `/console/.../list`。
-         * 没有这条重定向时它会被下面的 `:catchAll(.*)` 接住 → 用户看到的是 404 页，
-         * 而且 404 页停留 5s 会触发 airpower 的 `WebConfig.isTimeout` 全局熔断，
-         * 导致此后动态菜单路由**永久不再注册**（点哪都是 404）。故入口必须显式重定向。
+         * 没有这条重定向时它会被下面的 `:catchAll(.*)` 接住 → 用户看到 404 页。
+         * 入口地址必须显式重定向。
          */
         path: 'console',
         name: 'console-entry',

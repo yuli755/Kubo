@@ -20,7 +20,7 @@ import { describe, expect, it } from 'vitest'
  *    storage / structure）
  *    都已把 `Curd.Export` 加回来并覆写了 `export(QueryListRequest)`；导出走文件流不经过 Jackson，
  *    是脱敏的已知旁路，前端别在没加回来的实体上随手开。
- * 4. **模型里的敏感字段必须显式表态**：`@Table({ desensitize })` 或 `mask-exempt: 理由`。
+ * 4. **模型里的敏感字段必须显式表态**：`@KTable({ desensitize })` 或 `mask-exempt: 理由`。
  *    框架在列表渲染层认这个元数据，一处声明全视图生效；漏了就是"某个页面的手机号裸奔"。
  * 5. **`useMaskPolicy(resourceKey, fields)` 里的字段名必须真的是后端那个实体上被
  *    `@SensitiveField` 标记的字段**。这是比资源键更容易犯的错（复制粘贴改一个词），
@@ -274,7 +274,9 @@ describe('mask contract · 模型元数据', () => {
         }
         if (SENSITIVE_FIELD.test(field[1])) {
           const block = pending.join('\n')
-          const declared = /@Table\([\s\S]*?desensitize/.test(block)
+          // 装饰器在 airpower 退场时从 `@Table` 改名为 `@KTable`；这里两个名字都认，
+          // 避免门禁因为"改了个名"而空转（空转 = 敏感字段可以裸着出门）。
+          const declared = /@K?Table\([\s\S]*?desensitize/.test(block)
           const exemptMark = block.match(/mask-exempt:([^\n]*)/)
           if (!declared && !exemptMark) {
             missing.push(`${relative(ROOT, file)}:${index + 1} ${field[1]}（补 @Table({ desensitize }) 或写 mask-exempt: 理由）`)
@@ -657,9 +659,19 @@ describe('mask contract · 界面文案与后端能力对齐', () => {
    * 它一旦与后端实现漂移，代价不是显示错误，而是**运维照着过时的话说"配了没用"**，
    * 或者反过来在能力其实没上线时提前放开 enforce。所以这里做双向绑定，而不是只测"文案别写错别字"。
    */
+  /**
+   * 只把"界面上真会出现的话"交进来判：注释是写给维护者的实现说明，
+   * 里面出现「配了却不生效」这类描述不该被当成界面承诺（曾误伤过一次）。
+   */
+  const stripComments = (source: string): string =>
+    source
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/^\s*\/\/.*$/gm, '')
+
   const tips = (dir: string): string =>
     collect(join(ROOT, 'src/view/console/system/datapermission', dir), '.vue')
-      .map(file => read(file))
+      .map(file => stripComments(read(file)))
       .join('\n')
 
   const STALE_CLAIM = /暂不生效|尚未接线|暂未被消费|未被消费|不生效/

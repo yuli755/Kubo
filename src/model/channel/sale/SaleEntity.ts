@@ -1,5 +1,4 @@
-import type { WebEnum } from '@airpower/web'
-import { Field, Form, Model, Table, Type } from '@airpower/web'
+import type { WebEnum } from '@/framework'
 import { AbstractBaseBillEntity } from '@/base/bill/AbstractBaseBillEntity'
 import {
   Field as KField,
@@ -22,29 +21,17 @@ import { SaleStatusEnum } from './SaleStatusEnum'
  * 口径与采购单一致：状态**不给 `@KForm`**（状态由状态机驱动），
  * 明细只给 `@KField` + `@KType`（由 `KDetailTable` 在编辑器里渲染）。
  */
-@Model({
-  label: '销售单',
-})
 @KModel({
   label: '销售单',
   addChildPermission: 'add',
 })
 export class SaleEntity extends AbstractBaseBillEntity<SaleDetailEntity> {
-  @Field({
-    label: '销售单号',
-  })
   @KTable({ order: 99, minWidth: 180, force: true, copy: true })
   @KForm({ placeholder: '不填写按编码规则自动生成' })
   @KField({ label: '销售单号' })
   @KSearch()
   declare billCode: string
 
-  @Table({
-    formatter: row => row.customer.code,
-  })
-  @Field({
-    label: '客户编码',
-  })
   @KTable({
     order: 90,
     minWidth: 140,
@@ -54,12 +41,6 @@ export class SaleEntity extends AbstractBaseBillEntity<SaleDetailEntity> {
   @KField({ label: '客户编码' })
   customerCode!: string
 
-  @Table({
-    formatter: row => row.customer.name,
-  })
-  @Field({
-    label: '客户名称',
-  })
   @KTable({
     order: 85,
     minWidth: 180,
@@ -69,76 +50,29 @@ export class SaleEntity extends AbstractBaseBillEntity<SaleDetailEntity> {
   @KField({ label: '客户名称' })
   customerName!: string
 
-  @Form({
-    requiredNumber: true,
-    placeholder: '请选择销售客户',
-  })
-  @Field({
-    label: '客户',
-  })
   @KForm({ requiredNumber: true, placeholder: '请选择销售客户' })
   @KField({ label: '客户' })
   customerId!: number
 
-  @Table({})
-  @Form({
-    textarea: true,
-    maxLength: 80,
-  })
-  @Field({
-    label: '销售说明',
-  })
   @KTable({ minWidth: 220, order: 60 })
   @KForm({ textarea: true, maxLength: 80 })
   @KField({ label: '销售说明' })
   reason!: string
 
-  @Table({
-    width: 150,
-    money: true,
-    force: true,
-  })
-  @Form({
-    suffixText: '元',
-  })
-  @Field({
-    label: '总金额',
-  })
   @KTable({ width: 150, order: 50, money: true, force: true, align: 'right' })
   @KForm({ number: true, precision: 2, suffixText: '元' })
   @KField({ label: '总金额' })
   totalPrice!: number
 
-  @Table({
-    width: 150,
-    color: true,
-    order: -80,
-    force: true,
-  })
-  @Field({
-    label: '销售状态',
-    dictionary: SaleStatusEnum,
-  })
   @KTable({ width: 110, order: -80, force: true, color: true })
   @KSearch({ width: 120 })
   @KField({ label: '销售状态', dictionary: SaleStatusEnum })
   status!: number
 
-  @Field({
-    label: '销售明细',
-  })
   @KField({ label: '销售明细' })
   @KType(SaleDetailEntity)
-  @Type(SaleDetailEntity, true)
   details: SaleDetailEntity[] = []
 
-  @Form({
-    requiredPayload: true,
-  })
-  @Field({
-    label: '客户',
-  })
-  @Type(CustomerEntity)
   @KType(CustomerEntity)
   @KField({ label: '销售客户' })
   customer!: CustomerEntity

@@ -1,6 +1,6 @@
 <script lang="ts" setup generic="E extends IIdentifiableEntity">
 import type { FormInstance } from 'element-plus'
-import type { AbstractCurdService, IFormField, IIdentifiableEntity, WebValidateRuleSet } from '@/framework'
+import type { AbstractCurdService, IFormField, IFormModel, IIdentifiableEntity, WebValidateRuleSet } from '@/framework'
 import { ElButton, ElDatePicker, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElSelect, ElSwitch } from 'element-plus'
 import { computed, nextTick, ref, watch } from 'vue'
 import { FeedbackUtil, getEnumItems, getFormConfigList, getModelName, WebValidator } from '@/framework'
@@ -83,7 +83,7 @@ const emit = defineEmits<{
    * 明细行），而这些数据是提交体的一部分。交出去的引用在每次初始化后都会重新 emit，
    * 页面持有最新的一份即可，不需要在弹窗内部开洞。
    */
-  (event: 'loaded', form: Record<string, unknown>): void
+  (event: 'loaded', form: IFormModel): void
 }>()
 
 /**
@@ -95,9 +95,9 @@ const emit = defineEmits<{
  */
 defineSlots<{
   /** 页面自定义内容（多选标签、明细行等），放在元数据字段之后 */
-  extra?: (props: { form: Record<string, unknown> }) => unknown
+  extra?: (props: { form: IFormModel }) => unknown
   /** 覆盖任意字段的控件（选择器/上传等） */
-  [key: `field-${string}`]: (props: { field: IFormField, form: Record<string, unknown> }) => unknown
+  [key: `field-${string}`]: (props: { field: IFormField, form: IFormModel }) => unknown
   /** 覆盖底部按钮区 */
   footer?: (props: { submit: () => void, cancel: () => void, submitting: boolean }) => unknown
 }>()
@@ -362,7 +362,7 @@ function onCancel() {
           >
             <ElOption
               v-for="option in getEnumItems(field.dictionary)"
-              :key="option.key"
+              :key="String(option.key)"
               :label="option.label"
               :value="option.key"
             />

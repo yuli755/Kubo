@@ -5,7 +5,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick } from 'vue'
-import { KEntity } from '@/base/KEntity'
+import { BaseEntity } from '@/base/BaseEntity'
 import { AbstractCurdService, Field, Form, Model, Search, Table, Type } from '@/framework'
 
 /**
@@ -72,7 +72,7 @@ describe('f2 · 组件层不依赖 airpower', () => {
       'src/component/framework/KTable.vue',
       'src/component/framework/KFormDialog.vue',
       'src/hook/kubo/useTable.ts',
-      'src/base/KEntity.ts',
+      'src/base/BaseEntity.ts',
       'src/model/system/unit/KUnitService.ts',
       'src/view/console/system/unit/list.vue',
       // 第二批（补齐 APanel/ASelector/useDetail/单元格渲染的缺口）
@@ -146,13 +146,13 @@ describe('f4 · 批 1（factory + index）迁移完成度', () => {
 describe('f2 · KTable 由元数据驱动', () => {
   it('列来自 @KTable、搜索项来自 @KSearch（加一列则表格多一列）', async () => {
     const { Field, Form, Model, Search, Table } = await import('@/framework')
-    const { KEntity } = await import('@/base/KEntity')
+    const { BaseEntity } = await import('@/base/BaseEntity')
     const { AbstractCurdService } = await import('@/framework')
     const KTable = (await import('@/component/framework/KTable.vue')).default
     const { useTable } = await import('@/hook/kubo/useTable')
 
     @Model({ label: '契约实体' })
-    class ContractEntity extends KEntity {
+    class ContractEntity extends BaseEntity {
       @Table({ order: 100, minWidth: 160 })
       @Form({ requiredString: true })
       @Field({ label: '名称' })
@@ -206,14 +206,14 @@ describe('f2 · KTable 由元数据驱动', () => {
 describe('f2 · useTable 请求契约', () => {
   it('分页请求体是 { filter, page.pageNum, page.pageSize, sort.direction }', async () => {
     const { Field, Model } = await import('@/framework')
-    const { KEntity } = await import('@/base/KEntity')
+    const { BaseEntity } = await import('@/base/BaseEntity')
     const { AbstractCurdService } = await import('@/framework')
     const { useTable } = await import('@/hook/kubo/useTable')
     const { defineComponent: define } = await import('vue')
     const { mount: mountComponent } = await import('@vue/test-utils')
 
     @Model({ label: '契约实体2' })
-    class PageEntity extends KEntity {
+    class PageEntity extends BaseEntity {
       @Field({ label: '名称' })
       name!: string
     }
@@ -275,7 +275,7 @@ describe('f2 · useTable 请求契约', () => {
 describe('f2 · 第二批组件（KPanel / 树表格 / KSelector / KDetail）', () => {
   /** 树形实体：仓库/生产单元/部门/菜单都是这个形状 */
   @Model({ label: '树节点' })
-  class TreeNodeEntity extends KEntity {
+  class TreeNodeEntity extends BaseEntity {
     @Table({ order: 100, minWidth: 160 })
     @Form({ requiredString: true })
     @Field({ label: '名称' })
@@ -429,7 +429,7 @@ describe('f2 · 第二批组件（KPanel / 树表格 / KSelector / KDetail）', 
     const KDetail = (await import('@/component/framework/KDetail.vue')).default
 
     @Model({ label: '物料' })
-    class MaterialEntity extends KEntity {
+    class MaterialEntity extends BaseEntity {
       @Table({ order: 100, minWidth: 160 })
       @Field({ label: '物料名称' })
       name!: string

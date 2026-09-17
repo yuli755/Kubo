@@ -1,5 +1,6 @@
 import { VueQueryPlugin } from '@tanstack/vue-query'
-import { ElLoading } from 'element-plus'
+import { ElLoading, provideGlobalConfig } from 'element-plus'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { createPinia } from 'pinia'
 import { createApp } from 'vue'
 import App from '@/App.vue'
@@ -17,8 +18,6 @@ import { useThemeStore } from '@/stores/theme'
 import { installGlobalErrorHandler, setErrorReporter } from '@/utils/errorHandler'
 import { reportErrorToServer } from '@/utils/errorReportClient'
 import { installRouterErrorHandler } from '@/utils/routerErrorHandler'
-// airpower 的 WebConfig 配置 + web.css 已移至 src/config/airpower-bootstrap.ts，
-// 随业务页（Console.vue 懒加载）初始化，避免首屏加载 airpower 单体（107 KB）。
 // V1+V2：设计 token 层 + Element Plus 暗色变量（顺序敏感，必须在本文件其它样式之后引入）
 import '@/styles/index.scss'
 
@@ -29,6 +28,17 @@ import 'element-plus/es/components/message-box/style/css'
 import 'element-plus/es/components/loading/style/css'
 
 const app = createApp(App)
+
+/**
+ * Element Plus 语言包。
+ *
+ * 项目按需导入组件、**没有** `app.use(ElementPlus, { locale })` 这一步，不显式 provide
+ * 的话 EP 内置文案会退回英文（日期选择器的星期/月份、分页器的「条/页」、`ElMessageBox`
+ * 的确定取消…）。旧实现把它挂在 airpower 的 `WebConfig.elementPlusLocale` 上等人来读，
+ * 而 airpower 自己的组件读、我们新写的框架组件没读 —— 于是这批组件一直是英文。
+ * 现在直接 provide 到 app 上：连命令式弹窗（另一棵组件树）也吃得到。
+ */
+provideGlobalConfig({ locale: zhCn }, app, true)
 
 // P1：全局错误兜底（未捕获异常落日志 + 预留上报钩子），在挂载前注册
 installGlobalErrorHandler(app)

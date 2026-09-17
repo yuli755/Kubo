@@ -23,7 +23,6 @@
  */
 
 import type { Ref } from 'vue'
-import type { RootEntity } from './entity'
 import type { QueryRequest } from './query'
 import type { IIdentifiableEntity, IJson, ITransformerConstructor } from './types'
 import { request } from '@/api/axios'
@@ -98,13 +97,13 @@ export class Http {
   }
 
   /** 请求并把响应解析成实体 */
-  async requestModel<E extends RootEntity>(body: unknown, EntityClass: ITransformerConstructor<E>): Promise<E> {
+  async requestModel<E extends object>(body: unknown, EntityClass: ITransformerConstructor<E>): Promise<E> {
     const data = await this.send(body)
     return fill(new EntityClass(), data)
   }
 
   /** 请求并把响应解析成实体数组 */
-  async requestModelList<E extends RootEntity>(body: unknown, EntityClass: ITransformerConstructor<E>): Promise<E[]> {
+  async requestModelList<E extends object>(body: unknown, EntityClass: ITransformerConstructor<E>): Promise<E[]> {
     const data = await this.send(body)
     return Array.isArray(data) ? data.map(item => fill(new EntityClass(), item)) : []
   }

@@ -1,11 +1,10 @@
-import type { IPayload } from '@airpower/web'
+import type { IPayload } from '@/framework'
+import { BaseEntity } from '@/base/BaseEntity'
 // ⚠️ 过渡态双注册：同一个字段同时打 airpower 与本仓 `@/framework` 的装饰器。
 // 原因：`MaterialEntity.unit` 这类**跨域嵌套字段**仍会被存量 airpower 页面/元数据注册表读到，
 // 而新底座页面（KTable/KFormDialog）读 `@/framework` 的注册表 —— 两边都得看见列与表单配置。
 // 注意：不要再拿 `UnitSelector` 当理由（该组件已在批 2 删除）；真正的原因是嵌套引用，
 // 等 F5 删掉 airpower 依赖时，上面的 airpower 装饰器 + `BaseEntity` 基类一并换掉。
-import { Field, Form, Model, Search, Table } from '@airpower/web'
-import { BaseEntity } from '@/base/BaseEntity'
 import {
   Field as KField,
   Form as KForm,
@@ -14,9 +13,6 @@ import {
   Table as KTable,
 } from '@/framework'
 
-@Model({
-  label: '计量单位',
-})
 @KModel({
   label: '计量单位',
 })
@@ -24,17 +20,6 @@ export class UnitEntity extends BaseEntity implements IPayload {
   /**
    * ### 单位名称
    */
-  @Table({
-    force: true,
-    copy: true,
-  })
-  @Form({
-    requiredString: true,
-  })
-  @Field({
-    label: '单位名称',
-  })
-  @Search()
   @KTable({ order: 100, minWidth: 160, sortable: true })
   @KForm({ requiredString: true })
   @KField({ label: '单位名称' })
@@ -44,17 +29,6 @@ export class UnitEntity extends BaseEntity implements IPayload {
   /**
    * ### 单位编码
    */
-  @Table({
-    copy: true,
-    force: true,
-  })
-  @Form({
-    placeholder: '不输入按编码规则自动生成',
-  })
-  @Field({
-    label: '单位编码',
-  })
-  @Search()
   @KTable({ order: 90, minWidth: 160, sortable: true })
   @KForm({ placeholder: '不输入按编码规则自动生成', maxLength: 32 })
   @KField({ label: '单位编码' })

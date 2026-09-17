@@ -193,6 +193,11 @@ const System = {
   },
   Config: {
     update: `Config_${Crud.update}`,
+    /**
+     * 删除：`ConfigController` 没有排除 Delete（只有系统内置参数在界面上不可删，
+     * 那是 `isSystem` 的业务判据，不是权限面）。缺这个码会让删除按钮对所有人隐藏。
+     */
+    delete: `Config_${Crud.delete}`,
   },
   Log: {
     getDetail: `Log_${Crud.getDetail}`,

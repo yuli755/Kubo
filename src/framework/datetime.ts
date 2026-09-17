@@ -27,6 +27,35 @@ export class DateTimeUtil {
     return Math.floor(DateTimeUtil.getMilliTimeStamps(date) / DateTimeUtil.MILLISECONDS_PER_SECOND)
   }
 
+  /**
+   * 按模式串格式化日期（原库写法：`formatFromDate(date, 'YYYY-MM-DD')`）。
+   *
+   * 支持 `YYYY / YY / MM / DD / HH / mm / ss`；编码规则页把它当**模板占位符**
+   * 用（`yyyy`、`mm`、`dd`、`hh` 会被替换成当前时间），所以 `yyyy` 这种
+   * 「全小写年份」也要认 —— 那是业务模板的写法，不是笔误。
+   */
+  static formatFromDate(date: Date | string | number, pattern: string): string {
+    const target = date instanceof Date ? date : new Date(date)
+    if (Number.isNaN(target.getTime())) {
+      return ''
+    }
+    const pad = (value: number) => String(value).padStart(2, '0')
+    const tokens: Record<string, string> = {
+      YYYY: String(target.getFullYear()),
+      yyyy: String(target.getFullYear()),
+      YY: String(target.getFullYear()).slice(-2),
+      yy: String(target.getFullYear()).slice(-2),
+      MM: pad(target.getMonth() + 1),
+      mm: pad(target.getMonth() + 1),
+      DD: pad(target.getDate()),
+      dd: pad(target.getDate()),
+      HH: pad(target.getHours()),
+      hh: pad(target.getHours()),
+      ss: pad(target.getSeconds()),
+    }
+    return pattern.replace(/YYYY|yyyy|YY|yy|MM|mm|DD|dd|HH|hh|ss/g, matched => tokens[matched] ?? matched)
+  }
+
   /** 相对时间：刚刚 / 3 分钟前 / 2 天前（列表里比绝对时间更好读） */
   static getFriendlyDateTime(date: Date | string | number): string {
     const target = new Date(date).getTime()

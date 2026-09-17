@@ -6,8 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * `useUserStore` 契约测试。
  *
  * 锁的是登录态这条主线的不变量：
- * - token 与 airpower 共享同 key（`Authorization`）的 localStorage（框架与自研请求
- *   拦截器都能读到同一份，兼容层见 `@/utils/airpowerCompat`）；
+ * - token 落在 `Authorization` 键（`@/utils/authStorage`）—— 请求拦截器与 persist
+ *   水合读的是同一份，别把它挪到别的键上；
  * - 租户列表只接受后端下发、且过滤非法 id（不自行拼接）；
  * - logout 无论后端成败都清空本地状态、摘 token、断开 WS、清权限。
  */
@@ -36,7 +36,7 @@ beforeEach(() => {
 })
 
 describe('useUserStore · 登录态不变量', () => {
-  it('setToken 写入 airpower 同 key 的 localStorage（Authorization）', () => {
+  it('setToken 写入 localStorage 的 Authorization 键', () => {
     const store = useUserStore()
     store.setToken('t-123')
     expect(store.token).toBe('t-123')

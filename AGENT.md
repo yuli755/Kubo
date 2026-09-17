@@ -1,8 +1,9 @@
 # Kubo Web 开发规范（当前底座）
 
 > 供 AI 编程助手与人类开发者参考。**这份文档在 2026-09 换底座时整体重写过**：
-> 旧版本教的是 `@airpower/web` 的 `APanel`/`ATable`/`ADialog` 写法，那套正在按域退场
-> （进度见 `SPMS-Server/docs/前端F4·airpower 逐域迁移分批清单.md`），照它写会写出**死栈代码**。
+> 旧版本教的是 `@airpower/web` 的 `APanel`/`ATable`/`ADialog` 写法 —— 那套已于 2026-09-18
+> **整体退场（0 引用）**，仓库里再出现它的引用会被 `pnpm airpower:check` 直接拦下，
+> 照旧文档写会写出**死栈代码**。全过程与踩坑见 `SPMS-Server/docs/前端F4·airpower 逐域迁移分批清单.md`。
 >
 > 新代码只认下面这一套。技术栈与版本以 `pnpm stack` 为准，解读见 `SPMS-Server/docs/前端技术栈现状.md`。
 
@@ -20,16 +21,17 @@
 
 ## 二、硬规则（每条都有门禁或踩坑记录）
 
-1. **不新增 `@airpower/web`**。未迁域的存量可以不动，但新文件、新页面一律走 `src/framework` + `K*` 组件。
-   `pnpm airpower` 报退场进度（数字只许降）。
+1. **不许出现 `@airpower/web`**（已整体退场）。新文件、新页面一律走 `src/framework` + `K*` 组件；
+   `pnpm airpower:check` 是硬门禁 —— 剥注释后出现任何 `@airpower/*` 的 import 或依赖即红。
 2. **模板里的 `<el-*>` 必须显式 `import`**（如 `import { ElButton } from 'element-plus'`）。
    新用到的 Element Plus 组件要在 `src/types/element-plus-aggregate.ts` 里追加 re-export ——
    该聚合入口是 `element-plus` 别名的落点，**从它 import 的组件会进首屏**，所以只加"首屏真要用"的；
    体积敏感的（如日期/时间选择器）走子路径，见 `KFormDialog.vue` 的注释。
+   忘补的后果是 `vue-tsc`/单测全绿、**只有 `pnpm build` 会炸** —— `elementPlusAggregate.spec.ts` 现在会提前拦下。
 3. **一切查询/写操作走服务类**：页面持有 `useTable(KXxxService, { queryKey })`，弹窗用 `KFormDialog`。
    页面不自己拼 URL、不自己 `new Axios`。
-4. **实体双注册**：过渡期实体同时挂 airpower 别名装饰器与 `KModel/KField/KForm/KSearch/KTable`；
-   整域迁完后再一次性删旧装饰器与旧服务（半域删除会让旧页面拿不到元数据）。
+4. **实体只挂 K 装饰器**：`@KModel/@KTable/@KForm/@KField/@KSearch`（`KEntity` 注册表驱动表格与表单）。
+   继承根仍是 `src/base/BaseEntity.ts`（已不 import airpower），F5 收敛时再统一。
 5. **`KDialog` 只 `emit`**：使用方写 `@confirm="props.onConfirm?.(值)"` 转发。
    不要写 `:on-confirm="handler"`（会静默不派发），也不要手动调 `props.onConfirm`（会回调两次）。
 6. **命令式弹窗**：`DialogUtil.show/select/selectList/showUpload`；取消时 resolve `undefined`，调用方必须判空。
@@ -48,7 +50,7 @@
 ```bash
 pnpm check          # 全链：lint → 死代码（文件级/导出级）→ typecheck → test:coverage → 各契约门禁 → build → demo:check → size
 pnpm stack          # 当前技术栈一览（含"死重量"：零引用依赖、没人用的 public 资源）
-pnpm airpower       # airpower 退场进度
+pnpm airpower:check # airpower 不得回潮（剥注释后 0 引用才算过）
 ```
 
 体积红线：首屏 ≤ 450 KB、总体 ≤ 900 KB（`pnpm size`）；第一次超预算基本都是"把懒加载页面的依赖挪进了首屏"。

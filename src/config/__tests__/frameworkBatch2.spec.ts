@@ -76,12 +76,12 @@ describe('framework · ExportUtil（异步导出任务）', () => {
 describe('framework · KFormDialog 日期控件与提交守卫', () => {
   it('日期字段渲染成日期选择器，提交的是毫秒时间戳（后端字段是 Long）', async () => {
     const { ElDatePicker } = await import('element-plus')
-    const { KEntity } = await import('@/base/KEntity')
+    const { BaseEntity } = await import('@/base/BaseEntity')
     const { AbstractCurdService, DateTimeFormatter, DateTimeType, Field, Form, Model } = await import('@/framework')
     const KFormDialog = (await import('@/component/framework/KFormDialog.vue')).default
 
     @Model({ label: '合同' })
-    class ContractEntity extends KEntity {
+    class ContractEntity extends BaseEntity {
       @Form({ dateType: DateTimeType.DATE, dateFormatter: DateTimeFormatter.TIMESTAMP, dateShowFormatter: DateTimeFormatter.FULL_DATE })
       @Field({ label: '开始时间' })
       startTime!: number
@@ -127,12 +127,12 @@ describe('framework · KFormDialog 日期控件与提交守卫', () => {
   })
 
   it('beforeSubmit 返回 null 时中止提交（页面自己给提示）', async () => {
-    const { KEntity } = await import('@/base/KEntity')
+    const { BaseEntity } = await import('@/base/BaseEntity')
     const { AbstractCurdService, Field, Form, Model } = await import('@/framework')
     const KFormDialog = (await import('@/component/framework/KFormDialog.vue')).default
 
     @Model({ label: '物料' })
-    class MaterialEntity extends KEntity {
+    class MaterialEntity extends BaseEntity {
       @Form({ requiredString: true })
       @Field({ label: '名称' })
       name!: string
@@ -165,13 +165,13 @@ describe('framework · KFormDialog 日期控件与提交守卫', () => {
 describe('framework · KTable 扩展点', () => {
   it('#cell-<字段> 槽位覆盖某个单元格的渲染（列名来自 @KTable）', async () => {
     const { VueQueryPlugin, QueryClient } = await import('@tanstack/vue-query')
-    const { KEntity } = await import('@/base/KEntity')
+    const { BaseEntity } = await import('@/base/BaseEntity')
     const { AbstractCurdService, Field, Model, Table } = await import('@/framework')
     const KTable = (await import('@/component/framework/KTable.vue')).default
     const { useTable } = await import('@/hook/kubo/useTable')
 
     @Model({ label: '物料' })
-    class MaterialEntity extends KEntity {
+    class MaterialEntity extends BaseEntity {
       @Table({ order: 100, minWidth: 160 })
       @Field({ label: '名称' })
       name!: string

@@ -9,7 +9,6 @@ import { getRouter, initVueRouter, reloadCurrentRoute } from '@/router/appRouter
 import { usePermissionStore } from '@/stores/permission'
 import { useUserStore } from '@/stores/user'
 import { reportError } from '@/utils/errorHandler'
-import '@/config/airpower-bootstrap'
 
 const components = import.meta.glob('/src/view/**/*.vue')
 const currentUserInfo = ref(new UserEntity())
@@ -41,9 +40,6 @@ function applyMenuPermissions(menus: MenuEntity[]): MenuEntity[] {
 
 async function getMenuList() {
   menuList.value = applyMenuPermissions(await UserService.create(isLoading).getMyMenuList())
-  // `WebConfig.isTimeout` 的复位已挪进 `@/router/appRouter` 的 `initVueRouter()`
-  // —— 与真正消费它的 airpower `RouterUtil.initVueRouter` 放在一起，
-  // 于是 Console（应用外壳）不再需要 import airpower。
   initVueRouter(menuList.value, components, '/src/view', 'console')
   await reloadCurrentRoute()
 }

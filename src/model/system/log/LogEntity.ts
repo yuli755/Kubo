@@ -1,65 +1,70 @@
-import { DateTimeFormatter, Field, Model, Table } from '@airpower/web'
 import { BaseEntity } from '@/base/BaseEntity'
+import {
+  DateTimeFormatter,
+  Field as KField,
+  Model as KModel,
+  Table as KTable,
+} from '@/framework'
 
-@Model({
+@KModel({
   label: '日志',
 })
 export class LogEntity extends BaseEntity {
-  @Table()
-  @Table({
+  @KTable()
+  @KTable({
     order: 66,
     force: true,
   })
-  @Field({
+  @KField({
     label: '动作',
   })
   action!: string
 
-  @Table({
+  @KTable({
     width: 100,
   })
-  @Field({
+  @KField({
     label: '版本号',
   })
   version!: number
 
-  @Table()
-  @Field({
+  @KTable()
+  @KField({
     label: '平台',
   })
   platform!: string
 
-  @Table({
+  @KTable({
     order: 77,
     width: 160,
   })
-  @Field({
+  @KField({
     label: 'IP',
   })
   ip!: string
 
-  @Field({
+  @KField({
     label: '请求体',
   })
   request!: string
 
-  @Field({
+  @KField({
     label: '响应数据',
   })
   response!: string
 
-  @Table({
+  @KTable({
     width: 60,
   })
-  @Field({
+  @KField({
     label: '用户ID',
   })
   userId!: number
 
-  @Field({
+  @KField({
     label: '发起时间',
   })
-  @Table({
+  @KTable({
     hide: false,
     datetime: DateTimeFormatter.FULL_DATE_TIME,
     width: 150,
@@ -68,10 +73,10 @@ export class LogEntity extends BaseEntity {
   })
   declare createTime: number
 
-  @Field({
+  @KField({
     label: '响应时间',
   })
-  @Table({
+  @KTable({
     hide: false,
     order: 88,
     width: 150,
@@ -79,12 +84,12 @@ export class LogEntity extends BaseEntity {
   })
   declare updateTime: number
 
-  @Table({
+  @KTable({
     width: 120,
     order: -1,
     align: 'right',
   })
-  @Field({
+  @KField({
     label: '总耗时',
   })
   pendingTime!: number

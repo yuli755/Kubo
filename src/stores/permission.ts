@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import { airpowerPermission } from '@/utils/airpowerCompat'
+import { permissionCache } from '@/utils/authStorage'
 
 export const usePermissionStore = defineStore(
   'permission',
@@ -11,7 +11,7 @@ export const usePermissionStore = defineStore(
     function setPermissions(list: string[]) {
       permissions.value = list
       loaded.value = true
-      airpowerPermission.saveList(list)
+      permissionCache.saveList(list)
     }
 
     /** 核心权限检查方法 */
@@ -26,12 +26,12 @@ export const usePermissionStore = defineStore(
     function clear() {
       permissions.value = []
       loaded.value = false
-      airpowerPermission.saveList([])
+      permissionCache.saveList([])
     }
 
     watch(permissions, (list) => {
       if (list && list.length > 0) {
-        airpowerPermission.saveList(list)
+        permissionCache.saveList(list)
       }
     }, { immediate: true })
 

@@ -1,4 +1,4 @@
-import { Field, RootModel } from '@airpower/web'
+import { Field as KField, RootModel } from '@/framework'
 
 /**
  * # 编码规则参数
@@ -6,22 +6,22 @@ import { Field, RootModel } from '@airpower/web'
  * @author Hamm.cn
  */
 export class CodeRuleParam extends RootModel {
-  @Field({
+  @KField({
     label: '占位符',
   })
   label!: string
 
-  @Field({
+  @KField({
     label: '参数值',
   })
   value!: number
 
-  @Field({
+  @KField({
     label: '示例',
   })
   demo!: string
 
-  @Field({
+  @KField({
     label: '标题',
   })
   desc!: string

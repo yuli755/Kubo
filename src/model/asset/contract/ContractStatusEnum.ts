@@ -1,4 +1,4 @@
-import { WebColor, WebEnum } from '@airpower/web'
+import { WebColor, WebEnum } from '@/framework'
 
 export class ContractStatusEnum extends WebEnum {
   static readonly INVALID = new ContractStatusEnum(1, '未生效')

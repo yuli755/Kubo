@@ -309,6 +309,17 @@ export class WebValidator {
     return this
   }
 
+  /**
+   * 只允许字母与数字（编码规则的前缀/模板用）。
+   *
+   * 原库同名方法：`WebValidator.show('只允许字母/数字').ifNotOnlyNumberAndLetter()`。
+   * 命名确实别扭（否定式 + 内容描述），但它是**存量业务规则的名字**，
+   * 改名会让 code review 时对不上旧代码，所以照抄。
+   */
+  ifNotOnlyNumberAndLetter(): this {
+    return this.ifNotTest(/^[A-Z0-9]*$/i)
+  }
+
   ifNotTest(regx: RegExp): this {
     this.validator = (_rule, value, callback) => {
       if (value && !regx.test(String(value))) {

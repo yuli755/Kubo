@@ -1,262 +1,240 @@
 <script lang="ts" setup>
-import { AImage, AUser, DesensitizeType, DialogUtil } from '@airpower/web'
-import { ref } from 'vue'
-import { AppConfig } from '@/config/AppConfig'
-import { UserEntity } from '@/model/personnel/user/UserEntity'
+import type { UserEntity } from '@/model/personnel/user/UserEntity'
+import { ElAvatar, ElDialog, ElDropdown, ElDropdownItem, ElDropdownMenu, ElLink } from 'element-plus'
+import { computed, ref } from 'vue'
+import UserAccount from '@/component/user/UserAccount.vue'
+import { DialogUtil, FeedbackUtil } from '@/framework'
 import { UserService } from '@/model/personnel/user/UserService'
 import { FileCategory } from '@/model/system/file/FileCategory'
-import { FileEntity } from '@/model/system/file/FileEntity'
 import { useUserStore } from '@/stores/user'
-import UserAccount from './user/UserAccount.vue'
-
-defineProps({
-  user: {
-    type: UserEntity,
-    required: true,
-  },
-})
-
-function onUserAccount() {
-  DialogUtil.show(UserAccount)
-}
-
-const isLoggingOut = ref(false)
-const isLoading = ref(false)
 
 /**
- * 阶段 E-C1：AUser 内置退出按钮只删 Authorization 键就跳登录页，
- * 不调 /user/logout（服务端 Cookie/吊销名单不更新），本地快照还会复活会话。
- * 这里提供走 userStore.logout() 的完整登出：吊销服务端会话 → 清本地态 → 整页跳转。
+ * # 用户卡片（顶栏头像下拉 · F4 批 6 · 新底座）
+ *
+ * 旧实现是 airpower 的 `AUser` + `AImage`：外壳自己写了一个「退出登录」的额外入口，
+ * 因为 `AUser` 的内置退出只删 `Authorization` 键就跳登录页 —— 不调 `/user/logout`、
+ * 服务端会话与 Cookie 都不更新，本地快照还会把会话复活（阶段 E-C1 的记录）。
+ * 换底座时**保留这个修正**：登出只走 `userStore.logout()`（吊销服务端会话 → 清本地态 → 整页跳转）。
+ *
+ * 头像上传改走框架层的 `DialogUtil.showUpload`（批 0B 补的上传组件），
+ * 上传成功后回写 `avatar` 并重新拉一次 `getMyInfo` —— 与旧实现同一顺序。
  */
+const props = defineProps<{
+  user: UserEntity
+}>()
+
+const userStore = useUserStore()
+
+const accountVisible = ref(false)
+const isLoggingOut = ref(false)
+const isUploading = ref(false)
+
+/** 顶栏只显示昵称首字：头像为空时不做"空图占位"，那比文字更难看 */
+const avatarText = computed(() => (props.user.nickname || '?').slice(0, 1))
+
+const isRealNameBound = computed(() => !!props.user.idCard)
+
+const realNameText = computed(() => (props.user.realName ? `${props.user.realName[0]}**` : ''))
+
+function onUserAccount() {
+  accountVisible.value = true
+}
+
+/** 登出：吊销服务端会话 → 清本地态 → 整页跳转（`replace` 让后退键回不到已登出的页面） */
 async function onLogout() {
   if (isLoggingOut.value) {
     return
   }
   isLoggingOut.value = true
   try {
-    await useUserStore().logout()
+    await userStore.logout()
   }
   finally {
     window.location.replace('/login')
   }
 }
 
-async function onUploadAvatar(file: FileEntity) {
-  AppConfig.currentUser.value = await UserService.create(isLoading).getMyInfo()
-  AppConfig.currentUser.value.avatar = file.url
-  await UserService.create(isLoading).updateMyInfo(AppConfig.currentUser.value)
-  AppConfig.currentUser.value = await UserService.create(isLoading).getMyInfo()
+/**
+ * 头像上传。
+ *
+ * 用框架层 `DialogUtil.showUpload`（内部走 `KUploadDialog`），而不是在外壳里再塞一个上传控件：
+ * 上传的校验、multipart 组装、预览地址都在框架层，外壳只需要"选完文件后干什么"。
+ */
+async function onUploadAvatar() {
+  const file = await DialogUtil.showUpload<{ url?: string }>({
+    category: FileCategory.AVATAR.key,
+    title: '上传头像',
+  })
+  if (!file?.url) {
+    // 用户取消/关窗：不算错误，也不弹提示（旧实现同样静默）
+    return
+  }
+  isUploading.value = true
+  try {
+    const service = new UserService()
+    const user = await service.getMyInfo()
+    user.avatar = file.url
+    await service.updateMyInfo(user)
+    // 回写的是重新拉取的实体：只改内存里的 avatar 而不重拉，租户/权限等字段可能已被服务端改过
+    userStore.setUserInfo(await service.getMyInfo())
+  }
+  catch {
+    FeedbackUtil.toastError('头像已上传，但保存到个人资料失败，请重试')
+  }
+  finally {
+    isUploading.value = false
+  }
 }
 </script>
 
 <template>
-  <AUser
-    :height="200"
-    :user="user"
+  <ElDropdown trigger="click">
+    <span class="user-card__trigger">
+      <ElAvatar
+        :src="user.avatar"
+        :size="32"
+      >
+        {{ avatarText }}
+      </ElAvatar>
+      <span class="user-card__name">{{ user.nickname }}</span>
+    </span>
+
+    <template #dropdown>
+      <ElDropdownMenu>
+        <div class="user-card__panel">
+          <div
+            v-loading="isUploading"
+            class="user-card__avatar"
+            title="点击更换头像"
+            @click="onUploadAvatar"
+          >
+            <ElAvatar
+              :src="user.avatar"
+              :size="64"
+            >
+              {{ avatarText }}
+            </ElAvatar>
+          </div>
+
+          <div class="user-card__info">
+            <div class="user-card__item">
+              <span class="user-card__key">实名</span>
+              <span class="user-card__value">
+                <template v-if="isRealNameBound">{{ realNameText }}</template>
+                <ElLink
+                  v-else
+                  type="primary"
+                  @click="onUserAccount"
+                >
+                  去实名
+                </ElLink>
+              </span>
+            </div>
+            <div class="user-card__item">
+              <span class="user-card__key">邮箱</span>
+              <span class="user-card__value">
+                <template v-if="user.email">{{ user.email }}</template>
+                <ElLink
+                  v-else
+                  type="primary"
+                  @click="onUserAccount"
+                >
+                  绑定邮箱
+                </ElLink>
+              </span>
+            </div>
+            <div class="user-card__item">
+              <span class="user-card__key">手机</span>
+              <span class="user-card__value">
+                <template v-if="user.phone">{{ user.phone }}</template>
+                <ElLink
+                  v-else
+                  type="primary"
+                  @click="onUserAccount"
+                >
+                  绑定手机
+                </ElLink>
+              </span>
+            </div>
+          </div>
+
+          <ElDropdownItem
+            divided
+            @click="onUserAccount"
+          >
+            账号安全
+          </ElDropdownItem>
+          <ElDropdownItem
+            :disabled="isLoggingOut"
+            @click="onLogout"
+          >
+            {{ isLoggingOut ? '正在退出…' : '退出登录' }}
+          </ElDropdownItem>
+        </div>
+      </ElDropdownMenu>
+    </template>
+  </ElDropdown>
+
+  <ElDialog
+    v-model="accountVisible"
+    :close-on-click-modal="false"
+    append-to-body
+    destroy-on-close
+    title="账号安全中心"
+    width="640px"
   >
-    <div class="user">
-      <div class="user-left">
-        <AImage
-          v-loading="isLoading"
-          :data="{
-            category: FileCategory.AVATAR.key,
-          }"
-          :entity="FileEntity"
-          :height="80"
-          :width="80"
-          upload
-          @upload="onUploadAvatar"
-        />
-        <div
-          :class="user.gender === 1 ? 'male' : 'female'"
-          class="gender"
-        >
-          {{ user.gender === 1 ? '男' : '女' }}
-        </div>
-      </div>
-      <div class="user-right">
-        <div class="info">
-          <div class="item">
-            <div class="key">
-              实名
-            </div>
-            <div class="value">
-              <template v-if="user.idCard">
-                {{ DesensitizeType.CHINESE_NAME.desensitize(user.realName) }}
-              </template>
-              <el-link
-                v-else
-                type="primary"
-                @click="onUserAccount()"
-              >
-                去实名
-              </el-link>
-            </div>
-          </div>
-          <div class="item">
-            <div class="key">
-              邮箱
-            </div>
-            <div class="value">
-              <template v-if="user.email">
-                {{ DesensitizeType.EMAIL.desensitize(user.email) }}
-                <el-link
-                  type="primary"
-                  @click="onUserAccount()"
-                >
-                  更换
-                </el-link>
-              </template>
-              <el-link
-                v-else
-                type="primary"
-                @click="onUserAccount()"
-              >
-                绑定邮箱
-              </el-link>
-            </div>
-          </div>
-          <div class="item">
-            <div class="key">
-              手机
-            </div>
-            <div class="value">
-              <template v-if="user.phone">
-                {{ DesensitizeType.MOBILE.desensitize(user.phone) }}
-                <el-link
-                  type="primary"
-                  @click="onUserAccount()"
-                >
-                  更换
-                </el-link>
-              </template>
-              <el-link
-                v-else
-                type="primary"
-                @click="onUserAccount()"
-              >
-                绑定手机
-              </el-link>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="setting">
-      <div
-        class="item"
-        @click="onUserAccount()"
-      >
-        账号安全
-      </div>
-      <div
-        class="item"
-        :class="{ disabled: isLoggingOut }"
-        @click="onLogout"
-      >
-        {{ isLoggingOut ? '正在退出…' : '退出登录' }}
-      </div>
-    </div>
-  </AUser>
+    <UserAccount />
+  </ElDialog>
 </template>
 
-<style lang="scss" scoped>
-.user {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-
-  &-left {
-    margin-right: 20px;
-    position: relative;
-
-    ::v-deep(.el-image) {
-      width: 80px;
-      height: 80px;
-      background: var(--kubo-color-muted-bg);
-      border-radius: 10px;
-
-      img {
-        width: 100%;
-        height: 100%;
-      }
-    }
-
-    .gender {
-      position: absolute;
-      right: -7px;
-      bottom: 0;
-      color: white;
-      border-radius: 5px;
-      font-size: 12px;
-      width: 15px;
-      height: 15px;
-      text-align: center;
-      line-height: 15px;
-    }
-
-    .male {
-      background-color: #409eff;
-    }
-
-    .female {
-      background-color: #f56c6c;
-    }
-  }
-
-  &-right {
-    flex: 1;
-
-    .info {
-      .item {
-        display: flex;
-        align-items: center;
-        margin-bottom: 8px;
-
-        .key {
-          width: 40px;
-          font-size: 13px;
-          color: var(--el-text-color-secondary);
-        }
-
-        .value {
-          font-size: 13px;
-          color: var(--el-text-color-primary);
-
-          .el-link {
-            margin-left: 8px;
-            font-size: 12px;
-          }
-        }
-      }
-    }
-  }
+<style scoped>
+.user-card__trigger {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  color: var(--el-text-color-primary);
 }
 
-.setting {
+.user-card__name {
+  font-size: 14px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-card__panel {
+  padding: 12px 16px;
+  min-width: 260px;
+}
+
+.user-card__avatar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
+.user-card__info {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--el-border-color);
-  padding-top: 10px;
-  margin-top: 10px;
+  gap: 6px;
+  margin-bottom: 8px;
+}
 
-  .item {
-    padding: 8px 12px;
-    cursor: pointer;
-    border-radius: 6px;
-    font-size: 14px;
-    color: var(--el-text-color-primary);
-    transition: all 0.2s;
+.user-card__item {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+}
 
-    &.disabled {
-      cursor: not-allowed;
-      color: var(--el-text-color-disabled);
-    }
+.user-card__key {
+  width: 40px;
+  color: var(--el-text-color-secondary);
+}
 
-    &:hover {
-      background: var(--kubo-color-muted-bg);
-      color: var(--primary-color, #409eff);
-    }
-  }
+.user-card__value {
+  color: var(--el-text-color-primary);
 }
 </style>

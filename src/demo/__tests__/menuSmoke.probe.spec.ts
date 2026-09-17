@@ -106,7 +106,6 @@ function leaves(nodes: MenuItem[]): MenuItem[] {
 }
 
 async function mountPage(pinia: Pinia, path: string, component?: string) {
-  await import('@/config/airpower-bootstrap')
   const { createAppRouter } = await import('@/router/appRouter')
   const { routes } = await import('@/config/routes')
   const router = createAppRouter(routes)
