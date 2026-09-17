@@ -15,9 +15,10 @@ import type { UserEntity } from '@/model/personnel/user/UserEntity'
  * - 顶栏承载面包屑与操作区（租户/主题/用户），内容区统一容器宽度与内边距；
  * - 全部颜色走 `--kubo-*` token，深色模式自动跟随（`html.dark`）。
  *
- * ## 与旧壳的兼容
- * 通过 `VITE_LEGACY_SHELL`（见 `@/config/buildFlags`）可切回 `AFrame` 做 A/B 对比，
- * 评审通过后删除旧壳分支（见 `SPMS-Server/docs/前端技术栈收敛与视觉焕新方案.md`）。
+ * ## 关于旧壳
+ * 改版期曾用 `VITE_LEGACY_SHELL` 切回 airpower `AFrame` 做 A/B 并排评审；
+ * 批 0 已把旧壳分支与开关一起删除（`Console.vue` 只剩这一个外壳），
+ * 因此本文件现在是控制台唯一的壳（见 `SPMS-Server/docs/前端F4·airpower 逐域迁移分批清单.md`）。
  */
 import type { MenuItem } from '@/router/appRouter'
 import { Expand, Fold } from '@element-plus/icons-vue'

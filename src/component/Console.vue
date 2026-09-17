@@ -1,13 +1,8 @@
 <script lang="ts" setup>
 import type { MenuEntity } from '@/model/system/menu/MenuEntity'
-import { AFrame, WebConfig } from '@airpower/web'
 import { onErrorCaptured, ref } from 'vue'
 import { authApi } from '@/api/system'
 import KAppShell from '@/component/KAppShell.vue'
-import TenantSwitcher from '@/component/TenantSwitcher.vue'
-import ThemeSwitcher from '@/component/ThemeSwitcher.vue'
-import UserCard from '@/component/UserCard.vue'
-import { LEGACY_SHELL } from '@/config/buildFlags'
 import { UserEntity } from '@/model/personnel/user/UserEntity'
 import { UserService } from '@/model/personnel/user/UserService'
 import { getRouter, initVueRouter, reloadCurrentRoute } from '@/router/appRouter'
@@ -15,9 +10,6 @@ import { usePermissionStore } from '@/stores/permission'
 import { useUserStore } from '@/stores/user'
 import { reportError } from '@/utils/errorHandler'
 import '@/config/airpower-bootstrap'
-
-/** 构建期常量：是否使用旧壳（airpower AFrame）做 A/B 对比，默认新壳 */
-const legacyShell = LEGACY_SHELL
 
 const components = import.meta.glob('/src/view/**/*.vue')
 const currentUserInfo = ref(new UserEntity())
@@ -49,11 +41,9 @@ function applyMenuPermissions(menus: MenuEntity[]): MenuEntity[] {
 
 async function getMenuList() {
   menuList.value = applyMenuPermissions(await UserService.create(isLoading).getMyMenuList())
-  // ⚠️ 必须先复位 `WebConfig.isTimeout` 再注册路由：airpower 的 `initVueRouter()` 在
-  // `isTimeout === true` 时**直接跳过整个动态路由注册**，且没有任何地方会把它复位。
-  // 该标志原本只由 404 兜底页置真（已修），但为防存量构建/第三方写入，这里每次初始化
-  // 都显式复位一次 —— 否则「点任何菜单都进 404」且刷新也难自愈。
-  WebConfig.isTimeout = false
+  // `WebConfig.isTimeout` 的复位已挪进 `@/router/appRouter` 的 `initVueRouter()`
+  // —— 与真正消费它的 airpower `RouterUtil.initVueRouter` 放在一起，
+  // 于是 Console（应用外壳）不再需要 import airpower。
   initVueRouter(menuList.value, components, '/src/view', 'console')
   await reloadCurrentRoute()
 }
@@ -128,7 +118,7 @@ init()
   />
   <!-- 新壳（KAppShell，P0 视觉焕新）：设计 token + Element Plus 自研布局 -->
   <KAppShell
-    v-else-if="!legacyShell"
+    v-else
     v-loading="isLoading"
     :header-height="56"
     :menu-list="menuList"
@@ -144,38 +134,6 @@ init()
       </Transition>
     </router-view>
   </KAppShell>
-
-  <!-- 旧壳（airpower AFrame）：保留用于 A/B 对比，构建期常量默认关闭 -->
-  <AFrame
-    v-else
-    v-loading="isLoading"
-    :header-height="50"
-    :menu-list="menuList"
-  >
-    <template #logo>
-      <img
-        alt="Kubo"
-        class="logo"
-        height="40"
-        src="@/assets/img/logo.svg"
-      >
-    </template>
-    <template #user>
-      <div class="header-actions">
-        <TenantSwitcher />
-        <ThemeSwitcher />
-        <UserCard :user="currentUserInfo" />
-      </div>
-    </template>
-    <router-view v-slot="{ Component }">
-      <Transition
-        name="fade-slide"
-        mode="out-in"
-      >
-        <component :is="Component" />
-      </Transition>
-    </router-view>
-  </AFrame>
 </template>
 
 <style lang="scss" scoped>

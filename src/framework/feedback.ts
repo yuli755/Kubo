@@ -102,6 +102,35 @@ export class FeedbackUtil {
 
 // ────────────────────────────── 命令式弹窗 ──────────────────────────────
 
+/**
+ * # 命令式弹窗的入参契约（`DialogUtil.show/select/selectList` 传给弹窗组件的 props）
+ *
+ * 弹窗组件声明这几个 props 就能被 `DialogUtil` 打开，**不需要知道是谁打开的**：
+ * - 存量 airpower 页面用 `@airpower/web` 的 `DialogUtil.show(BillRejectDialog, '驳回')`；
+ * - 新页面用 `@/framework` 的 `DialogUtil.show(...)`；
+ * 两者传给组件的 props 形状一致（这也是批 0 能让共享弹窗"两边都活"的原因）。
+ *
+ * 典型写法（见 `src/component/framework/KDialog.vue` 与 `src/component/bill/*`）：
+ * ```ts
+ * const props = defineProps<IDialogActionProps<string>>()
+ * props.onConfirm?.(value)   // 关窗并 resolve
+ * ```
+ */
+export interface IDialogActionProps<P = unknown> {
+  /** 打开弹窗时传入的参数（`DialogUtil.show(view, param)` 的第二个参数） */
+  param?: P
+  /** 多选场景（`DialogUtil.selectList`） */
+  isMultiple?: boolean
+  /** 已选项（选择器回显） */
+  selectList?: unknown[]
+  /** 确认回调（弹窗内调用它并传值，宿主据此 resolve） */
+  onConfirm?: (data?: unknown) => void
+  /** 取消回调（宿主 resolve undefined） */
+  onCancel?: () => void
+  /** 只回调不关闭（宿主忽略即可） */
+  onCallback?: () => void
+}
+
 /** 当前应用上下文（含 pinia/router/全局组件），由 installFramework 注入 */
 let appContext: AppContext | null = null
 

@@ -1,7 +1,7 @@
 <script generic="B extends AbstractBaseBillEntity<D>, D extends AbstractBaseBillDetailEntity" lang="ts" setup>
 import type { AbstractBaseBillEntity } from '@/base/bill/AbstractBaseBillEntity'
 import type { AbstractBaseBillDetailEntity } from '@/base/bill/detail/AbstractBaseBillDetailEntity'
-import { AButton } from '@airpower/web'
+import { ElButton } from 'element-plus'
 import { vPermission } from '@/directives'
 
 const { bill } = defineProps<{
@@ -33,22 +33,29 @@ const emits = defineEmits<{
 </script>
 
 <template>
-  <AButton
+  <!--
+    批 0 迁移：`AButton link` → `ElButton link`（Element Plus 2.x 的 link 属性即文字按钮样式）。
+    按钮的可用性仍来自单据实体自己的 `canAudit()/canReject()`（状态机判据在后端，
+    前端只是回显），权限码仍走 `v-permission`。
+  -->
+  <ElButton
     v-permission="auditPermission"
     :disabled="!bill.canAudit()"
     link
+    type="primary"
     @click="emits('onAudit', bill)"
   >
     审核
-  </AButton>
-  <AButton
+  </ElButton>
+  <ElButton
     v-permission="rejectPermission"
     :disabled="!bill.canReject()"
     link
+    type="danger"
     @click="emits('onReject', bill)"
   >
     驳回
-  </AButton>
+  </ElButton>
 </template>
 
 <style lang="scss" scoped></style>

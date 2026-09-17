@@ -37,7 +37,7 @@
  * 业务代码 `route.query.xxx` / `route.path` 的写法无需改动。
  */
 import type { RouteLocationNormalizedLoaded, RouteMeta, Router, RouteRecordRaw } from 'vue-router'
-import { RouterUtil } from '@airpower/web'
+import { RouterUtil, WebConfig } from '@airpower/web'
 import { reactive } from 'vue'
 
 /** 菜单项最小结构（airpower `registerRoute` 所需字段，`MenuEntity` 结构上满足） */
@@ -135,6 +135,15 @@ export function initVueRouter(
   dir = '/src/view',
   parentRouter = 'console',
 ) {
+  // ⚠️ 必须先复位 `WebConfig.isTimeout` 再注册路由：airpower 的 `initVueRouter()` 在
+  // `isTimeout === true` 时**直接跳过整个动态路由注册**，且没有任何地方会把它复位。
+  // 该标志原本只由 404 兜底页置真（已修），但为防存量构建/第三方写入，这里每次初始化
+  // 都显式复位一次 —— 否则「点任何菜单都进 404」且刷新也难自愈。
+  //
+  // 放在这里而不是 `Console.vue`：这个 WebConfig 只被下面的 airpower 调用消费，
+  // 应用外壳不该为了别人的标志位 import 一个库。`appRouter` 本身是 F5 的拆除对象
+  // （要等 airpower 组件全部退场才能换掉 `RouterUtil`，见 F4 文档批 0 说明）。
+  WebConfig.isTimeout = false
   // airpower 的入参类型是它自己的 `IMenu & RootEntity`；项目用结构类型 MenuItem，
   // 运行期字段一致（id/name/path/component/redirect/children），故此处断言收敛在边界上。
   RouterUtil.initVueRouter(menuList as never, componentsMap, dir, parentRouter)

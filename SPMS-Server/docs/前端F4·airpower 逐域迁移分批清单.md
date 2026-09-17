@@ -10,7 +10,8 @@
 | F2 第一批 | `useTable` / `KTable` / `KFormDialog` + `KEntity`，试点页 `system/unit` | ✅ `bc57dc9` |
 | **F2 第二批** | `KPanel` / `KSelector` / `KDetail` + `useDetail`、树表（`useTable({ tree })` + KTable 树渲染）、单元格与金额格式化（`framework/cell.ts`、`format.ts`）、字典兼容 airpower 枚举（`getEnumItems/getEnumLabel/getEnumColor`） | ✅ 本轮 |
 | **批 1** | `factory`（仓库 / 生产单元，树表）+ `index` 首页 | ✅ 本轮 |
-| 批 0 | 共享件 `src/component/{bill,user}/*`、`hook/useTanStackTable` 退役 | ⬜ 下一轮 |
+| **批 0A** | 应用外壳（旧壳 `AFrame` 分支 + `VITE_LEGACY_SHELL` 开关一起删）、`KDialog`、两个单据弹窗（`BillAddFinishDialog`/`BillRejectDialog`）、`BillAuditOrReject` | ✅ 本轮 |
+| **批 0B** | `BillFormCode` / `BillFormMoreDetail` / `hook/billTable/*`、`UserCard` + `component/user/*`、`router/appRouter.ts` | ⬜ 见下方"为什么拆成 0A/0B" |
 | 批 2~6 | asset → personnel → wms → channel → system | ⬜ |
 
 **本轮实测校验**：`vue-tsc` 干净、ESLint 干净、`pnpm build` 通过、体积 首屏 343/450 KB · 总体 715/900 KB；
@@ -51,18 +52,42 @@ vitest 44 文件 / 373 用例全绿，其中逐页冒烟探针 27/27 页 ✅（�
 必须先做的原因：`src/component/bill/*`、`src/component/user/*` 是**单据类页面**的公共底座，wms / channel / asset 三域的编辑器都在用；
 不先换，后面每批都要为同一批公共组件打补丁。
 
-| 文件 | 用到的 airpower | 迁移动作 |
-| --- | --- | --- |
-| `src/hook/useTanStackTable.ts` | ATable / useEditor / DialogUtil | 直接删除（F2 的 `useTable` 已替代），确认无引用后删 |
-| `src/hook/billTable/useBillDetail.ts` + `IUseBillDetailResult.ts` | useDetail / DialogUtil | 重写为基于 `useTable` + `useDetail` 的组合 |
-| `src/component/bill/BillAddFinishDialog.vue` | ADialog / DialogProps | → `KFormDialog`（自定义 footer 插槽） |
-| `src/component/bill/BillRejectDialog.vue` | ADialog / DialogProps | → `KFormDialog` |
-| `src/component/bill/BillFormCode.vue` / `BillFormMoreDetail.vue` | AFormField / AGroup | → 表单渲染交给 `KFormDialog` 的字段推导 |
-| `src/component/bill/BillAuditOrReject.vue`、`PublishButton.vue`、`UserCard.vue`、`AuditFlow.vue` | AButton / DialogUtil | → `ElButton` / `KConfirm` |
-| `src/component/user/{ModifyPassword,PersonalToken,UserAccount}.vue` | useEditor / ADialog / AButton / DialogProps | → `KFormDialog` |
-| `src/router/appRouter.ts`、`src/view/console/index/index.vue` | APanel | → `KPanel` |
+### 为什么拆成 0A / 0B
 
-验收：批 0 完成后，`src/component/**` 与 `src/hook/**` 里不再出现 `@airpower/web`（模型层的装饰器除外）。
+原先的验收口径是「`src/component/**` 与 `src/hook/**` 里不再出现 `@airpower/web`」。真做起来发现这个口径**混了三种性质完全不同的事**，
+硬凑在一个批次里只会互相阻塞：
+
+| 性质 | 谁 | 什么时候能做 |
+| --- | --- | --- |
+| **A. 不依赖任何模型元数据**（外壳、纯输入弹窗、按钮） | `Console.vue`、`KDialog`、`BillAddFinishDialog`、`BillRejectDialog`、`BillAuditOrReject` | **现在**（本轮已完成） |
+| **B. 要按元数据渲染字段** | `BillFormCode`、`BillFormMoreDetail`、`hook/billTable/*` | 得等单据实体（入库/出库/移库/采购/销售/合同）补上框架层装饰器 —— 那是各域迁移的产物，先做等于把 6 个域的模型工作提前 |
+| **C. 依赖"还缺的件"或整片 airpower 组件仍在位** | `UserCard` + `component/user/*`（头像上传要上传组件，框架层 `showUpload` 未实现）、`router/appRouter.ts`（`RouterUtil` 与 airpower 组件共用同一份内联 vue-router，组件不消失就不能换） | 上传组件补齐后 / 批 6 之后（F5） |
+
+**0A 已完成的动作**
+
+| 文件 | 原用法 | 迁移动作 |
+| --- | --- | --- |
+| `src/component/Console.vue` | `AFrame` 旧壳分支 + `WebConfig.isTimeout` 复位 | 删掉旧壳分支与 `VITE_LEGACY_SHELL` 开关（改版期 A/B 已结束）；`WebConfig.isTimeout` 复位挪到 `router/appRouter.ts` 的 `initVueRouter()` —— 与真正消费它的 airpower 调用放一起，外壳不再 import airpower |
+| **新增** `src/component/framework/KDialog.vue` | — | 命令式弹窗的通用外壳（ElDialog），契约 = `IDialogActionProps`：`param` 进、`onConfirm(data)` 出（`framework/feedback.ts` 新增该接口类型） |
+| `src/component/bill/BillAddFinishDialog.vue`、`BillRejectDialog.vue` | `ADialog + DialogProps` | → `KDialog`，**props 契约不变**，所以还没迁移的 wms/channel/asset 单据页照旧打开它们 |
+| `src/component/bill/BillAuditOrReject.vue` | `AButton` | → `ElButton`（link 文字按钮），可用性仍来自实体状态机 `canAudit()/canReject()` |
+| `src/component/bill/BillFormCode.vue` / `BillFormMoreDetail.vue` | `AFormField` / `AGroup` / `ADateTime` | ⬜ 0B（要元数据） |
+| `src/component/user/{ModifyPassword,PersonalToken,UserAccount}.vue`、`UserCard.vue` | `useEditor`/`ADialog`/`AImage` | ⬜ 0B（缺上传组件） |
+| `src/hook/billTable/useBillDetail.ts` + `IUseBillDetailResult.ts` | `useDetail`/`DialogUtil` | ⬜ 0B（同上） |
+| `src/hook/useTanStackTable.ts` | 旧适配器 | **退役口径改了**：它被 16 个未迁移的列表页 + 8 个 hook 使用，只有在最后一个域迁完之后才能删（属 F5 收尾）。本轮起**禁止新增使用**，由批 2~6 的门禁逐域削减 |
+
+**批 0A 的验收（已落在 `src/config/__tests__/sharedComponents.spec.ts`）**
+
+1. `src/component/**` 里仍 import airpower 的文件 = **精确集合**（当前 6 个，每个都在用例里写清了卡在哪）——
+   多一个（新代码又用了 airpower）就红；少一个（又迁完一个）也提示可以收紧断言。
+2. 已迁的 5 个文件断言「不再 import airpower」；旧壳开关与 `AFrame` 断言「已删除」。
+3. `KDialog` 的命令式契约逐条钉住：标题取 `param`、`disable-confirm` 时点确定不回调、
+   取消/关窗触发 `onCancel`、确认把数据交回宿主。
+4. 两个单据弹窗的行为：驳回原因空 → 确定禁用；填了 → `onConfirm('原因')`；数量弹窗默认值取 `param`、回传数字。
+
+**本轮踩到的坑（已写进 KDialog 注释）**：外层必须写 `@confirm` / `@cancel`，不能写 `:on-confirm="handler"` ——
+后者编译成 kebab 键 `on-confirm`，而 `emit('confirm')` 只在 `vnode.props` 里找 `onConfirm`，
+找不到就**静默不派发**（弹窗点确定没反应、且不报错）。这条正是本批新增的测试抓出来的。
 
 ## 三、批 1~5：按域推进（先小后大，先低风险后高敏感）
 
