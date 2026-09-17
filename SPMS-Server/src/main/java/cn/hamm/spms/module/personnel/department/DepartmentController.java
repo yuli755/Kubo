@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.personnel.department;
 
 import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.Json;
+import cn.hamm.spms.core.Json;
 import cn.hamm.airpower.core.TreeUtil;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.curd.annotation.Extends;

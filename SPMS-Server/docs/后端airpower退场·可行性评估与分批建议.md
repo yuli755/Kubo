@@ -152,3 +152,55 @@ pnpm airpower:backend -- --json            # 机器可读
 pnpm airpower:backend -- --check           # 棘轮（CI 已接）
 grep -rl 'cn\.hamm\.airpower' SPMS-Server/src --include=*.java | wc -l   # 180
 ```
+
+---
+
+## 八、下一步可行性矩阵（2026-09-18 实测，含"能不能离线验"）
+
+> 这一节回答"接下来每一步到底能不能做、靠什么验、要谁配合"。数字都是脚本实测：
+> `pnpm airpower:backend -- --json`（足迹）+ `pnpm java:imports`（导入可达性）。
+
+### 8.1 一条关键规律：**带反射身份的层不能先换**
+
+B2 撞到三次（已回退三个符号），规律记死：
+
+| 类型 | 能不能先搬 | 为什么 |
+| --- | --- | --- |
+| **纯函数工具**（Json / StringUtil / DateTimeUtil / NumberUtil / RandomUtil / TaskUtil / FileUtil / TraceUtil） | ✅ 能 | 只被**直接调用**，不存在"谁读谁"的身份问题 |
+| **注解**（`@Description` `@Meta` `@Dictionary` `@Export` `@ReadOnly` `@Desensitize` `@Phone` `@ExposeAll`） | ❌ 不能 | airpower 的 `ExportHelper`/`CurdService`/`Permission` 用 `field.isAnnotationPresent(X.class)` **按类身份**读；换成自己的同名注解 = 它们**读不到**，导出列名、字典校验、只读、脱敏**静默失效** |
+| **被反射消费的接口**（`IDictionary` `ITree` `IEntity`） | ❌ 不能 | 同上：`@Dictionary(XxxEnum.class)` 的枚举必须实现**它的** `IDictionary`，否则字典渲染/校验失效 |
+| **工具里反射读注解的**（`CollectionUtil.toCsvInputStream`、`ReflectUtil.getDescription`） | ❌ 不能 | 它们内部 `getAnnotation(Export.class)`——搬走后读的是空注解，**导出列头会退化成字段名** |
+| **被框架签名钉住的类型**（`AccessTokenUtil.VerifiedToken`） | ❌ 不能 | 我们的 `RequestInterceptor` 重写的是 airpower 的方法，返回类型必须**就是**它的 `VerifiedToken`，换成自己的 = 编译不过 |
+
+**推论**：正确顺序不是"按模块由小到大"，而是"**先搬无反射耦合的（可以随时搬），再搬有耦合的（必须跟着它的消费者一起搬）**"。
+
+### 8.2 逐批可行性
+
+| 批 | 内容 | 实测规模 | 前置条件 | 离线能验吗 | 结论 |
+| --- | --- | --- | --- | --- | --- |
+| **B2** ✅ 已做 | core 无反射耦合的闭包（15 类） | 79 处引用 | 无 | ✅ 棘轮 + `java:imports` + `text:check` | **已完成** |
+| **B5** | `@Api` / `ApiController` / `ApiConfig` + 3 个配置键 + Dockerfile 环境变量 | 41 处 | 需知道 `ApiController` 里被我们继承的方法签名（可离线读 curl 源码） | ⚠️ 部分：请求日志/traceId 行为要真跑 | **可做，但要先写"端点契约快照"**（124 个端点的 method/path/权限，作为行为等价的证据） |
+| **B7** | `RedisHelper`(13) + `Cookies`(1) 收尾 | 13 处 | 需同时接管 `RedisTemplate` 装配（从 airpower `Auto` 换成自己的 `@Bean`），否则**老 key 的序列化格式变了** → 令牌黑名单/防爆破计数读不到 | ⚠️ 需真 Redis | **可做，但必须和"序列化格式不变"一起验**（本沙箱无 Redis，只能靠你在本地跑一次登录+登出） |
+| **B4** | 查询模型（`QueryPageRequest`/`QueryListRequest`/`Page`/`Sort`/`QueryPageResponse`） | ≈130 处 | 这五个类是 124 个端点的**入参/出参类型**，同时被 airpower 的 `CurdController` 解析（`@RequestBody` → 内部反射取 page/sort/filter） | ⚠️ 需真接口回归 | **不建议先做**：换类型 = 换请求体解析，前端 `useTable` 的请求形状要同步验证 |
+| **B3** | 元数据注解 + `IDictionary`/`ITree` + `CollectionUtil`/`ReflectUtil` | ≈150 处 | **必须在 B6 之后**（或与 B6 同批）：注解的消费者是 curd 的反射代码 | ⚠️ 需真导出/真表单 | **绑定 B6** |
+| **B6** | `Curd` 端点 / `@Search` / `@Extends` / `Permission` / `QueryXxx` 全家（**与"删 JPA 写链路"是同一件事**） | 263 处 | ① 目标态选型已定（MyBatis-Plus，见 `去JPA决策评估.md` §8）；② 需要 `mvn compile` 能跑的环境；③ 需要真实库结构（S0 的 mysqldump） | ❌ 只能编译期 + 真库回归 | **必须由你在有 JDK/库的环境配合**，或给我一条 Maven 通道 |
+| **B8** | 删 `airpower-curd` 依赖、棘轮归零 | —— | 全部前置完成 | ✅ | 收尾 |
+
+### 8.3 现在的瓶颈与"最短解锁路径"
+
+```
+现在能自己往下走（不需要你、不需要 JDK）：
+  B5（Api 层，41 处）  →  B7（Redis，13 处）      ←  这两批能把足迹压到 ~490
+需要你各配合一步的：
+  S0  mysqldump 一份基线             ←  解锁"删 JPA"整条线（B3/B4/B6）
+  B6  一台能 mvn compile 的机器      ←  解锁最硬的 263 处
+```
+
+**建议的下一步（按性价比）**：
+
+1. **B5（Api 层）** —— 41 处、纯入口层，可离线搬 + 用现有 `auth:check`（124 个端点权限）与 `perms:check` 兜底，是"再压缩一轮且不改业务语义"的最优解；
+2. **B7（Redis）** —— 13 处，但**必须一起处理序列化兼容**（同一批里把 `RedisTemplate` 配置搬过来，保持 key/value 序列化器不变），否则登录态会漂；
+3. **S0 的 mysqldump** —— 你给一份库结构，我就能把 DDL 交给 Flyway、把 `ddl-auto` 切成 `none`，`去 JPA` 才算真正开工（这是 B3/B4/B6 的前置，卡在这儿的不是工时而是这一份数据）；
+4. **B6** —— 只在你确认有 `mvn` 环境时启动；否则宁可先把 B5/B7 清干净，避免"半套写入路径"。
+
+> 一句话：**现在可以继续自己推进 B5 → B7；"删 JPA"那一条线需要一份 mysqldump（或一个能连库的环境），最硬的 B6 还需要一台能编译的机器。**

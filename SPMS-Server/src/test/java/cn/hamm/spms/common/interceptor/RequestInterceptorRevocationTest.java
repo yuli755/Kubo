@@ -1,6 +1,6 @@
 package cn.hamm.spms.common.interceptor;
 
-import cn.hamm.airpower.core.exception.ServiceException;
+import cn.hamm.spms.core.exception.ServiceException;
 import cn.hamm.spms.common.security.AccessTokenRevocationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

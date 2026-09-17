@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.system.menu;
 
 import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.Json;
+import cn.hamm.spms.core.Json;
 import cn.hamm.airpower.core.TreeUtil;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.curd.model.query.QueryListRequest;

@@ -1,6 +1,6 @@
 package cn.hamm.spms.config;
 
-import cn.hamm.airpower.core.Json;
+import cn.hamm.spms.core.Json;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.Ordered;

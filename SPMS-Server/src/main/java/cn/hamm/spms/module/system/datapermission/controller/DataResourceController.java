@@ -8,7 +8,7 @@ import cn.hamm.spms.module.system.datapermission.repository.DataResourceReposito
 import cn.hamm.spms.module.system.datapermission.service.DataOwnershipMigrationService;
 import cn.hamm.spms.module.system.datapermission.service.DataResourceService;
 import cn.hamm.spms.module.system.datapermission.service.PermissionChangeOutboxAdminService;
-import cn.hamm.airpower.core.Json;
+import cn.hamm.spms.core.Json;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;

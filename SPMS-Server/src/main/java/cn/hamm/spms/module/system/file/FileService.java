@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.system.file;
 
-import cn.hamm.airpower.core.FileUtil;
-import cn.hamm.airpower.core.exception.ServiceException;
+import cn.hamm.spms.core.FileUtil;
+import cn.hamm.spms.core.exception.ServiceException;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.common.AppConfig;
 import cn.hamm.spms.module.system.file.enums.FileCategory;

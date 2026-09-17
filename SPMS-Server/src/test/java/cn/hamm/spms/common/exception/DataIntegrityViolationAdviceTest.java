@@ -1,6 +1,6 @@
 package cn.hamm.spms.common.exception;
 
-import cn.hamm.airpower.core.Json;
+import cn.hamm.spms.core.Json;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;

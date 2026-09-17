@@ -28,6 +28,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
+import { stripJavaComments } from './lib/java-source.mjs'
+
 const ROOT = process.env.KUBO_ROOT ?? path.resolve(import.meta.dirname, '..', '..')
 const SERVER = path.join(ROOT, 'SPMS-Server')
 
@@ -49,8 +51,17 @@ const SERVER = path.join(ROOT, 'SPMS-Server')
  *     **exception 模块整块归零**（55 → 0）。
  *   · core 285（+3）：新 Errors 引用 core 的 IException / IDictionary / ServiceException，
  *     这三样是 B2 的活（接口与异常运行时），错不在这一批。
+ * - 2026-09-18 第三批（B2 core 自持）：164 / 49 / 547
+ *   · 把 airpower-core 的**真实调用闭包**（15 个类）搬进 `cn.hamm.spms.core.*`：Json（响应体 + JSON 工具）、
+ *     ServiceException、IException、StringUtil/DateTimeUtil/NumberUtil/RandomUtil/TaskUtil/FileUtil/TraceUtil、
+ *     @Description（自持层内部用）、HttpConstant、DateTimeFormatter、IFunction —— 79 处引用换成本仓类。
+ *   · **三个符号刻意没换**（换了会静默改行为或直接编译不过，详见 docs 的 B2 小节）：
+ *     CollectionUtil / ReflectUtil（反射读 @Description/@Export → 导出列名与日志文案会退化）、
+ *     AccessTokenUtil（它的 `VerifiedToken` 是 airpower `RequestInterceptor` 重写签名的返回类型）。
+ *   · 新增离线门禁 `pnpm java:imports`（导入可达性 + 自持层不得反依赖 + 同名副本必须显式承认），
+ *     与本脚本共用 `infra/scripts/lib/java-source.mjs` 的剥注释实现，保证两边口径一致。
  */
-const BASELINE = { files: 174, symbols: 60, references: 603 }
+const BASELINE = { files: 164, symbols: 49, references: 547 }
 
 
 /**
@@ -60,61 +71,6 @@ const BASELINE = { files: 174, symbols: 60, references: 603 }
  * 不剥的话**自己写的档案会把数字顶上去**（本轮就发生过：摘掉 airpower-email 反而 +3 个文件）。
  * 而 `startsWith("cn.hamm.airpower.")` 这种**字符串**是真耦合（判断类归属），必须保留。
  */
-function stripJavaComments(code) {
-  let out = ''
-  let state = 'code' // code | line | block | string | char
-  for (let i = 0; i < code.length; i += 1) {
-    const c = code[i]
-    const next = code[i + 1]
-    if (state === 'code') {
-      if (c === '/' && next === '/') {
-        state = 'line'
-        i += 1
-        continue
-      }
-      if (c === '/' && next === '*') {
-        state = 'block'
-        i += 1
-        continue
-      }
-      if (c === '"') {
-        state = 'string'
-      }
-      else if (c === '\'') {
-        state = 'char'
-      }
-    }
-    else if (state === 'line') {
-      if (c === '\n') {
-        state = 'code'
-        out += c
-      }
-      continue
-    }
-    else if (state === 'block') {
-      if (c === '*' && next === '/') {
-        state = 'code'
-        i += 1
-      }
-      else if (c === '\n') {
-        out += c
-      }
-      continue
-    }
-    else if (state === 'string' || state === 'char') {
-      if (c === '\\') {
-        out += c + (next ?? '')
-        i += 1
-        continue
-      }
-      if ((state === 'string' && c === '"') || (state === 'char' && c === '\'')) {
-        state = 'code'
-      }
-    }
-    out += c
-  }
-  return out
-}
 
 function walk(dir, files = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

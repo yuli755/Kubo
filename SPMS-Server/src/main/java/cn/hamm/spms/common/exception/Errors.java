@@ -9,15 +9,16 @@ package cn.hamm.spms.common.exception;
  * 为什么第一个动它：错误码是"被引用次数多、语义最简单"的一层（55 处、12 个常量），
  * 换个 import 就能把 airpower-exception 模块整块摘掉，风险最低。
  *
- * 仍依赖 airpower-core 的两样东西（B2 一批接管）：
- *   · {@link cn.hamm.airpower.core.interfaces.IException} / {@code IDictionary} —— 接口
- *   · {@link cn.hamm.airpower.core.exception.ServiceException} —— {@code show()} 抛出的异常类型
- * 也就是说：这一批搬的是"错误码字典"，不是"异常运行时"。
+ * 依赖现状（2026-09-18）：
+ *   · {@code IException} 与 {@code ServiceException} 已在 **B2** 由本仓自持
+ *     （{@link cn.hamm.spms.core.interfaces.IException} / {@link cn.hamm.spms.core.exception.ServiceException}），
+ *     配套的本仓 advice 见 {@link ServiceExceptionAdvice}；
+ *   · 仍留在 airpower 的只有 {@code IDictionary} —— 它被框架按**类身份**反射消费，B3 一起处理。
  */
 
-import cn.hamm.airpower.core.exception.ServiceException;
+import cn.hamm.spms.core.exception.ServiceException;
 import cn.hamm.airpower.core.interfaces.IDictionary;
-import cn.hamm.airpower.core.interfaces.IException;
+import cn.hamm.spms.core.interfaces.IException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.jetbrains.annotations.Contract;

@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.event;
 
-import cn.hamm.airpower.core.Json;
+import cn.hamm.spms.core.Json;
 import cn.hamm.airpower.redis.RedisHelper;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;

@@ -1,7 +1,7 @@
 package cn.hamm.spms.base.bill;
 
 import cn.hamm.airpower.core.ReflectUtil;
-import cn.hamm.airpower.core.TaskUtil;
+import cn.hamm.spms.core.TaskUtil;
 import cn.hamm.airpower.core.interfaces.IDictionary;
 import cn.hamm.airpower.curd.base.CurdEntity;
 import cn.hamm.airpower.curd.helper.TransactionHelper;

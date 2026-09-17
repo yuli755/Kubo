@@ -1,12 +1,12 @@
 package cn.hamm.spms.common;
 
-import cn.hamm.airpower.core.FileUtil;
+import cn.hamm.spms.core.FileUtil;
 import cn.hamm.spms.module.system.file.enums.FileUploadPlatform;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
-import static cn.hamm.airpower.core.FileUtil.FILE_SCALE;
+import static cn.hamm.spms.core.FileUtil.FILE_SCALE;
 import static cn.hamm.spms.module.system.file.enums.FileUploadPlatform.LOCAL;
 
 /**

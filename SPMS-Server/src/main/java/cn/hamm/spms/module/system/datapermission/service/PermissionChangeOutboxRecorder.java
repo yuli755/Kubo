@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
-import cn.hamm.airpower.core.Json;
+import cn.hamm.spms.core.Json;
 import cn.hamm.spms.module.system.datapermission.entity.PermissionChangeOutboxEntity;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionChangedEvent;
 import cn.hamm.spms.module.system.datapermission.repository.PermissionChangeOutboxRepository;

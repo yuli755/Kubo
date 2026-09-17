@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.system.datapermission.controller;
 
 import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.Json;
+import cn.hamm.spms.core.Json;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.spms.base.BaseController;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;

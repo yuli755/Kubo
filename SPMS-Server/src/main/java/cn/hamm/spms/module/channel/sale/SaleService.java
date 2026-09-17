@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.channel.sale;
 
 import cn.hamm.airpower.core.CollectionUtil;
-import cn.hamm.airpower.core.NumberUtil;
+import cn.hamm.spms.core.NumberUtil;
 import cn.hamm.airpower.core.interfaces.IDictionary;
 import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;

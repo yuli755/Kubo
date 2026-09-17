@@ -1,6 +1,6 @@
 package cn.hamm.spms.base.bill;
 
-import cn.hamm.airpower.core.Json;
+import cn.hamm.spms.core.Json;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.curd.annotation.Extends;
 import cn.hamm.airpower.curd.base.Curd;
