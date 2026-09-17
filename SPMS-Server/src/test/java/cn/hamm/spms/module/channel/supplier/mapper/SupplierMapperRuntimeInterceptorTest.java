@@ -20,6 +20,7 @@ import java.util.Set;
 import static cn.hamm.spms.module.system.datapermission.service.RowPermissionPredicate.FRAGMENT_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import cn.hamm.spms.support.SqlFixtures;
 
 /**
  * <h1>供应商的 Mapper 运行时回归</h1>
@@ -48,26 +49,7 @@ class SupplierMapperRuntimeInterceptorTest {
 
     @BeforeEach
     void seed() {
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS supplier ("
-                + "id BIGINT PRIMARY KEY, create_time BIGINT DEFAULT 0, update_time BIGINT DEFAULT 0, "
-                + "is_disabled BOOLEAN DEFAULT FALSE, is_published BOOLEAN DEFAULT FALSE, "
-                + "tenant_id BIGINT, creator_id BIGINT, name VARCHAR(255), code VARCHAR(255), phone VARCHAR(255))");
-        jdbcTemplate.update("DELETE FROM supplier");
-        jdbcTemplate.update("DELETE FROM data_policy");
-        jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO supplier (id, tenant_id, creator_id, name, code, phone, is_published) "
-                + "VALUES (1, 10, 7, '华东供应商', 'S-001', '13900000001', TRUE)");
-        jdbcTemplate.update("INSERT INTO supplier (id, tenant_id, creator_id, name, code, phone, is_published) "
-                + "VALUES (2, 10, 8, '华南供应商', 'S-002', '13900000002', FALSE)");
-        jdbcTemplate.update("INSERT INTO supplier (id, tenant_id, creator_id, name, code, phone, is_published) "
-                + "VALUES (3, 20, 7, '华东供应商', 'S-003', '13900000003', TRUE)");
-        jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
-                        + "owner_columns, supported_actions, status, version_no) "
-                        + "VALUES (9701, 'channel.supplier', 'supplier', 'supplier', 'tenant_id', 'creator_id', "
-                        + "'QUERY', 'ENABLED', 1)");
-        jdbcTemplate.update("INSERT INTO data_policy (id, policy_code, resource_id, subject_type, subject_id, action_name, "
-                        + "condition_json, priority, enabled, version_no) VALUES "
-                        + "(9702, 'test-supplier-tenant', 9701, 'TENANT', 10, 'QUERY', '{}', 0, TRUE, 1)");
+        SqlFixtures.execute(jdbcTemplate, "sql/mapper-runtime/supplier-mapper-runtime-interceptor.sql");
     }
 
     @AfterEach
@@ -128,7 +110,7 @@ class SupplierMapperRuntimeInterceptorTest {
     @Test
     @DisplayName("供应商无策略时恒假，不返回跨租户详情")
     void noPolicyDeniesAllRows() {
-        jdbcTemplate.update("DELETE FROM data_policy");
+        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             assertEquals(0L, supplierMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(supplierMapper.selectDetailByPermission(1L));

@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import cn.hamm.spms.module.wms.inventory.mapper.InventoryWriteMapper;
 
 /**
  * <h1>Service</h1>
@@ -55,6 +56,13 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
      */
     @Autowired(required = false)
     private InventoryMapper inventoryMapper;
+
+    /**
+     * 写侧的原子增减（无条件注册，见 {@code InventoryWriteMapper}）。
+     * 不是 {@code required = false}：库存增减是写路径，不能跟着读侧开关消失。
+     */
+    @Autowired
+    private InventoryWriteMapper inventoryWriteMapper;
 
     @Autowired
     private InventoryReadShadowService inventoryReadShadowService;
@@ -362,7 +370,7 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
      * @param quantity    数量
      */
     public void addInventoryQuantity(long inventoryId, double quantity) {
-        int rows = repository.increaseQuantityById(inventoryId, quantity, System.currentTimeMillis());
+        int rows = inventoryWriteMapper.increaseQuantityById(inventoryId, quantity, System.currentTimeMillis());
         Errors.FORBIDDEN.when(rows == 0, "库存记录不存在或已被删除");
     }
 
@@ -376,7 +384,7 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
      * @param quantity    数量
      */
     public void reduceInventoryQuantity(long inventoryId, double quantity) {
-        int rows = repository.decreaseQuantityById(inventoryId, quantity, System.currentTimeMillis());
+        int rows = inventoryWriteMapper.decreaseQuantityById(inventoryId, quantity, System.currentTimeMillis());
         Errors.FORBIDDEN_EDIT.when(rows == 0, "库存数量不足");
     }
 }

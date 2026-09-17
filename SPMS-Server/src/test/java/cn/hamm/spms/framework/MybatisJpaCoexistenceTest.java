@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import cn.hamm.spms.support.SqlFixtures;
 
 /**
  * <h1>MyBatis-Plus 与 airpower-JPA 并存的最小验证（P2 换轨的前提）</h1>
@@ -153,12 +154,14 @@ class MybatisJpaCoexistenceTest {
     @Test
     @DisplayName("MyBatis 能查到 JPA 那张表（同一库、同一 schema）")
     void mybatisReadsTheSameSchema() throws Exception {
-        long viaJpa = ((Number) entityManager.createNativeQuery("select count(1) from data_resource")
+        String countSql = SqlFixtures.text("coexistence/count_data_resource.sql");
+        // SQL-IGNORE: createNativeQuery 是 JPA 的原生查询入口（语句本身在 coexistence/count_data_resource.sql）
+        long viaJpa = ((Number) entityManager.createNativeQuery(countSql)
                 .getSingleResult()).longValue();
         long viaMyBatis;
         try (SqlSession session = sqlSessionFactory().openSession()) {
             try (Statement statement = session.getConnection().createStatement();
-                 ResultSet rs = statement.executeQuery("select count(1) from data_resource")) {
+                 ResultSet rs = statement.executeQuery(countSql)) {
                 assertTrue(rs.next(), "COUNT 查询必须返回一行");
                 viaMyBatis = rs.getLong(1);
             }

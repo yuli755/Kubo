@@ -20,6 +20,7 @@ import java.util.Set;
 import static cn.hamm.spms.module.system.datapermission.service.RowPermissionPredicate.FRAGMENT_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import cn.hamm.spms.support.SqlFixtures;
 
 /**
  * <h1>销售单的 Mapper 运行时回归</h1>
@@ -49,27 +50,7 @@ class SaleMapperRuntimeInterceptorTest {
 
     @BeforeEach
     void seed() {
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS sale ("
-                + "id BIGINT PRIMARY KEY, create_time BIGINT DEFAULT 0, update_time BIGINT DEFAULT 0, "
-                + "is_disabled BOOLEAN DEFAULT FALSE, is_published BOOLEAN DEFAULT FALSE, "
-                + "tenant_id BIGINT, creator_id BIGINT, reject_reason VARCHAR(255), bill_code VARCHAR(255), "
-                + "reason VARCHAR(255), total_price DOUBLE, status INT, customer_id BIGINT)");
-        jdbcTemplate.update("DELETE FROM sale");
-        jdbcTemplate.update("DELETE FROM data_policy");
-        jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO sale (id, tenant_id, creator_id, bill_code, reason, status, customer_id, is_published) "
-                + "VALUES (1, 10, 7, 'SA-001', '分销', 2, 9001, TRUE)");
-        jdbcTemplate.update("INSERT INTO sale (id, tenant_id, creator_id, bill_code, reason, status, customer_id, is_published) "
-                + "VALUES (2, 10, 8, 'SA-002', '直销', 3, 9002, FALSE)");
-        jdbcTemplate.update("INSERT INTO sale (id, tenant_id, creator_id, bill_code, reason, status, customer_id, is_published) "
-                + "VALUES (3, 20, 7, 'SA-003', '分销', 2, 9003, TRUE)");
-        jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
-                        + "owner_columns, supported_actions, status, version_no) "
-                        + "VALUES (9501, 'channel.sale', 'sale', 'sale', 'tenant_id', 'creator_id', "
-                        + "'QUERY', 'ENABLED', 1)");
-        jdbcTemplate.update("INSERT INTO data_policy (id, policy_code, resource_id, subject_type, subject_id, action_name, "
-                        + "condition_json, priority, enabled, version_no) VALUES "
-                        + "(9502, 'test-sale-tenant', 9501, 'TENANT', 10, 'QUERY', '{}', 0, TRUE, 1)");
+        SqlFixtures.execute(jdbcTemplate, "sql/mapper-runtime/sale-mapper-runtime-interceptor.sql");
     }
 
     @AfterEach
@@ -133,7 +114,7 @@ class SaleMapperRuntimeInterceptorTest {
     @Test
     @DisplayName("销售无策略时恒假，不返回跨租户详情")
     void noPolicyDeniesAllRows() {
-        jdbcTemplate.update("DELETE FROM data_policy");
+        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             assertEquals(0L, saleMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(saleMapper.selectDetailByPermission(1L));

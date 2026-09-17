@@ -44,6 +44,13 @@ class DataFieldPolicyServiceCacheTest {
     @Mock
     private DataFieldPolicyRepository fieldPolicyRepository;
 
+    /**
+     * 带资源 join 的脱敏策略查询（2026-09-18 SQL 分层：那条 JPQL 搬进了专属 Mapper + XML，
+     * 服务改注入 Mapper，所以这里跟着换 mock —— 判据（重复读只查一次库）没变）。
+     */
+    @Mock
+    private cn.hamm.spms.module.system.datapermission.mapper.DataFieldPolicyQueryMapper fieldPolicyQueryMapper;
+
     @Mock
     private DataResourceRepository resourceRepository;
 
@@ -51,7 +58,8 @@ class DataFieldPolicyServiceCacheTest {
 
     @BeforeEach
     void setUp() {
-        service = new DataFieldPolicyService(mock(DataPermissionEventPublisher.class), resourceRepository);
+        service = new DataFieldPolicyService(
+                mock(DataPermissionEventPublisher.class), resourceRepository, fieldPolicyQueryMapper);
         injectField(service, "repository", fieldPolicyRepository);
     }
 
@@ -125,13 +133,13 @@ class DataFieldPolicyServiceCacheTest {
     @DisplayName("按字段+角色重复读只查一次库")
     void fieldRolePoliciesCached() {
         DataFieldPolicyEntity policy = new DataFieldPolicyEntity().setFieldName("secret").setMaskType("FULL");
-        given(fieldPolicyRepository.findByResourceKeyAndFieldNameAndRoleCodeAndEnabledTrue(
+        given(fieldPolicyQueryMapper.findByResourceKeyAndFieldNameAndRoleCodeAndEnabledTrue(
                 "crm.customer", "secret", "SALES")).willReturn(List.of(policy));
 
         service.getPoliciesByResourceFieldRole("crm.customer", "secret", "SALES");
         service.getPoliciesByResourceFieldRole("crm.customer", "secret", "SALES");
 
-        verify(fieldPolicyRepository, times(1))
+        verify(fieldPolicyQueryMapper, times(1))
                 .findByResourceKeyAndFieldNameAndRoleCodeAndEnabledTrue("crm.customer", "secret", "SALES");
     }
 

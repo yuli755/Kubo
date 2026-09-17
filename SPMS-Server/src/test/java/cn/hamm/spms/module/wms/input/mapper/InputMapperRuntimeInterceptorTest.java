@@ -20,6 +20,7 @@ import java.util.Set;
 import static cn.hamm.spms.module.system.datapermission.service.RowPermissionPredicate.FRAGMENT_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import cn.hamm.spms.support.SqlFixtures;
 
 /**
  * <h1>入库单第三资源的真实 Mapper 运行时回归</h1>
@@ -48,27 +49,7 @@ class InputMapperRuntimeInterceptorTest {
 
     @BeforeEach
     void seed() {
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS input ("
-                + "id BIGINT PRIMARY KEY, create_time BIGINT DEFAULT 0, update_time BIGINT DEFAULT 0, "
-                + "is_disabled BOOLEAN DEFAULT FALSE, is_published BOOLEAN DEFAULT FALSE, "
-                + "tenant_id BIGINT, creator_id BIGINT, reject_reason VARCHAR(255), bill_code VARCHAR(255), "
-                + "status INT, type INT, purchase_id BIGINT, structure_id BIGINT, order_id BIGINT, move_id BIGINT)");
-        jdbcTemplate.update("DELETE FROM input");
-        jdbcTemplate.update("DELETE FROM data_policy");
-        jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO input (id, tenant_id, creator_id, bill_code, status, type, is_published) "
-                + "VALUES (1, 10, 7, 'IN-001', 2, 1, TRUE)");
-        jdbcTemplate.update("INSERT INTO input (id, tenant_id, creator_id, bill_code, status, type, is_published) "
-                + "VALUES (2, 10, 8, 'IN-002', 3, 2, FALSE)");
-        jdbcTemplate.update("INSERT INTO input (id, tenant_id, creator_id, bill_code, status, type, is_published) "
-                + "VALUES (3, 20, 7, 'IN-003', 2, 1, TRUE)");
-        jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
-                        + "owner_columns, supported_actions, status, version_no) "
-                        + "VALUES (9301, 'wms.input', 'input', 'input', 'tenant_id', 'creator_id', "
-                        + "'QUERY', 'ENABLED', 1)");
-        jdbcTemplate.update("INSERT INTO data_policy (id, policy_code, resource_id, subject_type, subject_id, action_name, "
-                        + "condition_json, priority, enabled, version_no) VALUES "
-                        + "(9302, 'test-input-tenant', 9301, 'TENANT', 10, 'QUERY', '{}', 0, TRUE, 1)");
+        SqlFixtures.execute(jdbcTemplate, "sql/mapper-runtime/input-mapper-runtime-interceptor.sql");
     }
 
     @AfterEach
@@ -131,7 +112,7 @@ class InputMapperRuntimeInterceptorTest {
     @Test
     @DisplayName("入库无策略时恒假，不返回跨租户详情")
     void noPolicyDeniesAllRows() {
-        jdbcTemplate.update("DELETE FROM data_policy");
+        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             assertEquals(0L, inputMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(inputMapper.selectDetailByPermission(1L));

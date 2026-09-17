@@ -19,6 +19,7 @@ import java.util.Set;
 import static cn.hamm.spms.module.system.datapermission.service.RowPermissionPredicate.FRAGMENT_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import cn.hamm.spms.support.SqlFixtures;
 
 /**
  * <h1>移库单 Mapper 运行时权限回归</h1>
@@ -44,27 +45,7 @@ class MoveMapperRuntimeInterceptorTest {
 
     @BeforeEach
     void seed() {
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS move ("
-                + "id BIGINT PRIMARY KEY, create_time BIGINT DEFAULT 0, update_time BIGINT DEFAULT 0, "
-                + "is_disabled BOOLEAN DEFAULT FALSE, is_published BOOLEAN DEFAULT FALSE, "
-                + "tenant_id BIGINT, creator_id BIGINT, reject_reason VARCHAR(255), bill_code VARCHAR(255), "
-                + "status INT, storage_id BIGINT)");
-        jdbcTemplate.update("DELETE FROM move");
-        jdbcTemplate.update("DELETE FROM data_policy");
-        jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO move (id, tenant_id, creator_id, bill_code, status, storage_id, is_published) "
-                + "VALUES (1, 10, 7, 'MOVE-001', 2, 201, TRUE)");
-        jdbcTemplate.update("INSERT INTO move (id, tenant_id, creator_id, bill_code, status, storage_id, is_published) "
-                + "VALUES (2, 10, 8, 'MOVE-002', 3, 202, FALSE)");
-        jdbcTemplate.update("INSERT INTO move (id, tenant_id, creator_id, bill_code, status, storage_id, is_published) "
-                + "VALUES (3, 20, 7, 'MOVE-003', 2, 203, TRUE)");
-        jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
-                        + "owner_columns, supported_actions, status, version_no) "
-                        + "VALUES (9501, 'wms.move', 'move', 'move', 'tenant_id', 'creator_id', "
-                        + "'QUERY', 'ENABLED', 1)");
-        jdbcTemplate.update("INSERT INTO data_policy (id, policy_code, resource_id, subject_type, subject_id, action_name, "
-                        + "condition_json, priority, enabled, version_no) VALUES "
-                        + "(9502, 'test-move-tenant', 9501, 'TENANT', 10, 'QUERY', '{}', 0, TRUE, 1)");
+        SqlFixtures.execute(jdbcTemplate, "sql/mapper-runtime/move-mapper-runtime-interceptor.sql");
     }
 
     @AfterEach
@@ -126,7 +107,7 @@ class MoveMapperRuntimeInterceptorTest {
     @Test
     @DisplayName("移库无策略时 fail closed")
     void noPolicyDeniesAllRows() {
-        jdbcTemplate.update("DELETE FROM data_policy");
+        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             assertEquals(0L, moveMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(moveMapper.selectDetailByPermission(1L));

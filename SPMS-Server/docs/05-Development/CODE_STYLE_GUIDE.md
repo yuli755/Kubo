@@ -414,6 +414,28 @@ export const inventoryBusinessApi = {
 
 ## 🗄️ SQL (Database)
 
+### 分层（硬规则，门禁 `pnpm sql:check`）
+
+> **禁止 `.java` 文件编写 SQL 语句，只能使用专属文件编写。**（2026-09-18 定）
+
+| 类型 | 专属文件 | 说明 |
+| --- | --- | --- |
+| 生产 SQL | `SPMS-Server/src/main/resources/mapper/**/*.xml` | MyBatis mapper XML（`mybatis-plus.mapper-locations: classpath*:/mapper/**/*.xml`）。接口只留方法声明，语句、列名、`LIMIT`、`FOR UPDATE` 全在 XML 里 |
+| 测试夹具 / 验证查询 | `SPMS-Server/src/test/resources/sql/**/*.sql` | 用 `cn.hamm.spms.support.SqlFixtures` 加载（`execute` 执行脚本、`text` 取单条语句、支持 `${占位符}`） |
+
+**为什么**：① SQL 可以被 review、被 DBA 读到、能直接拿去 `EXPLAIN`；② 换 ORM 时不用把同一道题重做一遍 ——
+`@Query`（JPA）与 `@Select`/`@Delete`（MyBatis 注解）都是"把语句藏进 Java"，两者都被这条规则挡掉。
+
+**判据**（`infra/scripts/check-sql-in-java.mjs`，剥注释后只查字符串字面量与注解）：
+`select … from` / `insert into` / `delete from` / `update … set` / `truncate|alter|create|drop table` /
+`for update` / `order by` / `group by` / `limit N` / 裸 `where` 片段；注解面：`@Select`/`@Insert`/`@Update`/`@Delete`/
+`@SelectKey`/`@*Provider`/`@Query`/`nativeQuery = true`/`createNativeQuery(`。
+`sortBy`、`orderNo`、`updateTime` 这类**标识符不会误报**（只有字面量与注解才算）。
+
+**唯一豁免**：非可执行 SQL —— 安全测试里的**恶意输入样例**（`"1; DROP TABLE x"` 是"值"，用来断言它不会被拼进 SQL）、
+以及被测对象的输入。写法是违规行（或上一行）加 `// SQL-IGNORE: 理由`；门禁会把全部豁免连理由一起打印出来，
+所以"悄悄加一个豁免"在 review 与 CI 日志里都看得见。生产代码不留任何豁免。
+
 ### Naming
 
 | Object | Convention | Example |

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  字段脱敏策略 + 资源 join 的查询（来自 DataFieldPolicyRepository 上的 JPA @Query，2026-09-18 SQL 分层后搬到这里）。
+
+  原 JPQL：SELECT dfp FROM DataFieldPolicyEntity dfp JOIN dfp.resource dr
+            WHERE dr.resourceKey = :resourceKey AND dfp.fieldName = :fieldName
+              AND dfp.roleCode = :roleCode AND dfp.enabled = true
+  对象关联 JOIN → 显式外键列 JOIN（data_field_policy.resource_id = data_resource.id）。
+  resultMap 只映射 data_field_policy 自己的列：调用方（前端动态取脱敏规则）只用标量字段，
+  resource_id 是外键列，落进 resourceId（实体上就有这个字段）；
+  resource 那个对象关联在 JPA 时代是懒代理，本查询从不读它，所以这里刻意不映射（不假装有对象图）。
+-->
+<mapper namespace="cn.hamm.spms.module.system.datapermission.mapper.DataFieldPolicyQueryMapper">
+
+    <resultMap id="dataFieldPolicyMap" type="cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity">
+        <id column="id" property="id"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_disabled" property="isDisabled"/>
+        <result column="is_published" property="isPublished"/>
+        <result column="resource_id" property="resourceId"/>
+        <result column="field_name" property="fieldName"/>
+        <result column="role_code" property="roleCode"/>
+        <result column="action_name" property="actionName"/>
+        <result column="mask_type" property="maskType"/>
+        <result column="mask_expression" property="maskExpression"/>
+        <result column="allow_plaintext" property="allowPlaintext"/>
+        <result column="priority" property="priority"/>
+        <result column="enabled" property="enabled"/>
+    </resultMap>
+
+    <select id="findByResourceKeyAndFieldNameAndRoleCodeAndEnabledTrue" resultMap="dataFieldPolicyMap">
+        select dfp.id,
+               dfp.create_time,
+               dfp.update_time,
+               dfp.is_disabled,
+               dfp.is_published,
+               dfp.resource_id,
+               dfp.field_name,
+               dfp.role_code,
+               dfp.action_name,
+               dfp.mask_type,
+               dfp.mask_expression,
+               dfp.allow_plaintext,
+               dfp.priority,
+               dfp.enabled
+        from data_field_policy dfp
+                 join data_resource dr on dr.id = dfp.resource_id
+        where dr.resource_key = #{resourceKey}
+          and dfp.field_name = #{fieldName}
+          and dfp.role_code = #{roleCode}
+          and dfp.enabled = true
+    </select>
+
+</mapper>

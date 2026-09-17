@@ -20,6 +20,7 @@ import java.util.Set;
 import static cn.hamm.spms.module.system.datapermission.service.RowPermissionPredicate.FRAGMENT_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import cn.hamm.spms.support.SqlFixtures;
 
 /**
  * <h1>库存第二资源的真实 Mapper 运行时回归</h1>
@@ -51,27 +52,7 @@ class InventoryMapperRuntimeInterceptorTest {
 
     @BeforeEach
     void seed() {
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS inventory ("
-                + "id BIGINT PRIMARY KEY, create_time BIGINT DEFAULT 0, update_time BIGINT DEFAULT 0, "
-                + "is_disabled BOOLEAN DEFAULT FALSE, is_published BOOLEAN DEFAULT FALSE, "
-                + "tenant_id BIGINT, creator_id BIGINT, material_id BIGINT, quantity DOUBLE, "
-                + "type INT, storage_id BIGINT, structure_id BIGINT)");
-        jdbcTemplate.update("DELETE FROM inventory");
-        jdbcTemplate.update("DELETE FROM data_policy");
-        jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO inventory (id, tenant_id, creator_id, material_id, quantity, type, storage_id, structure_id, is_published) "
-                + "VALUES (1, 10, 7, 101, 5.0, 1, 201, NULL, TRUE)");
-        jdbcTemplate.update("INSERT INTO inventory (id, tenant_id, creator_id, material_id, quantity, type, storage_id, structure_id, is_published) "
-                + "VALUES (2, 10, 8, 102, 8.0, 1, 202, NULL, FALSE)");
-        jdbcTemplate.update("INSERT INTO inventory (id, tenant_id, creator_id, material_id, quantity, type, storage_id, structure_id, is_published) "
-                + "VALUES (3, 20, 7, 103, 13.0, 1, 203, NULL, TRUE)");
-        jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
-                        + "owner_columns, supported_actions, status, version_no) "
-                        + "VALUES (9201, 'wms.inventory', 'inventory', 'inventory', 'tenant_id', 'creator_id', "
-                        + "'QUERY', 'ENABLED', 1)");
-        jdbcTemplate.update("INSERT INTO data_policy (id, policy_code, resource_id, subject_type, subject_id, action_name, "
-                        + "condition_json, priority, enabled, version_no) VALUES "
-                        + "(9202, 'test-inventory-tenant', 9201, 'TENANT', 10, 'QUERY', '{}', 0, TRUE, 1)");
+        SqlFixtures.execute(jdbcTemplate, "sql/mapper-runtime/inventory-mapper-runtime-interceptor.sql");
     }
 
     @AfterEach
@@ -134,7 +115,7 @@ class InventoryMapperRuntimeInterceptorTest {
     @Test
     @DisplayName("库存没有可达策略时拒绝全部行")
     void noPolicyDeniesAllRows() {
-        jdbcTemplate.update("DELETE FROM data_policy");
+        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             assertEquals(0L, inventoryMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(inventoryMapper.selectDetailByPermission(1L));

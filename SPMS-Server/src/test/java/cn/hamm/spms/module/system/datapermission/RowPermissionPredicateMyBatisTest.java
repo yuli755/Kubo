@@ -94,6 +94,7 @@ class RowPermissionPredicateMyBatisTest {
     @DisplayName("分号与注释一律拒（片段里出现这两样就不是白名单产物）")
     void rejectsStatementBreakers() {
         assertThrows(IllegalArgumentException.class, () -> new RowPermissionPredicate(
+                // SQL-IGNORE: 恶意输入样例（片段注入，断言转义后仍是单条条件）
                 "(material.tenant_id = :a); DROP TABLE material", Map.of("a", 1L)).forMyBatis());
         assertThrows(IllegalArgumentException.class, () -> new RowPermissionPredicate(
                 "(material.tenant_id = :a) -- 注释", Map.of("a", 1L)).forMyBatis());

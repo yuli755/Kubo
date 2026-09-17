@@ -21,6 +21,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import cn.hamm.spms.support.SqlFixtures;
 
 /**
  * <h1>生产单元读侧真实 MyBatis-Plus 数据权限拦截器回归</h1>
@@ -53,40 +54,9 @@ class StructureMapperRuntimeInterceptorTest {
 
     @BeforeEach
     void seed() {
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS structure ("
-                + "id BIGINT PRIMARY KEY, create_time BIGINT DEFAULT 0, update_time BIGINT DEFAULT 0, "
-                + "is_disabled BOOLEAN DEFAULT FALSE, is_published BOOLEAN DEFAULT FALSE, "
-                + "tenant_id BIGINT, creator_id BIGINT, code VARCHAR(255), name VARCHAR(255), "
-                + "type INT, parent_id BIGINT)");
-        addStructureColumn("create_time", "BIGINT DEFAULT 0");
-        addStructureColumn("update_time", "BIGINT DEFAULT 0");
-        addStructureColumn("is_disabled", "BOOLEAN DEFAULT FALSE");
-        addStructureColumn("is_published", "BOOLEAN DEFAULT FALSE");
-        addStructureColumn("code", "VARCHAR(255)");
-        addStructureColumn("name", "VARCHAR(255)");
-        addStructureColumn("type", "INT");
-        addStructureColumn("parent_id", "BIGINT");
-        jdbcTemplate.update("DELETE FROM structure");
-        jdbcTemplate.update("DELETE FROM data_policy");
-        jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO structure (id, tenant_id, creator_id, code, name, type, parent_id, is_published) "
-                + "VALUES (1, 10, 7, 'ST-001', '组装工位', 1, 0, TRUE)");
-        jdbcTemplate.update("INSERT INTO structure (id, tenant_id, creator_id, code, name, type, parent_id, is_published) "
-                + "VALUES (2, 10, 8, 'ST-002', '质检工位', 2, 1, FALSE)");
-        jdbcTemplate.update("INSERT INTO structure (id, tenant_id, creator_id, code, name, type, parent_id, is_published) "
-                + "VALUES (3, 20, 7, 'ST-003', '包装工位', 3, 0, TRUE)");
-        jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
-                        + "owner_columns, supported_actions, status, version_no) "
-                        + "VALUES (9001, 'factory.structure', 'structure', 'structure', 'tenant_id', 'creator_id', "
-                        + "'QUERY', 'ENABLED', 1)");
-        jdbcTemplate.update("INSERT INTO data_policy (id, policy_code, resource_id, subject_type, subject_id, action_name, "
-                        + "condition_json, priority, enabled, version_no) VALUES "
-                        + "(9002, 'test-structure-tenant', 9001, 'TENANT', 10, 'QUERY', '{}', 0, TRUE, 1)");
+        SqlFixtures.execute(jdbcTemplate, "sql/mapper-runtime/structure-mapper-runtime-interceptor.sql");
     }
 
-    private void addStructureColumn(String name, String definition) {
-        jdbcTemplate.execute("ALTER TABLE structure ADD COLUMN IF NOT EXISTS " + name + " " + definition);
-    }
 
     @AfterEach
     void clearContext() {
@@ -141,7 +111,7 @@ class StructureMapperRuntimeInterceptorTest {
     @Test
     @DisplayName("没有可达策略时真实读出口全部恒假")
     void noPolicyDeniesAllRealReadExits() {
-        jdbcTemplate.update("DELETE FROM data_policy");
+        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(
                 new PermissionContext(7L, 10L, Set.of(), Set.of(), Set.of(), Set.of(), false))) {
             QueryPageRequest<StructureEntity> request = new QueryPageRequest<>();
@@ -159,7 +129,7 @@ class StructureMapperRuntimeInterceptorTest {
     @Test
     @DisplayName("没有可达策略时 enforce 返回恒假，不放开全表")
     void noPolicyDeniesRealMapperSql() {
-        jdbcTemplate.update("DELETE FROM data_policy");
+        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(
                 new PermissionContext(7L, 10L, Set.of(), Set.of(), Set.of(), Set.of(), false))) {
             Long count = structureMapper.countByPermissionFragment(

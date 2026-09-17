@@ -21,6 +21,7 @@ import static cn.hamm.spms.module.system.datapermission.service.RowPermissionPre
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import cn.hamm.spms.support.SqlFixtures;
 
 /**
  * <h1>采购价的 Mapper 运行时回归</h1>
@@ -49,26 +50,7 @@ class PurchasePriceMapperRuntimeInterceptorTest {
 
     @BeforeEach
     void seed() {
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS purchase_price ("
-                + "id BIGINT PRIMARY KEY, create_time BIGINT DEFAULT 0, update_time BIGINT DEFAULT 0, "
-                + "is_disabled BOOLEAN DEFAULT FALSE, is_published BOOLEAN DEFAULT FALSE, "
-                + "tenant_id BIGINT, creator_id BIGINT, material_id BIGINT, supplier_id BIGINT, price DOUBLE)");
-        jdbcTemplate.update("DELETE FROM purchase_price");
-        jdbcTemplate.update("DELETE FROM data_policy");
-        jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO purchase_price (id, tenant_id, creator_id, material_id, supplier_id, price, is_published) "
-                + "VALUES (1, 10, 7, 101, 201, 12.5, TRUE)");
-        jdbcTemplate.update("INSERT INTO purchase_price (id, tenant_id, creator_id, material_id, supplier_id, price, is_published) "
-                + "VALUES (2, 10, 8, 102, 202, 8.8, FALSE)");
-        jdbcTemplate.update("INSERT INTO purchase_price (id, tenant_id, creator_id, material_id, supplier_id, price, is_published) "
-                + "VALUES (3, 20, 7, 103, 203, 99.9, TRUE)");
-        jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
-                        + "owner_columns, supported_actions, status, version_no) "
-                        + "VALUES (9801, 'channel.purchasePrice', 'purchase_price', 'purchase_price', 'tenant_id', "
-                        + "'creator_id', 'QUERY', 'ENABLED', 1)");
-        jdbcTemplate.update("INSERT INTO data_policy (id, policy_code, resource_id, subject_type, subject_id, action_name, "
-                        + "condition_json, priority, enabled, version_no) VALUES "
-                        + "(9802, 'test-purchase-price-tenant', 9801, 'TENANT', 10, 'QUERY', '{}', 0, TRUE, 1)");
+        SqlFixtures.execute(jdbcTemplate, "sql/mapper-runtime/purchase-price-mapper-runtime-interceptor.sql");
     }
 
     @AfterEach
@@ -129,7 +111,7 @@ class PurchasePriceMapperRuntimeInterceptorTest {
     @Test
     @DisplayName("采购价无策略时恒假，不返回跨租户详情")
     void noPolicyDeniesAllRows() {
-        jdbcTemplate.update("DELETE FROM data_policy");
+        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
             assertEquals(0L, purchasePriceMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
             assertNull(purchasePriceMapper.selectDetailByPermission(1L));

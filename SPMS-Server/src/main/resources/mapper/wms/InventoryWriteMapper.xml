@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  库存写侧的原子增减（来自 InventoryRepository 的两条 JPA @Query，2026-09-18 SQL 分层后搬到这里）。
+
+  为什么要写成"数据库里自增/自减"而不是 service 里读-改-写：
+  交叉移库（同一物料在两个仓之间搬）会并发改同一行，读-改-写会丢掉其中一次的写入；
+  把算术放进 UPDATE 之后，行锁本身就是串行点，总量恒等。@Modifying 时代的语义一字未改：
+    · 命中行数 0 → 行不存在（increase）/ 行不存在或数量不足（decrease），调用方据此抛业务异常。
+-->
+<mapper namespace="cn.hamm.spms.module.wms.inventory.mapper.InventoryWriteMapper">
+
+    <update id="increaseQuantityById">
+        update inventory
+        set quantity = quantity + #{delta},
+            update_time = #{now}
+        where id = #{id}
+    </update>
+
+    <update id="decreaseQuantityById">
+        update inventory
+        set quantity = quantity - #{minus},
+            update_time = #{now}
+        where id = #{id}
+          and quantity &gt;= #{minus}
+    </update>
+
+</mapper>

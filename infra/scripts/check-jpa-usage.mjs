@@ -48,11 +48,15 @@ const SERVER = path.join(ROOT, 'SPMS-Server')
  *   `CriteriaBuilder` 70 + `Specification` 54 + `criteria.Predicate` 42（数据权限的行级条件编译
  *   目前是**用 JPA Criteria 手搓**的，与 MyBatis-Plus 那条 SQL 渲染链路是一套逻辑两份实现）、
  *   `@Entity` 42、`@ManyToOne` 29（对象图关系，换 MP 要改成显式 join）。
+ * - 2026-09-18 SQL 分层（把 main 里最后的 Java SQL 搬进 mapper XML）：`InventoryRepository` 的两条
+ *   原子 UPDATE 与 `DataFieldPolicyRepository` 的 JPQL join 搬走后，**110 → 108 文件 / 599 → 594 引用 /
+ *   478 → 473 import**。这一批的教训值得记：`@Select`/`@Query`/`last("LIMIT 50")` 都能让 JPA 数字"看着降了"
+ *   却只是把 SQL 藏得更深 —— 所以 SQL 分层单独立了一条门禁（`pnpm sql:check`），不靠这条棘轮兼职。
  * - 2026-09-18 J1（数据权限证据/审计日志族 → MyBatis-Plus）：4 个仓储 + 4 个实体 + 调用点。
  *   这一批**没有让上面的三行大数字下降**，因为换的是最容易换的那一小块；
  *   真正的下降会来自"实体注解批量替换"与"写链路引擎换轨"两批（见 `docs/去JPA决策评估.md` 的执行记录）。
  */
-const BASELINE = { files: 110, refs: 599, imports: 478 }
+const BASELINE = { files: 108, refs: 594, imports: 473 }
 
 /**
  * JPA / Hibernate / Spring Data 的 import 根（命中即计入 imports）。

@@ -21,6 +21,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import cn.hamm.spms.support.SqlFixtures;
 
 /**
  * <h1>仓库读侧真实 MyBatis-Plus 数据权限拦截器回归</h1>
@@ -52,39 +53,9 @@ class StorageMapperRuntimeInterceptorTest {
 
     @BeforeEach
     void seed() {
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS storage ("
-                + "id BIGINT PRIMARY KEY, create_time BIGINT DEFAULT 0, update_time BIGINT DEFAULT 0, "
-                + "is_disabled BOOLEAN DEFAULT FALSE, is_published BOOLEAN DEFAULT FALSE, "
-                + "tenant_id BIGINT, creator_id BIGINT, code VARCHAR(255), name VARCHAR(255), "
-                + "parent_id BIGINT)");
-        addStorageColumn("create_time", "BIGINT DEFAULT 0");
-        addStorageColumn("update_time", "BIGINT DEFAULT 0");
-        addStorageColumn("is_disabled", "BOOLEAN DEFAULT FALSE");
-        addStorageColumn("is_published", "BOOLEAN DEFAULT FALSE");
-        addStorageColumn("code", "VARCHAR(255)");
-        addStorageColumn("name", "VARCHAR(255)");
-        addStorageColumn("parent_id", "BIGINT");
-        jdbcTemplate.update("DELETE FROM storage");
-        jdbcTemplate.update("DELETE FROM data_policy");
-        jdbcTemplate.update("DELETE FROM data_resource");
-        jdbcTemplate.update("INSERT INTO storage (id, tenant_id, creator_id, code, name, parent_id, is_published) "
-                + "VALUES (1, 10, 7, 'S-001', '一号仓', 0, TRUE)");
-        jdbcTemplate.update("INSERT INTO storage (id, tenant_id, creator_id, code, name, parent_id, is_published) "
-                + "VALUES (2, 10, 8, 'S-002', '二号仓', 1, FALSE)");
-        jdbcTemplate.update("INSERT INTO storage (id, tenant_id, creator_id, code, name, parent_id, is_published) "
-                + "VALUES (3, 20, 7, 'S-003', '三号仓', 0, TRUE)");
-        jdbcTemplate.update("INSERT INTO data_resource (id, resource_key, table_name, table_alias, tenant_column, "
-                        + "owner_columns, supported_actions, status, version_no) "
-                        + "VALUES (9001, 'factory.storage', 'storage', 'storage', 'tenant_id', 'creator_id', "
-                        + "'QUERY', 'ENABLED', 1)");
-        jdbcTemplate.update("INSERT INTO data_policy (id, policy_code, resource_id, subject_type, subject_id, action_name, "
-                        + "condition_json, priority, enabled, version_no) VALUES "
-                        + "(9002, 'test-storage-tenant', 9001, 'TENANT', 10, 'QUERY', '{}', 0, TRUE, 1)");
+        SqlFixtures.execute(jdbcTemplate, "sql/mapper-runtime/storage-mapper-runtime-interceptor.sql");
     }
 
-    private void addStorageColumn(String name, String definition) {
-        jdbcTemplate.execute("ALTER TABLE storage ADD COLUMN IF NOT EXISTS " + name + " " + definition);
-    }
 
     @AfterEach
     void clearContext() {
@@ -139,7 +110,7 @@ class StorageMapperRuntimeInterceptorTest {
     @Test
     @DisplayName("没有可达策略时真实读出口全部恒假")
     void noPolicyDeniesAllRealReadExits() {
-        jdbcTemplate.update("DELETE FROM data_policy");
+        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(
                 new PermissionContext(7L, 10L, Set.of(), Set.of(), Set.of(), Set.of(), false))) {
             QueryPageRequest<StorageEntity> request = new QueryPageRequest<>();
@@ -157,7 +128,7 @@ class StorageMapperRuntimeInterceptorTest {
     @Test
     @DisplayName("没有可达策略时 enforce 返回恒假，不放开全表")
     void noPolicyDeniesRealMapperSql() {
-        jdbcTemplate.update("DELETE FROM data_policy");
+        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(
                 new PermissionContext(7L, 10L, Set.of(), Set.of(), Set.of(), Set.of(), false))) {
             Long count = storageMapper.countByPermissionFragment(

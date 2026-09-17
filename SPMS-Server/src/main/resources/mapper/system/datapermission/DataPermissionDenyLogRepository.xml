@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  来自 DataPermissionDenyLogRepository（数据权限证据/审计日志族）。
+  2026-09-18 SQL 分层：语句一律住专属文件，Java 侧只留方法声明。
+  这些表"业务失败也要留痕"，所以仓储在无条件注册的 Mapper 族里（KuboInfraMapper）。
+-->
+<mapper namespace="cn.hamm.spms.module.system.datapermission.repository.DataPermissionDenyLogRepository">
+
+    <resultMap id="baseMap" type="cn.hamm.spms.module.system.datapermission.entity.DataPermissionDenyLogEntity">
+        <id column="id" property="id"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="is_disabled" property="isDisabled"/>
+        <result column="is_published" property="isPublished"/>
+        <result column="resource_key" property="resourceKey"/>
+        <result column="reason" property="reason"/>
+        <result column="mode" property="mode"/>
+        <result column="user_id" property="userId"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="detail" property="detail"/>
+    </resultMap>
+    <sql id="baseColumns">
+        id, create_time, update_time, is_disabled, is_published, resource_key, reason, mode, user_id, tenant_id, detail
+    </sql>
+
+    <select id="findTop50ByResourceKeyOrderByIdDesc" resultMap="baseMap">
+        select <include refid="baseColumns"/>
+        from data_permission_deny_log
+        where resource_key = #{resourceKey}
+        order by id desc
+        limit 50
+    </select>
+
+    <select id="findTop50ByOrderByIdDesc" resultMap="baseMap">
+        select <include refid="baseColumns"/>
+        from data_permission_deny_log
+        order by id desc
+        limit 50
+    </select>
+
+    <delete id="deleteExpiredBefore">
+        delete from data_permission_deny_log where create_time &lt; #{cutoff}
+    </delete>
+
+</mapper>

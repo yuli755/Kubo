@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import cn.hamm.spms.support.SqlFixtures;
 
 /**
  * <h1>MyBatis 运行时数据权限处理器契约</h1>
@@ -58,7 +59,7 @@ class KuboDataPermissionHandlerTest {
         configuration.addMappedStatement(new MappedStatement.Builder(
                 configuration,
                 statementId,
-                new StaticSqlSource(configuration, "SELECT 1 FROM material"),
+                new StaticSqlSource(configuration, SqlFixtures.text("permission-handler/probe.sql")),
                 SqlCommandType.SELECT
         ).build());
         DataResourceBindingRegistry bindings = DataResourceBindingRegistry.from(

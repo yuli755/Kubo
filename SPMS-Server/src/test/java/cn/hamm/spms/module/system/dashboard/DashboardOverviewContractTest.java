@@ -13,6 +13,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import cn.hamm.spms.support.SqlFixtures;
 
 /**
  * <h1>业务概况聚合契约自检（P2 · 数据权限感知看板）</h1>
@@ -83,7 +84,7 @@ class DashboardOverviewContractTest {
     void countFlowsThroughMapperReadExit() {
         seedTables();
         // 给 purchase 造 3 行：聚合里 channel.purchase 应为 3，其余空表为 0。
-        jdbcTemplate.update("INSERT INTO purchase (id) VALUES (1), (2), (3)");
+        SqlFixtures.execute(jdbcTemplate, "dashboard-overview/insert_purchase_rows.sql");
 
         Map<String, Long> counts = dashboardService.overview().stream()
                 .collect(java.util.stream.Collectors.toMap(
@@ -97,8 +98,7 @@ class DashboardOverviewContractTest {
 
     private void seedTables() {
         for (String table : TABLE_NAMES) {
-            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS " + table + " (id BIGINT PRIMARY KEY)");
-            jdbcTemplate.update("DELETE FROM " + table);
+            SqlFixtures.execute(jdbcTemplate, "dashboard-overview/empty_tables.sql", Map.of("table", table));
         }
     }
 }

@@ -99,6 +99,7 @@ class JpaPathResolverTest {
         assertNull(JpaPathResolver.resolve(root, "a.b.c"));
         assertNull(JpaPathResolver.resolve(root, "  "));
         assertNull(JpaPathResolver.resolve(root, null));
+        // SQL-IGNORE: 恶意输入样例（路径注入，断言解析不出属性路径）
         assertNull(JpaPathResolver.resolve(root, "a; DROP TABLE x"));
         verifyNoInteractions(root);
         assertNull(JpaPathResolver.resolve(null, "creatorId"));

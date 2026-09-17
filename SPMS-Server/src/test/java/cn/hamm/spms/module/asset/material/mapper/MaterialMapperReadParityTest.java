@@ -32,6 +32,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import cn.hamm.spms.support.SqlFixtures;
 
 /**
  * <h1>一棵树、两个渲染方向、同一张真表（H2）</h1>
@@ -93,13 +94,7 @@ class MaterialMapperReadParityTest {
 
     @BeforeEach
     void seed() {
-        // unit 表是为 JPA 侧准备的：MaterialEntity 有个 EAGER 的 @ManyToOne unit，
-        // COUNT 查询今天不 join，但"少一张表"这种红要留给真出事的那次，不要留给我们自己猜。
-        // owner_id 是刻意多出来的一列：数据库里有、实体上没有，用来把两边的差异摆到桌面上。
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS unit (id BIGINT PRIMARY KEY)");
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS material ("
-                + "id BIGINT PRIMARY KEY, tenant_id BIGINT, creator_id BIGINT, owner_id BIGINT, unit_id BIGINT)");
-        jdbcTemplate.update("DELETE FROM material");
+        SqlFixtures.execute(jdbcTemplate, "material-read-parity/seed.sql");
         insert(1L, TENANT_A, 100L, 999L);
         insert(2L, TENANT_A, 101L, 100L);
         insert(3L, TENANT_B, 102L, 100L);
@@ -108,7 +103,7 @@ class MaterialMapperReadParityTest {
     }
 
     private void insert(long id, long tenantId, long creatorId, long ownerId) {
-        jdbcTemplate.update("INSERT INTO material (id, tenant_id, creator_id, owner_id) VALUES (?, ?, ?, ?)",
+        jdbcTemplate.update(SqlFixtures.text("material-read-parity/insert_material.sql"),
                 id, tenantId, creatorId, ownerId);
     }
 

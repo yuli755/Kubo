@@ -32,7 +32,7 @@
     "monitoring:check": "node infra/scripts/check-monitoring-config.mjs",
     "drill:check": "node infra/scripts/check-backup-drill.mjs",
     "perms:report": "node infra/scripts/check-permission-codes.mjs --verbose",
-    "check": "pnpm lint:ci && pnpm airpower:check && pnpm airpower:backend -- --check && pnpm pom:check && pnpm java:imports && pnpm jpa:check -- --check && pnpm deadcode:check && pnpm exports:check && pnpm typecheck && pnpm test:coverage && pnpm perms:check && pnpm auth:check && pnpm text:check && pnpm ddl:check && pnpm migration:check && pnpm monitoring:check && pnpm drill:check && pnpm build && pnpm demo:check && pnpm size",
+    "check": "pnpm lint:ci && pnpm airpower:check && pnpm airpower:backend -- --check && pnpm pom:check && pnpm java:imports && pnpm sql:check -- --check && pnpm jpa:check -- --check && pnpm deadcode:check && pnpm exports:check && pnpm typecheck && pnpm test:coverage && pnpm perms:check && pnpm auth:check && pnpm text:check && pnpm ddl:check && pnpm migration:check && pnpm monitoring:check && pnpm drill:check && pnpm build && pnpm demo:check && pnpm size",
     "build": "vite build --mode production",
     "api:generate": "node infra/scripts/generate-api.mjs",
     "api:generate:dev": "API_DOC_URL=http://localhost:8080/v3/api-docs node infra/scripts/generate-api.mjs",
@@ -41,7 +41,8 @@
     "demo:check": "node infra/scripts/check-demo-build.mjs",
     "pom:check": "node infra/scripts/check-pom-selfcontained.mjs",
     "java:imports": "node infra/scripts/check-java-imports.mjs",
-    "jpa:check": "node infra/scripts/check-jpa-usage.mjs"
+    "jpa:check": "node infra/scripts/check-jpa-usage.mjs",
+    "sql:check": "node infra/scripts/check-sql-in-java.mjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",

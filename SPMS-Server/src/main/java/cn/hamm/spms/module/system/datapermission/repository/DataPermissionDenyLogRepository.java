@@ -2,8 +2,6 @@ package cn.hamm.spms.module.system.datapermission.repository;
 
 import cn.hamm.spms.base.mapper.KuboInfraMapper;
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionDenyLogEntity;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
@@ -18,13 +16,18 @@ import java.util.List;
  * <ul>
  *   <li>{@code extends JpaRepository<..., Long>} → {@code extends KuboInfraMapper<...>}
  *       （见 {@link KuboInfraMapper}：无条件注册，不跟读侧灰度开关走）；</li>
- *   <li>派生查询 {@code findTop50ByResourceKeyOrderByIdDesc} → {@code default} 方法 + {@code LambdaQueryWrapper}
- *       （用方法引用写列名，编译期就能发现字段改名；{@code last("LIMIT 50")} 对应派生查询里的 {@code Top50}）；</li>
- *   <li>原生 {@code @Query(value = "delete ... where create_time < :cutoff", nativeQuery = true)} →
- *       MyBatis 的 {@code @Delete}，**刻意保留显式 SQL**：证据表的保留期清理是审计对象，
- *       表名与条件应该明明白白写在仓储里（契约测试 `maskContract.spec.ts` 也钉着这句话）；
- *       占位符从 JPA 的 {@code :cutoff} 换成 MyBatis 的 {@code #{cutoff}}，其余一字不变。</li>
+ *   <li>派生查询 {@code findTop50ByResourceKeyOrderByIdDesc}（原来的 {@code Top50}）与
+ *       保留期清理 {@code deleteExpiredBefore}（原来是原生 {@code @Query} + {@code @Modifying}）——
+ *       **语句一律搬进 {@code src/main/resources/mapper/system/datapermission/DataPermissionDenyLogRepository.xml}**：</li>
  * </ul>
+ *
+ * <p><b>为什么连 {@code LIMIT 50} 都要进 XML</b>：SQL 分层规则（用户 2026-09-18）是"禁止 {@code .java}
+ * 文件编写 SQL，只能使用专属文件编写"，而 {@code last("LIMIT 50")} 与 {@code @Delete("...")} 一样都是
+ * 把语句的片段写进 Java —— 门禁 {@code pnpm sql:check} 会直接把它标红。搬进 XML 之后，
+ * "这张表最近 50 条怎么取""清理的条件是什么"都变成可 review、可 {@code EXPLAIN} 的文本。</p>
+ *
+ * <p><b>占位符</b>：JPA 的 {@code :cutoff} → MyBatis 的 {@code #{cutoff}}；参数名用
+ * {@code @Param} 显式声明（不依赖 {@code -parameters} 编译参数）。</p>
  *
  * <p><b>调用点需要注意的一处差异</b>：JPA 的 {@code save(entity)} 已被 MyBatis-Plus 的
  * {@code insert(entity)} 取代（写入方 {@code DataPermissionDenyLogRecorder} 同批改）。
@@ -40,23 +43,14 @@ public interface DataPermissionDenyLogRepository extends KuboInfraMapper<DataPer
      * @param resourceKey 资源标识
      * @return 事件列表
      */
-    default List<DataPermissionDenyLogEntity> findTop50ByResourceKeyOrderByIdDesc(String resourceKey) {
-        return selectList(new LambdaQueryWrapper<DataPermissionDenyLogEntity>()
-                .eq(DataPermissionDenyLogEntity::getResourceKey, resourceKey)
-                .orderByDesc(DataPermissionDenyLogEntity::getId)
-                .last("LIMIT 50"));
-    }
+    List<DataPermissionDenyLogEntity> findTop50ByResourceKeyOrderByIdDesc(@Param("resourceKey") String resourceKey);
 
     /**
      * 最近 50 条拒绝事件（倒序）
      *
      * @return 事件列表
      */
-    default List<DataPermissionDenyLogEntity> findTop50ByOrderByIdDesc() {
-        return selectList(new LambdaQueryWrapper<DataPermissionDenyLogEntity>()
-                .orderByDesc(DataPermissionDenyLogEntity::getId)
-                .last("LIMIT 50"));
-    }
+    List<DataPermissionDenyLogEntity> findTop50ByOrderByIdDesc();
 
     /**
      * 删除截止线之前的拒绝事件（保留期清理）
@@ -64,6 +58,5 @@ public interface DataPermissionDenyLogRepository extends KuboInfraMapper<DataPer
      * @param cutoffEpochMillis 截止时间（毫秒）
      * @return 删除行数
      */
-    @Delete("delete from data_permission_deny_log where create_time < #{cutoff}")
     int deleteExpiredBefore(@Param("cutoff") long cutoffEpochMillis);
 }

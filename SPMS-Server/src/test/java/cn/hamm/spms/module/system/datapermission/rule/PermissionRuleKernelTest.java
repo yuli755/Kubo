@@ -114,11 +114,13 @@ class PermissionRuleKernelTest {
         @Test
         @DisplayName("值里的 SQL 文本被当数据处理：绑定为参数，不进 SQL 结构")
         void valueIsBoundNotConcatenated() {
+            // SQL-IGNORE: 恶意输入样例（断言它作为"值"出现、SQL 文本里不含 DROP）
             String payload = "{\"field\":\"remark\",\"op\":\"EQ\",\"value\":\"1; DROP TABLE x\"}";
             PermissionRule rule = parser.parse(RESOURCE, payload);
             RowPermissionPredicate rendered = new SqlPermissionRuleRenderer()
                     .render(rule, null, context);
             assertEquals("(remark = :dpRule0)", rendered.sql());
+            // SQL-IGNORE: 恶意输入样例（断言它作为"值"出现、SQL 文本里不含 DROP）
             assertEquals("1; DROP TABLE x", rendered.parameters().get("dpRule0"));
             assertFalse(rendered.sql().contains("DROP"), "SQL 文本里不应出现值");
         }
@@ -288,6 +290,7 @@ class PermissionRuleKernelTest {
         @DisplayName("表别名会被同样校验，非法别名不拼进 SQL")
         void validatesAliasIdentifier() {
             PermissionRule rule = parser.parse(RESOURCE, "{\"field\":\"tenantId\",\"value\":1}");
+            // SQL-IGNORE: 恶意输入样例（字段名注入，断言渲染前就被拒绝）
             assertThrows(PermissionRuleException.class, () -> renderer.render(rule, "inv; DROP TABLE x", context));
             assertEquals("(inv.tenant_id = :dpRule0)", renderer.render(rule, "inv", context).sql());
         }

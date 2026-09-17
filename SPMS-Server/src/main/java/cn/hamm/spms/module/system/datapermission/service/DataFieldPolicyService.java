@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import cn.hamm.spms.module.system.datapermission.mapper.DataFieldPolicyQueryMapper;
 
 /**
  * <h1>数据字段权限策略管理服务</h1>
@@ -35,15 +36,22 @@ public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, D
     private final DataResourceRepository resourceRepository;
 
     /**
+     * 带资源 join 的脱敏策略查询（语句在 mapper XML 里；本服务用它取前端动态脱敏规则）
+     */
+    private final DataFieldPolicyQueryMapper queryMapper;
+
+    /**
      * 类内读缓存：key 与原 Spring 缓存键一致（{@code resourceKey:fieldName:roleCode}、
      * {@code list:resourceKey:action}、{@code all:resourceKey}）。空列表同样缓存
      * （"这个资源压根没配策略"是最常见的情况）。
      */
     private final ConcurrentHashMap<String, List<DataFieldPolicyEntity>> policyCache = new ConcurrentHashMap<>();
 
-    public DataFieldPolicyService(DataPermissionEventPublisher eventPublisher, DataResourceRepository resourceRepository) {
+    public DataFieldPolicyService(DataPermissionEventPublisher eventPublisher, DataResourceRepository resourceRepository,
+                                 DataFieldPolicyQueryMapper queryMapper) {
         this.eventPublisher = eventPublisher;
         this.resourceRepository = resourceRepository;
+        this.queryMapper = queryMapper;
     }
 
     /**
@@ -58,7 +66,7 @@ public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, D
     public List<DataFieldPolicyEntity> getPoliciesByResourceFieldRole(
             String resourceKey, String fieldName, String roleCode) {
         return policyCache.computeIfAbsent(resourceKey + ":" + fieldName + ":" + roleCode,
-                k -> repository.findByResourceKeyAndFieldNameAndRoleCodeAndEnabledTrue(
+                k -> queryMapper.findByResourceKeyAndFieldNameAndRoleCodeAndEnabledTrue(
                         resourceKey, fieldName, roleCode));
     }
 

@@ -21,6 +21,7 @@
 
 ## 二、硬规则（每条都有门禁或踩坑记录）
 
+1. **SQL 只能写在专属文件里**（用户 2026-09-18 定）：生产语句进 `SPMS-Server/src/main/resources/mapper/**/*.xml`，测试夹具进 `src/test/resources/sql/**`（`SqlFixtures` 加载）。`@Query`/`@Select`/`@Delete`/`last("…")` 全算违规，`pnpm sql:check` 是硬门禁；唯一豁免是"非可执行 SQL"（恶意输入样例），且必须写 `// SQL-IGNORE: 理由`。
 1. **不许出现 `@airpower/web`**（已整体退场）。新文件、新页面一律走 `src/framework` + `K*` 组件；
    `pnpm airpower:check` 是硬门禁 —— 剥注释后出现任何 `@airpower/*` 的 import 或依赖即红。
 2. **模板里的 `<el-*>` 必须显式 `import`**（如 `import { ElButton } from 'element-plus'`）。
@@ -56,6 +57,7 @@ pnpm stack:project   # 整个仓库的技术栈（前端+后端+部署+CI，读�
 pnpm pom:check       # 后端 pom 自持校验（B0 之后没有父 POM 兜底，靠这道离线闸门）
 pnpm java:imports    # Java 导入可达性（没有 JDK 时的半个编译器：import 必须落地 / 自持层不得反依赖 airpower / 同名副本必须显式承认）
 pnpm jpa:check       # JPA 足迹棘轮（去 JPA 的尺子：文件 / 引用 / import 只许降；`-- --json` 出机器版）
+pnpm sql:check       # SQL 分层门禁：禁止 .java 写 SQL，只能住 mapper XML（测试夹具住 src/test/resources/sql）
 ```
 
 体积红线：首屏 ≤ 450 KB、总体 ≤ 900 KB（`pnpm size`）；第一次超预算基本都是"把懒加载页面的依赖挪进了首屏"。

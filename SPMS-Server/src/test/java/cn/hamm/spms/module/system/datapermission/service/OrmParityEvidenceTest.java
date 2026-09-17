@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import cn.hamm.spms.support.SqlFixtures;
 
 /**
  * <h1>第三个 COUNT 真的落进了对账表（H2 + 真 Mapper + 真 JPA）</h1>
@@ -71,15 +72,10 @@ class OrmParityEvidenceTest {
     @BeforeEach
     void seed() {
         // 表结构与 MaterialMapperReadParityTest 一致：material 上多一根实体没有的 owner_id，
-        // 那是"两边挑不同列"的探针（这里用它造 MAPPER_STRICT 那条证据）
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS unit (id BIGINT PRIMARY KEY)");
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS material ("
-                + "id BIGINT PRIMARY KEY, tenant_id BIGINT, creator_id BIGINT, owner_id BIGINT, unit_id BIGINT)");
-        jdbcTemplate.execute("ALTER TABLE material ADD COLUMN IF NOT EXISTS name VARCHAR(255)");
-        jdbcTemplate.update("DELETE FROM material");
+        // 那是"两边挑不同列"的探针（这里用它造 MAPPER_STRICT 那条证据）；
         // 对账表由 schema-test.sql 建（生产那侧是迁移脚本），本类不清就会串到下一个用例：
         // H2 的 Spring 上下文在同一次 CI 里是缓存复用的
-        jdbcTemplate.update("DELETE FROM data_permission_orm_parity_log");
+        SqlFixtures.execute(jdbcTemplate, "orm-parity-evidence/seed.sql");
         insert(1L, TENANT_A, 100L, 999L);
         insert(2L, TENANT_A, 101L, 100L);
         insert(3L, TENANT_B, 102L, 100L);
@@ -88,7 +84,7 @@ class OrmParityEvidenceTest {
     }
 
     private void insert(long id, long tenantId, long creatorId, long ownerId) {
-        jdbcTemplate.update("INSERT INTO material (id, tenant_id, creator_id, owner_id) VALUES (?, ?, ?, ?)",
+        jdbcTemplate.update(SqlFixtures.text("orm-parity-evidence/insert_material.sql"),
                 id, tenantId, creatorId, ownerId);
     }
 
@@ -131,17 +127,15 @@ class OrmParityEvidenceTest {
 
     private Map<String, Object> parityRow() {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT verdict AS \"verdict\", jpa_count AS \"jpaCount\", mapper_count AS \"mapperCount\","
-                        + " table_name AS \"tableName\", fragment_sql AS \"fragmentSql\", detail AS \"detail\""
-                        + " FROM data_permission_orm_parity_log ORDER BY id");
+                SqlFixtures.text("orm-parity-evidence/parity_rows.sql"));
         assertEquals(1, rows.size(), "对账证据应当恰好一条；" + rows);
-        // 别名一律带双引号：H2 会把裸标签大写化，那时 row.get("verdict") 读到 null，
-        // 于是"null 等于 null"这种断言会全都绿着 —— 比红难发现得多
+        // 别名一律带双引号的理由写在 parity_rows.sql 里（H2 会把裸标签大写化）
         return rows.get(0);
     }
 
     private long countRows() {
-        Long count = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM data_permission_orm_parity_log", Long.class);
+        Long count = jdbcTemplate.queryForObject(
+                SqlFixtures.text("orm-parity-evidence/count_parity_rows.sql"), Long.class);
         return count == null ? 0L : count;
     }
 
@@ -210,7 +204,7 @@ class OrmParityEvidenceTest {
     @Test
     @DisplayName("真实业务筛选先缩小基线，再与 Mapper 权限 COUNT 对账")
     void filteredEvidenceUsesTheSameBusinessSet() {
-        jdbcTemplate.update("UPDATE material SET name = CASE id WHEN 1 THEN 'A' ELSE 'B' END");
+        jdbcTemplate.update(SqlFixtures.text("orm-parity-evidence/set_material_names.sql"));
         PermissionContext context = context(1L, TENANT_A);
         PermissionRule rule = SubjectDimensionRules.forPolicy(resource(null), policy("TENANT", null), context).rule();
         List<PermissionRule> rules = List.of(rule);

@@ -495,3 +495,54 @@ public interface ICurdRepository<E extends CurdEntity<E>> extends BaseMapper<E> 
   `pnpm text:check`（字面量/转义/import 可达）、`pnpm java:imports`、`pnpm jpa:check -- --check`（棘轮）、
   94 条后端契约 + 前端用例 —— 这些挡不住"类型不匹配"，但**能挡住静默语义丢失**（10.4 那条）。
 - 需要用户本机跑的验收：`mvn -q compile` → `pnpm check` → 真库一次回归（增删改 + 数据权限 ENFORCE 档 + 保留期清理）。
+
+## §11 SQL 分层（2026-09-18，与去 JPA 同源的第二批）
+
+> 规则（用户原话）：**"代码分层：禁止 `.java` 文件编写 SQL 语句，只能使用专属文件编写。"**
+
+这一条比"去 JPA"更硬：去 JPA 说的是"用哪个 ORM"，SQL 分层说的是"语句写在哪儿"。
+两者在同一个方向上有交集（`@Query`/`@Select` 都是把语句藏进 Java），但 SQL 分层**现在就能全做完**，
+不用等引擎换轨 —— 而且它先把"迁移过程中的中间态"关掉了一条：以后换 ORM 时不会出现
+"JPA 的 `:cutoff` 改写成 MyBatis 的 `#{cutoff}`"这种散落各处的方言替换。
+
+### 11.1 门禁（可执行的判据）
+
+`pnpm sql:check`（`infra/scripts/check-sql-in-java.mjs`，已进 `pnpm check` 与 `ci.yml`；门禁总数 20 → **21**）：
+
+- **A 类**：字符串字面量里的 SQL 特征 —— `select … from` / `insert into` / `delete from` / `update … set` /
+  `truncate|alter|create|drop table` / `for update` / `order by` / `group by` / `limit N` / 裸 `where` 片段；
+- **B 类**：SQL 载体注解 —— `@Select`/`@Insert`/`@Update`/`@Delete`/`@SelectKey`/`@*Provider`/`@Query`/
+  `nativeQuery = true`/`createNativeQuery(`；
+- **不误报标识符**：`sortBy` / `orderNo` / `updateTime` 这类名字不会被算（子串匹配的坑在 JPA 棘轮上已经踩过一次）；
+- **唯一豁免**：`// SQL-IGNORE: 理由`，只给**非可执行 SQL**（安全测试的恶意输入样例、被测对象的输入）。
+  豁免会被逐条打印（含理由），所以"悄悄加豁免"在 CI 日志与 review 里都看得见；生产代码不允许豁免。
+
+### 11.2 这一批改了什么（起点 207 处 → 现在 0 处）
+
+| 位置 | 改法 | 结果 |
+| --- | --- | --- |
+| 证据/审计 4 仓储（J1 刚换的 MyBatis-Plus） | 上一批为保"可审计的显式 SQL"用了 `@Delete("…")` 与 `last("LIMIT 50")` —— **那两样都是把语句写在 Java 里**，这批全部搬进 `<repo>.xml`（含 `LIMIT` 与 `order by`），接口只剩方法声明 + `@Param` | `mapper/system/datapermission/*.xml` ×4 |
+| `InventoryRepository` 的两条原子增减（JPA `@Query`，`quantity = quantity ± ?`） | 搬到 `InventoryWriteMapper` + XML。**为什么单独一个接口**：读侧 Mapper 归灰度开关管，写侧增减跟着消失就是"静默不扣库存" —— 它属于无条件注册族 | `mapper/wms/InventoryWriteMapper.xml` |
+| `DataFieldPolicyRepository` 的 JPQL join（`JOIN dfp.resource dr`） | 搬到 `DataFieldPolicyQueryMapper` + XML（对象关联 JOIN → 显式外键列 JOIN）；它是权限判定链的一部分，同样无条件注册 | `mapper/system/datapermission/DataFieldPolicyQueryMapper.xml` |
+| 14 个 `*MapperRuntimeInterceptorTest` 的 H2 夹具（建表/清表/插种子/策略行） | 抽成 `src/test/resources/sql/mapper-runtime/*.sql`，Java 侧只留 `SqlFixtures.execute(jdbcTemplate, "…")`；`ALTER TABLE … ADD COLUMN IF NOT EXISTS` 这类动态列（原来是 Java 拼字符串）变成脚本里的显式语句，辅助方法整段删除 | 14 个 `.sql` + `support/SqlFixtures` |
+| 其余测试夹具与验证查询（`OrmParityEvidenceTest` / `MaterialMapperReadParityTest` / `DashboardOverviewContractTest` / `MybatisJpaCoexistenceTest` / `KuboDataPermissionHandlerTest`） | 同上（含"按表名循环建表"用 `${table}` 占位符传值 —— 语句在文件里，Java 不拼 SQL） | 9 个 `.sql` |
+| 6 处安全测试的恶意输入样例 | 加 `// SQL-IGNORE: 理由`（它们是"值"，测试断言的正是"不会被拼进 SQL"） | 8 处豁免（全部带理由） |
+
+### 11.3 契约测试也跟着"改判据而不是放宽判据"
+
+`maskContract.spec.ts` 里那条"证据留存有正数天数、独立定时清理与 create_time 索引"原本断言
+**Java 仓储文件里**含 `delete from data_permission_diff_log where create_time < #{cutoff}`。
+这批把语句搬进 XML 后，断言改读 `mapper/system/datapermission/DataPermissionDiffRepository.xml`
+（并按 XML 的实体转义写成 `&lt;`）—— 判据本身（"表名 + create_time 条件必须可审计地写在某处"）没变，
+只是"某处"从 `.java` 换成了专属文件。**同一个文件被这条断言拦下过两次**：第一次是想用
+`LambdaQueryWrapper.delete` 省掉显式 SQL（表名消失），第二次是把 `LIMIT` 留在 Java 里（`last("LIMIT 50")`）。
+
+### 11.4 验证边界
+
+| 项 | 结论 |
+| --- | --- |
+| 门禁自检 10 例（含"标识符不误报"） | ✅ `pnpm sql:check -- --self-test` |
+| 当前足迹 | ✅ **0 处违规**（main + test 全扫，530 个 `.java`），8 处带理由的豁免 |
+| JPA 棘轮顺带下降 | ✅ 110/599/478 → **108/594/473**（基线已锁定；`@Query` 与两条原子 UPDATE 的 JPA API 引用消失） |
+| 契约测试 | ✅ 94/94（含改读 XML 的那条） |
+| 编译 | ❌ 沙箱无 JDK —— 新增的 Mapper/XML 需要你本机 `mvn -q compile` + 一次真实启动（MyBatis 在启动时校验 `namespace` 与 statement id，找不到会直接报 `Invalid bound statement`） |

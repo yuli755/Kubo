@@ -2,8 +2,6 @@ package cn.hamm.spms.module.system.datapermission.repository;
 
 import cn.hamm.spms.base.mapper.KuboInfraMapper;
 import cn.hamm.spms.module.system.datapermission.entity.DataPermissionOrmParityEntity;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
@@ -13,7 +11,8 @@ import java.util.List;
  * <h1>数据权限 ORM 行数对账仓储</h1>
  *
  * <p>2026-09-18 由 Spring Data JPA 换成 MyBatis-Plus（去 JPA 第一批，写法见
- * {@link DataPermissionDenyLogRepository} 的说明）。</p>
+ * {@link DataPermissionDenyLogRepository} 的说明）。）。**语句（含 LIMIT）全部住在 `src/main/resources/mapper/system/datapermission/DataPermissionOrmParityRepository.xml`**（SQL 分层规则：
+ * Java 里不写 SQL）—— 这里只留方法声明，列名与排序在 XML 里一眼可读。</p>
  *
  * @author Hamm.cn
  */
@@ -25,12 +24,7 @@ public interface DataPermissionOrmParityRepository extends KuboInfraMapper<DataP
      * @param resourceKey 资源标识
      * @return 对账列表
      */
-    default List<DataPermissionOrmParityEntity> findTop50ByResourceKeyOrderByIdDesc(String resourceKey) {
-        return selectList(new LambdaQueryWrapper<DataPermissionOrmParityEntity>()
-                .eq(DataPermissionOrmParityEntity::getResourceKey, resourceKey)
-                .orderByDesc(DataPermissionOrmParityEntity::getId)
-                .last("LIMIT 50"));
-    }
+    List<DataPermissionOrmParityEntity> findTop50ByResourceKeyOrderByIdDesc(@Param("resourceKey") String resourceKey);
 
     /**
      * 某资源某结论的条数
@@ -57,6 +51,5 @@ public interface DataPermissionOrmParityRepository extends KuboInfraMapper<DataP
      * @param cutoffEpochMillis 截止时间（毫秒）
      * @return 删除行数
      */
-    @Delete("delete from data_permission_orm_parity_log where create_time < #{cutoff}")
     int deleteExpiredBefore(@Param("cutoff") long cutoffEpochMillis);
 }

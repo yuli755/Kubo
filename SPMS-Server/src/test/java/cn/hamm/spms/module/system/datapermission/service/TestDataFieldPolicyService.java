@@ -3,6 +3,7 @@ package cn.hamm.spms.module.system.datapermission.service;
 import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
+import cn.hamm.spms.module.system.datapermission.mapper.DataFieldPolicyQueryMapper;
 import cn.hamm.spms.module.system.datapermission.repository.DataFieldPolicyRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
 import org.springframework.context.annotation.Profile;
@@ -20,11 +21,18 @@ import java.util.List;
 @Service
 public class TestDataFieldPolicyService implements DataFieldPolicyProvider {
     private final DataFieldPolicyRepository repository;
+
+    /**
+     * 带资源 join 的查询（语句在 mapper XML 里）
+     */
+    private final DataFieldPolicyQueryMapper queryMapper;
     private final DataResourceRepository resourceRepository;
     private final DataPermissionEventPublisher eventPublisher;
 
-    public TestDataFieldPolicyService(DataFieldPolicyRepository repository, DataResourceRepository resourceRepository, DataPermissionEventPublisher eventPublisher) {
+    public TestDataFieldPolicyService(DataFieldPolicyRepository repository, DataResourceRepository resourceRepository,
+                                      DataPermissionEventPublisher eventPublisher, DataFieldPolicyQueryMapper queryMapper) {
         this.repository = repository;
+        this.queryMapper = queryMapper;
         this.resourceRepository = resourceRepository;
         this.eventPublisher = eventPublisher;
     }
@@ -40,7 +48,7 @@ public class TestDataFieldPolicyService implements DataFieldPolicyProvider {
     @Override
     public List<DataFieldPolicyEntity> getPoliciesByResourceFieldRole(
             String resourceKey, String fieldName, String roleCode) {
-        return repository.findByResourceKeyAndFieldNameAndRoleCodeAndEnabledTrue(
+        return queryMapper.findByResourceKeyAndFieldNameAndRoleCodeAndEnabledTrue(
                 resourceKey, fieldName, roleCode);
     }
 

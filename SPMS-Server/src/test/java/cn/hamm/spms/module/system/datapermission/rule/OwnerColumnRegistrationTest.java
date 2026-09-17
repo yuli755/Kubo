@@ -81,6 +81,7 @@ class OwnerColumnRegistrationTest {
     @Test
     @DisplayName("注入形状仍然进不来：点号不等于放开自由文本")
     void sqlShapeIsStillRejected() {
+        // SQL-IGNORE: 恶意输入样例（断言校验器把它判为"需要转义/拒绝"）
         assertNotNull(OwnerColumnRegistration.validate("a; DROP TABLE x"));
         assertNotNull(OwnerColumnRegistration.validate("a b"));
         assertNotNull(OwnerColumnRegistration.validate("a--b"));

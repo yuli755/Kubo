@@ -2,14 +2,16 @@ package cn.hamm.spms.module.system.datapermission.repository;
 
 import cn.hamm.spms.base.BaseRepository;
 import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
 /**
  * <h1>数据字段权限仓库</h1>
+ *
+ * <p><b>带资源 join 的那条查询不在这里</b>：原来它是本接口上的 JPA {@code @Query}（JPQL 对象关联 JOIN），
+ * 2026-09-18 按 SQL 分层规则搬进 {@code mapper/system/datapermission/DataFieldPolicyQueryMapper.xml}
+ * —— 脱敏策略是权限判定链的一部分，那条 Query Mapper 属于无条件注册族。本接口剩下的都是派生查询。</p>
  *
  * @author Hamm.cn
  */
@@ -32,17 +34,4 @@ public interface DataFieldPolicyRepository extends BaseRepository<DataFieldPolic
      */
     List<DataFieldPolicyEntity> findByResourceIdAndEnabledTrueOrderByPriorityDesc(Long resourceId);
 
-    /**
-     * 根据资源键、字段名、角色编码查询启用的策略（用于前端动态获取脱敏规则）
-     */
-    @Query("SELECT dfp FROM DataFieldPolicyEntity dfp " +
-           "JOIN dfp.resource dr " +
-           "WHERE dr.resourceKey = :resourceKey " +
-           "AND dfp.fieldName = :fieldName " +
-           "AND dfp.roleCode = :roleCode " +
-           "AND dfp.enabled = true")
-    List<DataFieldPolicyEntity> findByResourceKeyAndFieldNameAndRoleCodeAndEnabledTrue(
-            @Param("resourceKey") String resourceKey,
-            @Param("fieldName") String fieldName,
-            @Param("roleCode") String roleCode);
-}
+

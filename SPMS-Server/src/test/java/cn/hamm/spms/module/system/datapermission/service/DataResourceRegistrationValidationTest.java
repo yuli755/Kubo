@@ -58,6 +58,7 @@ class DataResourceRegistrationValidationTest {
         assertRejected(() -> DataResourceService.validateRegistrations(
                 resource("tenant_id", "storage.owner.id", "input")));
         assertRejected(() -> DataResourceService.validateRegistrations(
+                // SQL-IGNORE: 恶意输入样例（归属列名注入）
                 resource("tenant_id", "a; DROP TABLE x", "input")));
     }
 

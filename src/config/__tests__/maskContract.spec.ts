@@ -1299,8 +1299,11 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
   it('证据留存有正数天数、独立定时清理与 create_time 索引', () => {
     const properties = readJavaCode(join(DPM, 'config', 'DataPermissionProperties.java'))
     const retention = readJavaCode(join(DPM, 'service', 'DataPermissionEvidenceRetention.java'))
-    const diffRepository = readJavaCode(join(DPM, 'repository', 'DataPermissionDiffRepository.java'))
-    const parityRepository = readJavaCode(join(DPM, 'repository', 'DataPermissionOrmParityRepository.java'))
+    // 2026-09-18 SQL 分层后，清理语句住在专属 mapper XML 里（Java 仓储只剩方法声明）：
+    // 判据不变 —— 表名 + create_time 条件必须"可审计地写在某处"，只是那处从 .java 换成了 .xml
+    const MAPPER_XML = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'mapper', 'system', 'datapermission')
+    const diffRepository = read(join(MAPPER_XML, 'DataPermissionDiffRepository.xml'))
+    const parityRepository = read(join(MAPPER_XML, 'DataPermissionOrmParityRepository.xml'))
     const yml = read(join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'application.yml'))
     expect(properties).toContain('retentionCleanupEnabled = false')
     expect(properties).toContain('retentionDays = 30')
@@ -1311,12 +1314,12 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
     const schedule = `@Scheduled(cron = "${property}")`
     expect(retention).toContain(schedule)
     expect(retention).toContain('cutoffEpochMillis')
-    // 2026-09-18 去 JPA 第一批：仓储从 Spring Data JPA 换成 MyBatis-Plus 的 Mapper，
-    // 清理语句的**判据没变**（表名 + create_time 条件必须可审计地写在仓储里），只有占位符
-    // 跟着方言从 JPA 的 `:cutoff` 变成 MyBatis 的 `#{cutoff}` —— 这条断言拦下过一次
-    // "用 LambdaQueryWrapper.delete 替掉显式 SQL"的写法（那样表名就从仓储里消失了）。
-    expect(diffRepository).toContain('delete from data_permission_diff_log where create_time < #{cutoff}')
-    expect(parityRepository).toContain('delete from data_permission_orm_parity_log where create_time < #{cutoff}')
+    // 这条断言拦下过两次"把语句藏起来"的写法：① 用 LambdaQueryWrapper.delete 替掉显式 SQL
+    // （表名消失）；② 把 LIMIT 之类的片段留在 Java 里（`last("LIMIT 50")`）—— 后者现在由
+    // `pnpm sql:check` 作为通用规则兜住。这里只钉住"这两张表的清理条件长什么样"。
+    // XML 里 `<` 是实体转义（`&lt;`），所以断言按转义后的文本写：判据本身没变。
+    expect(diffRepository).toContain('delete from data_permission_diff_log where create_time &lt; #{cutoff}')
+    expect(parityRepository).toContain('delete from data_permission_orm_parity_log where create_time &lt; #{cutoff}')
     // 迁移脚本 2026-09-17 收编进 Flyway，路径随之改变（见 docs/database/Flyway-S0·基线与存量脚本收编.md）
     const migration = read(join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'db', 'migration', 'V2__data_permission_migrations.sql'))
     expect(migration).toContain('idx_dp_diff_create_time')
