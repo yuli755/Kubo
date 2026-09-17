@@ -21,6 +21,16 @@ export interface RequestConfig extends AxiosRequestConfig {
   tenantAware?: boolean
 }
 
+/** 上传请求的可选项 */
+export interface IUploadRequestOption {
+  /** 上传进度（0-100） */
+  onProgress?: (progress: number) => void
+  /** 随文件一起提交的表单字段（如后端要求的 `category`） */
+  fields?: Record<string, string | number>
+  /** 其他 axios 配置 */
+  config?: RequestConfig
+}
+
 // API 错误类型
 export interface ApiError {
   code: number
@@ -274,10 +284,19 @@ export const api = {
     return unwrapData<T>(request.delete(url, { params, ...config }))
   },
 
-  // 文件上传
-  upload<T = unknown>(url: string, file: File, onProgress?: (progress: number) => void, config?: RequestConfig): Promise<T> {
+  /**
+   * 文件上传（multipart）。
+   *
+   * `fields` 是**随文件一起提交的表单字段**（后端 `FileController.upload` 要 `category`），
+   * 不传也能传文件，只是后端会按默认类别（`FileCategory.NORMAL`）落库。
+   */
+  upload<T = unknown>(url: string, file: File, option: IUploadRequestOption = {}): Promise<T> {
+    const { onProgress, fields, config } = option
     const formData = new FormData()
     formData.append('file', file)
+    for (const [key, value] of Object.entries(fields ?? {})) {
+      formData.append(key, String(value))
+    }
 
     return unwrapData<T>(request.post(url, formData, {
       ...config,

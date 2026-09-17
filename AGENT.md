@@ -1,446 +1,63 @@
-# Kubo Web 开发规范
-
-> 本文档供 AI 编程助手（Cursor、GitHub Copilot、Claude Code 等）参考，遵循本文档规范可以保证代码风格一致。
-
-## 项目概述
-
-Kubo Web 是 Kubo 智能生产管理系统的 Web 前端项目，基于 **Vue 3 + TypeScript + Vite** 开发，使用 **Element Plus** 作为 UI 组件库，依赖 **@airpower/web** 基础框架。
-
-## 技术栈
-
-| 技术          | 版本  | 用途                               |
-| ------------- | ----- | ---------------------------------- |
-| Vue           | 3.5+  | 前端框架 (Composition API + setup) |
-| TypeScript    | 5.9+  | 类型系统                           |
-| Vite          | 7.3+  | 构建工具                           |
-| Element Plus  | 2.12+ | UI 组件库                          |
-| Pinia         | 3.0+  | 状态管理                           |
-| Vue Router    | 4.6+  | 路由                               |
-| @airpower/web | 2.9+  | 基础框架 (CRUD组件、Hooks、工具)   |
-| Axios         | 1.13  | HTTP 客户端                        |
-| ECharts       | 6.0   | 图表                               |
-| SCSS          | 1.96+ | 样式预处理                         |
-| ESLint        | 9.39+ | 代码检查 (@antfu/eslint-config)    |
-
-## 项目结构
-
-```
-src/
-├── assets/          # 静态资源 (css, images等)
-├── base/            # 抽象基类
-│   ├── AbstractBaseService.ts    # 服务基类
-│   └── BaseEntity.ts             # 实体基类
-├── component/       # 全局公共组件
-├── config/          # 应用配置
-│   ├── AppConfig.ts    # 应用配置
-│   ├── Constant.ts     # 常量
-│   └── routes.ts       # 路由配置
-├── hook/            # 自定义 Hooks
-│   └── useTanStackTable.ts  # 表格 Hook 封装（useMyTable 已废弃）
-├── model/           # 数据模型 (Entity, Service, Enum)
-├── view/            # 页面视图
-├── App.vue
-├── env.d.ts
-└── main.ts
-```
-
-## 目录分层规范
-
-### 1. model/ - 数据模型层
-
-**结构**:
-```
-model/
-├── business-module/        # 业务模块 (如 asset, channel, factory, mes 等)
-│   ├── function-module/    # 功能模块 (如 material, device, storage 等)
-│   │   ├── XxxEntity.ts       # 实体类
-│   │   ├── XxxService.ts      # 服务类
-│   │   ├── XxxTypeEnum.ts     # 枚举类 (可选)
-│   │   └── ...
-```
-
-**规范**:
-- 按业务模块 → 功能模块二级分组
-- 命名：
-  - 实体: `XxxEntity.ts` (PascalCase)
-  - 服务: `XxxService.ts` (PascalCase)
-  - 枚举: `XxxEnum.ts` (PascalCase)
-
-### 2. view/ - 视图层
-
-**结构**:
-```
-view/console/business-module/function-module/
-├── component/              # 局部组件
-│   ├── editor.vue          # 编辑器弹窗
-│   ├── selector.vue        # 选择器弹窗 (可选)
-│   └── detail.vue          # 详情查看 (可选)
-└── list.vue               # 列表页面
-```
-
-**规范**:
-- 列表页: `list.vue` (kebab-case)
-- 编辑器弹窗: `editor.vue`
-- 选择器弹窗: `selector.vue`
-- 详情组件: `detail.vue`
-- 局部组件放入 `component/` 子目录
-
-## 编码规范
-
-### 格式规范
-
-| 规则          | 取值     |
-| ------------- | -------- |
-| 缩进          | 2 空格   |
-| 分号          | 不使用   |
-| 引号          | 单引号   |
-| Trailing 逗号 | 自动保留 |
-
-### 命名规范
-
-| 类型      | 规范                | 示例                                |
-| --------- | ------------------- | ----------------------------------- |
-| 类        | PascalCase          | `MaterialEntity`, `MaterialService` |
-| 枚举类    | PascalCase          | `MaterialTypeEnum`                  |
-| 枚举常量  | UPPER_SNAKE_CASE    | `PRODUCT`, `PURCHASE`               |
-| 接口/类型 | PascalCase (前缀 I) | `ITableResult`                      |
-| 函数/变量 | camelCase           | `useTanStackTable`, `onPublish`     |
-| TS 文件   | PascalCase          | `MaterialEntity.ts`                 |
-| Vue 文件  | kebab-case          | `editor.vue`, `list.vue`            |
-
-### 类型规范
-
-- **必须**声明类型，不使用 `any`
-- 确定有值时使用非空断言 `!`
-- 泛型正确传递类型参数
-
-### 导入路径规范
-
-- 使用 `@/` 别名开头指向 `src/`
-- 同级导入使用相对路径 `./`
-- 第三方包直接导入
-
-**正确示例**:
-```typescript
-import { WebEnum } from '@airpower/web'
-import { AbstractBaseService } from '@/base/AbstractBaseService'
-import { MaterialEntity } from './MaterialEntity'
-```
-
-## Vue 组件规范
-
-### 块顺序 (强制校验)
-
-强制顺序：`script` → `template` → `style`
-
-```vue
-<script lang="ts" setup>
-// ...
-</script>
-
-<template>
-  <!-- ... -->
-</template>
-
-<style lang="scss" scoped></style>
-```
-
-### 属性换行 (强制校验)
-
-- 单行最多 1 个属性
-- 多行每个属性占一行
-
-**正确示例**:
-```vue
-<ATable
-  :use-hook="hook"
-  show-export
-/>
-```
-
-### Script Setup 规范
-
-- **必须**使用 `<script lang="ts" setup>`
-- 弹窗 Props 使用 `DialogProps.withParam()`
-- 充分利用 TypeScript 类型推断
-
-```typescript
-const props = defineProps(DialogProps.withParam(new MaterialEntity()))
-
-const {
-  title,
-  formData,
-  rules,
-  formRef,
-  isLoading,
-  onSubmit,
-} = useEditor(props, MaterialService)
-```
-
-## AirPower 装饰器规范
-
-### 装饰器顺序 (必须遵循)
-
-```typescript
-@Model({ label: '物料' })
-export class MaterialEntity extends BaseEntity {
-  @Table({ ... })  // 1. 表格配置
-  @Form({ ... })    // 2. 表单配置
-  @Search({ ... })  // 3. 搜索配置
-  @Field({ ... })   // 4. 字段标记
-  name!: string
-}
-```
-
-### 常用装饰器配置说明
-
-| 装饰器    | 用途       | 常用配置项                                                                                                  |
-| --------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
-| `@Model`  | 类标记     | `label` - 类标签                                                                                            |
-| `@Field`  | 字段标记   | `label` - 字段标签，`dictionary` - 枚举字典                                                                 |
-| `@Table`  | 表格列配置 | `width` - 宽度，`force` - 强制显示，`copy` - 可复制，`datetime` - 日期格式化，`color` - 染色                |
-| `@Form`   | 表单配置   | `requiredString`/`requiredNumber`/`requiredPayload` - 必填，`defaultValue` - 默认值，`placeholder` - 占位符 |
-| `@Search` | 搜索配置   | `width` - 宽度，`hide` - 是否隐藏                                                                           |
-| `@Type`   | 类型标记   | 标记 Payload 实体类型                                                                                       |
-
-## 各类文件开发规范
-
-### 1. 枚举规范
-
-- 继承 `WebEnum`
-- 使用 `static readonly` 声明常量
-- 调用 `setColor()` 设置颜色
-
-**示例**:
-```typescript
-import { WebColor, WebEnum } from '@airpower/web'
-
-export class MaterialTypeEnum extends WebEnum {
-  static readonly PRODUCT = new MaterialTypeEnum(1, '自产品')
-    .setColor(WebColor.SUCCESS)
-
-  static readonly PURCHASE = new MaterialTypeEnum(2, '外购品')
-    .setColor(WebColor.WARNING)
-}
-```
-
-### 2. 服务类规范
-
-- 继承 `AbstractBaseService<E>`，E 为实体类型
-- 指定 `entityClass` 为实体类
-- 指定 `baseUrl` 为 API 基础路径（不需要 `/api` 前缀）
-
-**示例**:
-```typescript
-import { AbstractBaseService } from '@/base/AbstractBaseService'
-import { MaterialEntity } from './MaterialEntity'
-
-export class MaterialService extends AbstractBaseService<MaterialEntity> {
-  entityClass = MaterialEntity
-  baseUrl = 'material'
-}
-```
-
-### 3. 实体类规范
-
-- 继承 `BaseEntity`
-- 需要被选择器选择时**实现** `IPayload` 接口
-- 实现 `getPayloadLabel()` 方法返回显示文本
-
-**示例**:
-```typescript
-import { Field, Form, Model, Search, Table, Type } from '@airpower/web'
-import { BaseEntity } from '@/base/BaseEntity'
-import { MaterialTypeEnum } from './MaterialTypeEnum'
-import { UnitEntity } from './UnitEntity'
-
-@Model({
-  label: '物料',
-})
-export class MaterialEntity extends BaseEntity implements IPayload {
-  @Table({ copy: true, force: true })
-  @Form({ requiredString: true })
-  @Search()
-  @Field({ label: '物料名称' })
-  name!: string
-
-  @Table({ copy: true })
-  @Form({ placeholder: '不输入按编码规则自动生成' })
-  @Search()
-  @Field({ label: '物料编码' })
-  code!: string
-
-  @Table({ color: true, width: 100 })
-  @Form({ clearable: false, defaultValue: MaterialTypeEnum.PRODUCT.key, requiredNumber: true })
-  @Search({ width: 120 })
-  @Field({ label: '物料类型', dictionary: MaterialTypeEnum })
-  materialType!: number
-
-  @Table({ payload: true, width: 150 })
-  @Form({ requiredPayload: true })
-  @Type(UnitEntity)
-  @Field({ label: '计量单位' })
-  unit!: UnitEntity
-
-  getPayloadLabel(): string {
-    return `${this.name}(${this.code})`
-  }
-}
-```
-
-### 4. Hooks 规范
-
-- 放在 `src/hook/` 目录
-- 命名 `useXxx` (camelCase)
-- 使用泛型约束类型
-
-**示例**:
-```typescript
-export function useTanStackTable<E extends BaseEntity, S extends AbstractBaseService<E>>(
-  serviceClass: CurdServiceConstructor<E, S>,
-  option: ITableOption<E> & { queryKey: string[] },
-): ITableResult<E, S> {
-  // ...
-}
-```
-
-## 页面开发流程
-
-### 第一步：开发列表页面 (list.vue)
-
-```vue
-<script lang="ts" setup>
-import { APanel, ATable } from '@airpower/web'
-import { useTanStackTable } from '@/hook/useTanStackTable'
-import { MaterialService } from '@/hook/asset/useMaterial'
-import { MaterialEditor } from './component'
-
-const hook = useTanStackTable(MaterialService, {
-  queryKey: ['asset:material'],
-  editView: MaterialEditor,
-})
-</script>
-
-<template>
-  <APanel>
-    <ATable
-      :use-hook="hook"
-      show-export
-    />
-  </APanel>
-</template>
-
-<style lang="scss" scoped></style>
-```
-
-### 第二步：开发编辑器弹窗 (component/editor.vue)
-
-```vue
-<script lang="ts" setup>
-import { ADialog, AFormField, DialogProps, useEditor } from '@airpower/web'
-import { MaterialEntity } from '@/model/asset/material/MaterialEntity'
-import { MaterialService } from '@/model/asset/material/MaterialService'
-
-const props = defineProps(DialogProps.withParam(new MaterialEntity()))
-
-const {
-  title,
-  formData,
-  rules,
-  formRef,
-  isLoading,
-  onSubmit,
-} = useEditor(props, MaterialService)
-</script>
-
-<template>
-  <ADialog
-    :form-ref="formRef"
-    :loading="isLoading"
-    :title="title"
-    @cancel="onCancel"
-    @confirm="onSubmit"
-  >
-    <el-form
-      ref="formRef"
-      :model="formData"
-      :rules="rules"
-      label-width="120px"
-      @submit.prevent
-    >
-      <AFormField field="name" />
-      <AFormField field="code" />
-      <AFormField field="materialType" />
-      <AFormField field="spc" />
-    </el-form>
-  </ADialog>
-</template>
-```
-
-### 第三步：开发选择器弹窗 (component/selector.vue) (可选)
-
-```vue
-<script lang="ts" setup>
-import { ADialog, ATable, useSelector } from '@airpower/web'
-import { MaterialEntity } from '@/model/asset/material/MaterialEntity'
-import { MaterialService } from '@/model/asset/material/MaterialService'
-
-const props = defineProps(DialogProps.withParam(new MaterialEntity()))
-
-const {
-  title,
-  hook,
-  onConfirm,
-} = useSelector(props, MaterialService)
-</script>
-
-<template>
-  <ADialog
-    :title="title"
-    width="800px"
-    @confirm="onConfirm"
-  >
-    <APanel>
-      <ATable
-        :use-hook="hook"
-        :is-select="true"
-      />
-    </APanel>
-  </ADialog>
-</template>
-```
-
-## 可用命令
+# Kubo Web 开发规范（当前底座）
+
+> 供 AI 编程助手与人类开发者参考。**这份文档在 2026-09 换底座时整体重写过**：
+> 旧版本教的是 `@airpower/web` 的 `APanel`/`ATable`/`ADialog` 写法，那套正在按域退场
+> （进度见 `SPMS-Server/docs/前端F4·airpower 逐域迁移分批清单.md`），照它写会写出**死栈代码**。
+>
+> 新代码只认下面这一套。技术栈与版本以 `pnpm stack` 为准，解读见 `SPMS-Server/docs/前端技术栈现状.md`。
+
+## 一、底座在哪
+
+| 层 | 位置 | 说明 |
+| --- | --- | --- |
+| 框架层 | `src/framework/**` | 元数据装饰器、实体基类、HTTP/服务基类、查询模型、反馈（toast/确认/命令式弹窗）、枚举字典、格式化、单元格、导出、**上传** |
+| 实体基类 | `src/base/KEntity.ts` | 新页实体的基类（注册框架层元数据） |
+| 框架组件 | `src/component/framework/K*.vue` | `KTable` / `KFormDialog` / `KPanel` / `KSelector` / `KDetail` / `KDialog` / `KUpload` |
+| 数据层 | `src/hook/kubo/useTable.ts`、`useDetail.ts` | 列表页与详情页的状态与请求流（TanStack Query） |
+| 视图层 | `src/view/console/<域>/...` | 路由路径 == 视图路径；菜单由后端下发（演示模式用 fixtures） |
+
+**视图层不得直接 import `@/model/**Service`**（ESLint `no-restricted-imports` 拦），统一经 `src/hook/<域>/*` 转发。
+
+## 二、硬规则（每条都有门禁或踩坑记录）
+
+1. **不新增 `@airpower/web`**。未迁域的存量可以不动，但新文件、新页面一律走 `src/framework` + `K*` 组件。
+   `pnpm airpower` 报退场进度（数字只许降）。
+2. **模板里的 `<el-*>` 必须显式 `import`**（如 `import { ElButton } from 'element-plus'`）。
+   新用到的 Element Plus 组件要在 `src/types/element-plus-aggregate.ts` 里追加 re-export ——
+   该聚合入口是 `element-plus` 别名的落点，**从它 import 的组件会进首屏**，所以只加"首屏真要用"的；
+   体积敏感的（如日期/时间选择器）走子路径，见 `KFormDialog.vue` 的注释。
+3. **一切查询/写操作走服务类**：页面持有 `useTable(KXxxService, { queryKey })`，弹窗用 `KFormDialog`。
+   页面不自己拼 URL、不自己 `new Axios`。
+4. **实体双注册**：过渡期实体同时挂 airpower 别名装饰器与 `KModel/KField/KForm/KSearch/KTable`；
+   整域迁完后再一次性删旧装饰器与旧服务（半域删除会让旧页面拿不到元数据）。
+5. **`KDialog` 只 `emit`**：使用方写 `@confirm="props.onConfirm?.(值)"` 转发。
+   不要写 `:on-confirm="handler"`（会静默不派发），也不要手动调 `props.onConfirm`（会回调两次）。
+6. **命令式弹窗**：`DialogUtil.show/select/selectList/showUpload`；取消时 resolve `undefined`，调用方必须判空。
+7. **路由/菜单位置**：新增页面要同时进角色权限与菜单种子，否则「做了页面却点不到」——
+   `src/config/__tests__/menuContract.spec.ts` 会拦。
+
+## 三、编码风格
+
+- ESLint 用 `@antfu/eslint-config`（2 空格、单引号、无分号）；提交前 `pnpm lint:ci` 必须干净。
+- 类型：`vue-tsc --noEmit` 必须干净；泛型组件进测试时用 `X as unknown as Component`。
+- 命名：组件 `PascalCase.vue`；hook `useXxx.ts`；服务 `KXxxService.ts`（新）/ `XxxService.ts`（存量）；实体 `XxxEntity.ts`。
+- 注释写**为什么**（尤其是反直觉的坑），不写"这里加了一个变量"式废注释。
+
+## 四、提交前跑什么
 
 ```bash
-# 启动开发服务器
-pnpm dev
-
-# ESLint 自动修复代码格式
-pnpm lint
-
-# 生产构建
-pnpm build
+pnpm check          # 全链：lint → 死代码（文件级/导出级）→ typecheck → test:coverage → 各契约门禁 → build → demo:check → size
+pnpm stack          # 当前技术栈一览（含"死重量"：零引用依赖、没人用的 public 资源）
+pnpm airpower       # airpower 退场进度
 ```
 
-## 构建配置
+体积红线：首屏 ≤ 450 KB、总体 ≤ 900 KB（`pnpm size`）；第一次超预算基本都是"把懒加载页面的依赖挪进了首屏"。
 
-- `minify: false` - 关闭代码压缩（AirPower 需要反射获取类名）
-- 代理 `/api` → `http://127.0.0.1:8080/`
-- 开发端口 `3000`
+## 五、相关文档
 
-## Git 规范
-
-- 提交信息清晰描述变更内容
-- 优先按功能模块单独提交
-- 不提交 `node_modules`、`dist`、`.idea`、`.vscode`
-
-## 最佳实践
-
-1. ✅ **复用基础组件**: 优先使用 `@airpower/web` 提供的 `APanel`、`ATable`、`ADialog`、`AFormField`、`ASelect` 等组件
-2. ✅ **复用 Hooks**: 使用 `useTanStackTable`、`useEditor`、`useSelector`、`useDetail` 等封装好的 Hooks（`useMyTable`/`useBillTable` 已废弃，勿再用）
-3. ✅ **业务分层**: 模型在 `model/`，页面在 `view/`，业务逻辑在 Service，不要在页面写过多逻辑
-4. ✅ **类型安全**: 充分利用 TypeScript 类型系统，不使用 `any`
-5. ✅ **继承基类**: 实体继承 `BaseEntity`，服务继承 `AbstractBaseService`，获得通用能力
-6. ✅ **使用装饰器**: 正确使用 `@Table` → `@Form` → `@Search` → `@Field` 装饰器，框架自动生成表格和表单
-7. ✅ **遵循约定**: 保持项目目录结构和命名规范，便于维护
+| 文档 | 内容 |
+| --- | --- |
+| `SPMS-Server/docs/前端技术栈现状.md` | 现在装的是什么、和目标栈差在哪、怎么删（纯删 / 边删边补 / 先补才能删） |
+| `SPMS-Server/docs/前端F4·airpower 逐域迁移分批清单.md` | 逐域迁移的批次、每批验收口径、踩坑 |
+| `SPMS-Server/docs/前端换底座·去airpower实施计划.md` | 换底座的总体设计与取舍 |
+| `STARTUP.md` / `LOGIN.md` | 本地启动、测试账号 |

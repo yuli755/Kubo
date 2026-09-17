@@ -13,6 +13,7 @@
 
 import type { AppContext, Component, VNode } from 'vue'
 import type { IJson } from './types'
+import type { IUploadConfig } from './upload'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createVNode, defineComponent, h, render } from 'vue'
 import { WebConfig } from './config'
@@ -213,10 +214,23 @@ export class DialogUtil {
     return openDialog<E[]>(view, { param, isMultiple: true, selectList }) as Promise<E[]>
   }
 
-  /** 上传弹窗（上传能力后续按需接入，这里保持调用方契约） */
-  static showUpload<T = unknown>(config?: unknown): Promise<T> {
-    void config
-    return Promise.reject(new Error('上传弹窗尚未在框架层实现'))
+  /**
+   * 上传弹窗：选文件 → 上传 → 确定，成功时 resolve 上传记录（多选时是数组），取消 resolve `undefined`。
+   *
+   * ```ts
+   * const file = await DialogUtil.showUpload({ category: FileCategory.CONTRACT_ATTACHMENT.key })
+   * if (file) form.documentList.push(file)
+   * ```
+   *
+   * 兼容旧契约：`{ data: { category }, entity: FileEntity }` 也能打开（`entity` 忽略）。
+   *
+   * ⚠️ 这里用**动态 import** 拿弹窗组件，不是为了省体积（虽然顺带省了），而是为了不制造
+   * `framework/feedback.ts → component/framework/KUploadDialog.vue → KUpload.vue → @/framework`
+   * 的**循环依赖**：框架层不应该在求值期就依赖组件层。
+   */
+  static async showUpload<T = unknown>(config?: IUploadConfig): Promise<T | undefined> {
+    const { default: KUploadDialog } = await import('@/component/framework/KUploadDialog.vue')
+    return openDialog<T>(KUploadDialog as Component, { param: config })
   }
 }
 

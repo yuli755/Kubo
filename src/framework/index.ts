@@ -11,6 +11,7 @@
  * - `query`     分页/排序/查询模型（与后端契约一致）
  * - `feedback`  吐司/确认框/命令式弹窗/剪贴板
  * - `export`    异步导出任务（建任务 → 轮询 → 下载地址）
+ * - `upload`    文件上传（校验 + multipart 提交 + 响应整形 + 预览地址）
  * - `validate`  表单校验
  * - `datetime`  时间工具
  * - `enums`     枚举字典/颜色/脱敏
@@ -30,4 +31,5 @@ export * from './http'
 export * from './metadata'
 export * from './query'
 export * from './types'
+export * from './upload'
 export * from './validate'

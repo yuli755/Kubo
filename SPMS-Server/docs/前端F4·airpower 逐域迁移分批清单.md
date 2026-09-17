@@ -11,7 +11,7 @@
 | **F2 第二批** | `KPanel` / `KSelector` / `KDetail` + `useDetail`、树表（`useTable({ tree })` + KTable 树渲染）、单元格与金额格式化（`framework/cell.ts`、`format.ts`）、字典兼容 airpower 枚举（`getEnumItems/getEnumLabel/getEnumColor`） | ✅ 本轮 |
 | **批 1** | `factory`（仓库 / 生产单元，树表）+ `index` 首页 | ✅ 本轮 |
 | **批 0A** | 应用外壳（旧壳 `AFrame` 分支 + `VITE_LEGACY_SHELL` 开关一起删）、`KDialog`、两个单据弹窗（`BillAddFinishDialog`/`BillRejectDialog`）、`BillAuditOrReject` | ✅ 本轮 |
-| **批 0B** | `BillFormCode` / `BillFormMoreDetail` / `hook/billTable/*`、`UserCard` + `component/user/*`、`router/appRouter.ts` | ⬜ 见下方"为什么拆成 0A/0B"（卡上传组件） |
+| **批 0B（前置件已就位）** | `BillFormCode` / `BillFormMoreDetail` / `hook/billTable/*`、`UserCard` + `component/user/*`、`router/appRouter.ts` | ⬜ 上传组件已于本轮补齐（见 §三 3.6），0B 可开工；`appRouter.ts` 仍等批 6 之后（F5） |
 | **批 2** | `asset`：物料 / 合同（列表 + 详情 + 参与方）、框架层补 3 件（异步导出、日期控件、单元格插槽） | ✅ 本轮 |
 | 批 3~6 | personnel → wms → channel → system | ⬜ |
 
@@ -131,9 +131,35 @@ vitest **47 文件 / 399 用例**全绿，其中逐页冒烟探针覆盖 asset �
 
 结论：**airpower 还在位时这是结构性开销**，预算内（450 KB）仍有余量；F5（airpower 退场 + EP chunk 重新分组）时一并处理。已在 `vite.config.mts` 与聚合入口留下注释，避免下一个人重复实验。
 
-### 3.5 批 2B（剩余，等上传组件）
+### 3.5 上传组件（0B 与 2B 的共同卡点，本轮补齐）
 
-`contract/{editor,editParticipant,selector}.vue`、`material/selector.vue` 仍是 airpower 组件：编辑器要传附件、选择器内嵌编辑器要传图片。
+原库把上传拆成三处（`AFormField showUpload` 表单字段、`AImage` 图片、`DialogUtil.showUpload()` 命令式弹窗），
+三处各有各的 props。这里收敛成**一个组件 + 一个工具类 + 一个命令式入口**：
+
+| 件 | 位置 | 契约 |
+| --- | --- | --- |
+| `KUpload.vue` | `src/component/framework/` | `v-model` = `IUploadedFile[]`；`category / accept / maxSizeMB / multiple / tip / readonly / compact`；支持点击与拖拽；图片给缩略图（可点开预览）；只读模式给详情页展示 |
+| `UploadUtil` | `src/framework/upload.ts` | `validate()`（accept + 大小，返回中文原因）、`upload()`、`uploadList()`、`resolveUrl()`（拼 `WebConfig.staticUrl`）、`sizeText()`、`isImage()`、`normalize()`（后端响应缺 `name/size/extension` 时用本地 File 兜底） |
+| `KUploadDialog.vue` + `DialogUtil.showUpload()` | `component/framework/` + `framework/feedback.ts` | 命令式上传弹窗：`await DialogUtil.showUpload({ category })` → 上传记录（多选为数组）；取消 resolve `undefined`（调用方判空） |
+
+**后端契约（已核对 `FileController.upload`）**：`POST /api/file/upload`，multipart 字段 `file` + `category`，
+响应 `Json.data(FileEntity)`；后端标了 `authorize = false`（允许匿名），但带登录态时会把上传人落库。
+
+三个坑（都写进代码注释与单测）：
+
+1. **URL 会拼成 `/api/api/...`**：`WebConfig.uploadUrl = '/api/file/upload'` 是给 airpower 用的（它的 axios 没有 baseURL），
+   而本仓统一实例 `baseURL = '/api'` —— `UploadUtil.getRequestUrl()` 负责剥前缀，单测钉住。
+2. **框架层不能静态 import 组件层**：`showUpload` 用**动态 `import()`** 拿 `KUploadDialog`，
+   否则 `framework/feedback.ts → KUploadDialog → KUpload → @/framework` 形成求值期循环依赖（顺带让上传代码进懒加载 chunk）。
+3. **演示模式要能"看见自己传的图"**：`demo/mock/adapter.ts` 把 multipart 里的 `File` 变成 `objectURL` 返回 ——
+   回一张静态占位图会让人以为"上传成功但内容不对"。
+
+**验收**：`src/config/__tests__/frameworkUpload.spec.ts` 13 个用例（校验 / URL / category 字段 / 响应补齐 /
+组件选文件与删除 / 只读 / 命令式弹窗的确定与取消 / airpower 旧契约 `{ data: { category } }`）；全量 vitest 48 文件 412 用例。
+
+### 3.6 批 2B（剩余，现在已具备条件）
+
+`contract/{editor,editParticipant,selector}.vue`、`material/selector.vue` 仍是 airpower 组件：编辑器要传附件、选择器内嵌编辑器要传图片 —— **上传件现在有了**（§3.5），这一批可以直接开工。
 它们与「选择器里新增实体」这一能力一起卡在框架层上传组件（`DialogUtil.showUpload` 目前是 reject 占位）。
 `material/selector.vue` 里写清了失去"选择器内新增单位"入口的两条恢复路径（补上传组件 / 在物料表单里改用 KSelector 内联新增）。
 

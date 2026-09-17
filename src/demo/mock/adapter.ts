@@ -13,7 +13,9 @@
  * ## 行为
  * - 按 `./engine` 的规则解析 URL 与请求体，返回统一响应信封 `{code:200, message, data}`；
  * - 刻意加 120–320ms 随机延迟：让加载态、骨架屏、按钮 loading 在演示时**看得见**；
- * - 导出/下载类请求（`responseType: blob|arraybuffer`）直接回一个空文件，避免报错。
+ * - 导出/下载类请求（`responseType: blob|arraybuffer`）直接回一个空文件，避免报错；
+ * - **文件上传**（multipart，`file/upload`）不落库：把浏览器里的 `File` 变成一个 objectURL 返回，
+ *   于是演示模式下上传头像/附件能立刻看到**用户自己选的那张图**（而不是占位图）。
  */
 
 import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
@@ -68,6 +70,35 @@ function collectPayload(config: InternalAxiosRequestConfig): Record<string, unkn
   return payload
 }
 
+/**
+ * 演示模式的上传：不发给任何人，把 `File` 变成 `objectURL` 回一个「仿佛上传成功」的记录。
+ *
+ * 这样预览里上传头像/合同附件时，列表里显示的就是刚选的那张图 —— 直接回静态占位图
+ * 会让人以为「上传成功但内容不对」。`URL.createObjectURL` 在 jsdom 里不保证存在，故做了兜底。
+ */
+function resolveDemoUpload(config: InternalAxiosRequestConfig): Record<string, unknown> | null {
+  const body = config.data
+  if (typeof FormData === 'undefined' || !(body instanceof FormData)) {
+    return null
+  }
+  const file = body.get('file')
+  if (!(file instanceof File)) {
+    return null
+  }
+  const extension = file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() ?? '' : ''
+  const category = body.get('category')
+  return {
+    id: Math.floor(Math.random() * 100000) + 1,
+    name: file.name,
+    extension,
+    url: typeof URL?.createObjectURL === 'function' ? URL.createObjectURL(file) : `/static/demo/${file.name}`,
+    size: file.size,
+    category: category === null ? 1 : Number(category),
+    hashMd5: 'demo',
+    creatorId: 1,
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
@@ -95,9 +126,10 @@ export function createDemoAdapter(delayMs: [number, number] = [120, 320]): Axios
 
     await sleep(delayMs[0] + Math.random() * (delayMs[1] - delayMs[0]))
 
+    const uploaded = action === 'upload' ? resolveDemoUpload(config) : null
     const data = wantsBlob(config)
       ? new Blob(['Kubo 演示模式：导出未接入真实文件'], { type: 'text/plain' })
-      : resolveMock(resourcePath, action, payload)
+      : (uploaded ?? resolveMock(resourcePath, action, payload))
 
     return {
       data: wantsBlob(config)
