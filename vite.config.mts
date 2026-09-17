@@ -154,6 +154,12 @@ export default defineConfig(({ mode }) => {
       // 仅影响 dev server，不影响生产构建产物。
       allowedHosts: true,
       https: false,
+      // 产物目录不参与热更新监听：`coverage/`（pnpm test:coverage）与 `dist/`（pnpm build）
+      // 是每次跑门禁都会重写的生成物，被 watcher 盯上会导致开发服务器每轮刷上百次
+      // reload（表现为"只是跑了个测试，页面自己狂刷新"）。它们本来也不该被热加载。
+      watch: {
+        ignored: ['**/coverage/**', '**/dist/**'],
+      },
       proxy: {
         '/api': {
         // target: 'https://spms.hamm.cn/api/',
