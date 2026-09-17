@@ -4,24 +4,25 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 /**
- * # 分层门禁的反例测试（门禁自己也要能被证伪）
+ * # 门禁的反例测试（门禁自己也要能被证伪）
  *
  * 2026-09-18 的教训：`check-layering.mjs` 曾经**解析不到 `import static X.Y.*;`** ——
  * 正则 `[\w.]+` 遇到通配符整行不匹配，于是通配符静态导入成了免检通道。
- * 那次是我手工塞了个探针文件才发现"门禁其实没在拦"，而手工探针不会留在仓库里：
- * 下一批重构的人照样会误以为 445 个文件都被看过了。
+ * 那次是手工塞探针文件才发现的，而手工探针不会留在仓库里：
+ * 下一批重构的人照样会误以为每一行都被看过。
  *
- * 所以这一组用例把"门禁必须会红"钉成契约：拿一份**故意违规**的夹具树跑真实脚本，
- * 断言每个规则（L0 / L2 / L2-通配符 / L3 / L4 / L5 / L6 / L7）都能被点出来，
- * 同时断言 L7 的装配类例外**不会**被误报。
+ * 所以这里把"门禁必须会红"钉成契约：拿**故意违规**的夹具树跑真实脚本，逐个规则断言。
  *
- * 夹具在 `src/config/__tests__/fixtures/layering/`：它只被本用例读取，
- * 不参与 `SPMS-Server` 的任何编译与门禁扫描（那些只扫 `SPMS-Server/src`）。
+ * 夹具放在 `infra/fixtures/`（不在 `src/` 下）：它们不能被 `vue-tsc` 类型检查、
+ * 也不该被 eslint 或任何门禁当成真代码 —— `infra/**` 在 eslint 的 ignores 里，
+ * tsconfig 的 include 也只有 `src/**`。
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
-const FIXTURE = join(ROOT, 'src', 'config', '__tests__', 'fixtures', 'layering')
-const SCRIPT = join(ROOT, 'infra', 'scripts', 'check-layering.mjs')
+const JAVA_GATE = join(ROOT, 'infra', 'scripts', 'check-layering.mjs')
+const FRONT_GATE = join(ROOT, 'infra', 'scripts', 'check-front-layering.mjs')
+const JAVA_FIXTURE = join(ROOT, 'infra', 'fixtures', 'layering-java')
+const FRONT_FIXTURE = join(ROOT, 'infra', 'fixtures', 'layering-front')
 
 interface Violation {
   rule: string
@@ -29,17 +30,38 @@ interface Violation {
   detail: string
 }
 
-/** 跑门禁脚本（`--json`），返回结构化结果；夹具根目录通过 KUBO_ROOT 注入（脚本本来就支持） */
-function runGate(): { violations: Violation[], files: number, allowlist: number, stale: unknown[], status: number } {
-  const stdout = execFileSync(process.execPath, [SCRIPT, '--json'], {
-    env: { ...process.env, KUBO_ROOT: FIXTURE },
+interface GateResult {
+  files: number
+  violations: Violation[]
+  allowlist: number
+  stale: unknown[]
+}
+
+/** 跑门禁脚本（`--json`）；夹具根目录通过 KUBO_ROOT 注入（两个脚本都支持） */
+function runGate(script: string, fixture: string): GateResult {
+  const stdout = execFileSync(process.execPath, [script, '--json'], {
+    env: { ...process.env, KUBO_ROOT: fixture },
     encoding: 'utf8',
   })
   return JSON.parse(stdout)
 }
 
-describe('layering gate · 反例（门禁必须真的会红）', () => {
-  const result = runGate()
+/** `--check` 模式必须真的以非零退出（否则 CI 里永远绿） */
+function checkExitCode(script: string, fixture: string): number {
+  try {
+    execFileSync(process.execPath, [script, '--check'], {
+      env: { ...process.env, KUBO_ROOT: fixture },
+      stdio: 'pipe',
+    })
+    return 0
+  }
+  catch (error) {
+    return (error as { status?: number }).status ?? 0
+  }
+}
+
+describe('后端分层门禁 · 反例（L0–L7 每条都要会红）', () => {
+  const result = runGate(JAVA_GATE, JAVA_FIXTURE)
 
   it('每一层规则都能被点出来', () => {
     const rules = new Set(result.violations.map(v => v.rule))
@@ -50,8 +72,7 @@ describe('layering gate · 反例（门禁必须真的会红）', () => {
 
   it('通配符静态导入不得成为免检通道（曾经的盲区）', () => {
     const wildcard = result.violations.find(v => v.file.endsWith('base/BadWildcard.java'))
-    expect(wildcard, 'import static …module…*；没被解析 → 这一行等于没人看')
-      .toBeDefined()
+    expect(wildcard, 'import static …module…*；没被解析 → 这一行等于没人看').toBeDefined()
     expect(wildcard!.rule).toBe('L2')
     expect(wildcard!.detail).toContain('SerialNumberUpdate')
   })
@@ -68,23 +89,63 @@ describe('layering gate · 反例（门禁必须真的会红）', () => {
     expect(files.some(f => f.endsWith('common/AssemblyOk.java')), '@Configuration 装配类被误报成越层').toBe(false)
   })
 
-  it('夹具本身是干净白名单：违规数量与规则一一对应', () => {
+  it('夹具本身不依赖白名单，且违规数量与规则一一对应', () => {
     expect(result.allowlist, '夹具不该依赖白名单放行').toBe(0)
     expect(result.stale.length).toBe(0)
     expect(result.violations.length, '夹具树里每一处违规都应当有名字（多出来的是误报）').toBe(8)
   })
 
-  it('--check 时以非零退出码收场（CI 才会真的红）', () => {
-    let status = 0
-    try {
-      execFileSync(process.execPath, [SCRIPT, '--check'], {
-        env: { ...process.env, KUBO_ROOT: FIXTURE },
-        stdio: 'pipe',
-      })
+  it('--check 时以非零退出码收场', () => {
+    expect(checkExitCode(JAVA_GATE, JAVA_FIXTURE), '门禁只打印不退出码 = CI 里永远绿').toBe(1)
+  })
+})
+
+describe('前端分层门禁 · 反例（LF1–LF4 每条都要会红）', () => {
+  const result = runGate(FRONT_GATE, FRONT_FIXTURE)
+
+  it('四条规则都能被点出来', () => {
+    const rules = new Set(result.violations.map(v => v.rule))
+    for (const rule of ['LF1', 'LF2', 'LF3', 'LF4']) {
+      expect(rules, `${rule} 的对应用例没被门禁抓到：这条规则其实是摆设`).toContain(rule)
     }
-    catch (error) {
-      status = (error as { status?: number }).status ?? 0
-    }
-    expect(status, '门禁只打印不退出码 = CI 里永远绿').toBe(1)
+  })
+
+  it('注释里的示例不算依赖（本仓真实踩过的假违规）', () => {
+    const files = result.violations.map(v => v.file)
+    expect(
+      files.some(f => f.endsWith('composables/ok.ts')),
+      'JSDoc 示例里写着 import(\'@/view/home.vue\') 就报红：文档让读者这么用，门禁却拦 —— 假违规会逼人删文档',
+    ).toBe(false)
+    expect(files.some(f => f.endsWith('composables/bad.ts')), '真代码里的 view 依赖必须报 LF1').toBe(true)
+  })
+
+  it('`.vue` 只看 `<script>`：`<style>` 里的 @import 不是依赖', () => {
+    const files = result.violations.map(v => v.file)
+    expect(
+      files.some(f => f.endsWith('framework/styleOnly.vue')),
+      '<style> 块里的 @import 被当成依赖：会得到一堆假边',
+    ).toBe(false)
+  })
+
+  it('组合根与白名单各归各位', () => {
+    const files = result.violations.map(v => v.file)
+    expect(files.some(f => f.endsWith('config/routes.ts')), '组合根（路由表）认识视图是它的职责').toBe(false)
+    expect(files.some(f => f.endsWith('framework/http.ts')), 'framework → api/axios 是登记的例外，不该报红').toBe(false)
+    expect(result.allowlist, '夹具应当命中 2 条登记例外').toBe(2)
+    expect(result.stale.length, '夹具里两条例外都被命中，不该有过期条目').toBe(0)
+  })
+
+  it('数据层（base 与 model）共用 LF3 判据', () => {
+    const lf3 = result.violations.filter(v => v.rule === 'LF3').map(v => v.file)
+    expect(lf3, 'base/ 与 model/ 都属数据层，各要有一条 LF3 用例').toEqual([
+      'src/base/bad.base.ts',
+      'src/model/bad.model.ts',
+    ])
+  })
+
+  it('夹具违规数量与规则一一对应，且 --check 以非零退出', () => {
+    // LF1 命中三处（base/bad.base.ts、composables/bad.ts、model/bad.model.ts 各有 view 依赖）
+    expect(result.violations.length, '夹具树里每一处违规都应当有名字（多出来的是误报）').toBe(7)
+    expect(checkExitCode(FRONT_GATE, FRONT_FIXTURE), '门禁只打印不退出码 = CI 里永远绿').toBe(1)
   })
 })
