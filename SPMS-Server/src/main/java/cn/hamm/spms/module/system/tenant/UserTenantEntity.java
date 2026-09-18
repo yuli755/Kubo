@@ -3,16 +3,9 @@ package cn.hamm.spms.module.system.tenant;
 import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Index;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
-import org.hibernate.annotations.DynamicInsert;
-import org.hibernate.annotations.DynamicUpdate;
 
 /**
  * <h1>用户-租户关系</h1>
@@ -29,27 +22,16 @@ import org.hibernate.annotations.DynamicUpdate;
  */
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
-@Entity
 @Data
-@DynamicInsert
-@DynamicUpdate
 @TableName("user_tenant")
-@Table(
-        name = "user_tenant",
-        uniqueConstraints = @UniqueConstraint(name = "uk_user_tenant", columnNames = {"user_id", "tenant_id"}),
-        indexes = @Index(name = "idx_user_tenant_tenant", columnList = "tenant_id")
-)
 @Description("用户租户关系")
 public class UserTenantEntity extends BaseEntity<UserTenantEntity> {
     @Description("用户 ID")
-    @Column(name = "user_id", nullable = false)
     private Long userId;
 
     @Description("租户 ID")
-    @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
 
     @Description("是否默认租户")
-    @Column(name = "is_default", nullable = false, columnDefinition = "bit(1) default 0 comment '是否默认租户'")
     private Boolean isDefault = false;
 }

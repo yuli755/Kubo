@@ -57,34 +57,66 @@ const walk = (dir, out = []) => {
 }
 
 /**
- * 解析 Java 实体：表名 + `@Column(name = "...")` 声明的列。
- * 逐行扫（不引 AST）：`@JoinColumn`、`@UniqueConstraint(columnNames = {...})` 也含 name/columnNames，
- * 必须排除 —— 否则会把关联列当成新列，或把唯一约束里的列名重复计入。
+ * 解析 Java 实体：表名 + 列（J3 起读 MyBatis-Plus 口径，不再是 JPA 注解）。
+ *
+ * 规则与 `EntityMetadata`（后端运行期唯一实现）一致：
+ *   · 表名 = `@TableName("...")`；
+ *   · 列名 = `@TableField("x")` 的显式值，否则字段名驼峰转下划线（MP 的默认列名策略）；
+ *   · `@TableField(exist = false)`、静态字段、集合字段、指向实体的对象字段都不是列
+ *     （关系对象由标量外键字段承载，例如 `material` → `materialId` → `material_id`）。
+ *
+ * 为什么不再认 `@Column`：J3 把 41 个实体的 JPA 注解换掉了，继续读旧注解会让门禁
+ * **静默空转**（"没解析到任何实体"这条守卫就是为它准备的）。
  */
 function parseEntity(file) {
   const src = readFileSync(file, 'utf8')
-  const table = /@Table\s*\(\s*name\s*=\s*"([^"]+)"/.exec(src)?.[1]
+  const table = /@TableName\s*\(\s*(?:value\s*=\s*)?"([^"]+)"/.exec(src)?.[1]
   if (!table) {
     return null
   }
   const columns = new Set()
-  const skip = new Set()
-  src.split('\n').forEach((line) => {
-    const t = line.trim()
-    // 只在"这一行就是 @Column 声明"时取 name，避免 @JoinColumn(name=...) 混进来
-    if (t.startsWith('@Column') || t.startsWith('@Column(')) {
-      const n = /name\s*=\s*"([^"]+)"/.exec(t)?.[1]
-      if (n) {
-        columns.add(n)
-      }
-    } else if (t.startsWith('@JoinColumn') || t.startsWith('@JoinTable') || t.startsWith('@UniqueConstraint')) {
-      // 关联列由 @JoinColumn 定义：计入，但只是"允许存在"，不是新增要求 —— 记下来避免方向②误报
-      for (const m of t.matchAll(/name\s*=\s*"([^"]+)"/g)) {
-        skip.add(m[1])
-      }
+  const lines = src.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    const field = /^(?:private|protected)\s+([\w.<>,?\[\]\s]+?)\s+(\w+)\s*(?:;|=)/.exec(line)
+    if (!field) {
+      continue
     }
-  })
-  return { table, columns, joinColumns: skip, file: relative(REPO, file) }
+    const type = field[1].trim()
+    const name = field[2]
+    // 往上收注解块：遇到字段声明/方法/块结束即停（与 RelationMapping 的收集口径一致）
+    const annotations = []
+    for (let j = i - 1; j >= 0 && j > i - 14; j--) {
+      const above = lines[j].trim()
+      if (above === '' || above.startsWith('*') || above.startsWith('/*')) {
+        continue
+      }
+      if (above.startsWith('@')) {
+        annotations.unshift(above)
+        continue
+      }
+      break
+    }
+    const block = annotations.join(' ')
+    if (/@TableField\s*\(\s*exist\s*=\s*false/.test(block)) {
+      continue
+    }
+    if (/^static\b/.test(line) || type.includes('static')) {
+      continue
+    }
+    // 集合与关系对象不是本表列（关系字段一律标了 exist = false，这里是冗余守卫）
+    if (/^(?:Set|List|Collection|Map)<|\[\]$/.test(type) || /Entity$/.test(type)) {
+      continue
+    }
+    const explicit = /@TableField\s*\(\s*(?:value\s*=\s*)?"([^"]+)"/.exec(block)?.[1]
+    columns.add(explicit ?? snake(name))
+  }
+  return { table, columns, file: relative(REPO, file) }
+}
+
+/** 驼峰转下划线（与 MyBatis-Plus 的默认列名策略一致） */
+function snake(value) {
+  return value.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()
 }
 
 /**
@@ -179,7 +211,7 @@ if (!existsSync(entityDir)) {
 }
 const entities = walk(entityDir).map(parseEntity).filter(Boolean)
 if (!entities.length) {
-  console.error(`✗ 在 ${ENTITY_DIR} 下没解析到任何带 @Table 的实体 —— 解析逻辑失效，别让门禁空转`)
+  console.error(`✗ 在 ${ENTITY_DIR} 下没解析到任何带 @TableName 的实体 —— 解析逻辑失效，别让门禁空转`)
   process.exit(1)
 }
 // 应用基类列（本仓可扫）：所有实体都继承它，因此方向①要把它并进去，方向②要把它从"额外列"里摘掉
@@ -258,7 +290,6 @@ for (const e of entities) {
 }
 for (const [table, list] of byTable) {
   const want = new Set(list.flatMap((e) => [...e.columns]))
-  const joined = new Set(list.flatMap((e) => [...e.joinColumns]))
   baseColumns.forEach((c) => want.add(c))
   const have = ddl.get(table)
   if (!have) {
@@ -266,9 +297,9 @@ for (const [table, list] of byTable) {
     continue
   }
   const missing = [...want].filter((c) => !have.has(c))
-  // 框架基类列（CurdEntity）与关联列（@JoinColumn）在 DDL 里必然存在、但不在本实体的 @Column 里，
-  // 不是漂移；把它们从"额外列"里摘掉，剩下的才是"DDL 写了却没人映射"
-  const extra = [...have].filter((c) => !want.has(c) && !joined.has(c) && !FRAMEWORK_COLUMNS.has(c))
+  // 框架基类列（CurdEntity：id / create_time / update_time / is_disabled）在 DDL 里必然存在、
+  // 但不在实体自己的字段里，不是漂移；摘掉它们，剩下的才是"DDL 写了却没人映射"
+  const extra = [...have].filter((c) => !want.has(c) && !FRAMEWORK_COLUMNS.has(c))
   rows.push({ table, ddlColumns: have.size, entityColumns: want.size, missing, extra })
   if (missing.length) {
     errors.push(`${table}: 实体要求但 init.sql 缺列 → ${missing.join(', ')}`)
@@ -309,4 +340,4 @@ if (errors.length) {
   errors.forEach((e) => console.error(`  · ${e}`))
   process.exit(1)
 }
-console.log(`✓ DDL↔实体一致：${rows.length} 张表、${entities.length} 个实体、${ddlFiles.length} 个脚本`)
+console.log(`✓ DDL↔实体一致（MyBatis-Plus 口径）：${rows.length} 张表、${entities.length} 个实体、${ddlFiles.length} 个脚本`)

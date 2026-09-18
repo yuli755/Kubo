@@ -18,7 +18,6 @@ import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublis
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
 import cn.hamm.spms.module.system.datapermission.rule.OwnerColumnRegistration;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleSupport;
-import jakarta.persistence.EntityManagerFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.ObjectProvider;
@@ -60,9 +59,10 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
     private final DataPolicyService rowPolicyService;
 
     /**
-     * 只用来读 JPA 元模型（表名 → 实体形状），不参与任何查询
+     * 实体类索引（表名 → 实体类）：J3 起来自 {@code @TableName} 扫描，不再是 JPA 元模型
      */
-    private final EntityManagerFactory entityManagerFactory;
+    private final EntityClassIndex entityClassIndex;
+
 
     /**
      * 灰度配置的<em>唯一</em>读取口：状态面板不许自己算"名单里有没有它"，
@@ -112,8 +112,8 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
     public DataResourceService(DataPermissionEventPublisher eventPublisher,
                                DataFieldPolicyProvider fieldPolicyProvider,
                                DataPolicyService rowPolicyService,
-                               EntityManagerFactory entityManagerFactory,
                                DataPermissionProperties properties,
+                               EntityClassIndex entityClassIndex,
                                ApplicationContext applicationContext,
                                ObjectProvider<DataPermissionDiffRepository> diffRepositoryProvider,
                                ObjectProvider<DataPermissionOrmParityRepository> parityRepositoryProvider,
@@ -123,8 +123,8 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
         this.eventPublisher = eventPublisher;
         this.fieldPolicyProvider = fieldPolicyProvider;
         this.rowPolicyService = rowPolicyService;
-        this.entityManagerFactory = entityManagerFactory;
         this.properties = properties;
+        this.entityClassIndex = entityClassIndex;
         this.applicationContext = applicationContext;
         this.diffRepositoryProvider = diffRepositoryProvider;
         this.parityRepositoryProvider = parityRepositoryProvider;
@@ -839,12 +839,11 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      * @return 风险条目；无问题为空列表
      */
     public List<DimensionBindingRiskItem> dimensionBindingRisks() {
-        Collection<Class<?>> entities = EntityShapeIndex.entityClasses(entityManagerFactory);
+        Collection<Class<?>> entities = entityClassIndex.classes();
         if (entities.isEmpty()) {
-            log.warn("维度可绑定性盘点跳过：拿不到 JPA 元模型（EntityManagerFactory 未就绪）");
+            log.warn("维度可绑定性盘点跳过：没扫到带 @TableName 的实体类（实体索引为空）");
             return List.of();
         }
-        Map<String, Class<?>> byTable = EntityShapeIndex.byTable(entities);
         List<DataResourceEntity> resources = repository.selectList(null);
         if (resources == null || resources.isEmpty()) {
             return List.of();
@@ -863,8 +862,8 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
             for (DataPolicyEntity policy : policies) {
                 subjectTypes.add(policy.getSubjectType());
             }
-            Class<?> entity = byTable.get(EntityShapeIndex.normalizeTableName(resource.getTableName()));
-            // 有 @Table 的类才进得来这个索引；表名写错时 entity 为 null，
+            Class<?> entity = entityClassIndex.byTableName(resource.getTableName());
+            // 有 @TableName 的类才进得来这个索引；表名写错时 entity 为 null，
             // 交给分析器报「实体未映射」，而不是在这里当成"所有列都不存在"刷一堆假问题
             EntityShapeIndex.Shape shape = EntityShapeIndex.shapeOf(entity);
             rows.add(new DimensionBindingAnalyzer.Row(resourceId, resource.getResourceKey(), resource.getTableName(),

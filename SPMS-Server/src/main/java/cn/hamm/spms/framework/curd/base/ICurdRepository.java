@@ -11,16 +11,14 @@ package cn.hamm.spms.framework.curd.base;
 
 import cn.hamm.spms.core.ReflectUtil;
 import cn.hamm.spms.framework.curd.model.query.QueryHelper;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.TableField;
-import jakarta.persistence.Transient;
 import org.apache.ibatis.annotations.Param;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
@@ -71,6 +69,8 @@ public interface ICurdRepository<E extends CurdEntity<E>> extends BaseMapper<E> 
      * （引擎在更新前用库里的那条补齐了 null 属性，见 {@code CurdService#saveToDatabase}）。
      */
     default E save(E entity) {
+        // 关系对象（@ManyToOne）对 MP 不是列，它的外键值住在标量字段里：落库前先同步一次
+        RelationMapping.syncForeignKeys(entity);
         if (Objects.isNull(entity.getId())) {
             insert(entity);
         } else {
@@ -91,6 +91,7 @@ public interface ICurdRepository<E extends CurdEntity<E>> extends BaseMapper<E> 
      * 不是本表列，跳过。</p>
      */
     default E saveWithNull(E entity) {
+        RelationMapping.syncForeignKeys(entity);
         if (Objects.isNull(entity.getId())) {
             insert(entity);
             return entity;
@@ -105,22 +106,16 @@ public interface ICurdRepository<E extends CurdEntity<E>> extends BaseMapper<E> 
                 // 主键进 WHERE，创建时间不允许改
                 continue;
             }
-            if (Objects.nonNull(ReflectUtil.getAnnotation(Transient.class, field))
-                    || Objects.nonNull(ReflectUtil.getAnnotation(OneToMany.class, field))
-                    || Objects.nonNull(ReflectUtil.getAnnotation(ManyToMany.class, field))) {
+            if (Modifier.isStatic(field.getModifiers())) {
                 continue;
             }
             TableField tableField = ReflectUtil.getAnnotation(TableField.class, field);
             if (Objects.nonNull(tableField) && !tableField.exist()) {
+                // 关系字段（对象）与 @Transient 的非列字段：MP 眼里它们不是列
                 continue;
             }
-            ManyToOne manyToOne = ReflectUtil.getAnnotation(ManyToOne.class, field);
-            if (Objects.nonNull(manyToOne)) {
-                // 关系字段落外键列（storage → storage_id）：JPA 时代由 Hibernate 的隐式命名写进去的
-                Object related = ReflectUtil.getFieldValue(entity, field);
-                Object foreignKey = related instanceof CurdEntity<?> relatedEntity ? relatedEntity.getId() : null;
-                wrapper.set(QueryHelper.column(entity.getClass(), name + "Id"), foreignKey);
-                any = true;
+            if (Collection.class.isAssignableFrom(field.getType())) {
+                // 多对多/一对多：不是本表列（中间表由 RelationHydrator 负责）
                 continue;
             }
             wrapper.set(QueryHelper.column(entity.getClass(), name), ReflectUtil.getFieldValue(entity, field));

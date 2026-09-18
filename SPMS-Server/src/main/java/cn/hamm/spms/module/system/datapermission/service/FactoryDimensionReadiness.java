@@ -4,9 +4,8 @@ import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
 import cn.hamm.spms.module.system.datapermission.rule.OwnerColumnRegistration;
-import jakarta.persistence.Column;
-import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.Table;
+import cn.hamm.spms.framework.curd.base.EntityClassIndex;
+import cn.hamm.spms.framework.curd.base.EntityMetadata;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -64,7 +63,7 @@ public class FactoryDimensionReadiness {
     static final Set<String> OWNER_FIELD_NAMES = Set.of("factoryId", "factory");
 
     /**
-     * 物理列名（{@code @Column(name = ...)} 或资源登记的归属列）
+     * 物理列名（{@code @TableField("factory_id")} 或资源登记的归属列）
      */
     static final String OWNER_COLUMN_NAME = "factory_id";
 
@@ -72,16 +71,19 @@ public class FactoryDimensionReadiness {
 
     private final DataResourceRepository resourceRepository;
 
-    private final EntityManagerFactory entityManagerFactory;
+    /**
+     * 实体类索引（J3 起来自 {@code @TableName} 扫描）
+     */
+    private final EntityClassIndex entityClassIndex;
 
     public FactoryDimensionReadiness(
             DataPermissionProperties properties,
             DataResourceRepository resourceRepository,
-            EntityManagerFactory entityManagerFactory
+            EntityClassIndex entityClassIndex
     ) {
         this.properties = properties;
         this.resourceRepository = resourceRepository;
-        this.entityManagerFactory = entityManagerFactory;
+        this.entityClassIndex = entityClassIndex;
     }
 
     /**
@@ -92,7 +94,9 @@ public class FactoryDimensionReadiness {
         if (properties == null || !properties.isFactoryDimensionEnabled()) {
             return;
         }
-        List<String> problems = inspect(entityClasses(), registeredResources());
+        // 索引缺席（单测直接 new 出来、只验开关短路）时按"信息不足 ⇒ 不就绪"处理
+        List<String> problems = inspect(
+                entityClassIndex == null ? List.of() : entityClassIndex.classes(), registeredResources());
         if (!problems.isEmpty()) {
             throw new IllegalStateException(
                     "kubo.data-permission.factory-dimension-enabled=true，但工厂维度并未真正落地（D13 前置条件未满足）：\n  - "
@@ -106,20 +110,14 @@ public class FactoryDimensionReadiness {
     /**
      * 纯反射的就绪度判定（不碰 Spring、不查库，因此可被单测直接喂假类）
      *
-     * @param entities  JPA 元模型里的全部实体类
+     * @param entities  实体类集合（J3：来自 {@code @TableName} 扫描，不再是 JPA 元模型）
      * @param resources 已登记的数据资源
      * @return 问题清单；空表示三条前置条件里可静态判定的部分都成立
      */
     static List<String> inspect(Collection<Class<?>> entities, Collection<DataResourceEntity> resources) {
         List<String> problems = new ArrayList<>();
 
-        Map<String, Class<?>> byTable = new LinkedHashMap<>();
-        for (Class<?> type : entities) {
-            Table table = type.getAnnotation(Table.class);
-            if (table != null && !table.name().isBlank()) {
-                byTable.put(normalize(table.name()), type);
-            }
-        }
+        Map<String, Class<?>> byTable = EntityMetadata.byTable(entities);
 
         // ① 用户 ↔ 工厂：没有承载字段，factoryIds 就只能继续硬编码空集合
         boolean userCarriesRelation = byTable.values().stream()
@@ -148,7 +146,7 @@ public class FactoryDimensionReadiness {
             sawResource = true;
             Class<?> entity = byTable.get(normalize(tableName));
             if (entity == null) {
-                withoutColumn.add(resource.getResourceKey() + "（表 " + tableName + " 在 JPA 元模型里没有实体类）");
+                withoutColumn.add(resource.getResourceKey() + "（表 " + tableName + " 没有对应的 @TableName 实体类）");
                 continue;
             }
             if (hasFactoryColumn(entity, resource)) {
@@ -171,8 +169,8 @@ public class FactoryDimensionReadiness {
             return true;
         }
         for (Field field : fieldsOf(entity)) {
-            Column column = field.getAnnotation(Column.class);
-            if (column != null && OWNER_COLUMN_NAME.equalsIgnoreCase(column.name())) {
+            if (EntityMetadata.isColumn(field)
+                    && OWNER_COLUMN_NAME.equalsIgnoreCase(EntityMetadata.columnName(field))) {
                 return true;
             }
         }
@@ -221,14 +219,6 @@ public class FactoryDimensionReadiness {
 
     private static String normalize(String raw) {
         return EntityShapeIndex.normalizeTableName(raw);
-    }
-
-    private Collection<Class<?>> entityClasses() {
-        // 没有 EMF（例如被单测直接 new 出来）时不去猜元模型，索引为空即判不就绪：
-        // 启动门禁的"信息不足"必须倒向「不通过」，否则校验会因为装配顺序而随机放行。
-        // 注意这与 DataResourceService#dimensionBindingRisks 的取向相反 —— 那边是展示型盘点，
-        // 信息不足时报一堆「表名没对上」只会淹没真信号。
-        return EntityShapeIndex.entityClasses(entityManagerFactory);
     }
 
     private Collection<DataResourceEntity> registeredResources() {

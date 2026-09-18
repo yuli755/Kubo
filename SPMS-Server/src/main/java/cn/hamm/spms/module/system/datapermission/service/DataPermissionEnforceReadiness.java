@@ -25,7 +25,8 @@ import java.util.Set;
  * 本闸门零查询、零日志；真正写入 enforce 配置才触发校验。再加一个 bypass 开关只会把"红着开闸"
  * 变成配置文件里一行不显眼的 false，和本模块"凡是放宽都默认关且可审计"的纪律相冲突。</p>
  *
- * <p>校验挂在 {@link ApplicationReadyEvent} 而不是 Bean 构造阶段：readiness 需要 JPA 元模型、资源表、
+ * <p>校验挂在 {@link ApplicationReadyEvent} 而不是 Bean 构造阶段：readiness 需要实体集合（J3 起来自
+ * {@code @TableName} 扫描）、资源表、
  * 策略表和两张证据表；这些依赖在 Bean 创建时可能还没有完成初始化。抛异常而不是只告警，是因为
  * 继续启动会把"配置明确要求 enforce、但证据不够"伪装成可用服务。</p>
  *

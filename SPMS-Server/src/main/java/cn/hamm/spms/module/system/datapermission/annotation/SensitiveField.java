@@ -30,8 +30,7 @@ import java.lang.annotation.Target;
  * <p>使用示例：</p>
  * <pre>{@code
  *   @SensitiveField(resourceKey = "wms.inventory")
- *   @Column(...)
- *   private Double price;
+ *   private Double price;   // 列名 = 驼峰转下划线（J3 起实体不再写 @Column）
  * }</pre>
  *
  * @author Hamm.cn

@@ -3,14 +3,9 @@ package cn.hamm.spms.module.system.datapermission.entity;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import com.baomidou.mybatisplus.annotation.TableName;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
-import org.hibernate.annotations.DynamicInsert;
-import org.hibernate.annotations.DynamicUpdate;
 
 /**
  * <h1>影子双跑差异记录</h1>
@@ -22,53 +17,39 @@ import org.hibernate.annotations.DynamicUpdate;
  */
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
-@Entity
 @TableName("data_permission_diff_log")
 @Data
-@DynamicInsert
-@DynamicUpdate
-@Table(name = "data_permission_diff_log")
 @Description("数据权限影子比对差异")
 public class DataPermissionDiffEntity extends BaseEntity<DataPermissionDiffEntity> {
 
     @Description("数据资源标识")
-    @Column(name = "resource_key", nullable = false, length = 128)
     private String resourceKey;
 
     @Description("动作")
-    @Column(name = "action_name", nullable = false, length = 16)
     private String actionName;
 
     @Description("请求链路标识（便于把差异回溯到具体查询）")
-    @Column(name = "trace_id", length = 64)
     private String traceId;
 
     @Description("主体用户")
-    @Column(name = "user_id")
     private Long userId;
 
     @Description("主体租户")
-    @Column(name = "tenant_id")
     private Long tenantId;
 
     @Description("不加权限条件的行数")
-    @Column(name = "baseline_count")
     private Long baselineCount;
 
     @Description("加权限条件后的行数")
-    @Column(name = "guarded_count")
     private Long guardedCount;
 
     @Description("结论：CONSISTENT / EXPECTED_FILTER / ANOMALY / ERROR")
-    @Column(name = "verdict", nullable = false, length = 16)
     private String verdict;
 
     @Description("比对耗时（毫秒）")
-    @Column(name = "cost_ms")
     private Long costMs;
 
     @Description("明细（被过滤掉的主键样本等，受 shadow.max-detail-rows 限制）")
-    @Column(name = "detail", columnDefinition = "text")
     private String detail;
 
     /**

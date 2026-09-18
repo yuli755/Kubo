@@ -154,7 +154,8 @@ public class BaseService<
      *
      * <p>§19.27 缺口③：普通用户可 PUT 把 {@code creatorId} 改成别人（把行送出自己视野）。
      * D1 已定归属只信服务端，所以这里不判「谁有权限改归属」——更新一律恢复库中值。
-     * 新建不在这里处理：归属由 {@link TenantAwareEntity#fillAttribution()}（{@code @PrePersist}）
+     * 新建不在这里处理：归属由 {@link TenantAwareEntity#fillAttribution()}（{@code KuboMetaObjectHandler}
+     * 在 MyBatis-Plus 的 insert 钩子里调用）
      * 无条件用服务端上下文覆盖。</p>
      *
      * <p>只对继承 {@link TenantAwareEntity} 的实体生效，且只在更新既有行时回表一次。

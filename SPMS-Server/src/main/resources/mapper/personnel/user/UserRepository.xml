@@ -32,4 +32,96 @@
         where department_list_id in
         <foreach collection="departmentIds" item="departmentId" open="(" separator="," close=")">#{departmentId}</foreach>
     </select>
+    <!--
+      多对多中间表的三条语句（J3）：关系集合不是本表的列，MyBatis-Plus 的内置语句碰不到它。
+      读用 RoleListPairs（一次拿整页的"属主 → 目标"ID 对，再由 RelationHydrator 批量取目标实体）；
+      写用"先删后插"，语义与 JPA 时代把集合设到托管实体上再 flush 一致
+      （集合为 null 表示这次没提交它 = 一行不动）。
+      表名与列名按 init.sql 的口径（Hibernate 隐式命名：<属主表>_<字段名>_list）。
+    -->
+    <select id="selectRoleListPairs" resultType="java.util.Map">
+        select user_entity_id as ownerId, role_list_id as targetId
+        from user_role_list
+        where user_entity_id in
+        <foreach collection="ownerIds" item="ownerId" open="(" separator="," close=")">#{ownerId}</foreach>
+    </select>
+
+    <delete id="deleteRoleListByOwnerId">
+        delete from user_role_list where user_entity_id = #{ownerId}
+    </delete>
+
+    <insert id="insertRoleListByOwnerIds">
+        insert into user_role_list (user_entity_id, role_list_id) values
+        <foreach collection="targetIds" item="targetId" separator=",">(#{ownerId}, #{targetId})</foreach>
+    </insert>
+
+    <!--
+      多对多中间表的三条语句（J3）：关系集合不是本表的列，MyBatis-Plus 的内置语句碰不到它。
+      读用 DepartmentListPairs（一次拿整页的"属主 → 目标"ID 对，再由 RelationHydrator 批量取目标实体）；
+      写用"先删后插"，语义与 JPA 时代把集合设到托管实体上再 flush 一致
+      （集合为 null 表示这次没提交它 = 一行不动）。
+      表名与列名按 init.sql 的口径（Hibernate 隐式命名：<属主表>_<字段名>_list）。
+    -->
+    <select id="selectDepartmentListPairs" resultType="java.util.Map">
+        select user_entity_id as ownerId, department_list_id as targetId
+        from user_department_list
+        where user_entity_id in
+        <foreach collection="ownerIds" item="ownerId" open="(" separator="," close=")">#{ownerId}</foreach>
+    </select>
+
+    <delete id="deleteDepartmentListByOwnerId">
+        delete from user_department_list where user_entity_id = #{ownerId}
+    </delete>
+
+    <insert id="insertDepartmentListByOwnerIds">
+        insert into user_department_list (user_entity_id, department_list_id) values
+        <foreach collection="targetIds" item="targetId" separator=",">(#{ownerId}, #{targetId})</foreach>
+    </insert>
+
+    <!--
+      多对多中间表的三条语句（J3）：关系集合不是本表的列，MyBatis-Plus 的内置语句碰不到它。
+      读用 StorageListPairs（一次拿整页的"属主 → 目标"ID 对，再由 RelationHydrator 批量取目标实体）；
+      写用"先删后插"，语义与 JPA 时代把集合设到托管实体上再 flush 一致
+      （集合为 null 表示这次没提交它 = 一行不动）。
+      表名与列名按 init.sql 的口径（Hibernate 隐式命名：<属主表>_<字段名>_list）。
+    -->
+    <select id="selectStorageListPairs" resultType="java.util.Map">
+        select user_entity_id as ownerId, storage_list_id as targetId
+        from user_storage_list
+        where user_entity_id in
+        <foreach collection="ownerIds" item="ownerId" open="(" separator="," close=")">#{ownerId}</foreach>
+    </select>
+
+    <delete id="deleteStorageListByOwnerId">
+        delete from user_storage_list where user_entity_id = #{ownerId}
+    </delete>
+
+    <insert id="insertStorageListByOwnerIds">
+        insert into user_storage_list (user_entity_id, storage_list_id) values
+        <foreach collection="targetIds" item="targetId" separator=",">(#{ownerId}, #{targetId})</foreach>
+    </insert>
+
+    <!--
+      多对多中间表的三条语句（J3）：关系集合不是本表的列，MyBatis-Plus 的内置语句碰不到它。
+      读用 FactoryListPairs（一次拿整页的"属主 → 目标"ID 对，再由 RelationHydrator 批量取目标实体）；
+      写用"先删后插"，语义与 JPA 时代把集合设到托管实体上再 flush 一致
+      （集合为 null 表示这次没提交它 = 一行不动）。
+      表名与列名按 init.sql 的口径（Hibernate 隐式命名：<属主表>_<字段名>_list）。
+    -->
+    <select id="selectFactoryListPairs" resultType="java.util.Map">
+        select user_entity_id as ownerId, factory_id as targetId
+        from user_factory
+        where user_entity_id in
+        <foreach collection="ownerIds" item="ownerId" open="(" separator="," close=")">#{ownerId}</foreach>
+    </select>
+
+    <delete id="deleteFactoryListByOwnerId">
+        delete from user_factory where user_entity_id = #{ownerId}
+    </delete>
+
+    <insert id="insertFactoryListByOwnerIds">
+        insert into user_factory (user_entity_id, factory_id) values
+        <foreach collection="targetIds" item="targetId" separator=",">(#{ownerId}, #{targetId})</foreach>
+    </insert>
+
 </mapper>

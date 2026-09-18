@@ -21,8 +21,9 @@ import java.io.IOException;
  *
  * <p><b>为什么在序列化层，而不是 AOP 反射改实体字段</b>：</p>
  * <ol>
- *   <li>AOP 改的是 JPA <b>托管实体</b>，配合 {@code @DynamicUpdate} 与被 Hibernate
- *       一级缓存持有的场景，存在把 {@code 138****0000} 写回数据库的风险；</li>
+ *   <li>JPA 时代 AOP 改的是托管实体（一级缓存 + 脏检查），存在把 {@code 138****0000}
+ *       写回数据库的风险；J3 之后实体只是普通内存对象、写库全走显式语句，那重风险消失了，
+ *       但"改实体字段"仍有下面第 2 条的问题（数值字段赋值抛异常），所以落点不变；</li>
  *   <li>本项目被标记的字段是 {@code Double price} 这类数值字段，
  *       反射 {@code field.set(obj, "1*.*5")} 会抛
  *       {@link IllegalArgumentException}（旧实现只 catch 了 {@code IllegalAccessException}），

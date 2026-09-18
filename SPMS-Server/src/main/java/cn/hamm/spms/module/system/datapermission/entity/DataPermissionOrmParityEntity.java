@@ -3,14 +3,9 @@ package cn.hamm.spms.module.system.datapermission.entity;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import com.baomidou.mybatisplus.annotation.TableName;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
-import org.hibernate.annotations.DynamicInsert;
-import org.hibernate.annotations.DynamicUpdate;
 
 /**
  * <h1>两套 ORM 的行数对账记录</h1>
@@ -33,12 +28,8 @@ import org.hibernate.annotations.DynamicUpdate;
  */
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
-@Entity
 @TableName("data_permission_orm_parity_log")
 @Data
-@DynamicInsert
-@DynamicUpdate
-@Table(name = "data_permission_orm_parity_log")
 @Description("数据权限 ORM 行数对账")
 public class DataPermissionOrmParityEntity extends BaseEntity<DataPermissionOrmParityEntity> {
 
@@ -64,46 +55,35 @@ public class DataPermissionOrmParityEntity extends BaseEntity<DataPermissionOrmP
 
 
     @Description("数据资源标识")
-    @Column(name = "resource_key", nullable = false, length = 128)
     private String resourceKey;
 
     @Description("动作")
-    @Column(name = "action_name", nullable = false, length = 16)
     private String actionName;
 
     @Description("Mapper 侧数的是哪张物理表（表名解析错了要先在这里看得见）")
-    @Column(name = "table_name", length = 128)
     private String tableName;
 
     @Description("主体用户")
-    @Column(name = "user_id")
     private Long userId;
 
     @Description("主体租户")
-    @Column(name = "tenant_id")
     private Long tenantId;
 
     @Description("JPA 侧加条件后的行数")
-    @Column(name = "jpa_count")
     private Long jpaCount;
 
     @Description("Mapper 侧加同一段片段后的行数")
-    @Column(name = "mapper_count")
     private Long mapperCount;
 
     @Description("结论：CONSISTENT / MAPPER_STRICT / MAPPER_LOOSE / ERROR")
-    @Column(name = "verdict", nullable = false, length = 16)
     private String verdict;
 
     @Description("Mapper 侧片段原文（只到 :dpRule0 这一层，值都是参数）")
-    @Column(name = "fragment_sql", length = 512)
     private String fragmentSql;
 
     @Description("对账耗时（毫秒）")
-    @Column(name = "cost_ms")
     private Long costMs;
 
     @Description("明细（异常原因等）")
-    @Column(name = "detail", columnDefinition = "text")
     private String detail;
 }

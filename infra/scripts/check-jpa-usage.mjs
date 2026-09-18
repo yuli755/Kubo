@@ -63,8 +63,21 @@ const SERVER = path.join(ROOT, 'SPMS-Server')
  *   实体注解批量替换 + 影子线收尾 + 删 starter，届时这三行归零。
  *   注意本批的教训同样值得记：换轨**没有**碰 `org.springframework.data.redis`（那不是 JPA），
  *   数字掉下来的那部分是 `org.springframework.data.jpa.*` 与 `org.springframework.data.domain.*`。
+ * - 2026-09-18 J3（实体注解换 MP + 关系字段对象图）：**84 → 30 文件 / 503 → 122 引用 / 385 → 77 import**。
+ *   这一批把 41 个实体 + 4 个基类上的 JPA 注解（`@Entity`/`@Table`/`@Column`/`@Id`/`@GeneratedValue`/
+ *   `@ManyToOne`/`@ManyToMany`/`@MappedSuperclass`/`@PrePersist`/`@DynamicInsert`）整体换成
+ *   `@TableName`/`@TableField`/`@TableId`，并把"关系字段不再是列"这件事从注解层搬到代码层
+ *   （对象字段标 `@TableField(exist = false)`，值落在标量外键字段上；读回填走 `RelationHydrator`，
+ *   写同步走 `RelationMapping`，中间表读写走属主仓储 XML 的三条语句）。
+ *   剩下的 30 个文件就是**影子比对线**（`ShadowDiffService` / `JpaRowVisibilityProbe` /
+ *   `*ReadShadowService` / `JpaPermissionRuleCompiler` / `DataPermissionSpecification`）——
+ *   它们按 §10.5 的口径自持到 J4：与 `spring-boot-starter-data-jpa`、`ddl-auto` 一起退场。
+ *   本批的教训：**注解删干净不等于语义保住了**。`@Column(unique = true)` 这类"顺带声明业务规则"
+ *   的注解要自己接住（→ 框架自持 `@Unique` + `schemaContract` 的交叉判据），
+ *   `@PrePersist` 这种生命周期回调要换宿主（→ `KuboMetaObjectHandler`），
+ *   否则删的当天没有任何东西会红，直到线上出现重复数据或归属为空。
  */
-const BASELINE = { files: 84, refs: 503, imports: 385 }
+const BASELINE = { files: 30, refs: 122, imports: 77 }
 
 /**
  * JPA / Hibernate / Spring Data 的 import 根（命中即计入 imports）。
@@ -204,34 +217,59 @@ for (const yml of walk(path.join(SERVER, 'src', 'main', 'resources')).filter(f =
 }
 
 /**
- * 跨 ORM 判据：实体的表名必须只有一份真相
+ * J3 判据：实体类不许再长回 JPA 注解
  *
- * 为什么需要它（2026-09-18 实测）：JPA 读 `@Table(name)`，MyBatis-Plus 读 `@TableName`，
- * **两个都不写时 MP 会按类名推表名**（`ContractEntity` → `contract_entity`）——
- * 而真表叫 `contract`。那不是一个报错，是**指向另一张表**：查不到数据、或者查到别人的数据，
- * 且编译/启动都不报。所以换轨期内钉死：每个 `@Entity` 必须同时有
- * `@Table(name = "x")` 与 `@TableName("x")`，且 **x 相同**。
+ * 为什么需要它（J3 之后的现实）：41 个实体的 JPA 注解换成了 MyBatis-Plus 的
+ * `@TableName`/`@TableField`/`@TableId`。如果谁在某个实体上顺手写回一个 `@Column`，
+ * 编译不报、启动不报、`ddl:check` 也不报（它只认 MP 口径）—— 那个注解就成了一段
+ * **看起来在声明什么、实际上没人读**的注释。而 `@Id`/`@GeneratedValue` 回来更糟：
+ * MP 不认识它们，主键回填会静默失效（插入后 `getId()` 是 null）。
+ *
+ * 口径：以 `@TableName` 认实体（J3 之后实体只有这一个标记），逐个扫它有没有
+ * **实体映射类**的 JPA 注解（词边界匹配，所以 `@TableName` 不会被算成 `@Table`）。
+ * 空转守卫：`@TableName` 文件少于 30 个就红 —— 说明扫描口径坏了，而不是"实体都干净"。
  */
-const tableNameDrift = []
+const ENTITY_JPA_ANNOTATIONS = [
+  // 全限定写法（`@jakarta.persistence.Column`）也要抓：它有 import，注解本身带 `.` 前缀，
+  // 只按短名匹配会漏掉这一类 —— 而"漏掉"正是这条门禁最怕的失效方式。
+  [/jakarta\.persistence\./g, 'jakarta.persistence.*'],
+  [/@Entity\b/g, '@Entity'],
+  [/@Table\b/g, '@Table'],
+  [/@Column\b/g, '@Column'],
+  [/@Id\b/g, '@Id'],
+  [/@GeneratedValue\b/g, '@GeneratedValue'],
+  [/@MappedSuperclass\b/g, '@MappedSuperclass'],
+  [/@Transient\b/g, '@Transient'],
+  [/@ManyToOne\b/g, '@ManyToOne'],
+  [/@OneToMany\b/g, '@OneToMany'],
+  [/@ManyToMany\b/g, '@ManyToMany'],
+  [/@OneToOne\b/g, '@OneToOne'],
+  [/@JoinColumn\b/g, '@JoinColumn'],
+  [/@JoinTable\b/g, '@JoinTable'],
+  [/@Enumerated\b/g, '@Enumerated'],
+  [/@PrePersist\b/g, '@PrePersist'],
+  [/@PreUpdate\b/g, '@PreUpdate'],
+  [/@DynamicInsert\b/g, '@DynamicInsert'],
+  [/@DynamicUpdate\b/g, '@DynamicUpdate'],
+]
+
+const entityFiles = []
+const annotationLeaks = []
 for (const file of javaFiles) {
   const rel = path.relative(ROOT, file).replaceAll('\\', '/')
-  // 只查生产实体：测试里的 @Entity 是给 JPA 用的局部夹具（它们不需要被 MP 认识），
-  // 要求测试夹具也写 @TableName 属于把判据推到它管不着的地方
   if (!rel.includes('/src/main/java/')) {
     continue
   }
   const source = stripJavaComments(fs.readFileSync(file, 'utf8'))
-  if (!/@Entity\b/.test(source)) {
+  if (!/@TableName\s*\(/.test(source)) {
     continue
   }
-  const jpaTable = /@Table\(\s*name\s*=\s*"([^"]+)"/.exec(source)
-  const mpTable = /@TableName\(\s*"([^"]+)"/.exec(source)
-  if (!jpaTable || !mpTable) {
-    tableNameDrift.push({ file: rel, reason: !jpaTable ? '缺 @Table(name)' : '缺 @TableName' })
-    continue
-  }
-  if (jpaTable[1] !== mpTable[1]) {
-    tableNameDrift.push({ file: rel, reason: `表名不一致：@Table=${jpaTable[1]} / @TableName=${mpTable[1]}` })
+  entityFiles.push(rel)
+  for (const [pattern, label] of ENTITY_JPA_ANNOTATIONS) {
+    const hits = source.match(pattern)?.length ?? 0
+    if (hits > 0) {
+      annotationLeaks.push({ file: rel, label, hits })
+    }
   }
 }
 
@@ -248,7 +286,8 @@ const report = {
   baseline: BASELINE,
   jpaStarterDeclared,
   ddlAuto,
-  tableNameDrift,
+  entityFiles: entityFiles.length,
+  annotationLeaks,
   byModule: [...moduleHits.entries()]
     .map(([module, refs]) => ({ module, refs }))
     .sort((a, b) => b.refs - a.refs),
@@ -274,13 +313,18 @@ if (process.argv.includes('--check')) {
   if (totals.imports > BASELINE.imports) {
     grows.push(`JPA import ${totals.imports} > 基线 ${BASELINE.imports}`)
   }
-  if (tableNameDrift.length) {
-    console.error('\n✗ 实体表名不一致（跨 ORM 判据）：\n')
-    for (const entry of tableNameDrift) {
-      console.error(`  · ${entry.file}：${entry.reason}`)
+  if (entityFiles.length < 30) {
+    console.error(`\n✗ 只扫到 ${entityFiles.length} 个 @TableName 实体 —— 解析口径失效，别让本条门禁空转\n`)
+    process.exit(1)
+  }
+  if (annotationLeaks.length) {
+    console.error('\n✗ 实体上出现了 JPA 注解（J3 之后它们没有任何东西在读）：\n')
+    for (const entry of annotationLeaks) {
+      console.error(`  · ${entry.file}：${entry.label} × ${entry.hits}`)
     }
-    console.error('\nMyBatis-Plus 按 @TableName 解析表名；只有 @Table(name) 时它会按类名推断'
-      + '（ContractEntity → contract_entity），那是指向另一张表，编译与启动都不会报。\n')
+    console.error('\n实体映射只认 MyBatis-Plus：表名 @TableName、列 @TableField、主键 @TableId(type = IdType.AUTO)、'
+      + '唯一列 @Unique。写回 @Column/@Id 这类注解不会编译失败、也不会启动失败 ——'
+      + '它们会变成"看起来在声明什么、其实没人读"的死注解（@Id 还会让主键回填静默失效）。\n')
     process.exit(1)
   }
   if (grows.length) {
@@ -296,7 +340,7 @@ if (process.argv.includes('--check')) {
     `✓ JPA 棘轮通过：文件 ${totals.jpaFiles}/${BASELINE.files} · `
     + `引用 ${totals.refs}/${BASELINE.refs} · import ${totals.imports}/${BASELINE.imports}（只许降）`,
   )
-  console.log('✓ 实体表名一致：每个 @Entity 的 @Table(name) 与 @TableName 同值（MP 不会指到别的表）')
+  console.log(`✓ 实体注解干净：${entityFiles.length} 个 @TableName 实体里 0 处 JPA 映射注解`)
   process.exit(0)
 }
 

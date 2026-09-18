@@ -3,15 +3,9 @@ package cn.hamm.spms.module.system.tenant;
 import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
-import org.hibernate.annotations.DynamicInsert;
-import org.hibernate.annotations.DynamicUpdate;
 
 /**
  * <h1>租户</h1>
@@ -24,27 +18,19 @@ import org.hibernate.annotations.DynamicUpdate;
  */
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
-@Entity
 @Data
-@DynamicInsert
-@DynamicUpdate
 @TableName("tenant")
-@Table(name = "tenant", uniqueConstraints = @UniqueConstraint(name = "uk_tenant_code", columnNames = "code"))
 @Description("租户")
 public class TenantEntity extends BaseEntity<TenantEntity> {
     @Description("租户编码")
-    @Column(name = "code", nullable = false, length = 64)
     private String code;
 
     @Description("租户名称")
-    @Column(name = "name", nullable = false, length = 255)
     private String name;
 
     @Description("状态")
-    @Column(name = "status", nullable = false, columnDefinition = "int UNSIGNED default 1 comment '1=启用 0=停用'")
     private Integer status = 1;
 
     @Description("到期时间")
-    @Column(name = "expire_time")
     private Long expireTime;
 }

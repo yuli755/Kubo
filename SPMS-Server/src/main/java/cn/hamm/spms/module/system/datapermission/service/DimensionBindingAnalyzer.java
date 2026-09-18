@@ -54,7 +54,7 @@ import java.util.Set;
 public final class DimensionBindingAnalyzer {
 
     /**
-     * 资源登记的表名在 JPA 元模型里找不到实体（所有维度都无从绑起）
+     * 资源登记的表名在实体集合里找不到对应实体（所有维度都无从绑起）
      */
     public static final String KIND_ENTITY_NOT_MAPPED = "ENTITY_NOT_MAPPED";
 
@@ -178,7 +178,7 @@ public final class DimensionBindingAnalyzer {
             if (shape.attributes().isEmpty()) {
                 long total = counts.values().stream().mapToLong(Long::longValue).sum();
                 risks.add(new Risk(row.resourceId(), row.resourceKey(), null, KIND_ENTITY_NOT_MAPPED,
-                        "登记的表名「" + safe(row.tableName()) + "」在 JPA 元模型里找不到对应实体 ⇒ 该资源上 "
+                        "登记的表名「" + safe(row.tableName()) + "」没扫到对应实体类（@TableName）⇒ 该资源上 "
                                 + total + " 条启用策略都没有列可绑：enforce 下落到「绑定失败」恒假（查不到数据），"
                                 + "shadow 下只记审计。先确认表名是否写错、实体是否改了名，或该模块尚未接入。"));
                 continue;

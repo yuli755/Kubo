@@ -148,17 +148,15 @@ public class InventoryService {
     }
 }
 
-// Entity 列级脱敏
-@Entity
+// Entity 列级脱敏（J3 起实体只标 MyBatis-Plus 注解：列名 = 驼峰转下划线，@TableField 只在显式改名时用）
 @Data
-public class EmployeeEntity {
-    @Column(name = "phone")
-    @Schema(description = "手机号")
+@TableName("employee")
+public class EmployeeEntity extends BaseEntity<EmployeeEntity> {
+    @Description("手机号")
     @SensitiveField(mask = MaskStrategy.PARTIAL, rolesAllowed = {"ROLE_HR_ADMIN", "ROLE_SUPER_ADMIN"})
     private String phone;
 
-    @Column(name = "id_card")
-    @Schema(description = "身份证")
+    @Description("身份证")
     @SensitiveField(mask = MaskStrategy.REDACT, rolesAllowed = {"ROLE_HR_ADMIN"})
     private String idCard;
 }
@@ -406,16 +404,10 @@ public enum AuditAction {
     CONFIG_CHANGE, PASSWORD_CHANGE
 }
 
-// 审计实体
-@Entity
-@Table(name = "audit_log", indexes = {
-    @Index(name = "idx_tenant_time", columnList = "tenant_id, created_at"),
-    @Index(name = "idx_user_time", columnList = "user_id, created_at"),
-    @Index(name = "idx_resource", columnList = "resource_type, resource_id")
-})
+// 审计实体（J3 起：表名 @TableName，索引/唯一键一律写进 infra/init-sql/init.sql —— 注解里不再有第二份 schema）
 @Data
-public class AuditLogEntity {
-    @Id @GeneratedValue private Long id;
+@TableName("audit_log")
+public class AuditLogEntity extends BaseEntity<AuditLogEntity> {
     private Long tenantId;
     private Long userId;
     private String username;

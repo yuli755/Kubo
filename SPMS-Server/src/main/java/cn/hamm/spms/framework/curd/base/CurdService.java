@@ -22,7 +22,7 @@ import cn.hamm.spms.framework.curd.helper.TransactionHelper;
 import cn.hamm.spms.framework.curd.model.query.*;
 import cn.hamm.spms.framework.curd.service.RootService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import jakarta.persistence.Column;
+import cn.hamm.spms.framework.curd.annotation.Unique;
 import jakarta.validation.constraints.Null;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Contract;
@@ -77,6 +77,17 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
      */
     @Autowired
     private QueryHelper queryHelper;
+
+    /**
+     * 关系对象图的读写桥接（J3）
+     *
+     * <p>MyBatis-Plus 只映射列，关系字段（{@code material}/{@code roleList}）标了
+     * {@code @TableField(exist = false)}：读要按外键批量补对象、写要多同步中间表。
+     * 单测里直接 {@code new XxxService()} 时它是 {@code null}，回填整体跳过（与
+     * {@code BaseService} 的 SPI 注入同一口径）。</p>
+     */
+    @Autowired(required = false)
+    private RelationHydrator relationHydrator;
 
     /**
      * 添加一条数据 {@code 触发前后置}
@@ -328,6 +339,7 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
         // 保证同一事务里重复调用会真的再发一次 SQL，而不是命中 MyBatis 的本地缓存。
         E forUpdate = repository.selectByIdForUpdate(id);
         DATA_NOT_FOUND.whenNull(forUpdate, String.format("没有查询到ID为%s的%s", id, getEntityDescription()));
+        hydrate(forUpdate);
         return forUpdate;
     }
 
@@ -697,6 +709,31 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
     }
 
     /**
+     * 回填一批实体的关系对象图（容器里没有回填器时跳过）
+     *
+     * @param entities       实体
+     * @param withManyToMany 是否连多对多一起回填
+     */
+    private void hydrate(@Nullable List<E> entities, boolean withManyToMany) {
+        if (Objects.isNull(relationHydrator) || Objects.isNull(entities)) {
+            return;
+        }
+        relationHydrator.hydrate(entities, withManyToMany);
+    }
+
+    /**
+     * 回填单个实体的关系对象图（容器里没有回填器时跳过）
+     *
+     * @param entity 实体
+     */
+    private void hydrate(@Nullable E entity) {
+        if (Objects.isNull(relationHydrator) || Objects.isNull(entity)) {
+            return;
+        }
+        relationHydrator.hydrate(entity);
+    }
+
+    /**
      * 新建一个实体
      *
      * @param id 实体主键 ID
@@ -717,7 +754,9 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
     private @NotNull List<E> find(@Nullable E filter, @Nullable Sort sort, boolean isEquals) {
         QueryWrapper<E> wrapper = createWrapper(filter, isEquals);
         queryHelper.applySort(wrapper, getEntityClass(), sort);
-        return repository.selectList(wrapper);
+        List<E> list = repository.selectList(wrapper);
+        hydrate(list, true);
+        return list;
     }
 
     /**
@@ -737,7 +776,9 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
     ) {
         QueryWrapper<E> wrapper = createWrapper(filter, isEquals);
         queryHelper.applySort(wrapper, getEntityClass(), sort);
-        return PageData.newInstance(repository.selectPage(queryHelper.createPage(page), wrapper));
+        PageData<E> pageData = PageData.newInstance(repository.selectPage(queryHelper.createPage(page), wrapper));
+        hydrate(pageData.getList(), true);
+        return pageData;
     }
 
     /**
@@ -801,6 +842,7 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
         if (Objects.isNull(entity)) {
             throw new ServiceException(DATA_NOT_FOUND, String.format("没有查询到ID为%s的%s", id, description));
         }
+        hydrate(entity);
         return entity;
     }
 
@@ -847,6 +889,11 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
         BeanUtils.copyProperties(entity, target);
         target = beforeSaveToDatabase(target);
         target = withNull ? repository.saveWithNull(target) : repository.save(target);
+        // 多对多的中间表不是本表列：主行落库（拿到自增 ID）之后按提交的集合同步一次。
+        // 集合为 null = 这次没提交它，一行不动 —— 与"null = 不改这一列"同一口径。
+        if (Objects.nonNull(relationHydrator)) {
+            relationHydrator.syncManyToMany(target);
+        }
         return target.getId();
     }
 
@@ -884,12 +931,9 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
     private void checkUnique(@NotNull E entity) {
         List<Field> fields = ReflectUtil.getFieldList(getEntityClass());
         fields.forEach(field -> {
-            Column annotation = ReflectUtil.getAnnotation(Column.class, field);
-            if (Objects.isNull(annotation)) {
-                // 不是数据库列 不校验
-                return;
-            }
-            if (!annotation.unique()) {
+            // J3：唯一列的信息载体从 JPA 的 @Column(unique = true) 换成框架自己的 @Unique ——
+            // MyBatis-Plus 的 @TableField 没有 unique 属性。判据本身没变：同值且不是自己 ⇒ 拒绝提交。
+            if (Objects.isNull(ReflectUtil.getAnnotation(Unique.class, field))) {
                 // 没有标唯一 不校验
                 return;
             }

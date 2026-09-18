@@ -3,14 +3,9 @@ package cn.hamm.spms.module.system.datapermission.entity;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import com.baomidou.mybatisplus.annotation.TableName;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
-import org.hibernate.annotations.DynamicInsert;
-import org.hibernate.annotations.DynamicUpdate;
 
 /**
  * <h1>数据权限拒绝事件</h1>
@@ -30,36 +25,26 @@ import org.hibernate.annotations.DynamicUpdate;
  */
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
-@Entity
 @TableName("data_permission_deny_log")
 @Data
-@DynamicInsert
-@DynamicUpdate
-@Table(name = "data_permission_deny_log")
 @Description("数据权限拒绝事件")
 public class DataPermissionDenyLogEntity extends BaseEntity<DataPermissionDenyLogEntity> {
 
     @Description("数据资源标识")
-    @Column(name = "resource_key", nullable = false, length = 128)
     private String resourceKey;
 
     @Description("拒绝原因（unregistered-resource / write-without-policy / row-not-writable / export-bypass 等）")
-    @Column(name = "reason", nullable = false, length = 64)
     private String reason;
 
     @Description("拒绝发生时该资源的生效档位（OFF / SHADOW / ENFORCE）")
-    @Column(name = "mode", nullable = false, length = 16)
     private String mode;
 
     @Description("被拒主体用户")
-    @Column(name = "user_id")
     private Long userId;
 
     @Description("被拒主体租户")
-    @Column(name = "tenant_id")
     private Long tenantId;
 
     @Description("运维明细（ID、字段名、动作等）")
-    @Column(name = "detail", columnDefinition = "text")
     private String detail;
 }

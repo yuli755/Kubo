@@ -3,14 +3,9 @@ package cn.hamm.spms.module.system.datapermission.entity;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import com.baomidou.mybatisplus.annotation.TableName;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
-import org.hibernate.annotations.DynamicInsert;
-import org.hibernate.annotations.DynamicUpdate;
 
 /**
  * <h1>通用操作审计日志</h1>
@@ -27,44 +22,32 @@ import org.hibernate.annotations.DynamicUpdate;
  */
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
-@Entity
 @TableName("operation_log")
 @Data
-@DynamicInsert
-@DynamicUpdate
-@Table(name = "operation_log")
 @Description("通用操作审计日志")
 public class OperationLogEntity extends BaseEntity<OperationLogEntity> {
 
     @Description("资源标识（如 asset.material）")
-    @Column(name = "resource_key", nullable = false, length = 128)
     private String resourceKey;
 
     @Description("动作（CREATE / UPDATE / DELETE）")
-    @Column(name = "action", nullable = false, length = 32)
     private String action;
 
     @Description("操作者用户")
-    @Column(name = "user_id")
     private Long userId;
 
     @Description("操作者租户")
-    @Column(name = "tenant_id")
     private Long tenantId;
 
     @Description("目标记录 ID")
-    @Column(name = "target_id")
     private Long targetId;
 
     @Description("目标记录摘要（编码/名称）")
-    @Column(name = "target_label", length = 255)
     private String targetLabel;
 
     @Description("变更前快照（JSON）")
-    @Column(name = "before_snapshot", columnDefinition = "text")
     private String beforeSnapshot;
 
     @Description("变更后快照（JSON）")
-    @Column(name = "after_snapshot", columnDefinition = "text")
     private String afterSnapshot;
 }

@@ -73,29 +73,24 @@
  */
 
 // 2. 注解顺序 (实体类)
+//    J3（2026-09-18）起实体只标 MyBatis-Plus 的映射注解：@TableName / @TableField / @TableId。
+//    索引与唯一键不在注解里：schema 的唯一真相是 infra/init-sql/init.sql（ddl:check 与 schemaContract 守着两边一致）。
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
-@Entity
-@Table(name = "inventory", indexes = {
-    @Index(name = "idx_warehouse_material", columnList = "warehouse_id, material_id")
-})
-@DynamicInsert
-@DynamicUpdate
 @Data
-@Schema(name = "InventoryEntity", description = "库存实体")
+@TableName("inventory")
+@Description("库存实体")
 public class InventoryEntity extends BaseEntity<InventoryEntity> {
 
-    // 3. 字段顺序: ID -> 业务主键 -> 关联对象 -> 基础属性 -> 状态/审计字段
+    // 3. 字段顺序: （id 在 CurdEntity 上，不在实体里重复声明）-> 业务主键 -> 关联对象 + 其标量外键 -> 基础属性 -> 状态/审计字段
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Schema(description = "主键 ID")
-    private Long id;
-
-    @Schema(description = "仓库", requiredMode = Schema.RequiredMode.REQUIRED)
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "warehouse_id", nullable = false)
+    @Description("仓库")
+    @TableField(exist = false)          // 关系对象不是列：MP 只映射列，写它会去查一个叫 warehouse 的列
     private WarehouseEntity warehouse;
+
+    @Description("仓库 ID")
+    @TableField("warehouse_id")         // 真正落库的是这个标量字段（写由 RelationMapping 同步、读由 RelationHydrator 回填）
+    private Long warehouseId;
 
     @Schema(description = "物料", requiredMode = Schema.RequiredMode.REQUIRED)
     @ManyToOne(fetch = FetchType.LAZY)

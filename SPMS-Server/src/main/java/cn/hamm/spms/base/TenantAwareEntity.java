@@ -3,9 +3,6 @@ package cn.hamm.spms.base;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
-import jakarta.persistence.Column;
-import jakarta.persistence.MappedSuperclass;
-import jakarta.persistence.PrePersist;
 import lombok.Getter;
 
 /**
@@ -21,24 +18,21 @@ import lombok.Getter;
  * {@code NOT NULL DEFAULT 1} 落到平台默认租户 —— 这是有意为之：
  * 后台任务写入的数据默认归平台，不让它猜租户。</p>
  *
- * <p><b>这里刻意没有加 Hibernate {@code @Filter}/{@code @FilterDef}</b>：
- * 一是没人 {@code enableFilter}，加上只会制造"已经隔离了"的错觉；
- * 二是 {@code @ParamDef} 的签名在 Hibernate 6 各小版本间变过，属于白付的编译风险。
- * 读链路的行级过滤在 {@code DataPermissionSpecification}（JPA）与 P2 的 MyBatis 拦截器里做。</p>
+ * <p><b>读链路的行级过滤不在这里</b>：JPA 时代刻意没加 Hibernate 的 {@code @Filter}（没人
+ * {@code enableFilter}，加了只会制造"已经隔离了"的错觉）；J3 之后实体上没有任何 JPA 注解，
+ * 真正的过滤在 MyBatis 拦截器（{@code KuboDataPermissionHandler}）里做，
+ * 影子比对线（{@code DataPermissionSpecification}）自持到 J4 退场。</p>
  *
  * @author Hamm.cn
  */
 @Getter
-@MappedSuperclass
 @Description("带归属的业务实体")
 public class TenantAwareEntity<E extends TenantAwareEntity<E>> extends BaseEntity<E> {
 
     @Description("租户 ID")
-    @Column(name = "tenant_id")
     private Long tenantId;
 
     @Description("创建人 ID（数据归属人，用于 USER 主体策略）")
-    @Column(name = "creator_id")
     private Long creatorId;
 
     /**
@@ -51,10 +45,9 @@ public class TenantAwareEntity<E extends TenantAwareEntity<E>> extends BaseEntit
      * <p>无上下文（定时任务 / 迁移脚本）时保持字段现值：那类写入是服务端自己构造的实体，
      * 要么显式设了值、要么留空由数据库 {@code NOT NULL DEFAULT 1} 落平台租户。</p>
      *
-     * <p>更新路径的归属恢复不在这里（{@code @PreUpdate} 拿不到库中既存值），
-     * 由 {@code BaseService} 回表后交给 {@code AttributionWriteProtection} 恢复。</p>
+     * <p>更新路径的归属恢复不在这里：更新钩子拿不到库中的既存值，无法区分"这次没提交归属"与
+     * "把归属改成别人" —— 由 {@code BaseService} 回表后交给 {@code AttributionWriteProtection} 恢复。</p>
      */
-    @PrePersist
     protected void fillAttribution() {
         PermissionContext context = PermissionContextHolder.current().orElse(null);
         if (context == null) {

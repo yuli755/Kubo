@@ -295,6 +295,7 @@ CREATE TABLE IF NOT EXISTS `input_detail` (
     `is_finished` tinyint(1) DEFAULT 0,
     `quantity` double(20, 6) UNSIGNED default 0 comment '入库数量',
     `finish_quantity` double(20, 6) UNSIGNED default 0 comment '已入库数量',
+    `material_id` bigint UNSIGNED DEFAULT 0,
     KEY `idx_input_detail_tenant` (`tenant_id`),
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'input_detail';
@@ -333,6 +334,7 @@ CREATE TABLE IF NOT EXISTS `material` (
     `use_type` bigint UNSIGNED default 1 comment '使用方式',
     `purchase_price` double(20, 6) UNSIGNED default 0 comment '采购标准价',
     `sale_price` double(20, 6) UNSIGNED default 0 comment '销售标准价',
+    `unit_id` bigint UNSIGNED DEFAULT 0,
     KEY `idx_material_tenant` (`tenant_id`),
     UNIQUE KEY `uk_material_tenant_code` (`tenant_id`, `code`),
     UNIQUE KEY `uk_material_tenant_name` (`tenant_id`, `name`),
@@ -366,6 +368,7 @@ CREATE TABLE IF NOT EXISTS `move` (
     `reject_reason` varchar(255) default '' comment '驳回原因',
     `bill_code` varchar(255) default '' comment '移库单号',
     `status` int UNSIGNED default 1 comment '移库状态',
+    `storage_id` bigint UNSIGNED DEFAULT 0,
     KEY `idx_move_tenant` (`tenant_id`),
     UNIQUE KEY `uk_move_tenant_bill_code` (`tenant_id`, `bill_code`),
     PRIMARY KEY (`id`)
@@ -383,6 +386,7 @@ CREATE TABLE IF NOT EXISTS `move_detail` (
     `is_finished` tinyint(1) DEFAULT 0,
     `quantity` double(20, 6) UNSIGNED default 0 comment '移动数量',
     `finish_quantity` double(20, 6) UNSIGNED default 0 comment '已移动数量',
+    `inventory_id` bigint UNSIGNED DEFAULT 0,
     KEY `idx_move_detail_tenant` (`tenant_id`),
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'move_detail';
@@ -438,6 +442,8 @@ CREATE TABLE IF NOT EXISTS `output_detail` (
     `is_finished` tinyint(1) DEFAULT 0,
     `quantity` double(20, 6) UNSIGNED default 0 comment '出库数量',
     `finish_quantity` double(20, 6) UNSIGNED default 0 comment '已出库数量',
+    `inventory_id` bigint UNSIGNED DEFAULT 0,
+    `material_id` bigint UNSIGNED DEFAULT 0,
     KEY `idx_output_detail_tenant` (`tenant_id`),
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'output_detail';
@@ -543,6 +549,8 @@ CREATE TABLE IF NOT EXISTS `purchase_detail` (
     `quantity` double(20, 6) UNSIGNED default 0 comment '采购数量',
     `price` double(20, 6) UNSIGNED default 0 comment '采购单价',
     `finish_quantity` double(20, 6) UNSIGNED default 0 comment '已入库数量',
+    `material_id` bigint UNSIGNED DEFAULT 0,
+    `supplier_id` bigint UNSIGNED DEFAULT 0,
     KEY `idx_purchase_detail_tenant` (`tenant_id`),
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'purchase_detail';
@@ -556,6 +564,8 @@ CREATE TABLE IF NOT EXISTS `purchase_price` (
     `tenant_id` bigint UNSIGNED DEFAULT 0,
     `creator_id` bigint UNSIGNED DEFAULT 0,
     `price` double(20, 6) UNSIGNED default 0 comment '采购单价',
+    `material_id` bigint UNSIGNED DEFAULT 0,
+    `supplier_id` bigint UNSIGNED DEFAULT 0,
     KEY `idx_purchase_price_tenant` (`tenant_id`),
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'purchase_price';
@@ -588,6 +598,7 @@ CREATE TABLE IF NOT EXISTS `sale` (
     `reason` varchar(255) default '' comment '销售说明',
     `total_price` double(20, 6) UNSIGNED default 0 comment '总金额',
     `status` int UNSIGNED default 1 comment '销售状态',
+    `customer_id` bigint UNSIGNED DEFAULT 0,
     KEY `idx_sale_tenant` (`tenant_id`),
     UNIQUE KEY `uk_sale_tenant_bill_code` (`tenant_id`, `bill_code`),
     PRIMARY KEY (`id`)
@@ -606,6 +617,7 @@ CREATE TABLE IF NOT EXISTS `sale_detail` (
     `quantity` double(20, 6) UNSIGNED default 0 comment '销售数量',
     `price` double(20, 6) UNSIGNED default 0 comment '销售单价',
     `finish_quantity` double(20, 6) UNSIGNED default 0 comment '已出库数量',
+    `material_id` bigint UNSIGNED DEFAULT 0,
     KEY `idx_sale_detail_tenant` (`tenant_id`),
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'sale_detail';
@@ -619,6 +631,8 @@ CREATE TABLE IF NOT EXISTS `sale_price` (
     `tenant_id` bigint UNSIGNED DEFAULT 0,
     `creator_id` bigint UNSIGNED DEFAULT 0,
     `price` double(20, 6) UNSIGNED default 0 comment '销售单价',
+    `customer_id` bigint UNSIGNED DEFAULT 0,
+    `material_id` bigint UNSIGNED DEFAULT 0,
     KEY `idx_sale_price_tenant` (`tenant_id`),
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'sale_price';

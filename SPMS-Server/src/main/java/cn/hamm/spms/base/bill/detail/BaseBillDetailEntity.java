@@ -3,8 +3,6 @@ package cn.hamm.spms.base.bill.detail;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.ReadOnly;
 import cn.hamm.spms.base.TenantAwareEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.MappedSuperclass;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 
@@ -15,19 +13,16 @@ import lombok.Getter;
  * @author Hamm.cn
  */
 @SuppressWarnings({"unchecked", "UnusedReturnValue"})
-@MappedSuperclass
 @Getter
 @Description("")
 public abstract class BaseBillDetailEntity<
         E extends BaseBillDetailEntity<E>
         > extends TenantAwareEntity<E> implements IBaseBillDetailAction {
     @Description("单据 ID")
-    @Column(nullable = false, columnDefinition = "bigint UNSIGNED comment '单据ID'")
     private Long billId;
 
     @Description("是否已完成")
     @ReadOnly
-    @Column(columnDefinition = "bit(1) default 0 comment '是否已完成'")
     private Boolean isFinished;
 
     /**

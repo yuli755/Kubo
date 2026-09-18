@@ -20,4 +20,50 @@
         for update
     </select>
 
+    <!--
+      多对多中间表的三条语句（J3）：关系集合不是本表的列，MyBatis-Plus 的内置语句碰不到它。
+      读用 MenuListPairs（一次拿整页的"属主 → 目标"ID 对，再由 RelationHydrator 批量取目标实体）；
+      写用"先删后插"，语义与 JPA 时代把集合设到托管实体上再 flush 一致
+      （集合为 null 表示这次没提交它 = 一行不动）。
+      表名与列名按 init.sql 的口径（Hibernate 隐式命名：<属主表>_<字段名>_list）。
+    -->
+    <select id="selectMenuListPairs" resultType="java.util.Map">
+        select role_entity_id as ownerId, menu_list_id as targetId
+        from role_menu_list
+        where role_entity_id in
+        <foreach collection="ownerIds" item="ownerId" open="(" separator="," close=")">#{ownerId}</foreach>
+    </select>
+
+    <delete id="deleteMenuListByOwnerId">
+        delete from role_menu_list where role_entity_id = #{ownerId}
+    </delete>
+
+    <insert id="insertMenuListByOwnerIds">
+        insert into role_menu_list (role_entity_id, menu_list_id) values
+        <foreach collection="targetIds" item="targetId" separator=",">(#{ownerId}, #{targetId})</foreach>
+    </insert>
+
+    <!--
+      多对多中间表的三条语句（J3）：关系集合不是本表的列，MyBatis-Plus 的内置语句碰不到它。
+      读用 PermissionListPairs（一次拿整页的"属主 → 目标"ID 对，再由 RelationHydrator 批量取目标实体）；
+      写用"先删后插"，语义与 JPA 时代把集合设到托管实体上再 flush 一致
+      （集合为 null 表示这次没提交它 = 一行不动）。
+      表名与列名按 init.sql 的口径（Hibernate 隐式命名：<属主表>_<字段名>_list）。
+    -->
+    <select id="selectPermissionListPairs" resultType="java.util.Map">
+        select role_entity_id as ownerId, permission_list_id as targetId
+        from role_permission_list
+        where role_entity_id in
+        <foreach collection="ownerIds" item="ownerId" open="(" separator="," close=")">#{ownerId}</foreach>
+    </select>
+
+    <delete id="deletePermissionListByOwnerId">
+        delete from role_permission_list where role_entity_id = #{ownerId}
+    </delete>
+
+    <insert id="insertPermissionListByOwnerIds">
+        insert into role_permission_list (role_entity_id, permission_list_id) values
+        <foreach collection="targetIds" item="targetId" separator=",">(#{ownerId}, #{targetId})</foreach>
+    </insert>
+
 </mapper>

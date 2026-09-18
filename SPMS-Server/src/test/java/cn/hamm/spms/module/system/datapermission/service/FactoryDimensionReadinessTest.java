@@ -2,9 +2,8 @@ package cn.hamm.spms.module.system.datapermission.service;
 
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableName;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +30,7 @@ class FactoryDimensionReadinessTest {
     /**
      * 关系已接好的用户实体（字段名走约定 {@code factoryList}）
      */
-    @Table(name = "user")
+    @TableName("user")
     static class ReadyUserEntity {
         @SuppressWarnings("unused")
         private Set<Long> factoryList;
@@ -40,30 +39,30 @@ class FactoryDimensionReadinessTest {
     /**
      * 没有任何工厂关系字段的用户实体
      */
-    @Table(name = "user")
+    @TableName("user")
     static class BareUserEntity {
         @SuppressWarnings("unused")
         private Set<Long> storageList;
     }
 
-    @Table(name = "inventory")
+    @TableName("inventory")
     static class InventoryWithFactory {
         @SuppressWarnings("unused")
         private Long factoryId;
     }
 
     /**
-     * 字段名不叫 factoryId，但 {@code @Column(name = "factory_id")} 指到同一列 ——
+     * 字段名不叫 factoryId，但 {@code @TableField("factory_id")} 指到同一列 ——
      * 归属列的物理名才是判定依据，字段名只是本地约定，别把门禁做成拼写检查
      */
-    @Table(name = "material")
+    @TableName("material")
     static class MaterialWithRenamedColumn {
         @SuppressWarnings("unused")
-        @Column(name = "factory_id")
+        @TableField("factory_id")
         private Long factoryRef;
     }
 
-    @Table(name = "purchase")
+    @TableName("purchase")
     static class PurchaseWithoutFactory {
         @SuppressWarnings("unused")
         private Long tenantId;
@@ -71,12 +70,14 @@ class FactoryDimensionReadinessTest {
 
     /**
      * D13-B：工厂归属登记成 {@code FACTORY:storage.id}，实体上真正挂着
-     * {@code @ManyToOne storage}（对应 {@code InventoryEntity} / {@code MoveEntity} 的真实形状）
+     * {@code storage} 关系（对应 {@code InventoryEntity} / {@code MoveEntity} 的真实形状）。
+     * J3 起关系字段的载体是 {@code @TableField(exist = false)} + 对象类型 —— 注解删了以后
+     * 这条判据仍要成立（否则工厂维度的登记会从"绑得上"变成"名字写错了"）。
      */
-    @Table(name = "inventory")
+    @TableName("inventory")
     static class InventoryWithStorageAssociation {
-        @ManyToOne
         @SuppressWarnings("unused")
+        @TableField(exist = false)
         private StorageRef storage;
     }
 
@@ -114,7 +115,7 @@ class FactoryDimensionReadinessTest {
     }
 
     @Test
-    @DisplayName("按 @Column 的物理列名认（字段改名不影响判定）")
+    @DisplayName("按 @TableField 的物理列名认（字段改名不影响判定）")
     void recognizesColumnByPhysicalName() {
         List<String> problems = FactoryDimensionReadiness.inspect(
                 List.of(ReadyUserEntity.class, MaterialWithRenamedColumn.class),

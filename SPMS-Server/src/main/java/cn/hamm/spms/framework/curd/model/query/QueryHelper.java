@@ -6,7 +6,8 @@ package cn.hamm.spms.framework.curd.model.query;
  * 2026-09-18 J2【去 JPA】：本类从 Criteria/Spring Data 换成 MyBatis-Plus 的 wrapper。
  *   条件语义逐条对齐旧实现，三处刻意的差异写在方法注释上，不写在文档里：
  *     ① 排序（{@link #applySort}）修掉了旧实现"追加排序从未生效"的缺陷；
- *     ② {@code @ManyToOne} 不再 join，直接落到本表 FK 列；
+ *     ② 关系字段（{@code @ManyToOne}）不再 join，直接落到本表 FK 列（J3 起列名来自标量外键字段，
+ *        关系对象本身标了 {@code @TableField(exist = false)}）；
  *     ③ 无法表达的条件（嵌套对象只给了非 ID 字段）直接抛，不静默少条件。
  */
 
@@ -15,14 +16,10 @@ import cn.hamm.spms.core.constant.Constant;
 import cn.hamm.spms.framework.curd.annotation.Search;
 import cn.hamm.spms.framework.curd.annotation.SearchEmpty;
 import cn.hamm.spms.framework.curd.base.CurdEntity;
+import cn.hamm.spms.framework.curd.base.RelationMapping;
 import cn.hamm.spms.framework.curd.config.CurdConfig;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import jakarta.persistence.Column;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.TableField;
-import jakarta.persistence.Transient;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Field;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
@@ -46,9 +44,9 @@ import java.util.Objects;
  *   <li>{@code @Transient} / {@code @OneToMany} / {@code @ManyToMany} 不参与搜索。</li>
  * </ul>
  *
- * <p>列名解析走 {@link #column(Class, String)}：优先 MP 的 {@code @TableField}，
- * 过渡期兼容 JPA 的 {@code @Column(name = …)}，最后按驼峰转下划线兜底 ——
- * 实测 41 个实体的 {@code @Column(name)} 与驼峰转下划线 **100% 一致**（{@code pnpm jpa:check} 里有这条判据）。</p>
+ * <p>列名解析走 {@link #column(Class, String)}：优先 MP 的 {@code @TableField}（显式声明），
+ * 否则按驼峰转下划线兜底 —— 与 MP 自己的列名策略同一口径。
+ * {@code pnpm jpa:check} 里有一条判据钉住"显式声明必须等于驼峰转下划线"（写错名字当场红）。</p>
  *
  * @author Hamm.cn
  */
@@ -68,8 +66,8 @@ public class QueryHelper {
      * @param entityClass 实体类
      * @param field       字段名（驼峰）
      * @return 列名（下划线）
-     * @apiNote 与 MP 的列名策略同源：先看 {@code @TableField}，再看 {@code @Column}，最后驼峰转下划线。
-     * 三条来源的取值必须一致，不一致时以注解为准（注解是显式声明）。
+     * @apiNote 与 MP 的列名策略同源：先看 {@code @TableField}（显式声明优先），否则驼峰转下划线。
+     * J3 去掉了 {@code @Column(name)} 这条兜底 —— 实体上不再有那个注解，留着只会是一段永不执行的代码。
      */
     public static @NotNull String column(@NotNull Class<?> entityClass, @NotNull String field) {
         Field declared = ReflectUtil.getField(field, entityClass);
@@ -77,10 +75,6 @@ public class QueryHelper {
             TableField tableField = ReflectUtil.getAnnotation(TableField.class, declared);
             if (Objects.nonNull(tableField) && StringUtils.hasText(tableField.value())) {
                 return tableField.value();
-            }
-            Column column = ReflectUtil.getAnnotation(Column.class, declared);
-            if (Objects.nonNull(column) && StringUtils.hasText(column.name())) {
-                return column.name();
             }
         }
         return camelToUnderline(field);
@@ -217,19 +211,17 @@ public class QueryHelper {
                     return;
                 }
             }
-            if (Objects.nonNull(ReflectUtil.getAnnotation(OneToMany.class, field))) {
-                // 一对多的属性 不参与搜索
+            TableField tableField = ReflectUtil.getAnnotation(TableField.class, field);
+            if (Objects.nonNull(tableField) && !tableField.exist()) {
+                // 非数据库字段（关系对象、查询专用字段如 UserEntity.departmentId）不参与搜索
                 return;
             }
-            if (Objects.nonNull(ReflectUtil.getAnnotation(ManyToMany.class, field))) {
-                // 多对多的属性 不参与搜索
+            if (Collection.class.isAssignableFrom(field.getType())) {
+                // 集合关系（多对多/一对多）不是本表列，wrapper 表达不了
                 return;
             }
-            if (Objects.nonNull(ReflectUtil.getAnnotation(Transient.class, field))) {
-                // 非数据库字段 不参与搜索
-                return;
-            }
-            if (Objects.nonNull(ReflectUtil.getAnnotation(ManyToOne.class, field))) {
+            if (CurdEntity.class.isAssignableFrom(field.getType())) {
+                // 多对一：落到本表外键列（J3 起列名从标量外键字段上取，见 RelationMapping）
                 applyManyToOne(wrapper, field, fieldValue, searchClass);
                 return;
             }
@@ -279,8 +271,12 @@ public class QueryHelper {
             throw new IllegalArgumentException("关系字段 " + field.getName() + " 只支持实体类型的查询值");
         }
         if (Objects.nonNull(related.getId())) {
-            // storage → storage_id（Hibernate 隐式外键列名就是这个名字，见 init.sql 的列名口径）
-            wrapper.eq(camelToUnderline(field.getName() + "Id"), related.getId());
+            // storage → storageId → storage_id（Hibernate 隐式外键列名就是这个名字，见 init.sql 的列名口径）
+            Field foreignKey = RelationMapping.foreignKeyField(searchClass, field.getName());
+            String foreignKeyColumn = Objects.isNull(foreignKey)
+                    ? camelToUnderline(field.getName() + "Id")
+                    : column(searchClass, foreignKey.getName());
+            wrapper.eq(foreignKeyColumn, related.getId());
             return;
         }
         boolean hasOtherField = ReflectUtil.getFieldList(fieldValue.getClass()).stream()

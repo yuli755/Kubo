@@ -94,16 +94,21 @@ module/
 
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
-@Entity
 @Data
-@DynamicInsert
-@DynamicUpdate
-@Table(name = "table_name")
+@TableName("table_name")
 @Description("描述")
 public class XxxEntity extends BaseEntity<XxxEntity> {
     // ...
 }
 ```
+
+> J3（2026-09-18）起实体上**不再有 JPA 注解**，映射只认 MyBatis-Plus：
+> 表名 `@TableName("table_name")`、列 `@TableField("explicit_name")`（不写就按驼峰转下划线）、
+> 主键在 `CurdEntity` 上（`@TableId(type = IdType.AUTO)`，**实体里别重复声明 `id`**）、
+> 唯一列 `@Unique`（`checkUnique` 用它做应用层查重，`init.sql` 里仍要有对应唯一键）。
+> 关系字段（对象）标 `@TableField(exist = false)`，值落在同名的标量外键字段上
+> （`material` → `materialId` → `material_id`）；只作入参、不落库的关系对象标 `@InputOnly`。
+> 写回 `@Entity`/`@Table`/`@Column`/`@Id` 会被 `pnpm jpa:check` 拦下（`@Id` 还会让主键回填静默失效）。
 
 ### 3. Controller 注解顺序
 

@@ -77,6 +77,10 @@ kubo:
     # AIRPOWER_API_ACCESS_TOKEN_SECRET 时 AccessTokenSecretGuard 直接拒绝启动。
     allow-weak-default-secret: false
   data-permission:
-    mode: shadow
+    # J3（2026-09-18）：实体上的 JPA 注解退场后，影子比对线（JPA 侧算一遍、Mapper 侧算一遍）已经没有
+    # 实体可查 —— 影子线要等 J4 换成 MyBatis-Plus 渲染才可用。在那之前这里必须是 off：
+    # 置成 shadow 会被启动守卫 ShadowModeReadiness 直接拒绝启动（这是有意的：静默降级比启动失败更贵）。
+    mode: off
     tenant-required: false
+    # 与 mode 无关的日志开关；mode=off 时影子线不参与，本行是 J4 打开影子时的默认姿态
     shadow-diff-log: true

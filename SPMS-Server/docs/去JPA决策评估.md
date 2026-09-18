@@ -437,10 +437,188 @@ MyBatis-Plus 的 `MetaObjectHandler`（审计字段自动填充）正好是修�
    （真列 `storage_id`）。**这是 J3 的首任务**，与 §9.3 的 `create_time` 隐患同一类：先记账、别猜。
    关系读的对象图还有一层：前端列表读 `row.material.code` 这类嵌套路径，所以"只存 FK"不够，
    J3 要按 J1 的范式（标量 FK 字段 + XML `resultMap`/join）把对象图补回来。
+   **（已完成：见 §9.7.7 —— 载体是 `RelationMapping` + `RelationHydrator`，多对多的中间表走属主仓储 XML 三语句。）**
 2. **影子比对线仍是 JPA**（`ShadowDiffService` / `JpaRowVisibilityProbe` / 14 个 `*ReadShadowService` /
    `JpaPermissionRuleCompiler`）：按 §10.5 的口径"换完之后应当只剩一条路径"，它们与
-   `spring-boot-starter-data-jpa` 一起在 J4 退场；在那之前，`jpa:check` 的 84 个文件就是这条线的账。
+   `spring-boot-starter-data-jpa` 一起在 J4 退场；J3 之后`jpa:check` 的账就是它们（**30 个文件 / 122 处引用**，
+   见 §9.7.7），实体注解那部分已经清零。
 3. **create_time 隐患**（§9.3）：保持 `keep_bug`，只留记录。
+
+### 9.7 J3 照做清单（2026-09-18，实体注解换 MP + 关系对象图）
+
+> 口径：§9.6.5 把"实体关系字段没有列映射"列为 J3 首任务；§9.4 与 §9.6.5 对影子线的归属曾写成两句话
+> （"J3 换 MP 渲染" vs "J4 随 starter 退场"）。本节第 4 条把这件事一次说清，不再两处各表。
+
+#### 9.7.1 范围（本批只做四件事，别扩）
+
+1. **41 个实体的 JPA 注解全部退场**，列/表/主键/关系全部改由 MyBatis-Plus 口径回答；
+2. **关系对象图**：多对一按外键批量回填、多对多的中间表读回填 + 写同步（不做就没有 `row.material.code`）；
+3. **三处读 JPA 注解的运行期代码 + 三处读 JPA 注解的门禁**同批换口径（否则是"假绿"或"静默丢列"）；
+4. **影子线的边界写死并加守卫**：本批不把影子线换 MP（那是 J4），但必须让"用不了"这件事**响亮**。
+
+#### 9.7.2 注解映射表（逐项都有唯一载体，不留"以后再说"）
+
+| JPA（现状） | J3 之后 | 依据 |
+| --- | --- | --- |
+| `@Entity` | 删 | MP 认 `@TableName`；Hibernate 的实体集合同批归零（见 9.7.4） |
+| `@Table(name = …)` | `@TableName("…")`（J2 已加，本批留它） | MP 表名唯一来源 |
+| `@Column(columnDefinition = …)` | 删（结构真相在 `infra/init-sql/init.sql`） | ddl-auto 已不在构建期用这些注解 |
+| `@Column(name = "x")` | 删；列名 = MP 驼峰转下划线，**不一致时**用 `@TableField("x")` | 由 `ddl:check`/`schemaContract` 双向校验兜住 |
+| `@Column(unique = true)` | 新注解 `@Unique`（框架自有） | MP 的 `@TableField` 没有 unique 属性；见 9.7.3-⑤ |
+| `@Id`/`@GeneratedValue(IDENTITY)` | 删；只留 `@TableId(type = IdType.AUTO)`（`CurdEntity` 已有） | IDENTITY 的"insert 后回填"语义与 AUTO 一致 |
+| `@MappedSuperclass` | 删 | MP 靠继承链收集字段，不需要它 |
+| `@DynamicInsert`/`@DynamicUpdate` | 删 | MP 的 `insert`/`updateById` 默认 `NOT_NULL` 策略，null 列不写 |
+| `@Transient` | 删；`@TableField(exist = false)`（本批已加） | MP 只认后者 |
+| `@ManyToOne` | 删；字段标 `@TableField(exist = false)` + 新增标量外键 `xxxId`（`@TableField("xxx_id")`） | 见 9.7.3-① |
+| `@ManyToMany` | 删；字段标 `@TableField(exist = false)`，中间表语句进属主仓储 XML | 见 9.7.3-② |
+| `@JoinTable`/`@JoinColumn` | 删；表名/列名落 XML（`user_factory` 的显式命名一并固化） | 唯一来源在 SQL 里，看得见 |
+| `@PrePersist`（`fillAttribution`） | `MetaObjectHandler.insertFill` 调用 `fillAttribution()` | 所有 insert 路径（含绕过引擎的 recorder）都要覆到，见 9.7.3-③ |
+| `@Table(uniqueConstraints/indexes)` | 删 | 唯一键/索引的真相在 `init.sql`；本批补一条门禁交叉校验 |
+| `@Enumerated`/`@Basic`/`@OneToOne`/`@OneToMany` | 删（若仍存在） | 本仓无对应列语义 |
+
+#### 9.7.3 三处必须显式处理的坑
+
+① **多对一**：MP 会把 `storage` 当列 `storage`（真列 `storage_id`）——**不报错，每条查询都打在错的列上**。
+   载体：字段标 `@TableField(exist = false)`，另加 `private Long storageId` + `@TableField("storage_id")`；
+   写路径 `ICurdRepository.save/saveWithNull` 落库前 `RelationMapping.syncForeignKeys(entity)` 同步；
+   读路径 `RelationHydrator` 按 ID 批量取（一个关系一次查询，不是一行一次）。
+
+② **多对多**：集合不是本表列，中间表 `user_role_list` 这类**必须自己读写**。
+   载体：属主仓储 XML 三语句（`select<字段>Pairs` / `delete<字段>ByOwnerId` / `insert<字段>ByOwnerIds`），
+   写侧"集合非 null 才动"（null = 这次没提交它 ≠ 清空；空集 = 清空）。
+   前端 `contract.participantList` / `user.roleList` 这类嵌套读依赖回填，不能只写 ID。
+
+③ **归属自动填充**：`@PrePersist` 没了以后，`tenant_id/creator_id` 只能由
+   `MetaObjectHandler` 兜（引擎之外的 `repository.insert(...)` 也走它），否则"定时任务/记录器写入"会静默落成 0。
+
+④ **实体类集合谁来提供**：`EntityShapeIndex` 原来问 `EntityManagerFactory` 要受管实体
+   （`getMetamodel()`）——注解删了以后元模型是空的，盘点会**全量报"未映射"**。
+   载体：新的 `EntityMetadata.entityClasses()` 扫 `@TableName`（Spring 的扫描器，不新增依赖）。
+
+⑤ **唯一列判据**：`CurdService.checkUnique` 现在读 `@Column(unique = true)`（19 文件 23 处）。
+   MP 无等价属性 ⇒ 新注解 `@Unique`；同时补一条门禁：`@Unique` 的字段必须在 `init.sql` 里有对应的
+   `UNIQUE KEY` —— 把"自称唯一"升级成"库也这么说"（旧注解从没有过这条交叉校验）。
+
+#### 9.7.4 影子线的边界（把 §9.4 与 §9.6.5 合成一句话）
+
+**影子线（`ShadowDiffService` / `JpaRowVisibilityProbe` / 14 个 `*ReadShadowService` /
+`JpaPermissionRuleCompiler` / `DataPermissionSpecification.buildPredicates`）在 J3 不换 MP，随
+`spring-boot-starter-data-jpa` 在 J4 一起退场。**
+
+理由：它们是"JPA 侧算一遍、Mapper 侧算一遍"的对账装置；实体注解一删，JPA 侧已经没有实体可查，
+对账本身失去意义（剩下的是"MP 渲染 vs 预期 SQL"，那条判据已经由 `PermissionRuleKernelTest` 覆盖）。
+但在 J4 之前它仍是一段**会静默降级**的代码（元模型空 ⇒ 每次都 `shadow-compare-failed`），
+所以 J3 同批加**启动守卫**：`mode != off` 而 JPA 元模型为空时**直接启动失败**并指到本节，
+而不是让它在运行期一行行打日志。`mode: off`（当前 `application.yml` 的取值）不受影响。
+
+#### 9.7.5 门禁同批改（改判据，不放宽判据）
+
+| 门禁 | 现状读什么 | J3 改成 |
+| --- | --- | --- |
+| `infra/scripts/check-ddl-entity-drift.mjs` | `@Table(name)` / `@Column(name)` | `@TableName` / `@TableField` / 字段名约定；关系对象字段不产生列；桥接标量字段产生 `<名>_id` |
+| `src/config/__tests__/schemaContract.spec.ts` | 同上 + `@ManyToOne` 推列 | 同上（实体有、`init.sql` 必须也有的双向判据不变） |
+| `src/config/__tests__/maskContract.spec.ts`（parity 实体断言） | `@Table` / `@Column` 计数 | `@TableName` / `@TableField` 口径 |
+| `pnpm jpa:check` 基线 | `BASELINE = { files: 84, refs: 503, imports: 385 }` | ✅ 已重取：**30 文件 / 122 引用 / 77 import**（只剩影子线一族 + 守卫）|
+
+#### 9.7.6 验证边界
+
+- 能验（本仓离线）：`pnpm check` 24 道、`ddl:check` 双向列比对、`schemaContract`/`maskContract`、
+  `jpa:check` 基线下降、SQL 分层与 java 静态检查。
+- **验不了（需要你本机）**：编译、真库启动、多对多读写的真库回归、`row.material.code` 这类前端嵌套路径。
+- 本机第一件事：`mvn -q compile` 必须先过（本批改了 80 个文件：删掉 305 行 JPA import、
+  452 行 JPA 注解，改了 4 个类的构造器与 3 个仓储的方法签名 —— 静态检查只看得到括号与
+  import 可达性，看不到类型）；起服务后按
+  `mode: off` → `mapper-read` → `shadow` 的顺序各跑一次，确认 §9.7.4 的守卫在 shadow 档能拦住、
+  在 off 档不吵。
+
+#### 9.7.7 J3 执行记录（2026-09-18，**已落地**）
+
+**实体面（41 个实体 + 4 个基类）**
+
+- 注解映射表（9.7.2）**逐行兑现**：`@Entity`/`@Table`/`@Column`/`@Id`/`@GeneratedValue`/
+  `@MappedSuperclass`/`@Transient`/`@ManyToOne`/`@ManyToMany`/`@JoinTable`/`@JoinColumn`/
+  `@DynamicInsert`/`@DynamicUpdate`/`@PrePersist` 全部退场；表名/列/主键改由
+  `@TableName`/`@TableField`/`@TableId(type = IdType.AUTO)` 回答。
+- 主键留在基类 `CurdEntity`（`@TableId`），**实体里不重复声明 `id`**：三处历史遗留的
+  `private Long id` 一并删除 —— 重复声明会让 MyBatis-Plus 的字段表按子类字段覆写父类，
+  而子类那个没有 `@TableId`，症状是"插入成功但 `getId()` 恒为 null"（不报错）。
+- 唯一列改 `@Unique`（见 9.7.3-⑤）；`@Table(indexes/uniqueConstraints)` 一律删 —— 结构的
+  唯一真相是 `infra/init-sql/init.sql`。
+
+**关系对象图（本批最重的代码）**
+
+- 新增 `framework/curd/base/RelationMapping`：关系字段**按字段类型**识别（不再读注解），
+  多对一同步到标量外键（`null` 关系对象 = 不动这一列，与引擎的 null 语义一致），
+  多对多交给属主仓储的 XML 三语句。
+- 新增 `framework/curd/base/RelationHydrator`：出引擎时按关系**批量**回填
+  （一次查询一个关系，不是一行一次），分页/列表/单条三个出口都接上了，
+  仓储解析统一走 `EntityRepositories`（与读写主路径同一份口径，不再自建一套）。
+- 多对多三语句（`select<字段>Pairs` / `delete<字段>ByOwnerId` / `insert<字段>ByOwnerIds`）
+  写进 3 个属主仓储 XML：`UserRepository`（roleList/departmentList/storageList/factoryList）、
+  `RoleRepository`（menuList/permissionList）、`ContractRepository`（documentList/participantList）。
+  自引用的树集合（`children`）**不是**多对多：它是同表 `parent_id` 的树导航，由控制器递归补全。
+- 顺手修一个既有缺陷：`ParticipantRepository` 原来绑的是 `ContractEntity`（复制粘贴残留），
+  于是 `participant` 这条 API 读写的是合同表 —— 关系回填要求"按目标实体找仓储"，
+  把这个错绑暴露了出来，本批一并修正。
+
+**归属填充与实体集合（`@PrePersist` 与元模型的接替者）**
+
+- `base/KuboMetaObjectHandler`（`MetaObjectHandler.insertFill`）接手 `fillAttribution()`：
+  放在 `base` 层是因为 framework 不许依赖业务基类；放在 MP 钩子而不是 `CurdService`，
+  是因为仓储里还有几条绕过引擎的写入（出站记录器/拒绝日志/对账行）也必须拿到归属。
+- `framework/curd/base/EntityMetadata`（静态，扫 `@TableName`）+ `EntityClassIndex`（`@Component`，
+  同样一份实现的可注入形状）：`EntityShapeIndex`/`FactoryDimensionReadiness`/`DataResourceService`/
+  `DataOwnershipMigrationService` 四处原本问 JPA 元模型要实体集合的代码，全部改问它俩。
+- `DataOwnershipMigrationService` 不只是读元数据，它是**运行期写路径**：`EntityManager.find/merge`
+  换成 `仓储.selectById` + `UpdateWrapper`（只 set 归属列，`null` 不动哪一列）。
+
+**影子线（按 9.7.4 划界）**
+
+- 新增 `ShadowModeReadiness`：`mode != off`（或 `mapper-read` 开着）而 JPA 实体集合为空时
+  **启动失败**，错误信息直接指到本节。J4 删掉 starter 后它自然静默（没有 EMF 时 INFO 放行）。
+- 连带一处配置修改：`application-production.yml` 的 `kubo.data-permission.mode` 从 `shadow`
+  改成 `off`（**必须改**：守卫会让 `shadow` 直接拒绝启动，而 prod 用 shadow 档现在本来就拿不到任何对账结果）。
+  生产要重新打开对账，前提是 J4 把影子线换成 MyBatis-Plus 渲染。
+- 影子线本体（`ShadowDiffService`/`JpaRowVisibilityProbe`/`*ReadShadowService`/
+  `JpaPermissionRuleCompiler`/`DataPermissionSpecification`）**未动**，与 9.7.4 的边界一致。
+
+**数据库脚本**
+
+- `infra/init-sql/init.sql` 补 **10 张表 / 14 个桥接外键列**：`material.unit_id`、
+  `purchase_detail.material_id/supplier_id`、`purchase_price.material_id/supplier_id`、
+  `sale.customer_id`、`sale_detail.material_id`、`sale_price.customer_id/material_id`、
+  `input_detail.material_id`、`move.storage_id`、`move_detail.inventory_id`、
+  `output_detail.inventory_id/material_id` —— 这些列原本是 JPA 的 `@JoinColumn` 隐式生成的，
+  注解删掉后**必须显式写进基线**，否则新环境建库后每条关系查询都会打在缺列上
+  （`schemaContract` 的双向判据就是为这件事设的：实体有、基线没有 ⇒ 红）。
+- 三处"已标唯一但库里没唯一键"的悬案核实为**误报**：`coderule.rule_field`、`config.flag`、
+  `permission.identity` 在基线里用的是行内 `UNIQUE`（不是 `UNIQUE KEY` 写法），
+  新加的交叉判据已能识别两种写法。
+
+**门禁同批改（判据变、不放宽）**
+
+| 门禁 | 改成 |
+| --- | --- |
+| `check-ddl-entity-drift.mjs` | 读 `@TableName`/`@TableField`/字段名约定；关系对象与集合字段不产生列 |
+| `schemaContract.spec.ts` | 同上 + 新增"`@Unique` 必须有库面唯一键"交叉判据（含空转守卫：解析不到 `@Unique` 即红）|
+| `maskContract.spec.ts` | 关系字段按**字段类型**识别；多对一必须有桥接标量字段（或显式 `@InputOnly`）；多对多必须有 XML 三语句；对账实体改读 `@TableName`/字段名 |
+| `check-jpa-usage.mjs` | 旧的"跨 ORM 表名一致"判据在 J3 后没有对象，换成**"实体不许再长回 JPA 注解"**（短名与全限定写法都认）+ 空转守卫（`@TableName` 实体少于 30 个即红）|
+
+**本批踩到并修掉的一个坑（门禁为什么必须"数次数"而不是"数文件"）**
+
+多对多三语句在自检时发现**每个 id 在同一个 XML 里写了两遍副本**（两批改动各加了一次）——
+MyBatis 在解析期会抛 `already contains value for ...`，也就是**启动直接失败**。
+而原先那条门禁判断的是"有几个文件包含这个 id"，同文件里的副本它数不出来，所以一直是绿的。
+已改成数**总出现次数**，并新增一条独立判据"全仓 mapper XML 的语句 id 唯一"（自带空转守卫：
+解析到的语句少于 50 条即红）。教训与 §9.7.4 同源：**判据的空转/漏检方式，比判据本身更值得写下来**。
+
+**新增的一个小机制（值得单独记）**：`@InputOnly`
+
+入库明细上的 `storage`（"这次入库进哪个仓库"）是**只作入参**的关系对象：明细表没有仓库列，
+值最终落在 `inventory` 行上。它没有桥接标量字段 —— 而"没有外键字段"与"忘了补外键字段"
+在代码里长得一模一样。所以给它一个显式注解 `@InputOnly`（`framework/curd/annotation`），
+声明三件事：不是列、不参与外键同步、不参与对象图回填；`RelationMapping` 与门禁都按它跳过。
+这样"故意不落库"和"漏了"在 review 时是两种不同的写法。
 
 ## §10 J2 执行清单（**干净切除**：不接受 JPA 与 MyBatis-Plus 并存）
 

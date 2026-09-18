@@ -1,5 +1,11 @@
 # 真多租户 · 归属就绪矩阵（脚本自动生成）
 
+> ⚠️ **历史存档（2026-09-18 J3 之前的口径）**：这张表由 `tools/scripts/gen_multitenant_migration.py`
+> 扫描 JPA 注解（`@Entity` / `@Column` / `@ManyToOne`）生成，脚本与 JPA 注解在 J3 之后都不在了。
+> 表里的分级与结论仍是当期的事实记录（它决定了归属列的接线方式），但**数字不再随代码更新**：
+> 要看现状请用 `pnpm ddl:check`（实体 ↔ init.sql）、`pnpm jpa:check`（实体注解口径）
+> 与 `docs/去JPA决策评估.md` §9 的执行记录。矩阵里的表名/列名口径在 J3 后依然成立。
+>
 > 生成：`python3 tools/scripts/gen_multitenant_migration.py`；表格内容由扫描结果决定，请勿手工编辑。
 
 - 扫描 `@Entity`：**56**；已注册数据资源：**24**

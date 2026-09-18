@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.channel.purchase.detail;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Meta;
 import cn.hamm.spms.core.annotation.Description;
@@ -7,18 +8,11 @@ import cn.hamm.spms.core.annotation.ReadOnly;
 import cn.hamm.spms.base.bill.detail.BaseBillDetailEntity;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.channel.supplier.SupplierEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
-import org.hibernate.annotations.DynamicInsert;
-import org.hibernate.annotations.DynamicUpdate;
 
-import static jakarta.persistence.FetchType.EAGER;
 
 /**
  * <h1>采购明细实体</h1>
@@ -27,38 +21,51 @@ import static jakarta.persistence.FetchType.EAGER;
  */
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
-@Entity
 @Data
-@DynamicInsert
-@DynamicUpdate
 @TableName("purchase_detail")
-@Table(name = "purchase_detail")
 @Description("采购明细")
 public class PurchaseDetailEntity extends BaseBillDetailEntity<PurchaseDetailEntity> {
     @Description("物料信息")
-    @ManyToOne(fetch = EAGER)
+    @TableField(exist = false)
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "物料不能为空")
     private MaterialEntity material;
 
+    /**
+     * 外键列 material_id（MyBatis-Plus 侧的读写走这个标量字段）
+     *
+     * @apiNote 关系对象标了 {@code @TableField(exist = false)}（MyBatis-Plus 不把对象当列），
+     * 这个标量字段才是列：写路径由 {@code RelationMapping#syncForeignKeys} 从关系对象同步过来，
+     * 读路径由 {@code RelationHydrator} 按它批量回填关系对象。
+     */
+    @TableField("material_id")
+    private Long materialId;
+
     @Description("供应商信息")
-    @ManyToOne(fetch = EAGER)
+    @TableField(exist = false)
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "供应商不能为空")
     private SupplierEntity supplier;
 
+    /**
+     * 外键列 supplier_id（MyBatis-Plus 侧的读写走这个标量字段）
+     *
+     * @apiNote 关系对象标了 {@code @TableField(exist = false)}（MyBatis-Plus 不把对象当列），
+     * 这个标量字段才是列：写路径由 {@code RelationMapping#syncForeignKeys} 从关系对象同步过来，
+     * 读路径由 {@code RelationHydrator} 按它批量回填关系对象。
+     */
+    @TableField("supplier_id")
+    private Long supplierId;
+
     @Description("采购数量")
-    @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '采购数量'")
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "采购数量不能为空")
     @Meta
     private Double quantity;
 
     @Description("采购单价")
-    @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '采购单价'")
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "采购单价不能为空")
     @Meta
     private Double price;
 
     @Description("已入库数量")
-    @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '已入库数量'")
     @Meta
     @ReadOnly
     private Double finishQuantity;

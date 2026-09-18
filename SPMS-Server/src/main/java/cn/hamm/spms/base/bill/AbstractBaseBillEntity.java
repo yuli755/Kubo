@@ -3,14 +3,8 @@ package cn.hamm.spms.base.bill;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.base.bill.detail.BaseBillDetailEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.MappedSuperclass;
-import jakarta.persistence.Transient;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
-import org.hibernate.annotations.DynamicInsert;
-import org.hibernate.annotations.DynamicUpdate;
-import org.hibernate.validator.constraints.Length;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,23 +16,18 @@ import java.util.List;
  * @param <D> 明细实体
  * @author Hamm.cn
  */
-@MappedSuperclass
 @Getter
-@DynamicInsert
-@DynamicUpdate
 @Description("")
 public abstract class AbstractBaseBillEntity<
         E extends AbstractBaseBillEntity<E, D>,
         D extends BaseBillDetailEntity<D>
         > extends TenantAwareEntity<E> implements IBaseBillAction {
     @Description("单据明细")
-    @Transient
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "单据明细不能为空")
     private List<D> details = new ArrayList<>();
 
     @Description("驳回原因")
     @NotNull(groups = {WhenReject.class}, message = "驳回原因")
-    @Column(columnDefinition = "varchar(255) default '' comment '驳回原因'")
     @Length(max = 80, message = "驳回原因仅支持{max}个字符")
     private String rejectReason;
 

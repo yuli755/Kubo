@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  写侧仓储 ContractDocumentRepository 的专属语句（2026-09-18 J3 新增）。
+
+  为什么必须有这条 selectByIdForUpdate：引擎的 getForUpdate（加锁读）对所有实体都成立，
+  而"加写锁"只能是 SQL，语句按本仓的 SQL 分层规则住这里（不写成 wrapper.last("FOR UPDATE")）。
+  flushCache="true" 不是优化而是正确性：同一事务里重复调用必须真的再发一次 SQL，
+  否则 MyBatis 的会话本地缓冲会把第二次调用变成"读缓存" —— 锁没加、读到旧值，而且不报错。
+-->
+<mapper namespace="cn.hamm.spms.module.asset.contract.document.ContractDocumentRepository">
+
+    <select id="selectByIdForUpdate" flushCache="true" resultType="cn.hamm.spms.module.asset.contract.document.ContractDocumentEntity">
+        select *
+        from contract_document
+        where id = #{id}
+        for update
+    </select>
+</mapper>

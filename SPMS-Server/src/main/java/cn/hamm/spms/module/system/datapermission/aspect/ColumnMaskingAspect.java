@@ -22,8 +22,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p><b>本切面不再修改返回对象。</b>历史实现通过反射把遮蔽值写回实体字段，有两个致命问题：</p>
  * <ol>
- *   <li>这些实体是 JPA <b>托管对象</b>，配合 {@code @DynamicUpdate} 或被 Hibernate
- *       一级缓存持有，存在把 {@code 1*.*5} 持久化回库的风险；</li>
+ *   <li>JPA 时代这些对象是托管实体，被一级缓存持有 + 脏检查，改过的字段存在被
+ *       {@code flush} 回库的风险（把 {@code 1*.*5} 写进数据库）。J3 之后没有托管上下文与脏检查了，
+ *       这条路不再通往数据库 —— 但下面第 2 条与"只覆盖 JSON 出口"这两点照旧成立，
+ *       所以落点仍然在序列化层；</li>
  *   <li>本项目 {@code @SensitiveField} 全部标在 {@code Double price} 这类数值字段上，
  *       {@code field.set(obj, "1*.*5")} 抛 {@link IllegalArgumentException}
  *       （旧实现只 catch 了 {@code IllegalAccessException}）——脱敏一开就 500。</li>

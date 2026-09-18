@@ -1,5 +1,7 @@
 package cn.hamm.spms.module.asset.contract;
 
+import cn.hamm.spms.framework.curd.annotation.Unique;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
@@ -13,13 +15,10 @@ import cn.hamm.spms.module.asset.contract.enums.ContractStatus;
 import cn.hamm.spms.module.asset.contract.enums.ContractType;
 import cn.hamm.spms.module.asset.contract.participant.ParticipantEntity;
 import cn.hamm.spms.base.coderule.CodeRuleField;
-import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
-import org.hibernate.annotations.DynamicInsert;
-import org.hibernate.annotations.DynamicUpdate;
 
 import java.util.Set;
 
@@ -30,17 +29,13 @@ import java.util.Set;
  */
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
-@Entity
 @Data
-@DynamicInsert
-@DynamicUpdate
 @TableName("contract")
-@Table(name = "contract")
 @Description("合同")
 public class ContractEntity extends TenantAwareEntity<ContractEntity> {
     @Description("合同编码")
     @Search
-    @Column(columnDefinition = "varchar(255) default '' comment '合同编码'", unique = true)
+    @Unique
     @AutoGenerateCode(CodeRuleField.ContractCode)
     @Meta
     @Export
@@ -48,7 +43,6 @@ public class ContractEntity extends TenantAwareEntity<ContractEntity> {
 
     @Description("合同名称")
     @Search
-    @Column(columnDefinition = "varchar(255) default '' comment '合同名称'")
     @NotBlank(groups = {WhenAdd.class, WhenUpdate.class}, message = "合同名称不能为空")
     @Meta
     @Export
@@ -56,34 +50,29 @@ public class ContractEntity extends TenantAwareEntity<ContractEntity> {
 
     @Description("合同内容")
     @Search
-    @Column(columnDefinition = "text comment '合同内容'")
     private String content;
 
     @Description("开始时间")
-    @Column(columnDefinition = "bigint UNSIGNED default 0 comment '开始时间'")
     private Long startTime;
 
     @Description("结束时间")
-    @Column(columnDefinition = "bigint UNSIGNED default 0 comment '结束时间'")
     private Long endTime;
 
     @Description("合同类型")
-    @Column(columnDefinition = "bigint UNSIGNED default 0 comment '合同类型'")
     @Dictionary(value = ContractType.class, groups = {WhenAdd.class, WhenUpdate.class})
     @Export(Export.Type.DICTIONARY)
     private Integer type;
 
     @Description("合同状态")
-    @Column(columnDefinition = "bigint UNSIGNED default 1 comment '合同状态'")
     @Dictionary(value = ContractStatus.class, groups = {WhenAdd.class, WhenUpdate.class})
     @Export(Export.Type.DICTIONARY)
     private Integer status;
 
     @Description("附件列表")
-    @ManyToMany(fetch = FetchType.LAZY)
+    @TableField(exist = false)
     private Set<ContractDocumentEntity> documentList;
 
     @Description("参与方列表")
-    @ManyToMany(fetch = FetchType.LAZY, cascade = CascadeType.PERSIST)
+    @TableField(exist = false)
     private Set<ParticipantEntity> participantList;
 }

@@ -1,5 +1,7 @@
 package cn.hamm.spms.module.factory.structure;
 
+import cn.hamm.spms.framework.curd.annotation.Unique;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
@@ -10,14 +12,10 @@ import cn.hamm.spms.framework.curd.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.base.coderule.AutoGenerateCode;
 import cn.hamm.spms.module.factory.structure.enums.StructureType;
-import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
-import org.hibernate.annotations.DynamicInsert;
-import org.hibernate.annotations.DynamicUpdate;
-import org.hibernate.validator.constraints.Length;
 
 import java.util.List;
 import java.util.Set;
@@ -31,16 +29,12 @@ import static cn.hamm.spms.base.coderule.CodeRuleField.StructureCode;
  */
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
-@Entity
 @Data
-@DynamicInsert
-@DynamicUpdate
 @TableName("structure")
-@Table(name = "structure")
 @Description("生产单元")
 public class StructureEntity extends TenantAwareEntity<StructureEntity> implements ITree<StructureEntity> {
     @Description("生产单元编码")
-    @Column(columnDefinition = "varchar(255) default '' comment '生产单元编码'", unique = true)
+    @Unique
     @AutoGenerateCode(StructureCode)
     @Meta
     @Export
@@ -48,7 +42,6 @@ public class StructureEntity extends TenantAwareEntity<StructureEntity> implemen
 
     @Description("名称")
     @Search
-    @Column(columnDefinition = "varchar(255) default '' comment '名称'")
     @Length(max = 200, message = "名称最多允许{max}个字符")
     @NotBlank(groups = {WhenUpdate.class, WhenAdd.class}, message = "名称不能为空")
     @Meta
@@ -56,17 +49,15 @@ public class StructureEntity extends TenantAwareEntity<StructureEntity> implemen
     private String name;
 
     @Description("生产单元类型")
-    @Column(columnDefinition = "bigint UNSIGNED default 1 comment '生产单元类型'")
     @Dictionary(value = StructureType.class, groups = {WhenAdd.class, WhenUpdate.class})
     @Export(Export.Type.DICTIONARY)
     private Integer type;
 
     @Description("父级 ID")
-    @Column(columnDefinition = "bigint UNSIGNED default 0 comment '父级ID'")
     @Meta
     private Long parentId;
 
     @Description("树子集节点数组")
-    @Transient
+    @TableField(exist = false)
     private List<StructureEntity> children;
 }

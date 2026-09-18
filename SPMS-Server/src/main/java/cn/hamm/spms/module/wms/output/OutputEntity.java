@@ -1,5 +1,7 @@
 package cn.hamm.spms.module.wms.output;
 
+import cn.hamm.spms.framework.curd.annotation.Unique;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import cn.hamm.spms.core.annotation.Description;
 import cn.hamm.spms.core.annotation.Dictionary;
@@ -13,18 +15,11 @@ import cn.hamm.spms.module.wms.move.MoveEntity;
 import cn.hamm.spms.module.wms.output.detail.OutputDetailEntity;
 import cn.hamm.spms.module.wms.output.enums.OutputStatus;
 import cn.hamm.spms.module.wms.output.enums.OutputType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
-import org.hibernate.annotations.DynamicInsert;
-import org.hibernate.annotations.DynamicUpdate;
 
 import static cn.hamm.spms.base.coderule.CodeRuleField.OutputBillCode;
-import static jakarta.persistence.FetchType.EAGER;
 
 /**
  * <h1>领料单实体</h1>
@@ -33,16 +28,12 @@ import static jakarta.persistence.FetchType.EAGER;
  */
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
-@Entity
 @Data
-@DynamicInsert
-@DynamicUpdate
 @TableName("output")
-@Table(name = "output")
 @Description("出库单")
 public class OutputEntity extends AbstractBaseBillEntity<OutputEntity, OutputDetailEntity> {
     @Description("出库单号")
-    @Column(columnDefinition = "varchar(255) default '' comment '出库单号'", unique = true)
+    @Unique
     @AutoGenerateCode(OutputBillCode)
     @Search
     @Meta
@@ -50,26 +41,54 @@ public class OutputEntity extends AbstractBaseBillEntity<OutputEntity, OutputDet
     private String billCode;
 
     @Description("出库状态")
-    @Column(columnDefinition = "int UNSIGNED default 1 comment '出库状态'")
     @Dictionary(value = OutputStatus.class, groups = {WhenAdd.class, WhenUpdate.class})
     @Export(Export.Type.DICTIONARY)
     private Integer status;
 
     @Description("出库类型")
-    @Column(columnDefinition = "int UNSIGNED default 1 comment '出库类型'")
     @Dictionary(value = OutputType.class, groups = {WhenAdd.class, WhenUpdate.class})
     @Export(Export.Type.DICTIONARY)
     private Integer type;
 
     @Description("销售单")
-    @ManyToOne(fetch = EAGER)
+    @TableField(exist = false)
     private SaleEntity sale;
 
+    /**
+     * 外键列 sale_id（MyBatis-Plus 侧的读写走这个标量字段）
+     *
+     * @apiNote 关系对象标了 {@code @TableField(exist = false)}（MyBatis-Plus 不把对象当列），
+     * 这个标量字段才是列：写路径由 {@code RelationMapping#syncForeignKeys} 从关系对象同步过来，
+     * 读路径由 {@code RelationHydrator} 按它批量回填关系对象。
+     */
+    @TableField("sale_id")
+    private Long saleId;
+
     @Description("移库单")
-    @ManyToOne(fetch = EAGER)
+    @TableField(exist = false)
     private MoveEntity move;
 
+    /**
+     * 外键列 move_id（MyBatis-Plus 侧的读写走这个标量字段）
+     *
+     * @apiNote 关系对象标了 {@code @TableField(exist = false)}（MyBatis-Plus 不把对象当列），
+     * 这个标量字段才是列：写路径由 {@code RelationMapping#syncForeignKeys} 从关系对象同步过来，
+     * 读路径由 {@code RelationHydrator} 按它批量回填关系对象。
+     */
+    @TableField("move_id")
+    private Long moveId;
+
     @Description("领料单")
-    @ManyToOne(fetch = EAGER)
+    @TableField(exist = false)
     private PickingEntity picking;
+
+    /**
+     * 外键列 picking_id（MyBatis-Plus 侧的读写走这个标量字段）
+     *
+     * @apiNote 关系对象标了 {@code @TableField(exist = false)}（MyBatis-Plus 不把对象当列），
+     * 这个标量字段才是列：写路径由 {@code RelationMapping#syncForeignKeys} 从关系对象同步过来，
+     * 读路径由 {@code RelationHydrator} 按它批量回填关系对象。
+     */
+    @TableField("picking_id")
+    private Long pickingId;
 }

@@ -7,7 +7,7 @@ import cn.hamm.spms.base.TenantAwareEntity;
  *
  * <p>补齐 §19.27 缺口③（「改归属列本身无人管」）里<b>可自动化、不需产品再拍板</b>的那一半：
  * 归属列由 D1 定为服务端推导、客户端不可信，于是「客户端能不能改归属」不该是开放问题 ——
- * 新建覆盖为服务端值（{@link TenantAwareEntity#fillAttribution}，{@code @PrePersist}），
+ * 新建覆盖为服务端值（{@link TenantAwareEntity#fillAttribution}，由 {@code KuboMetaObjectHandler} 在 insert 钩子里调用），
  * 更新则恢复为库中既存值（本类）。</p>
  *
  * <p>为什么更新是「恢复库中值」而不是「覆盖为当前上下文」：{@code creator_id} 是<b>创建人</b>，

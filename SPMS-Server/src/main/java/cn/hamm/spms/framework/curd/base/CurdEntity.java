@@ -21,23 +21,16 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import jakarta.persistence.Column;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.MappedSuperclass;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.hibernate.annotations.DynamicInsert;
-import org.hibernate.annotations.DynamicUpdate;
 import org.springframework.beans.BeanUtils;
 
 import java.io.Serializable;
 
-import static jakarta.persistence.GenerationType.IDENTITY;
 
 /**
  * <h1>实体根类</h1>
@@ -46,12 +39,9 @@ import static jakarta.persistence.GenerationType.IDENTITY;
  */
 @EqualsAndHashCode(callSuper = true)
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-@MappedSuperclass
 @Getter
 @Setter
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@DynamicInsert
-@DynamicUpdate
 @Description("实体")
 @Slf4j
 @SuppressWarnings("unchecked")
@@ -68,12 +58,8 @@ public class CurdEntity<E extends CurdEntity<E>> extends RootModel<E>
     public static final String STRING_CREATE_TIME = "createTime";
 
     @Description("ID")
-    // MyBatis-Plus：自增主键并在 insert 后把生成值回填到实体（与 JPA 的 IDENTITY 语义一致）。
-    // 去 JPA 期间两套注解并存：@Id/@GeneratedValue 仍是 JPA（Hibernate）读的那份。
+    // 自增主键 + insert 后把生成值回填到实体（J3 之后主键只此一份声明）
     @TableId(type = IdType.AUTO)
-    @Id
-    @GeneratedValue(strategy = IDENTITY)
-    @Column(nullable = false, columnDefinition = "bigint UNSIGNED comment 'ID'")
     @Min(value = 0, message = "ID必须大于{value}")
     @NotNull(groups = {WhenUpdate.class, WhenIdRequired.class}, message = "ID 不能为空")
     @Meta
@@ -81,17 +67,14 @@ public class CurdEntity<E extends CurdEntity<E>> extends RootModel<E>
 
     @Description("是否禁用")
     @ReadOnly
-    @Column(columnDefinition = "bit(1) default 0 comment '是否禁用'")
     private Boolean isDisabled;
 
     @Description("创建时间")
     @ReadOnly
-    @Column(columnDefinition = "bigint UNSIGNED default 0 comment '创建时间'")
     private Long createTime;
 
     @Description("修改时间")
     @ReadOnly
-    @Column(columnDefinition = "bigint UNSIGNED default 0 comment '修改时间'")
     private Long updateTime;
 
     /**

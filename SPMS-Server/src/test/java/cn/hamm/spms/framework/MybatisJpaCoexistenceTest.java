@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import cn.hamm.spms.support.SqlFixtures;
 
 /**
- * <h1>MyBatis-Plus 与 airpower-JPA 并存的最小验证（P2 换轨的前提）</h1>
+ * <h1>MyBatis-Plus 与残留 JPA 并存的最小验证（P2 换轨的前提）</h1>
  *
  * <p>本类<em>不测任何业务读路径</em>。§19.34 之后仓里多了一个读侧 Mapper（{@code MaterialMapper}）与一份 XML，
  * 但默认配置下它们<b>根本不会注册</b>（开关 {@code kubo.data-permission.mapper-read.enabled=false}），
@@ -39,6 +39,12 @@ import cn.hamm.spms.support.SqlFixtures;
  * 风险表里那行"MyBatis 与 AirPower-JPA 并存 → 事务/一二级缓存语义不一致"（🔴 P0）说的就是这个，
  * 而它无法在本地验证（沙箱没有 JDK、也没有依赖树），所以把它做成一次可回归的断言，
  * 而不是"我看着应该没问题"。</p>
+ *
+ * <p><b>J3 之后这里的"JPA"指什么</b>：实体上的 JPA 注解已经退场（41 个实体只剩 {@code @TableName}），
+ * 所以 JPA 侧的实体集合是空的；本类验的不再是"两套 ORM 抢同一张表"，而是
+ * <b>"残留 JPA 还在原位、且没有第二个 EntityManagerFactory / 第二个事务管理器"</b>。
+ * J4 删掉 {@code spring-boot-starter-data-jpa} 时，本类里那两条断言会红 —— 那是预期信号
+ * （届时事务管理器应当变成 {@code DataSourceTransactionManager}）。</p>
  *
  * <p>档位刻意钉在 {@code kubo.data-permission.mode=off}：本类要验的是两套 ORM 能不能共存，
  * 掺进权限判定只会让失败原因分不清是谁（同 §19.29 的教训：<em>集成测试要显式声明它站在哪一档</em>，
@@ -100,7 +106,8 @@ class MybatisJpaCoexistenceTest {
                 "出现了多个事务管理器（含 DataSourceTransactionManager）：@Transactional 会随机绑到其中一个，"
                         + "换轨期间必须先把这个歧义消掉");
         assertInstanceOf(JpaTransactionManager.class, applicationContext.getBean(PlatformTransactionManager.class),
-                "事务管理器不是 JPA 那个：JPA 侧的 flush/一级缓存语义将不受 @Transactional 管");
+                "事务管理器不是 JPA 那个：残留 JPA（影子线）的 flush/一级缓存语义将不受 @Transactional 管；"
+                        + "J4 删掉 starter 之后这里应当变成 DataSourceTransactionManager —— 那时改这条断言，别删这个测试");
     }
 
     /**

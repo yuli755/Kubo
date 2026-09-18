@@ -508,7 +508,11 @@ describe('mask contract · 脱敏实现只允许存在一处', () => {
     // 取数不许绕开唯一的"什么算启用策略"入口：自己 new 一份查询就是第二份口径
     const service = readJavaCode(join(SERVER, 'module/system/datapermission/service/DataResourceService.java'))
     expect(service, '维度盘点要复用 DataPolicyService 的取数入口，别自己查表').toContain('getEnabledPoliciesByResource')
-    expect(service).toContain('EntityShapeIndex.entityClasses')
+    expect(service, '盘点要取与运行期同一份实体清单：现在这份清单住在 EntityClassIndex 里')
+      .toContain('entityClassIndex.classes()')
+    // 同一份实现：EntityClassIndex 不许自己再扫一遍注解，必须转发给运行期那个 EntityMetadata
+    expect(stripComments(read(join(SERVER, 'framework/curd/base/EntityClassIndex.java'))))
+      .toContain('EntityMetadata.entityClasses()')
   })
 
   it('导出缺口自查的前后端路径必须对得上（它失败是静默的）', () => {
@@ -1016,7 +1020,8 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
     /**
      * §19.27 缺口③：普通用户可 PUT 改 creatorId 把行送出自己视野。
      * D1 已定归属只信服务端，所以补的不是「谁有权改归属」的判定，而是两处硬约束：
-     * 新建无条件覆盖（@PrePersist），更新恢复库中值（BaseService#protectAttribution）。
+     * 新建无条件覆盖（KuboMetaObjectHandler 在 insert 钩子里调 fillAttribution），
+     * 更新恢复库中值（BaseService#protectAttribution）。
      * 「客户端没填才补」是错误形状：那会把 tenant_id 的最终值交给请求方。
      */
     const bodyOf = methodBody
@@ -1665,6 +1670,155 @@ describe('mask contract · 去 JPA 的引擎契约（J2）', () => {
   })
 })
 
+describe('mask contract · 关系列映射（J3：MyBatis-Plus 只映射列）', () => {
+  const MODULE = join(SERVER, 'module')
+  const ENGINE = join(SERVER, 'framework', 'curd', 'base', 'CurdService.java')
+  const REPO_BASE = join(SERVER, 'framework', 'curd', 'base', 'ICurdRepository.java')
+  const MAPPER_XML_DIR = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'mapper')
+
+  const snake = (value: string): string => value.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()
+
+  /**
+   * 实体里的关系字段（按字段类型判定，不读 JPA 注解）
+   *
+   * <p>用类型而不是注解，是让这条判据在 J3 之后（实体上没有 {@code @ManyToOne} 了）仍然有效：
+   * 「字段类型是实体」这件事不会因为注解换轨而改变。</p>
+   */
+  function relationFields(): { file: string, owner: string, field: string, target: string, many: boolean, source: string }[] {
+    const out: { file: string, owner: string, field: string, target: string, many: boolean, source: string }[] = []
+    for (const file of collect(MODULE, '.java')) {
+      if (!/Entity\.java$/.test(file))
+        continue
+      const source = readJavaCode(file)
+      const owner = /class\s+(\w+)\s+extends/.exec(source)?.[1] ?? baseName(file).replace('.java', '')
+      for (const match of source.matchAll(/private\s+([A-Z]\w*Entity)\s+(\w+)\s*;/g))
+        out.push({ file, owner, field: match[2], target: match[1], many: false, source })
+      for (const match of source.matchAll(/private\s+(?:Set|List)<([A-Z]\w*Entity)>\s+(\w+)\s*;/g))
+        out.push({ file, owner, field: match[2], target: match[1], many: true, source })
+    }
+    return out
+  }
+
+  /**
+   * 取某行上面的注解块（多行注解如 @JoinTable(...) 也算）
+   */
+  function annotationsAbove(lines: string[], index: number): string {
+    const block: string[] = []
+    for (let i = index - 1; i >= 0 && i > index - 15; i--) {
+      const line = lines[i].trim()
+      if (line === '')
+        continue
+      if (line.endsWith(';') || line === '}' || /^(?:private|public|protected)\s/.test(line))
+        break
+      block.unshift(line)
+    }
+    return block.join('\n')
+  }
+
+  it('关系字段必须标 @TableField(exist = false)：不标就会被当成同名列，每条查询都查不存在的列', () => {
+    const fields = relationFields()
+    expect(fields.length, '一个关系字段都没解析出来：本体判据会空转').toBeGreaterThan(20)
+    const missing = fields.filter((item) => {
+      const lines = item.source.split('\n')
+      const index = lines.findIndex(line => new RegExp(`private\\s+(?:Set<|List<)?${item.target}>?\\s+${item.field}\\s*;`).test(line))
+      return index < 0 || !annotationsAbove(lines, index).includes('@TableField(exist = false)')
+    }).map(item => `${baseName(item.file)}.${item.field} → ${item.target}`)
+    expect(missing, '这些关系字段没标 @TableField(exist = false)：MyBatis-Plus 会把对象当列，'
+    + '查询直接打到不存在的列上（`storage` 而不是 `storage_id`）')
+      .toEqual([])
+  })
+
+  it('每个多对一关系都有桥接标量字段 <名>Id，且它是 MyBatis-Plus 眼里的列', () => {
+    const problems: string[] = []
+    for (const item of relationFields().filter(entry => !entry.many)) {
+      const column = snake(`${item.field}Id`)
+      const lines = item.source.split('\n')
+      const relationIndex = lines.findIndex(line => new RegExp(`private\\s+${item.target}\\s+${item.field}\\s*;`).test(line))
+      const relationBlock = relationIndex < 0 ? '' : annotationsAbove(lines, relationIndex)
+      if (relationBlock.includes('@InputOnly')) {
+        // 只作入参的关系对象（没有列、也不该有）：注解本身声明了不落库/不同步/不回填，
+        // 这里只需守住"它不能同时又有一根外键字段"（两套语义打架时没人知道该信哪边）
+        if (new RegExp(`private\\s+Long\\s+${item.field}Id\\s*;`).test(item.source))
+          problems.push(`${baseName(item.file)}.${item.field} 既标了 @InputOnly 又有 ${item.field}Id 外键字段：二者矛盾，删一个`)
+        continue
+      }
+      const declaration = new RegExp(`private\\s+Long\\s+${item.field}Id\\s*;`)
+      if (!declaration.test(item.source)) {
+        problems.push(`${baseName(item.file)}.${item.field} 缺标量外键字段 ${item.field}Id`
+          + '（值会掉在地上）；真的只作入参，就标 @InputOnly 把意图写出来')
+        continue
+      }
+      const block = annotationsAbove(lines, lines.findIndex(line => declaration.test(line)))
+      // 标量字段必须是列：标成 exist = false 就没人写这个外键了（列恒为 0，关系永远读不回来）
+      if (/@TableField\(\s*exist\s*=\s*false/.test(block))
+        problems.push(`${baseName(item.file)}.${item.field}Id 被标成非列（exist = false）：外键列就没人写了`)
+      // 不写 @TableField 也合法：列名 = 驼峰转下划线（MP 的默认列名策略）。
+      // 这条守的是「列名与字段名的默认推导不一致时必须显式声明」，现在恒等，等于顺手加的自检。
+      const explicit = block.includes(`@TableField("${column}")`) || block.includes(`@TableField(value = "${column}")`)
+      if (!explicit && snake(`${item.field}Id`) !== column)
+        problems.push(`${baseName(item.file)}.${item.field}Id 列名与字段名不一致却没写 @TableField`)
+    }
+    expect(problems, '多对一的外键值必须落在标量字段上：MP 的 insert/update 只写列，' + '没有标量字段就写不进去（新增一行会静默丢掉归属列）')
+      .toEqual([])
+  })
+
+  it('每个多对多关系在属主仓储 XML 里都有读/删/插三条语句', () => {
+    const xmls = collect(MAPPER_XML_DIR, '.xml').map(file => ({ file, source: read(file) }))
+    const problems: string[] = []
+    // 自引用的 `children`（仓库/工厂树、菜单树……）不是中间表：它们是同表 parent_id 的树导航，
+    // 由控制器递归补全。把它算进多对多，这条门禁会永远红在一个假目标上。
+    const manyToMany = relationFields().filter(entry => entry.many
+      && !(entry.target === entry.owner && entry.field === 'children'))
+    expect(manyToMany.length, '一个多对多字段都没解析出来：本体判据会空转').toBeGreaterThan(4)
+    for (const item of manyToMany) {
+      const field = item.field.charAt(0).toUpperCase() + item.field.slice(1)
+      for (const id of [`select${field}Pairs`, `delete${field}ByOwnerId`, `insert${field}ByOwnerIds`]) {
+        // 数**总次数**而不是"几个文件里有"：同一文件里写两遍副本时，
+        // MyBatis 解析期会抛 already contains value（启动失败），而"按文件数"会放过它 —— 实测踩到过
+        const hits = xmls.reduce((sum, entry) => sum + entry.source.split(`id="${id}"`).length - 1, 0)
+        if (hits !== 1)
+          problems.push(`${baseName(item.file)}.${item.field} 的 ${id} 在 mapper XML 里出现 ${hits} 次（应恰好 1 次）`)
+      }
+    }
+    expect(problems, '多对多的中间表不是本表列：三条语句缺一条，' + '不是读写有一半静默失效（授权改了却没落库），就是整个集合永远是空')
+      .toEqual([])
+  })
+
+  it('全仓 mapper XML 的语句 id 唯一（同文件写两遍副本 MyBatis 解析期就抛，且不会自己发现）', () => {
+    const seen = new Map<string, number>()
+    for (const entry of collect(MAPPER_XML_DIR, '.xml')) {
+      const source = read(entry)
+      const namespace = /namespace="([^"]+)"/.exec(source)?.[1] ?? entry
+      for (const match of source.matchAll(/<(?:select|insert|delete|update)\s+id="([^"]+)"/g)) {
+        const key = `${namespace}.${match[1]}`
+        seen.set(key, (seen.get(key) ?? 0) + 1)
+      }
+    }
+    expect(seen.size, '一条语句都没解析出来：解析口径失效').toBeGreaterThan(50)
+    const duplicated = [...seen.entries()].filter(([, count]) => count > 1).map(([key, count]) => `${key} × ${count}`)
+    expect(duplicated, '这些语句 id 出现了不止一次：MyBatis 在启动解析时抛 already contains value（含同文件内的重复块）')
+      .toEqual([])
+  })
+
+  it('引擎两侧都接上了：读回了对象图、写同步了中间表、外键在落库前同步', () => {
+    const engine = readJavaCode(ENGINE)
+    const find = methodBody(engine, 'private @NotNull List<E> find(')
+    expect(find, '列表查询没回填关系对象图：列表页的 row.material.code 会整列消失').toContain('hydrate(')
+    const findPage = methodBody(engine, 'private @NotNull PageData<E> findPage(')
+    expect(findPage, '分页查询没回填关系对象图').toContain('hydrate(')
+    const getById = methodBody(engine, 'private @NotNull E getById(Long id)')
+    expect(getById, '单条查询没回填关系对象图：单据详情页的关系字段会是空的').toContain('hydrate(')
+    const persist = methodBody(engine, 'private long persist(')
+    expect(persist, '落库后没同步多对多中间表：授权/角色这类设置会写不进去（用户以为改了，其实一行没动）')
+      .toContain('syncManyToMany(')
+    expect(readJavaCode(join(SERVER, 'framework/curd/base/RelationMapping.java')), '@InputOnly 只在实体上标了、RelationMapping 没跳过：那条"没有外键字段"的关系会走进同步逻辑')
+      .toContain('isAnnotationPresent(InputOnly.class)')
+    const repo = readJavaCode(REPO_BASE)
+    expect(repo.match(/RelationMapping\.syncForeignKeys\(/g)?.length ?? 0, 'save / saveWithNull 都要在落库前同步外键（关系对象 → 标量列）')
+      .toBeGreaterThanOrEqual(2)
+  })
+})
+
 describe('mask contract · 读侧 Mapper（P2 换轨的注册面）', () => {
   const RESOURCES = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources')
   const MAPPER_XML_DIR = join(RESOURCES, 'mapper')
@@ -1852,14 +2006,15 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
   const TEST_SCHEMA = join(ROOT, 'SPMS-Server', 'src', 'test', 'resources', 'schema-test.sql')
   const YML = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'application.yml')
   const PARITY_TABLE = 'data_permission_orm_parity_log'
+  const snake = (value: string): string => value.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()
 
   it('对账表名三处同源：建库脚本 / 实体 / H2 测试 schema', () => {
     const ddl = read(INIT_SQL)
     expect(ddl, `init.sql 里没有 ${PARITY_TABLE}：生产上是"实体在、表不在"，`
     + '启动期 ddl-auto=validate 直接崩，而 H2 那边因为另有手抄 schema 完全不会红')
       .toContain(`CREATE TABLE IF NOT EXISTS \`${PARITY_TABLE}\``)
-    expect(read(PARITY_ENTITY), '对账实体没把表名钉在 @Table 上：那三处同源就无从对起')
-      .toContain(`@Table(name = "${PARITY_TABLE}")`)
+    expect(read(PARITY_ENTITY), '对账实体没把表名钉在 @TableName 上：那三处同源就无从对起')
+      .toContain(`@TableName("${PARITY_TABLE}")`)
     expect(read(TEST_SCHEMA), 'H2 测试 schema 里没有这张表：对账用例会在"表不存在"上红，'
     + '而那条红看起来像业务缺陷，实际是缺一份手抄')
       .toContain(PARITY_TABLE)
@@ -1867,7 +2022,7 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
     // 实体声明的每一列都要在建库脚本里出现（ddl:check 也查这件事，但它跑在 Web job；
     // 这里只查表名与列名是否同现于那份 CREATE TABLE，出错时 annotation 更早、更靠近改代码的人）
     const block = ddl.slice(ddl.indexOf(`CREATE TABLE IF NOT EXISTS \`${PARITY_TABLE}\``))
-    const columns = [...readJavaCode(PARITY_ENTITY).matchAll(/@Column\(name = "([a-z_]+)"/g)].map(m => m[1])
+    const columns = [...readJavaCode(PARITY_ENTITY).matchAll(/^\s*private\s+\w+\s+(\w+)\s*;/gm)].map(m => snake(m[1]))
     // 列数写死是有意的：加列时必须同时改迁移脚本、H2 手抄与这个数字，
     // 少改一处就会在这里红 —— 换成"至少 12 列"就变成一条永远过的计数
     // 12 → 11（2026-09-18 去 JPA）：实体里**冗余重声明**的 `@Id private Long id` 被删掉
