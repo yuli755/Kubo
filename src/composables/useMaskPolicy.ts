@@ -20,7 +20,7 @@ import { useUserStore } from '@/stores/user'
  * `my-mask` 的返回值是**按用户解析**的结果，所以缓存键不能只有 `resourceKey#field`。
  * 这里用"当前会话 token 变了就整表清空"来兜住：token 在登录 / 登出 / refresh 时都会变，
  * 因此不会出现"A 用户的明文策略被 B 用户命中"。（历史上后端行权限缓存就因为这个串过号，
- * 见 `SPMS-Server` 里 `JpaPermissionRuleProvider` 的注释。）
+ * 见 `SPMS-Server` 里 `CachedPermissionRuleProvider` 的注释。）
  *
  * ## 失败取向
  *

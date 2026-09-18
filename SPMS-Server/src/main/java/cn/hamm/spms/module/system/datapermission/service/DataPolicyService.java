@@ -104,7 +104,7 @@ public class DataPolicyService extends BaseService<DataPolicyEntity, DataPolicyR
     /**
      * 按资源取全部启用中的行级策略（跨动作），管理端盘点用
      *
-     * <p>刻意<b>不</b>走 {@code JpaPermissionRuleProvider} 那份缓存：它的键是
+     * <p>刻意<b>不</b>走 {@code CachedPermissionRuleProvider} 那份缓存：它的键是
      * {@code resourceId + action.name()}，而盘点要看的正是"不在任何合法动作里"的行。
      * 塞进同一缓存会凭空多出第三种键语义，收益只是省一次几十行的表扫描。</p>
      *
@@ -122,7 +122,7 @@ public class DataPolicyService extends BaseService<DataPolicyEntity, DataPolicyR
     /**
      * 全部启用中的行级策略（跨资源），管理端「策略指向缺失资源」盘点用
      *
-     * <p>同样刻意不走 {@code JpaPermissionRuleProvider} 缓存：它的键是 {@code resourceId + action}，
+     * <p>同样刻意不走 {@code CachedPermissionRuleProvider} 缓存：它的键是 {@code resourceId + action}，
      * 而这里要看的正是「资源引用坏掉」的行 —— 反过来从策略出发，按资源遍历会漏掉它们。</p>
      *
      * @return 启用中的策略，按 priority 降序；无则空列表

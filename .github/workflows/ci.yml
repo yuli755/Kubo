@@ -110,6 +110,13 @@ jobs:
       - name: JPA 足迹棘轮（文件 / 引用 / import 只许降）
         run: pnpm jpa:check -- --check
 
+      # 整域拆除（MES/IoT/chat…）之后最容易留下的东西：**mapper XML 还在，Java 接口没了**。
+      # MyBatis 按 namespace 找接口时把 ClassNotFoundException 吞成 debug 日志，所以上下文照起、
+      # 测试照绿、`pnpm check` 照过 —— 历史事实：MES 拆完三个月，`mapper/mes/*.xml` 六份仍在仓库里
+      # 当"假证据"。本步判 namespace 必须落到真实存在的 .java，另查重复注册与空壳 XML。
+      - name: Mapper XML 命名空间落地（namespace 必须指向存在的接口）
+        run: pnpm mapper:check
+
       # 换底座/砍功能之后最容易留下的东西：**没有任何 import 指向的文件**（旧适配器、被替代的
       # 组件、删了一半的模块）。它们不进 bundle，体积门禁与测试都发现不了，只能靠静态引用图。
       # 脚本保守判定：相对路径/别名/动态 import/路径字符串（路由与菜单靠字符串懒加载页面）都算引用；

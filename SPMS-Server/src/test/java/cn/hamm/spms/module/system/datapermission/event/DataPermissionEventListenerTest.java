@@ -4,7 +4,7 @@ import cn.hamm.spms.framework.redis.RedisHelper;
 import cn.hamm.spms.module.factory.storage.StorageHierarchyIndex;
 import cn.hamm.spms.module.personnel.department.DepartmentHierarchyIndex;
 import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;
-import cn.hamm.spms.module.system.datapermission.service.JpaPermissionRuleProvider;
+import cn.hamm.spms.module.system.datapermission.service.CachedPermissionRuleProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,7 +41,7 @@ class DataPermissionEventListenerTest {
     private RedisHelper redisHelper;
 
     @Mock
-    private JpaPermissionRuleProvider ruleProvider;
+    private CachedPermissionRuleProvider ruleProvider;
 
     @Mock
     private DataFieldPolicyService dataFieldPolicyService;

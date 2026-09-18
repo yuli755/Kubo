@@ -1096,7 +1096,7 @@ describe('mask contract · 部门层级闭包与主体判定只有一份', () =>
 
     const copies = [
       [join(DPM, 'service', 'DataPermissionService.java'), '管理端'],
-      [join(DPM, 'service', 'JpaPermissionRuleProvider.java'), '运行时（带缓存）'],
+      [join(DPM, 'service', 'CachedPermissionRuleProvider.java'), '运行时（带缓存）'],
       [join(TEST_SRC, 'module/system/datapermission/service/TestPermissionRuleProvider.java'), '测试替身'],
     ] as const
     for (const [file, label] of copies) {

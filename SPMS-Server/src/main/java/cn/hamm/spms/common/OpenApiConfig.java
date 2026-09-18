@@ -39,34 +39,39 @@ public class OpenApiConfig {
     public OpenAPI openAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("Kubo 智能生产管理系统 API 文档")
+                        .title("Kubo 物流仓储管理系统 API 文档")
                         .description("""
-                                Kubo 智能生产管理系统后端接口文档
+                                Kubo 物流仓储管理系统后端接口文档
 
-                                ## 功能模块
-                                - **系统管理**: 用户、角色、权限、菜单、字典、日志
-                                - **人事管理**: 员工、组织架构、考勤、薪资
-                                - **仓储管理**: 入库、出库、库存、盘点、波次
-                                - **制造执行**: 工单、工序、排程、质检、设备
-                                - **工厂建模**: 车间、产线、工位、BOM、工艺
-                                - **资产设备**: 台账、点检、维修、备件
-                                - **采购管理**: 询价、订单、到货、对账
-                                - **销售管理**: 报价、订单、发货、开票、回款
-                                - **财务核算**: 凭证、科目、成本、报表
-                                - **物联网关**: 设备接入、遥测、报警、规则
+                                ## 功能模块（与实际 Controller 一一对应，不写"计划中"的能力）
+                                - **系统管理**: 权限、菜单、系统配置、编号规则、操作日志
+                                - **数据权限**: 数据资源登记、行级策略、列级脱敏（三种出口：读/写/导出）
+                                - **人事组织**: 用户、角色、部门
+                                - **仓储管理 WMS**: 入库、出库、移库、库存（含明细）
+                                - **渠道管理**: 客户、供应商、采购单/采购价、销售单/销售价
+                                - **资产管理**: 物料主数据、合同（含附件与参与人）
+                                - **工厂建模**: 仓库、库位结构（树）
+
+                                > 历史上本文档还列过"制造执行 / 质量管理 / 物联网关 / 财务核算"，
+                                > 那些模块（MES/QMS/IoT/财务）已在 2026-09 的瘦身中整域拆除
+                                > （见 `docs/瘦身执行记录·第三批.md`）。别再按旧文案对接。
 
                                 ## 认证方式
-                                - **JWT Bearer Token**: 标准 OAuth2.1 / OIDC 认证
-                                - **刷新令牌**: 支持 Access Token 无感刷新
+                                - **JWT Bearer Token**: `Authorization: Bearer <token>`（HS256，单密钥，
+                                  TTL 默认 1 天）；密钥由 `SPMS_API_ACCESS_TOKEN_SECRET` 注入，生产必配
+                                - **没有刷新令牌**：过期即重新登录（全仓无 refresh 端点，见 `docs/JWT密钥轮换SOP.md`）
 
                                 ## 权限模型
-                                - **RBAC**: 基于角色的访问控制
-                                - **行级权限**: 数据隔离 (仓库/车间/租户)
-                                - **列级权限**: 字段级脱敏 (金额/手机号/身份证)
+                                - **RBAC**: 角色 → 权限标识（`pnpm perms:check` 保证前后端码值一致）
+                                - **行级权限**: 主体维度 USER / DEPARTMENT / FACTORY / WAREHOUSE / TENANT；
+                                  `kubo.data-permission.mode = off | shadow | enforce` 三态可灰度
+                                - **列级权限**: 字段级脱敏（金额 / 手机号 / 身份证），**读、写、导出三个出口分别拦**
 
-                                ## 幂等与事务
-                                - **幂等键**: `Idempotency-Key` Header 自动幂等
-                                - **分布式事务**: Seata AT 模式强一致
+                                ## 已知边界（写清楚，免得对接方按想象开发）
+                                - **没有** `Idempotency-Key` 实现：重复提交由业务唯一键与状态机兜底（旧文案里那句
+                                  "Header 自动幂等"是规划稿，已从本文档移除）；
+                                - **没有**分布式事务组件（无 Seata / 无 MQ）：跨表一致性靠单库事务 +
+                                  Outbox 表（`permission_change_outbox`，消费侧需自建）。
                                 """)
                         .version("1.0.0")
                         .license(new License()
@@ -86,13 +91,12 @@ public class OpenApiConfig {
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
                                 .description("JWT Access Token 认证，格式: Bearer <token>"))
-                        .addSecuritySchemes("idempotencyKey", new SecurityScheme()
-                                .type(SecurityScheme.Type.APIKEY)
-                                .in(SecurityScheme.In.HEADER)
-                                .name("Idempotency-Key")
-                                .description("幂等键，用于防止重复提交，建议使用 UUID v4"))
                 )
-                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
-                .addSecurityItem(new SecurityRequirement().addList("idempotencyKey"));
+                // 全局只挂 bearerAuth。
+                // 这里曾经还声明过一个 `Idempotency-Key` 头并挂成全局 SecurityRequirement，
+                // 但仓库里从来没有它的实现（grep `Idempotency-Key` 只有这一处）——
+                // 生成式客户端会据此给每个请求塞一个被忽略的头，读者则会以为有幂等保护。
+                // 「文档声明了、代码没有」正是我们要清的那类失真，所以直接删掉声明。
+                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"));
     }
 }

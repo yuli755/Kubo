@@ -15,18 +15,27 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * <h1>JPA 权限规则提供者</h1>
+ * <h1>权限规则提供者（带缓存版）</h1>
+ *
+ * <p>生产档（{@code @Profile("!test")}）的实现：仓储取数 + Spring 缓存注解。测试档的替身是
+ * {@code TestPermissionRuleProvider}，两者共用 {@link PermissionRuleProvider} 契约。</p>
+ *
+ * <p><b>名字史（2026-09-18）</b>：本类原名 {@code JpaPermissionRuleProvider} —— 那时它确实
+ * 是走 JPA 的那一份。J4 删掉 JPA 之后，实现体已经是 MyBatis-Plus 仓储（{@code DataResourceRepository}
+ * / {@code DataPolicyRepository} 都建在 {@code BaseMapper} 上），名字里的 "Jpa" 只剩误导：
+ * 读代码的人会以为仓库里还有一份 JPA 实现。故更名为 {@code CachedPermissionRuleProvider}，
+ * 把它的特征（唯一带 Spring 缓存的那个实现）写进名字。</p>
  *
  * @author Hamm.cn
  */
 @Slf4j
 @Service
 @Profile("!test")
-public class JpaPermissionRuleProvider implements PermissionRuleProvider {
+public class CachedPermissionRuleProvider implements PermissionRuleProvider {
     private final DataResourceRepository resourceRepository;
     private final DataPolicyRepository policyRepository;
 
-    public JpaPermissionRuleProvider(DataResourceRepository resourceRepository, DataPolicyRepository policyRepository) {
+    public CachedPermissionRuleProvider(DataResourceRepository resourceRepository, DataPolicyRepository policyRepository) {
         this.resourceRepository = resourceRepository;
         this.policyRepository = policyRepository;
     }

@@ -11,7 +11,7 @@ import cn.hamm.spms.module.system.datapermission.service.DataPermissionService;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionResourceResolver;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
-import cn.hamm.spms.module.system.datapermission.service.JpaPermissionRuleProvider;
+import cn.hamm.spms.module.system.datapermission.service.CachedPermissionRuleProvider;
 import cn.hamm.spms.module.system.datapermission.service.PermissionRuleProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,7 +55,7 @@ class DataPermissionGuardCudTest {
 
     @BeforeEach
     void setUp() {
-        PermissionRuleProvider ruleProvider = new JpaPermissionRuleProvider(resourceRepository, policyRepository);
+        PermissionRuleProvider ruleProvider = new CachedPermissionRuleProvider(resourceRepository, policyRepository);
         DataPermissionService service = new DataPermissionService(ruleProvider);
         // 默认 mode=shadow、deny-unregistered=false，与 application.yml 的出厂值一致：
         // 用例断言的是「这套配置下会怎样」，而不是「随便一个配置下会怎样」

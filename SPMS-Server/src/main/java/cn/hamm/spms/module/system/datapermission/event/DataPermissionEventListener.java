@@ -4,7 +4,7 @@ import cn.hamm.spms.core.Json;
 import cn.hamm.spms.framework.redis.RedisHelper;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;
-import cn.hamm.spms.module.system.datapermission.service.JpaPermissionRuleProvider;
+import cn.hamm.spms.module.system.datapermission.service.CachedPermissionRuleProvider;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +33,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class DataPermissionEventListener implements ApplicationRunner, MessageListener {
     private final RedisHelper redisHelper;
-    private final JpaPermissionRuleProvider ruleProvider;
+    private final CachedPermissionRuleProvider ruleProvider;
     private final DataFieldPolicyService dataFieldPolicyService;
     private final cn.hamm.spms.module.personnel.department.DepartmentHierarchyIndex departmentHierarchyIndex;
     private final cn.hamm.spms.module.factory.storage.StorageHierarchyIndex storageHierarchyIndex;

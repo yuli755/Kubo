@@ -8,20 +8,17 @@ spring:
     url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;INIT=RUNSCRIPT FROM 'classpath:schema-test.sql'
     username: sa
     password:
-  # 禁用缓存，避免 airpower RedisConfigurer bean 冲突
+  # 测试不吃真实缓存：`type: none` 让 Boot 走 NoOp 缓存管理器。
+  # （本仓 `framework/redis/RedisConfigurer` 仍会声明一个 `CacheManager`，但它只在真的调
+  #  `@Cacheable` 时才连 Redis；现有用例不依赖缓存命中，缓存相关断言都走桩。）
   cache:
     type: none
 
-# 禁用 Redis / MQTT（测试时使用内存 Map 代替）
-airpower:
-  redis:
-    enabled: false
-    host: localhost
-    port: 6379
-  mqtt:
-    enabled: false
-    host: localhost
-    port: 1883
+# 这里原本还有一段 `airpower.redis.*` / `airpower.mqtt.*`，2026-09-18 删除：
+# airpower 整体退场后**没有任何代码读 `airpower.*`**，它是纯死配置（MQTT 也在更早的
+# WebSocket/MQTT 残栈清理里移除）。删它的同时把 `pnpm airpower:backend -- --check`
+# 的扫描面从 `src/main/resources` 扩到了 `src/test/resources` —— 否则这几行会一直
+# 藏在测试资源里，而门禁照样打印「yml 0 配置键」（空转的闸门）。
 
 # 关闭开发模式，防止 DevDataInitRunner 运行
 app:

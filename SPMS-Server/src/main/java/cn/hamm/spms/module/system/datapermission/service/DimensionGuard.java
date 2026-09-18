@@ -8,7 +8,7 @@ import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties
  * <p>工厂（FACTORY）维度在数据模型上是<b>恒空</b>的：没有 {@code user_factory} 关系表，
  * {@code PermissionContext.factoryIds()} 永远是空集合。于是：</p>
  * <ul>
- *   <li>{@code DataPermissionService} / {@code JpaPermissionRuleProvider} 的主体匹配
+ *   <li>{@code DataPermissionService} / {@code CachedPermissionRuleProvider} 的主体匹配
  *       写成 {@code context.factoryIds().contains(subjectId)} —— 空集合里永远不含任何 id，
  *       <b>任何人配的 FACTORY 策略对任何人都不会命中</b>；</li>
  *   <li>若某资源只配了 FACTORY 策略，读链路的结果是"等价于没配策略"（除非资源开了默认拒绝）
@@ -41,7 +41,7 @@ public final class DimensionGuard {
      * <ol>
      *   <li>建 {@code user_factory} 关系表并回填历史数据；</li>
      *   <li>{@code PermissionContext.factoryIds()} 真的从该表解析（当前恒为空集合）；</li>
-     *   <li>{@code DataPermissionService} / {@code JpaPermissionRuleProvider} 的主体匹配
+     *   <li>{@code DataPermissionService} / {@code CachedPermissionRuleProvider} 的主体匹配
      *       走的是同一份 factoryIds（否则改了这边、那边仍然恒不命中）。</li>
      * </ol>
      *

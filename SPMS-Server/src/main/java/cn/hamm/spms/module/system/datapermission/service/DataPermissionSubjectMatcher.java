@@ -7,7 +7,7 @@ import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
  * <h1>策略主体可达性判定（"这条策略对当前人算不算数"，只此一份）</h1>
  *
  * <p>同一套 subjectType 规则此前被抄了三份：{@code DataPermissionService#matchesSubject}（管理端预览与
- * 可达性列表用）、{@code JpaPermissionRuleProvider#matchesSubject}（带缓存的运行时提供者）、
+ * 可达性列表用）、{@code CachedPermissionRuleProvider#matchesSubject}（带缓存的运行时提供者）、
  * {@code TestPermissionRuleProvider}（测试替身）。抄写的代价不是重复代码，而是<b>会各自漂移</b>：
  * 三份对 {@code TENANT} / {@code USER} 的 null 处理就写得不一样（有的直接 {@code equals} 会 NPE），
  * 加一个维度（比如工厂）必然漏一处。收口后取<b>三份里最防御</b>的那份语义。</p>

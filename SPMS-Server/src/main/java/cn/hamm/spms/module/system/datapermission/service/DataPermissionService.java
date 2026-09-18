@@ -63,8 +63,8 @@ public class DataPermissionService {
         // 主体筛选优先走 provider 的 policiesFor（缓存边界外的方法），
         // 其他实现（如后续 gRPC）若未提供，则退化为"取回后本地筛选"，
         // 但绝不允许"缓存里已经筛过一遍"。
-        if (ruleProvider instanceof JpaPermissionRuleProvider jpa) {
-            return jpa.policiesFor(resource, action, context);
+        if (ruleProvider instanceof CachedPermissionRuleProvider cached) {
+            return cached.policiesFor(resource, action, context);
         }
         return ruleProvider.getPolicies(resource, action, context).stream()
                 .filter(policy -> matchesSubject(policy, context))
@@ -75,7 +75,7 @@ public class DataPermissionService {
      * 兜底实现的主体匹配：直接复用 {@link DataPermissionSubjectMatcher}，与运行时提供者同一份判据
      */
     private boolean matchesSubject(DataPolicyEntity policy, PermissionContext context) {
-        // 判定本体在 DataPermissionSubjectMatcher：带缓存的 JpaPermissionRuleProvider 走的是同一份。
+        // 判定本体在 DataPermissionSubjectMatcher：带缓存的 CachedPermissionRuleProvider 走的是同一份。
         // 这里原来抄了一份，两处的 null 处理还不一致 —— "预览说策略可达、运行时判它不可达"就是这么来的
         return DataPermissionSubjectMatcher.matches(policy, context);
     }

@@ -32,7 +32,7 @@ public interface DataFieldPolicyProvider {
      * 身份相关（角色命中、优先级选择）必须由调用方在内存里做。
      * 把 {@code matchesSubject(...)} 之类放进 {@code @Cacheable} 方法内部，
      * 就会重现"甲用户的策略被乙用户命中"的串号事故
-     * （参见 {@code JpaPermissionRuleProvider} 里的同类教训）。</p>
+     * （参见 {@code CachedPermissionRuleProvider} 里的同类教训）。</p>
      *
      * @param resourceKey 数据资源标识（如 channel.salePrice）
      * @param actionName  动作名（如 QUERY）；资源未注册时返回空列表

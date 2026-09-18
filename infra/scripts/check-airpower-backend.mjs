@@ -161,7 +161,15 @@ const pomDependencies = [...pom.matchAll(/<artifactId>(airpower[\w-]*)<\/artifac
 const parentAirpower = /<parent>[\s\S]*?<artifactId>airpower<\/artifactId>/.test(pom)
 
 const ymlHits = []
-for (const yml of walk(path.join(SERVER, 'src', 'main', 'resources')).filter(f => /\.ya?ml$/.test(f))) {
+// 扫描面 = main + test 两处 resources。
+// 2026-09-18 补的漏洞：原来只扫 `src/main/resources`，于是 `src/test/resources/application-test.yml`
+// 里那 4 行 `airpower.redis.*` / `airpower.mqtt.*` 一直存在（框架层自持后没人读它，
+// 是纯死配置），而门禁照样报「yml 0 配置键」——**空转的闸门比没有闸门更危险**。
+const ymlFiles = [
+  ...walk(path.join(SERVER, 'src', 'main', 'resources')),
+  ...walk(path.join(SERVER, 'src', 'test', 'resources')),
+].filter(f => /\.ya?ml$/.test(f))
+for (const yml of ymlFiles) {
   const lines = fs.readFileSync(yml, 'utf8').split('\n')
   lines.forEach((line, index) => {
     if (/^\s*airpower\s*:/.test(line)) {
