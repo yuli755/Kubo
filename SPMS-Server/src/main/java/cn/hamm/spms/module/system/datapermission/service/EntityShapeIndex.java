@@ -167,7 +167,7 @@ public final class EntityShapeIndex {
             if (isAssociation(field)) {
                 associations.add(field.getName());
                 // 只再展开这一层：owner_columns 允许登记 storage.id，盘点就必须能判断 storage 上有没有 id。
-                // 不做两层以上，与 JpaPathResolver 的一跳封顶保持一致 —— 多展开的那一层是假的能力，
+                // 不做两层以上，与 OwnerColumnRegistration 的一跳封顶保持一致 —— 多展开的那一层是假的能力，
                 // 而且自引用实体（父节点指向同表）会在这里绕成死循环
                 associationAttributes.put(field.getName(), attributesOf(field.getType()));
                 continue;

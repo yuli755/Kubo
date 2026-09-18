@@ -6,11 +6,11 @@ import java.util.List;
  * <h1>权限条件树（受控 AST）</h1>
  *
  * <p>{@code data_policy.condition_json} 解析后的<b>唯一</b>表示形式。
- * 三个消费方共用同一棵树，因此不可能出现"JPA 侧和 SQL 侧判定不一致"：</p>
+ * 三个消费方共用同一棵树，因此不可能出现"注入的条件与对账的条件不是同一份"：</p>
  * <ul>
- *   <li>{@link JpaPermissionRuleCompiler} —— JPA Criteria（当前读链路）；</li>
- *   <li>{@link SqlPermissionRuleRenderer} —— 带命名参数的 SQL 片段（P2 MyBatis 拦截器）；</li>
- *   <li>{@link PermissionRuleEvaluator} —— 内存求值（影子比对与测试基准）。</li>
+ *   <li>{@link SqlPermissionRuleRenderer} —— 带命名参数的 SQL 片段（唯一注入出口：wrapper / 拦截器）；</li>
+ *   <li>{@link PermissionRuleEvaluator} —— 内存求值（诊断与测试基准）；</li>
+ *   <li>{@code DataPermissionSpecification} 的影子对账 —— 直接数渲染产物的行数。</li>
  * </ul>
  *
  * <p>设计约束：叶子只能引用 {@code field} + {@code value}/{@code contextVar}，
@@ -83,10 +83,8 @@ public sealed interface PermissionRule {
      * 两套读语义要并存，判据必须先只有一份 —— 于是把"判据"做成节点，把"怎么绑到各自的列"
      * 留给各渲染器：</p>
      * <ul>
-     *   <li>JPA：{@link JpaPathResolver#resolve} 逐个候选试绑，绑不上的跳过（跳过导致整棵无贡献时，
-     *       由 {@code DataPermissionSpecification} 计入绑定失败，enforce 下恒假）；</li>
      *   <li>SQL：没有实体元模型可问，只能按登记的顺序取（见 {@link SqlPermissionRuleRenderer} 里
-     *       {@code candidateFields} 的处理）；登记成关联路径（{@code storage.id}）时 JPA 侧能沿一跳绑上，
+     *       {@code candidateFields} 的处理）；登记成关联路径（{@code storage.id}）时按本表外键列取；
      *       SQL 侧要显式 JOIN，因此那里是<b>明确拒绝</b>而不是猜一个列名 —— 猜出来的列名一旦与别的列同名，
      *       表现是"多放行一些行"，查不出来。</li>
      * </ul>

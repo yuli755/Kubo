@@ -26,14 +26,8 @@ spring:
       leak-detection-threshold: 60000
   # 数据库脚本（无迁移框架）：结构与数据只在 infra/init-sql/{init,init_data}.sql 两份文件里，
   # 由 compose 首次启动挂载执行（docker-entrypoint-initdb.d）或手动 mysql < 文件。
-  # 这里刻意不留任何自动建表/改表开关：应用只做校验（ddl-auto: validate，见下）。
-  jpa:
-    database-platform: org.hibernate.dialect.MySQL8Dialect
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        column_ordering_strategy: legacy
+  # 这里刻意不留任何自动建表/改表开关：J4 起 spring.jpa（含 ddl-auto）整体退场，
+  # "实体 ↔ 库表"是否一致改由 pnpm ddl:check 与 schemaContract.spec.ts 在 CI 里判。
   mail:
     properties:
       mail:
@@ -138,24 +132,23 @@ kubo:
     # mode=shadow 且名单为空 / mode=off 时不触发 readiness 查询；一旦名单或全局档位实际进入 enforce，
     # ApplicationReadyEvent 会复用 /dataResource/enforce-readiness，任何阻塞项未通过都拒绝启动，不设 bypass 开关。
     enforce-resources: []
-    # 读侧 Mapper（P2 · A2「读走 Mapper，写留 JPA」）：默认 false = 容器里一个 Mapper Bean 都没有，
-    # 而不是"注册了但不用"，所以"关掉 = 与换轨前逐字节相同"这句话是可验的（MybatisJpaCoexistenceTest 钉住）。
-    # 它同时是 ORM 对账的唯一开关（§19.36）：RowParityRegistry 这个 Bean 就挂在本类上，
-    # 关着 ⇒ 探针表不存在 ⇒ ShadowDiffService 连第三个 COUNT 都不发，enforce-readiness 的 ORM_PARITY
-    # 那一档对每个资源都报"不适用"（不是"通过"）。刻意不加第二个开关：两个旋钮管同一件事，
-    # 迟早出现"探针没注册但 Mapper 已注册"这种半开状态，那种比全关难查。
-    # 打开之后仍然没有生产读端点（列表/详情/统计/导出还在 JPA）：现在多出来的只有对账证据。
+    # 读侧 Mapper（P2 读链路换轨）：默认 false = 容器里一个 Mapper Bean 都没有，
+    # 而不是"注册了但不用"，所以"关掉 = 读路径整体不存在"这句话是可验的（PersistenceStackTest 钉住）。
+    # J4（2026-09-18）之后它只做一件事：按开关注册读侧 Mapper 与权限拦截器。
+    # 原先还挂着"JPA 侧 vs Mapper 侧"行数对账的探针注册表 —— 那套对账随
+    # spring-boot-starter-data-jpa 一起退场（只剩一条渲染/读取路径，没有第二个 ORM 可比），
+    # 影子取证改由 ShadowDiffService 在两种注入路径上各交一次片段（见 docs §9.8）。
     mapper-read:
       enabled: false
     # 工厂维度落地开关（D13-B 起默认开）：user_factory 表 + 真实解析 factoryIds 都已接线，
-    # 启动期 FactoryDimensionReadiness 还会核对元模型，缺链路会直接启动失败而不是假安全
+    # 启动期 FactoryDimensionReadiness 还会核对实体索引，缺链路会直接启动失败而不是假安全
     factory-dimension-enabled: true
-    # 影子双跑：同一次查询多打一次 COUNT，比较"加条件/不加条件"的行数差
-    # （差异写 data_permission_diff_log，见 docs/database/migration/20260907_*.sql）
+    # 影子比对：同一次查询多打两次 COUNT，比较"加条件/不加条件"的行数差
+    # （差异写 data_permission_diff_log；表结构在 infra/init-sql/init.sql）
+    # J4 起两次 COUNT 都走同一条生产路径（实体仓储 + wrapper），不再有第二个 ORM
     shadow:
       sample-rate: 0.02
       persist: true
-      max-detail-rows: 200
       # 证据留存：默认关闭且可审计；完成数据库备份/归档后，再显式打开滚动清理
       retention-cleanup-enabled: false
       retention-days: 30

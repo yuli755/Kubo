@@ -8,14 +8,6 @@ spring:
     url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;INIT=RUNSCRIPT FROM 'classpath:schema-test.sql'
     username: sa
     password:
-  jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
-    hibernate:
-      ddl-auto: none
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
   # 禁用缓存，避免 airpower RedisConfigurer bean 冲突
   cache:
     type: none

@@ -52,18 +52,6 @@
         </if>
     </sql>
 
-    <sql id="planParityFilter">
-        <if test="billCode != null and billCode != ''">
-            AND bill_code LIKE CONCAT('%', #{billCode}, '%')
-        </if>
-        <if test="status != null">
-            AND status = #{status}
-        </if>
-        <if test="type != null">
-            AND type = #{type}
-        </if>
-    </sql>
-
     <select id="selectPageByPermission" resultMap="planReadMap">
         SELECT <include refid="planColumns"/>
         FROM plan p
@@ -99,11 +87,4 @@
         <where><include refid="planFilter"/></where>
     </select>
 
-    <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM plan
-        <where>
-            <include refid="planParityFilter"/>
-            <if test="fragment != null and fragment != ''">AND ${fragment}</if>
-        </where>
-    </select>
 </mapper>

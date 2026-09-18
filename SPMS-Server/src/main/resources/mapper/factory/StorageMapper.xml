@@ -41,15 +41,6 @@
         </if>
     </sql>
 
-    <sql id="storageParityFilter">
-        <if test="filter != null and filter.code != null and filter.code != ''">
-            AND code LIKE CONCAT('%', #{filter.code}, '%')
-        </if>
-        <if test="filter != null and filter.name != null and filter.name != ''">
-            AND name LIKE CONCAT('%', #{filter.name}, '%')
-        </if>
-    </sql>
-
     <select id="selectPageByPermission" resultMap="storageReadMap">
         SELECT
         <include refid="storageColumns"/>
@@ -93,16 +84,6 @@
         FROM storage s
         <where>
             <include refid="storageFilter"/>
-        </where>
-    </select>
-
-    <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM storage
-        <where>
-            <include refid="storageParityFilter"/>
-            <if test="fragment != null and fragment != ''">
-                AND ${fragment}
-            </if>
         </where>
     </select>
 

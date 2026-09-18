@@ -49,21 +49,6 @@
         </if>
     </sql>
 
-    <sql id="bomParityFilter">
-        <if test="filter != null and filter.code != null and filter.code != ''">
-            AND code LIKE CONCAT('%', #{filter.code}, '%')
-        </if>
-        <if test="filter != null and filter.name != null and filter.name != ''">
-            AND name LIKE CONCAT('%', #{filter.name}, '%')
-        </if>
-        <if test="filter != null and filter.type != null">
-            AND type = #{filter.type}
-        </if>
-        <if test="filter != null and filter.status != null">
-            AND status = #{filter.status}
-        </if>
-    </sql>
-
     <select id="selectPageByPermission" resultMap="bomReadMap">
         SELECT
         <include refid="bomColumns"/>
@@ -107,16 +92,6 @@
         FROM bom b
         <where>
             <include refid="bomFilter"/>
-        </where>
-    </select>
-
-    <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM bom
-        <where>
-            <include refid="bomParityFilter"/>
-            <if test="fragment != null and fragment != ''">
-                AND ${fragment}
-            </if>
         </where>
     </select>
 

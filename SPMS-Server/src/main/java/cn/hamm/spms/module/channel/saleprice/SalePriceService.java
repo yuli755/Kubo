@@ -15,7 +15,6 @@ import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.channel.ChannelServices;
 import cn.hamm.spms.module.channel.customer.CustomerEntity;
 import cn.hamm.spms.module.channel.saleprice.mapper.SalePriceMapper;
-import cn.hamm.spms.module.channel.saleprice.mapper.SalePriceReadShadowService;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
@@ -42,13 +41,10 @@ public class SalePriceService extends BaseService<SalePriceEntity, SalePriceRepo
     private static final int MAX_READ_PAGE_SIZE = 200;
 
     /**
-     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留 JPA 回滚路径。
+     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留「关掉读侧就回到引擎读路径」的回滚位。
      */
     @Autowired(required = false)
     private SalePriceMapper salePriceMapper;
-
-    @Autowired
-    private SalePriceReadShadowService salePriceReadShadowService;
 
     @Autowired
     private ExportHelper exportHelper;
@@ -64,7 +60,7 @@ public class SalePriceService extends BaseService<SalePriceEntity, SalePriceRepo
     }
 
     /**
-     * 销售价分页读出口；写路径仍走 AirPower JPA。
+     * 销售价分页读出口；写路径走写侧仓储（`ICurdRepository` + mapper XML）。
      */
     public @NotNull QueryPageResponse<SalePriceEntity> getMapperPage(QueryPageRequest<SalePriceEntity> request) {
         QueryPageRequest<SalePriceEntity> normalized = request == null ? new QueryPageRequest<>() : request;
@@ -85,7 +81,6 @@ public class SalePriceService extends BaseService<SalePriceEntity, SalePriceRepo
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
         int offset = (int) offsetValue;
-        salePriceReadShadowService.submit(filter);
         List<SalePriceEntity> list = salePriceMapper.selectPageByPermission(filter, offset, pageSize)
                 .stream().map(this::hydrateRelations).toList();
         long total = salePriceMapper.countByPermission(filter);
@@ -111,7 +106,6 @@ public class SalePriceService extends BaseService<SalePriceEntity, SalePriceRepo
         if (!isMapperReadEnabled()) {
             return get(id);
         }
-        salePriceReadShadowService.submit();
         SalePriceEntity entity = salePriceMapper.selectDetailByPermission(id);
         return entity == null ? null : hydrateRelations(entity);
     }
@@ -125,7 +119,6 @@ public class SalePriceService extends BaseService<SalePriceEntity, SalePriceRepo
     public long getMapperCount(SalePriceEntity filter) {
         SalePriceEntity normalized = filter == null ? new SalePriceEntity() : filter;
         if (isMapperReadEnabled()) {
-            salePriceReadShadowService.submit(normalized);
             return salePriceMapper.countByPermission(normalized);
         }
         return filter(normalized).size();
@@ -140,7 +133,6 @@ public class SalePriceService extends BaseService<SalePriceEntity, SalePriceRepo
     public ReadStat getMapperStat(SalePriceEntity filter) {
         SalePriceEntity normalized = filter == null ? new SalePriceEntity() : filter;
         if (isMapperReadEnabled()) {
-            salePriceReadShadowService.submit(normalized);
             return salePriceMapper.statByPermission(normalized);
         }
         List<SalePriceEntity> rows = filter(normalized);
@@ -163,7 +155,6 @@ public class SalePriceService extends BaseService<SalePriceEntity, SalePriceRepo
     public String createMapperExportTask(QueryListRequest<SalePriceEntity> request) {
         SalePriceEntity filter = request == null || request.getFilter() == null
                 ? new SalePriceEntity() : request.getFilter();
-        salePriceReadShadowService.submit(filter);
         List<SalePriceEntity> rows = salePriceMapper.selectForExport(filter).stream()
                 .map(this::hydrateRelations).toList();
         List<SalePriceEntity> masked = ExportColumnMasker.maskForExport(rows);

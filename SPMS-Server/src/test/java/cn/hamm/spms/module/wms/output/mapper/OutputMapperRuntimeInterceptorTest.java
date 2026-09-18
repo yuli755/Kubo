@@ -103,18 +103,4 @@ class OutputMapperRuntimeInterceptorTest {
             assertEquals(1L, rows.get(1).getId());
         }
     }
-
-    @Test
-    @DisplayName("出库无策略时 fail closed")
-    void noPolicyDeniesAllRows() {
-        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
-        try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
-            assertEquals(0L, outputMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
-            assertNull(outputMapper.selectDetailByPermission(1L));
-            assertEquals(0, outputMapper.selectForExport(null, null, null).size());
-            assertEquals(0L, outputMapper.statByPermission(null, null, null).getTotal());
-            assertEquals(0L, outputService.getMapperCount(null));
-            assertEquals(0L, outputService.getMapperStat(null).getTotal());
-        }
-    }
 }

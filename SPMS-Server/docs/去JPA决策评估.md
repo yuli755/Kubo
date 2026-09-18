@@ -255,7 +255,14 @@ mysqldump -h 127.0.0.1 -u<user> -p --no-data --skip-comments --skip-add-drop-tab
 
 ## 9. 执行记录（2026-09-18，按域推进）
 
-### 9.1 先把尺子立起来：`pnpm jpa:check`（JPA 足迹棘轮）
+> **状态（2026-09-18 收口）：J1 / J2 / J3 / J4 全部已落地。** 本节是**按时间写的执行记录**，
+> 所以往下会读到"影子线仍在""只剩 J4""棘轮 30/122/77"这类**当时的**说法 —— 它们描述的是
+> 那一刻的状态，不是现在。当前终态看 §9.8.7：`spring-boot-starter-data-jpa` / `ddl-auto` /
+> ORM 对账线（`*ReadShadowService` / `RowParityRegistry` / `countByPermissionFragment` /
+> `data_permission_orm_parity_log`）全部退场；`pnpm jpa:check` 的足迹是 **0 文件 / 0 引用 / 0 import**，
+> 并已从棘轮换成三条硬判据（pom 无 starter、yml 无 `spring.jpa`/`ddl-auto`、实体零 JPA 注解）。
+
+### 9.1 先把尺子立起来：`pnpm jpa:check`（JPA 足迹棘轮；J4 后已换成归零硬判据，见 §9.8.7）
 
 去 JPA 和刚做完的 airpower 退场是同一类工程：**删除面大、单批收益不可见**。
 airpower 那轮靠 `pnpm airpower:backend` 把"还剩多少"变成数字，才有了"只许降"的节奏；
@@ -442,6 +449,8 @@ MyBatis-Plus 的 `MetaObjectHandler`（审计字段自动填充）正好是修�
    `JpaPermissionRuleCompiler`）：按 §10.5 的口径"换完之后应当只剩一条路径"，它们与
    `spring-boot-starter-data-jpa` 一起在 J4 退场；J3 之后`jpa:check` 的账就是它们（**30 个文件 / 122 处引用**，
    见 §9.7.7），实体注解那部分已经清零。
+   **（已完成：见 §9.8.7 —— 那一族文件与表全部删除，`ShadowDiffService` 改成 MP 单路径，
+   `JpaRowVisibilityProbe` 换成 `RowVisibilityProbe`。）**
 3. **create_time 隐患**（§9.3）：保持 `keep_bug`，只留记录。
 
 ### 9.7 J3 照做清单（2026-09-18，实体注解换 MP + 关系对象图）
@@ -620,6 +629,147 @@ MyBatis 在解析期会抛 `already contains value for ...`，也就是**启动�
 声明三件事：不是列、不参与外键同步、不参与对象图回填；`RelationMapping` 与门禁都按它跳过。
 这样"故意不落库"和"漏了"在 review 时是两种不同的写法。
 
+### 9.8 J4 照做清单（2026-09-18，去 starter + ddl-auto + 影子线收尾）
+
+> 这是去 JPA 的**最后一批**：前一批（§9.7）把 41 个实体的注解换成了 MyBatis-Plus，剩下的 30 个文件
+> （30 文件 / 122 引用 / 77 import）全在影子线上 —— 本批把它们连同 `spring-boot-starter-data-jpa`、
+> 三份 yml 里的 `spring.jpa`（含 `ddl-auto`）一起清掉，棘轮归零。
+
+#### 9.8.1 判据（可执行，先立起来）
+
+1. `pnpm jpa:check -- --check` 基线降到 **0 文件 / 0 引用 / 0 import**；
+2. 同一条门禁新增两条硬判据：**pom 里没有 `spring-boot-starter-data-jpa`**、
+   **任何 yml 里没有 `spring.jpa` / `ddl-auto`**（"只许降"的棘轮到 0 之后已经没有下降空间，
+   留着只会变成"有人写回来也不红"）；
+3. `@TableName` 空转守卫（≥30 个实体）与"实体上不许出现 JPA 映射注解"继续保留；
+4. 影子线的退场与"证据链不断"必须同时成立：`SHADOW_EVIDENCE`（正向样本 + 无异常）**继续是
+   enforce 放开的阻塞项**（§9.8.3）。
+
+#### 9.8.2 逐组件处置表（每一行都要么换 MP、要么退场，不留第三种状态）
+
+| 组件（J3 后的现状） | J4 处置 | 依据 |
+| --- | --- | --- |
+| `ShadowDiffService`：`EntityManager` + `Specification` 数两遍（不带条件 / 带条件），再数第三遍做 ORM 对账 | **保留"影子差异"这一问，换成 MP 单路径**：同一份渲染产物挂到 wrapper 上，基线 = 无条件、guarded = 带条件，两次 `count` 都走实体仓储 | §10.5 的口径是"只剩一条路径"。这一问本身（enforce 会少多少行）与 ORM 无关，且是 `EXPECTED_FILTER` 样本的唯一来源，不能一起删 |
+| `MapperShadowReadService` + 14 个 `*ReadShadowService`：为 14 个资源把"业务筛选"用 JPA Criteria 再写一遍，与 Mapper XML 的参数对账 | **整块删除**（14 个类 + 83 个 `submit(...)` 调用点 + 字段/import） | 那 14 份 Criteria 业务筛选本身就是**第三套真值**（XML/引擎各一份，它再一份）；"两套 ORM 数出来一不一样"这个问题在 J4 之后不存在 |
+| `RowParityCounter` / `RowParityRegistry` / 9 个 `countByPermissionFragment`（接口 + XML） | **整块删除** | 探针的唯一用途是给上面那条对账提供"第三个 COUNT" |
+| `data_permission_orm_parity_log`：实体、仓储、XML、`init.sql`、`schema-test.sql`、保留期清理、`ResourceRuntimeStatus` 四个字段、灰度页与看板列、`ORM_PARITY` readiness 档 | **整块删除** | 删掉生产者却留着表和面板 = "看起来有证据、实际永远空"；沿用本仓删表的三处同源纪律（实体/仓储 XML/DDL 一起走） |
+| `JpaPermissionRuleCompiler` / `JpaPathResolver` / `PermissionRuleSupport#findPath` | **删除** | 规则树 → SQL 只剩 `SqlPermissionRuleRenderer` 一条；`PermissionRuleSupport` 保留（`toCamel` / `toSnake` / `pathSegments` / `isIdentifier` 是渲染器在用的），只摘掉 JPA 类型的那几个成员 |
+| `JpaRowVisibilityProbe`（写侧"看得见才改得动"的 COUNT） | **换 MP**，类名去掉 `Jpa`：复用 `DataPermissionSpecification.applyQuery(wrapper, …)`（与读侧同一次建树、同一个渲染器）+ `eq(id)`，再走实体仓储 `selectCount` | 写侧守卫**不能**因为去 JPA 而少一层；原先用 `FlushModeType.COMMIT` 表达的"不拿改完之后的状态证明改之前有权"，在 MP 侧由"守卫在 `saveToDatabase` 之前调用 + MP 的 DML 立即执行"天然满足（写进类注释，别留给读者猜） |
+| `DataPermissionSpecification#buildPredicates` 一族（`apply` / `denyPredicates` / `describePredicates` / `buildPredicatesFromPolicies`） | **删除**（只留 `applyQuery` / `inject` / `renderFromPolicies`） | J2 起真实查询已走 wrapper，这一族只剩观测在用 |
+| `ShadowModeReadiness`（J3 的启动守卫：`mode≠off` 且 JPA 实体集合为空 → 拒启） | **删除** | 它守的是"实体注解换了、影子线还没换"的那个窗口；starter 一走，窗口连同守卫一起消失 |
+| `MybatisJpaCoexistenceTest` | **改判据不删测试**：断言容器里**只有** `DataSourceTransactionManager`、没有 `entityManagerFactory` Bean | 这条测试的价值是"回滚位/共存位"的回归信号，J4 之后它守的是反向事实：**两套 ORM 不许回来** |
+
+#### 9.8.3 单路径取证的接线（三处，别接出第四处）
+
+- **wrapper 路径**：`CurdService.createWrapper` → `addSearchPredicate` → `DataPermissionSpecification.applyQuery`
+  → SHADOW 档把本次渲染出的 `RowPermissionPredicate` 交给 `ShadowDiffService`；
+- **拦截器路径**：`KuboDataPermissionHandler` 在 SHADOW 档把同一批片段交给同一个 `ShadowDiffService`
+  （Mapper 读出口不走 wrapper，这里不接就等于"mapper-read 打开时没有证据"）；
+- **写侧探针**：`RowVisibilityProbe` 复用 `applyQuery`（不是自己拼条件），`enforce` 前一次 COUNT。
+- 探针数的是**实体仓储**（`EntityRepositories.bindingOf(entityClass)`）：解析不到就记一条
+  `diff:no-repository`（"无证据"≠"一致"），**不按类名推表名**（§19.34）。
+- 落库目标不变：`data_permission_diff_log`（`ANOMALY` / `ERROR` 继续让 readiness 红）。
+
+#### 9.8.4 依赖与配置面（删干净，别留空壳）
+
+| 位置 | 处置 |
+| --- | --- |
+| `pom.xml` | 删 `spring-boot-starter-data-jpa` 及其"过渡依赖"注释；H2（测试）、`spring-boot-starter-jdbc` 能力由 MyBatis-Plus starter 传递提供 —— 本机 `mvn -q compile` 若报 `spring-jdbc` 缺失，显式补 `spring-boot-starter-jdbc` |
+| `application.yml` | 删 `spring.jpa.*`（含 `database-platform` / `ddl-auto: validate` / `column_ordering_strategy`）与那行"应用只做校验（ddl-auto）"注释；结构校验改由 `pnpm ddl:check` + `schemaContract.spec.ts` 承担 |
+| `application-local.yml` / `application-production.yml` | 同上（本地不再有 Hibernate 的 `show-sql`；MyBatis 的 SQL 日志走 `mybatis-plus` 自己的配置） |
+| `src/test/resources/application-test.yml` | 删 `spring.jpa.*`；H2 建表本来就靠 `INIT=RUNSCRIPT FROM 'classpath:schema-test.sql'`，与 JPA 无关 |
+| 事务管理器 | `JpaTransactionManager` → Spring Boot 自动装配的 `DataSourceTransactionManager`（无需额外配置；由测试钉住类型） |
+
+#### 9.8.5 门禁与契约同批改（改判据，不放宽）
+
+- `check-jpa-usage.mjs`：基线 `0/0/0` + 上面 §9.8.1 的两条硬判据；关键词表保留（它现在的作用是
+  "谁把 JPA 写回来立刻红"）。
+- `maskContract.spec.ts`：原来那一组"对账面必须在"的判据改成**退场判据** —— 文件、实体、仓储 XML、
+  中间表、`RowParityRegistry` 的构造点、灰度页字段、`ORM_PARITY` 档都不许回来；
+  并把"读不到对账表不得当成没有差异"这条改成"`SHADOW_EVIDENCE` 拿不到 `EXPECTED_FILTER` 样本时必须阻塞"
+  （同一个语义，换到唯一活着的证据链上）。
+- `schema-test.sql`：删 `data_permission_orm_parity_log`（与 `init.sql` 同步）。
+
+#### 9.8.6 验证边界与需要你本机验的四件事
+
+沙箱没有 JDK / Maven，本批能验的仍是：`pnpm check` 全绿（24 道门禁 + 契约 + 前端用例）、
+`jpa:check --check` 归零、`ddl:check` / `schemaContract`（实体 ↔ `init.sql` 交叉）、
+`maskContract`（退场判据 + 空转守卫）。**编译与真库回归留本机**：
+
+1. `mvn -q compile`（starter 删除后事务管理器自动装配；如报 `spring-jdbc` 缺失见 §9.8.4）；
+2. `mvn -q test`（H2 集成测试）—— 重点看写侧 `RowVisibilityProbe` 与 `ShadowDiffService` 的 MP 计数；
+3. 真库一次 ENFORCE 回归：14 个资源的 page/detail + 写侧改他人工单应拒；
+4. 切一次 `mode: shadow`：`data_permission_diff_log` 应出现 `EXPECTED_FILTER` 样本，
+   `mapper-read.enabled=true` 打开时同一条链也要有样本（拦截器路径）。
+
+#### 9.8.7 J4 执行记录（2026-09-18，**已落地**）
+
+**依赖与配置面（§9.8.4 逐行兑现）**
+
+- `pom.xml`：删 `spring-boot-starter-data-jpa` 及其过渡注释；`spring-boot-starter-jdbc` 无需补 ——
+  MyBatis-Plus starter 传递提供（`DataSourceTransactionManager` 由 Boot 自动装配）。
+- 四份 yml：`application.yml`、`application-local.yml`、`application-production.yml`、
+  `src/test/resources/application-test.yml` 里的 `spring.jpa.*`（含 `ddl-auto`、`show-sql`、
+  `column_ordering_strategy`）全部删除。**production 那份的注释重写过**：原来写着"生产必须 validate：
+  schema 由迁移脚本受控变更"，删掉后那句话会变成无主句 —— 现在写成"校验从某个环境的启动期搬到
+  每次提交的 CI（`pnpm ddl:check` + `schemaContract.spec.ts`）"，语义没丢、载体换了。
+
+**影子线（§9.8.2 的处置表）**
+
+- **删除**：`MapperShadowReadService`、14 个 `*ReadShadowService`、`RowParityRegistry`、
+  `RowParityCounter`、`JpaRowVisibilityProbe`、`JpaPermissionRuleCompiler`、`JpaPathResolver`、
+  `ShadowModeReadiness`、`DataPermissionOrmParityEntity` / `Repository` / XML、
+  `data_permission_orm_parity_log`（`init.sql` + `schema-test.sql` 两处）、
+  18 条 `countByPermissionFragment` 探针用例（14 个 `*MapperRuntimeInterceptorTest`）与
+  main 侧 14 个 Mapper 接口 + XML 的方法/语句。
+- **保留并换轨**：`ShadowDiffService` 只剩一条路径 —— 同一份渲染产物挂到 wrapper 上数两遍
+  （无条件 = baseline、带条件 = guarded），两次都走实体仓储；换句话说是"加条件会不会少行"，
+  与 ORM 无关。`RowVisibilityProbe`（原 `JpaRowVisibilityProbe`）复用 `applyQuery` + `eq(id)`。
+- **新增**：`DataPermissionProbeContext`（探针旁路的窄口）。为什么必须加它：探针自己也要数行数，
+  而拦截器会往那条 COUNT 上**再注入一次**权限条件（于是 probe 数出来的永远是 0，写侧守卫
+  变成"人人都改不动"）。旁路只短路拦截器，不改判定 —— 类注释里写明了它**不是** `bypassDataPermission`
+  的别名（那个是给迁移任务用的语义开关，混用会让"谁在绕过"无从审计）。
+- **片段不带别名**：拦截器路径交给比对的片段用 `renderer.render(rule, null, ctx)` 重新渲染一遍
+  （同一个渲染器、同一棵树、同一个上下文，只差"带不带别名"）—— 因为比对数的是实体仓储的裸表查询
+  （`SELECT COUNT(*) FROM material`），带 `m.` 前缀在那个上下文里解析不到表。
+
+**接线（§9.8.3 的三处，没有第四处）**
+
+- wrapper 路径：`DataPermissionSpecification#inject` 的 SHADOW 分支 → `submitShadowDiff(entityClass, resourceKey, action, fragments, context)`；
+- 拦截器路径：`KuboDataPermissionHandler#submitShadowDiff`（实体类从 `KuboBaseMapper<T>` 的泛型参数解析，
+  解析不到记 `diff:no-entity`，**不按类名猜表名**）；
+- 写侧探针：`RowVisibilityProbe#visible` → `applyQuery` + `eq(id)` + 仓储 `selectCount`；
+- 落库目标不变（`data_permission_diff_log`），`SHADOW_EVIDENCE` 继续是 enforce 放开的阻塞项。
+
+**测试侧（"改判据不放宽判据"的四处示范）**
+
+| 原测试 | 改法 |
+| --- | --- |
+| `MybatisJpaCoexistenceTest`（验"两套 ORM 能共存"） | 改名 `PersistenceStackTest`，判据翻成反向事实：classpath 上没有 `EntityManagerFactory` / `JpaTransactionManager`、容器里只有一个 `DataSourceTransactionManager`、MyBatis 复用的就是容器那个 `DataSource`；另加一条"读侧 Mapper 默认不注册、写侧仓储无条件注册"（后者顺手修掉了旧配置注释声称 `PersistenceStackTest` 却不存在的问题） |
+| `OrmParityEvidenceTest` / `MaterialMapperReadParityTest`（H2 里数两套 ORM） | 删除；取而代之 `ShadowDiffServiceCountTest`（mock 仓储钉"两次 COUNT 走同一个仓储 / 缺仓储记 `VERDICT_ERROR` 而不是"一致" / 采样只在 SHADOW 档生效"）。**为什么不是换个夹具接着跑 H2**：那两条测试的价值是"两个 ORM 一致"，而这个问题在 J4 之后不存在了；把夹具改成单 ORM 只会得到一条同义反复 |
+| `maskContract.spec.ts` 的"ORM 对账证据落点"组（要求对账实体/表/面板/探针必须在） | 整组翻成**退场判据**：影子读服务、注册表、计数器、实体、仓储 XML、两处 DDL 都不许回来（关键词全仓归零 + 空转守卫）；同一批里把"读不到对账表不得当成没有差异"改成"`SHADOW_EVIDENCE` 拿不到 `EXPECTED_FILTER` 样本必须阻塞"（同一个语义，换到唯一活着的证据链上） |
+| `JpaRowVisibilityProbe` 的探针断言（复用 `buildPredicates` / `FlushModeType.COMMIT`） | 改指 `RowVisibilityProbe`：判"复用 `applyQuery`"、"解析不到仓储要抛（静默 true = 探针坏了自动开闸）"、**`FlushModeType` 不许回来**；"不拿改完之后的状态证明改之前有权"这条纪律现在由结构钉住 —— `BaseService#beforeSaveToDatabase` 里 `enforceRowPermission(` 必须排在落库调用之前 |
+
+**门禁（§9.8.5）**
+
+- `check-jpa-usage.mjs`：`BASELINE` 30/122/77 → **0/0/0**；`--check` 除棘轮外新增三条硬判据：
+  pom 无 `spring-boot-starter-data-jpa`、任何 yml 无 `spring.jpa` 段 / `ddl-auto`、实体零 JPA 注解
+  （空转守卫不变）。**三条都做过反证**（把 starter / `spring.jpa` / `@Column` 分别塞回去，确认红）。
+  棘轮到 0 之后脚本不删：它现在的职责是"谁把 JPA 写回来立刻红"。
+- `check-layering.mjs`：L3 那条"按文件名而非目录判定"的注释里还举着 `*ReadShadowService` 当例子 ——
+  类已删，注释改成"住过、且这个例子说明了目录≠层次"，规则本身不动。
+- `schema-test.sql` / `init.sql`：删 `data_permission_orm_parity_log`；`ddl:check` 现在是 7 张表 / 7 个实体。
+
+**沙箱里验到的**
+
+`pnpm check` 全绿（含 53 个前端测试文件 / 490 个用例、105 条 maskContract 判据、`ddl:check`、分层两道、
+`java:decl`、`sql:check`、`jpa:check -- --check` 归零）；`node scripts/java-syntax-check.mjs` 对
+main + test 全量扫描（526 文件）无新增报错（3 处既存误报见该脚本说明）。
+
+**留你本机验的（与 §9.8.6 同）**：`mvn -q compile`、`mvn -q test`（重点 `PersistenceStackTest`
+与 `ShadowDiffServiceCountTest`）、真库一次 ENFORCE 回归、切 `mode: shadow` 看 `data_permission_diff_log`
+出现 `EXPECTED_FILTER` 样本（含 `mapper-read.enabled=true` 的拦截器路径）。
+
 ## §10 J2 执行清单（**干净切除**：不接受 JPA 与 MyBatis-Plus 并存）
 
 > 决策更新（用户 2026-09-18）：**"只保留 MyBatis-Plus"** —— 本节先前写过的"引擎双路径、JPA 分支先留着"
@@ -763,7 +913,7 @@ public interface ICurdRepository<E extends CurdEntity<E>> extends BaseMapper<E> 
 | `InventoryRepository` 的两条原子增减（JPA `@Query`，`quantity = quantity ± ?`） | 搬到 `InventoryWriteMapper` + XML。**为什么单独一个接口**：读侧 Mapper 归灰度开关管，写侧增减跟着消失就是"静默不扣库存" —— 它属于无条件注册族 | `mapper/wms/InventoryWriteMapper.xml` |
 | `DataFieldPolicyRepository` 的 JPQL join（`JOIN dfp.resource dr`） | 搬到 `DataFieldPolicyQueryMapper` + XML（对象关联 JOIN → 显式外键列 JOIN）；它是权限判定链的一部分，同样无条件注册 | `mapper/system/datapermission/DataFieldPolicyQueryMapper.xml` |
 | 14 个 `*MapperRuntimeInterceptorTest` 的 H2 夹具（建表/清表/插种子/策略行） | 抽成 `src/test/resources/sql/mapper-runtime/*.sql`，Java 侧只留 `SqlFixtures.execute(jdbcTemplate, "…")`；`ALTER TABLE … ADD COLUMN IF NOT EXISTS` 这类动态列（原来是 Java 拼字符串）变成脚本里的显式语句，辅助方法整段删除 | 14 个 `.sql` + `support/SqlFixtures` |
-| 其余测试夹具与验证查询（`OrmParityEvidenceTest` / `MaterialMapperReadParityTest` / `DashboardOverviewContractTest` / `MybatisJpaCoexistenceTest` / `KuboDataPermissionHandlerTest`） | 同上（含"按表名循环建表"用 `${table}` 占位符传值 —— 语句在文件里，Java 不拼 SQL） | 9 个 `.sql` |
+| 其余测试夹具与验证查询（`OrmParityEvidenceTest` / `MaterialMapperReadParityTest` / `DashboardOverviewContractTest` / `MybatisJpaCoexistenceTest` / `KuboDataPermissionHandlerTest`） | 同上（含"按表名循环建表"用 `${table}` 占位符传值 —— 语句在文件里，Java 不拼 SQL） | 9 个 `.sql`（J4 附注：`OrmParityEvidenceTest` / `MaterialMapperReadParityTest` 与 `MybatisJpaCoexistenceTest` 已随 ORM 对账退场 —— 本行是这一批的**历史记录**，不是当前文件清单） |
 | 6 处安全测试的恶意输入样例 | 加 `// SQL-IGNORE: 理由`（它们是"值"，测试断言的正是"不会被拼进 SQL"） | 8 处豁免（全部带理由） |
 
 ### 11.3 契约测试也跟着"改判据而不是放宽判据"

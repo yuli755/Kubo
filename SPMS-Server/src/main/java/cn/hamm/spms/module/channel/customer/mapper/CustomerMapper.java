@@ -4,7 +4,6 @@ import cn.hamm.spms.base.mapper.KuboBaseMapper;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.channel.customer.CustomerEntity;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
-import cn.hamm.spms.framework.curd.datapermission.RowParityCounter;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -13,18 +12,14 @@ import java.util.Map;
 /**
  * <h1>客户读侧 Mapper</h1>
  *
- * <p>客户无跨资源关联主表，故 resultMap 只含主表列；写路径仍走 AirPower JPA。</p>
+ * <p>客户无跨资源关联主表，故 resultMap 只含主表列；写路径走写侧仓储（`ICurdRepository` + mapper XML）。</p>
  *
  * @author Hamm.cn
  */
 @DataResource(key = "channel.customer", alias = "c")
-public interface CustomerMapper extends KuboBaseMapper<CustomerEntity>, RowParityCounter {
+public interface CustomerMapper extends KuboBaseMapper<CustomerEntity> {
 
     @Override
-    default String parityResourceKey() {
-        return "channel.customer";
-    }
-
     /**
      * @param filter 客户筛选（名称/编码/电话）
      * @param offset 分页偏移
@@ -62,9 +57,4 @@ public interface CustomerMapper extends KuboBaseMapper<CustomerEntity>, RowParit
      */
     List<CustomerEntity> selectForExport(@Param("filter") CustomerEntity filter);
 
-    /**
-     * @param parameters fragment 与业务筛选参数
-     * @return 行数
-     */
-    Long countByPermissionFragment(Map<String, Object> parameters);
 }

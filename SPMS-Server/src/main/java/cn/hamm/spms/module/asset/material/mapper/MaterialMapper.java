@@ -4,7 +4,6 @@ import cn.hamm.spms.base.mapper.KuboBaseMapper;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
-import cn.hamm.spms.framework.curd.datapermission.RowParityCounter;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.Map;
@@ -18,24 +17,12 @@ import java.util.Map;
  *
  * <p>所有业务读出口都显式写在本接口的 XML 中：列表、详情、统计、总数各有自己的
  * {@code mappedStatementId}，因此每一条 SQL 都会经过同一个资源绑定和数据权限拦截器。
- * 写路径仍然只走 AirPower JPA；本 Mapper 不承载新增、修改或删除。</p>
+ * 写路径仍然只走写侧仓储（`ICurdRepository` + mapper XML）；本 Mapper 不承载新增、修改或删除。</p>
  *
  * @author Hamm.cn
  */
 @DataResource(key = "asset.material", alias = "material")
-public interface MaterialMapper extends KuboBaseMapper<MaterialEntity>, RowParityCounter {
-
-    /**
-     * 本 Mapper 服务的资源键（对账登记用）
-     *
-     * <p>写成 {@code default} 是必须的，不是风格：MyBatis 会给接口里每个抽象方法找一条语句，
-     * 一个只有 Java 语义的方法若不写成 default，就会在启动或调用时报"Invalid bound statement"。
-     * 这条约束适用于所有 {@link RowParityCounter} 的实现，不是本接口的特例。</p>
-     */
-    @Override
-    default String parityResourceKey() {
-        return "asset.material";
-    }
+public interface MaterialMapper extends KuboBaseMapper<MaterialEntity> {
 
     /**
      * 真实列表读出口；权限条件由运行时拦截器按 statement ID 注入。
@@ -86,11 +73,4 @@ public interface MaterialMapper extends KuboBaseMapper<MaterialEntity>, RowParit
      */
     ReadStat statByPermission(@Param("filter") MaterialEntity filter);
 
-    /**
-     * 按权限片段数一遍 {@code material}，供 JPA/Mapper parity 对账使用。
-     *
-     * @param parameters 至少含 {@code fragment} 键（可为空串 = 不加条件），其余是片段用到的命名参数
-     * @return 行数
-     */
-    Long countByPermissionFragment(Map<String, Object> parameters);
 }

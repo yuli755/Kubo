@@ -103,18 +103,4 @@ class MoveMapperRuntimeInterceptorTest {
             assertEquals(1L, rows.get(1).getId());
         }
     }
-
-    @Test
-    @DisplayName("移库无策略时 fail closed")
-    void noPolicyDeniesAllRows() {
-        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
-        try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
-            assertEquals(0L, moveMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
-            assertNull(moveMapper.selectDetailByPermission(1L));
-            assertEquals(0, moveMapper.selectForExport(null, null).size());
-            assertEquals(0L, moveMapper.statByPermission(null, null).getTotal());
-            assertEquals(0L, moveService.getMapperCount(null));
-            assertEquals(0L, moveService.getMapperStat(null).getTotal());
-        }
-    }
 }

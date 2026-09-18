@@ -50,18 +50,6 @@
         </if>
     </sql>
 
-    <sql id="pickingParityFilter">
-        <if test="billCode != null and billCode != ''">
-            AND bill_code LIKE CONCAT('%', #{billCode}, '%')
-        </if>
-        <if test="status != null">
-            AND status = #{status}
-        </if>
-        <if test="type != null">
-            AND type = #{type}
-        </if>
-    </sql>
-
     <select id="selectPageByPermission" resultMap="pickingReadMap">
         SELECT <include refid="pickingColumns"/>
         FROM picking p
@@ -97,11 +85,4 @@
         <where><include refid="pickingFilter"/></where>
     </select>
 
-    <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM picking
-        <where>
-            <include refid="pickingParityFilter"/>
-            <if test="fragment != null and fragment != ''">AND ${fragment}</if>
-        </where>
-    </select>
 </mapper>

@@ -285,7 +285,7 @@ public final class DimensionBindingAnalyzer {
                 .append(" 试一遍） ⇒ ").append(subjectType).append(" 那 ").append(using)
                 .append(" 条策略拼不出条件：enforce 下恒假（该主体查不到数据），shadow 下等于没配。");
         if (association != null) {
-            // 关联路径已经能走了（JpaPathResolver），所以这里给的是能直接抄进登记框的写法，
+            // 关联路径已经能走了（一跳封顶，见 OwnerColumnRegistration#MAX_SEGMENTS），所以这里给的是能直接抄进登记框的写法，
             // 而不是"等内核补能力"——后者会把一个已经能解决的问题说成待建设项
             detail.append(" 注意 ").append(association).append(" 在实体上是关联而不是标量列：不是名字写错，是登记方式要换 —— ")
                     .append("写成 ").append(subjectType).append(OwnerColumnRegistration.SEPARATOR).append(association)

@@ -4,7 +4,6 @@ import cn.hamm.spms.base.mapper.KuboBaseMapper;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.channel.purchaseprice.PurchasePriceEntity;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
-import cn.hamm.spms.framework.curd.datapermission.RowParityCounter;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -14,18 +13,14 @@ import java.util.Map;
  * <h1>采购价格读侧 Mapper</h1>
  *
  * <p>采购价无业务筛选（列表按租户全量 + 行级过滤），关联主表（物料/供应商）只投影 ID，
- * 由 Service 通过受控详情服务补齐；写路径仍走 AirPower JPA。</p>
+ * 由 Service 通过受控详情服务补齐；写路径走写侧仓储（`ICurdRepository` + mapper XML）。</p>
  *
  * @author Hamm.cn
  */
 @DataResource(key = "channel.purchasePrice", alias = "pp")
-public interface PurchasePriceMapper extends KuboBaseMapper<PurchasePriceEntity>, RowParityCounter {
+public interface PurchasePriceMapper extends KuboBaseMapper<PurchasePriceEntity> {
 
     @Override
-    default String parityResourceKey() {
-        return "channel.purchasePrice";
-    }
-
     /**
      * @param filter 采购价筛选（无业务字段，保留占位）
      * @param offset 分页偏移
@@ -63,9 +58,4 @@ public interface PurchasePriceMapper extends KuboBaseMapper<PurchasePriceEntity>
      */
     List<PurchasePriceEntity> selectForExport(@Param("filter") PurchasePriceEntity filter);
 
-    /**
-     * @param parameters fragment 与业务筛选参数
-     * @return 行数
-     */
-    Long countByPermissionFragment(Map<String, Object> parameters);
 }

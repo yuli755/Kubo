@@ -175,7 +175,7 @@ public final class PermissionRuleEvaluator {
      */
     /**
      * 从一行数据里取字段值：列名（{@code create_time}）与属性名（{@code createTime}）都接受，
-     * 与 {@code JpaPermissionRuleCompiler} 的列名/属性名互换策略保持一致。
+     * 与 {@link PermissionRuleSupport} 的列名/属性名互换策略保持一致。
      *
      * <p>都没命中就返回 null —— 交由调用方按"取值缺失"处置，不做类型猜测或字符串化，
      * 否则 {@code IN}/{@code LIKE} 会拿 {@code "null"} 这样的文本比出个真来。</p>

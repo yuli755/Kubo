@@ -14,10 +14,13 @@ import cn.hamm.spms.module.system.datapermission.service.DataPermissionAudit;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionService;
 import cn.hamm.spms.module.system.datapermission.service.DataResourceBindingRegistry;
 import cn.hamm.spms.module.system.datapermission.service.RowPermissionPredicate;
+import cn.hamm.spms.module.system.datapermission.service.ShadowDiffService;
+import cn.hamm.spms.base.mapper.KuboBaseMapper;
 import com.baomidou.mybatisplus.extension.plugins.handler.MultiDataPermissionHandler;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Table;
+import org.springframework.core.ResolvableType;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -52,6 +55,15 @@ public final class KuboDataPermissionHandler implements MultiDataPermissionHandl
     private final DataPermissionAudit audit;
     private final PermissionRuleTreeBuilder ruleTreeBuilder;
     private final SqlPermissionRuleRenderer renderer;
+    /**
+     * 影子比对（J4：读侧 mapper 出口的取证）。
+     *
+     * <p>mapper-read 打开时 page/detail/stat/export 走 XML statement，不经过
+     * {@code addSearchPredicate} 那条 wrapper 路径；如果这里不交片段，SHADOW 档下这些资源就
+     * 一条 {@code EXPECTED_FILTER} 样本都不会有，而样本是放开 enforce 的硬前置。
+     * 两条注入路径把<b>各自渲染出来的同一批片段</b>交给同一个比对服务 —— 取证只有一份实现。</p>
+     */
+    private final ShadowDiffService shadowDiffService;
 
     /**
      * 生产构造器接收延迟绑定：SqlSessionFactory 创建 MybatisPlusInterceptor 时，
@@ -62,13 +74,15 @@ public final class KuboDataPermissionHandler implements MultiDataPermissionHandl
                                      DataPermissionProperties properties,
                                      DataPermissionAudit audit,
                                      PermissionRuleTreeBuilder ruleTreeBuilder,
-                                     SqlPermissionRuleRenderer renderer) {
+                                     SqlPermissionRuleRenderer renderer,
+                                     ShadowDiffService shadowDiffService) {
         this.bindingsSupplier = Objects.requireNonNull(bindingsSupplier, "bindingsSupplier");
         this.dataPermissionService = dataPermissionService;
         this.properties = properties;
         this.audit = audit;
         this.ruleTreeBuilder = ruleTreeBuilder;
         this.renderer = renderer;
+        this.shadowDiffService = shadowDiffService;
     }
 
     /**
@@ -79,8 +93,9 @@ public final class KuboDataPermissionHandler implements MultiDataPermissionHandl
                                      DataPermissionProperties properties,
                                      DataPermissionAudit audit,
                                      PermissionRuleTreeBuilder ruleTreeBuilder,
-                                     SqlPermissionRuleRenderer renderer) {
-        this(() -> bindings, dataPermissionService, properties, audit, ruleTreeBuilder, renderer);
+                                     SqlPermissionRuleRenderer renderer,
+                                     ShadowDiffService shadowDiffService) {
+        this(() -> bindings, dataPermissionService, properties, audit, ruleTreeBuilder, renderer, shadowDiffService);
     }
 
     /**
@@ -161,6 +176,8 @@ public final class KuboDataPermissionHandler implements MultiDataPermissionHandl
 
         List<PermissionRuleTreeBuilder.PolicyRule> policyRules = ruleTreeBuilder.build(resource, policies, context);
         List<String> sqlFragments = new ArrayList<>(policyRules.size());
+        // 与 sqlFragments 一一对应的片段对象：SHADOW 档要用它去做行数取证（见 submitShadowDiff）
+        List<RowPermissionPredicate> renderedFragments = new ArrayList<>(policyRules.size());
         int expectedConditions = 0;
         for (PermissionRuleTreeBuilder.PolicyRule policyRule : policyRules) {
             PermissionRule rule = policyRule.rule();
@@ -182,6 +199,13 @@ public final class KuboDataPermissionHandler implements MultiDataPermissionHandl
             // 因为 MultiDataPermissionHandler 没有向 BoundSql 追加 ParameterMapping 的能力。
             rendered.forMyBatis();
             sqlFragments.add(toSafeSql(rendered));
+            // 交给影子比对的是**不带别名**的同一棵树：比对数的是实体仓储的裸表查询
+            // （SELECT COUNT(*) FROM material），带别名的片段在那里根本解析不到表（Unknown column 'm.x'）。
+            // 同一个渲染器、同一个规则、同一个上下文，差别只有"要不要别名前缀"这一个入参。
+            RowPermissionPredicate probe = renderer.render(rule, null, new PermissionRuleContext(context));
+            if (probe != null) {
+                renderedFragments.add(probe);
+            }
         }
 
         if (sqlFragments.isEmpty() && expectedConditions > 0) {
@@ -199,9 +223,35 @@ public final class KuboDataPermissionHandler implements MultiDataPermissionHandl
         Expression expression = parseExpression(String.join(" AND ", sqlFragments));
         if (!enforced(mode)) {
             audit.shadow(resourceKey, "would-filter", expression.toString());
+            submitShadowDiff(resourceKey, binding, renderedFragments, context);
             return null;
         }
         return expression;
+    }
+
+    /**
+     * 把「enforce 下本会拼进这条 SQL 的条件」交给影子比对（采样、异步、异常策略都在比对服务里）
+     *
+     * <p>实体类从 Mapper 的泛型参数解析（{@code KuboBaseMapper<T>} 的 {@code T}），不是从类名猜表名：
+     * 资源绑定时已经用 {@code verifyTableBinding} 把"statement 的主表 = 资源登记表"钉住，
+     * 因此按这个实体数行数与按这条 statement 数行数问的是同一张表。解析不到实体就记一条
+     * {@code diff:no-entity}：<b>没有证据</b>与<b>一致</b>是两种结论，不许混。</p>
+     */
+    private void submitShadowDiff(String resourceKey,
+                                  DataResourceBindingRegistry.ResourceBinding binding,
+                                  List<RowPermissionPredicate> fragments,
+                                  PermissionContext context) {
+        if (shadowDiffService == null || fragments.isEmpty()) {
+            return;
+        }
+        Class<?> entityClass = ResolvableType.forClass(binding.mapperType())
+                .as(KuboBaseMapper.class).getGeneric(0).resolve();
+        if (entityClass == null) {
+            audit.shadow(resourceKey, "diff:no-entity",
+                    "无法从 " + binding.mapperType().getName() + " 的泛型参数解析实体类，本轮不取证");
+            return;
+        }
+        shadowDiffService.compare(resourceKey, DataPermissionAction.QUERY, entityClass, fragments, context);
     }
 
     private DataResourceBindingRegistry bindings() {

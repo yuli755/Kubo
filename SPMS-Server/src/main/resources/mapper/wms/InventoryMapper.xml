@@ -62,23 +62,6 @@
     </sql>
 
     <!-- parity statement 同样不使用 i 别名：权限渲染器的限定名是登记的物理表名 inventory。 -->
-    <sql id="inventoryParityFilter">
-        <if test="type != null">
-            AND type = #{type}
-        </if>
-        <if test="storageIds != null and storageIds.size() > 0">
-            AND storage_id IN
-            <foreach collection="storageIds" item="storageId" open="(" separator="," close=")">
-                #{storageId}
-            </foreach>
-        </if>
-        <if test="structureIds != null and structureIds.size() > 0">
-            AND structure_id IN
-            <foreach collection="structureIds" item="structureId" open="(" separator="," close=")">
-                #{structureId}
-            </foreach>
-        </if>
-    </sql>
 
     <select id="selectPageByPermission" resultMap="inventoryReadMap">
         SELECT
@@ -123,16 +106,6 @@
         FROM inventory i
         <where>
             <include refid="inventoryFilter"/>
-        </where>
-    </select>
-
-    <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM inventory
-        <where>
-            <include refid="inventoryParityFilter"/>
-            <if test="fragment != null and fragment != ''">
-                AND ${fragment}
-            </if>
         </where>
     </select>
 

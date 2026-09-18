@@ -40,7 +40,12 @@ public record RowPermissionPredicate(String sql, Map<String, Object> parameters)
     private static final Pattern FORBIDDEN_TOKEN = Pattern.compile("(;|--|/\\*|\\*/)");
 
     /**
-     * MyBatis 语句里承载片段的参数名；XML 中的 {@code ${fragment}} 必须与此同值（由测试对账）
+     * 片段在 MyBatis 参数对象里的键名
+     *
+     * <p>J2 换轨前它对应 XML 里的 <code>${fragment}</code> 占位符（那段已随
+     * {@code countByPermissionFragment} 探针一起删除）；J4 之后它只服务
+     * {@link #myBatisStatementParameters()} 这一个出口，取值仍由本常量单点决定 ——
+     * \${{} 占位符是字符串拼接口，名字漂了就没人对得上。</p>
      */
     public static final String FRAGMENT_KEY = "fragment";
 

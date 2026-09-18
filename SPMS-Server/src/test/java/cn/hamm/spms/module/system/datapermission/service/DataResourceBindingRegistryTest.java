@@ -58,19 +58,22 @@ class DataResourceBindingRegistryTest {
     @Test
     @DisplayName("精确映射 statement ID，并保留资源键与 SQL 别名")
     void mapsStatementsToResource() {
-        String countId = DemoMapper.class.getName() + ".countByPermissionFragment";
-        String pageId = DemoMapper.class.getName() + ".page";
+        // J4：原来这里拿 countByPermissionFragment 当样例 statement（那是 ORM 对账探针，
+        // 随 JPA 一起退场）。样例换成真正的读出口 —— 绑定表对"哪条 statement"没有偏好，
+        // 它只认 namespace 与 @DataResource，这话由这条用例继续钉着。
+        String pageId = DemoMapper.class.getName() + ".selectPageByPermission";
+        String exportId = DemoMapper.class.getName() + ".selectForExport";
         DataResourceBindingRegistry registry = DataResourceBindingRegistry.from(
-                configuration(countId, pageId), List.of(DemoMapper.class));
+                configuration(pageId, exportId), List.of(DemoMapper.class));
 
-        DataResourceBindingRegistry.ResourceBinding binding = registry.bindingFor(countId);
+        DataResourceBindingRegistry.ResourceBinding binding = registry.bindingFor(pageId);
         assertNotNull(binding);
         assertEquals("demo.material", binding.resourceKey());
         assertEquals("m", binding.tableAlias());
         assertEquals(DemoMapper.class, binding.mapperType());
         assertEquals(2, binding.statementIds().size());
         assertEquals(binding, registry.resource("demo.material"));
-        assertTrue(registry.mappedStatementIds().contains(pageId));
+        assertTrue(registry.mappedStatementIds().contains(exportId));
     }
 
     @Test

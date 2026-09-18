@@ -55,7 +55,6 @@ class MaterialMapperRuntimeInterceptorTest {
         SqlFixtures.execute(jdbcTemplate, "sql/mapper-runtime/material-mapper-runtime-interceptor.sql");
     }
 
-
     @AfterEach
     void clearContext() {
         PermissionContextHolder.clear();
@@ -96,17 +95,6 @@ class MaterialMapperRuntimeInterceptorTest {
     }
 
     @Test
-    @DisplayName("租户条件由运行时拦截器注入，受限主体只数到自己的两行")
-    void interceptorFiltersRealMapperSql() {
-        try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(
-                new PermissionContext(7L, 10L, Set.of(), Set.of(), Set.of(), Set.of(), false))) {
-            Long count = materialMapper.countByPermissionFragment(
-                    Map.of(RowPermissionPredicate.FRAGMENT_KEY, ""));
-            assertEquals(2L, count);
-        }
-    }
-
-    @Test
     @DisplayName("没有可达策略时真实读出口全部恒假")
     void noPolicyDeniesAllRealReadExits() {
         SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
@@ -121,18 +109,6 @@ class MaterialMapperRuntimeInterceptorTest {
             assertEquals(0L, materialService.getMapperCount(new MaterialEntity()));
             assertEquals(0L, materialService.getMapperStat(new MaterialEntity()).getTotal());
             assertEquals(0, materialMapper.selectForExport(new MaterialEntity()).size());
-        }
-    }
-
-    @Test
-    @DisplayName("没有可达策略时 enforce 返回恒假，不放开全表")
-    void noPolicyDeniesRealMapperSql() {
-        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
-        try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(
-                new PermissionContext(7L, 10L, Set.of(), Set.of(), Set.of(), Set.of(), false))) {
-            Long count = materialMapper.countByPermissionFragment(
-                    Map.of(RowPermissionPredicate.FRAGMENT_KEY, ""));
-            assertEquals(0L, count);
         }
     }
 }

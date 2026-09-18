@@ -111,7 +111,7 @@ class DataPermissionEnforceReadinessTest {
     void enforceEmptyListChecksAllRegisteredResources() {
         List<String> problems = DataPermissionEnforceReadiness.validate(
                 properties(DataPermissionProperties.Mode.ENFORCE),
-                List.of(ready("asset.material"), blocked("wms.inventory", "ORM_PARITY：读不到对账表")));
+                List.of(ready("asset.material"), blocked("wms.inventory", "SHADOW_EVIDENCE：还没有正向样本")));
 
         assertEquals(1, problems.size());
         assertTrue(problems.get(0).contains("wms.inventory"), problems.toString());

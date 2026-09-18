@@ -18,7 +18,6 @@ import cn.hamm.spms.module.channel.sale.detail.SaleDetailRepository;
 import cn.hamm.spms.module.channel.sale.detail.SaleDetailService;
 import cn.hamm.spms.module.channel.sale.enums.SaleStatus;
 import cn.hamm.spms.module.channel.sale.mapper.SaleMapper;
-import cn.hamm.spms.module.channel.sale.mapper.SaleReadShadowService;
 import cn.hamm.spms.base.config.ConfigFlag;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
@@ -51,9 +50,6 @@ public class SaleService extends AbstractBaseBillService<SaleEntity, SaleReposit
 
     @Autowired(required = false)
     private SaleMapper saleMapper;
-
-    @Autowired
-    private SaleReadShadowService saleReadShadowService;
 
     @Autowired
     private ExportHelper exportHelper;
@@ -89,7 +85,6 @@ public class SaleService extends AbstractBaseBillService<SaleEntity, SaleReposit
         if (offset > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
-        saleReadShadowService.submit(filter);
         List<SaleEntity> rows = saleMapper.selectPageByPermission(filter.getBillCode(), filter.getReason(),
                 filter.getStatus(), (int) offset, pageSize);
         long total = saleMapper.countByPermission(filter.getBillCode(), filter.getReason(), filter.getStatus());
@@ -112,7 +107,6 @@ public class SaleService extends AbstractBaseBillService<SaleEntity, SaleReposit
         if (!isMapperReadEnabled()) {
             return get(id);
         }
-        saleReadShadowService.submit(new SaleEntity());
         SaleEntity bill = saleMapper.selectDetailByPermission(id);
         if (bill == null) {
             return null;
@@ -133,7 +127,6 @@ public class SaleService extends AbstractBaseBillService<SaleEntity, SaleReposit
     public long getMapperCount(SaleEntity filter) {
         SaleEntity normalized = filter == null ? new SaleEntity() : filter;
         if (isMapperReadEnabled()) {
-            saleReadShadowService.submit(normalized);
             return saleMapper.countByPermission(normalized.getBillCode(), normalized.getReason(), normalized.getStatus());
         }
         return filter(normalized).size();
@@ -148,7 +141,6 @@ public class SaleService extends AbstractBaseBillService<SaleEntity, SaleReposit
     public ReadStat getMapperStat(SaleEntity filter) {
         SaleEntity normalized = filter == null ? new SaleEntity() : filter;
         if (isMapperReadEnabled()) {
-            saleReadShadowService.submit(normalized);
             return saleMapper.statByPermission(normalized.getBillCode(), normalized.getReason(), normalized.getStatus());
         }
         List<SaleEntity> rows = filter(normalized);
@@ -171,7 +163,6 @@ public class SaleService extends AbstractBaseBillService<SaleEntity, SaleReposit
      */
     public String createMapperExportTask(QueryListRequest<SaleEntity> request) {
         SaleEntity filter = request == null || request.getFilter() == null ? new SaleEntity() : request.getFilter();
-        saleReadShadowService.submit(filter);
         List<SaleEntity> rows = saleMapper.selectForExport(filter.getBillCode(), filter.getReason(), filter.getStatus());
         List<SaleEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
@@ -232,7 +223,6 @@ public class SaleService extends AbstractBaseBillService<SaleEntity, SaleReposit
     protected ConfigFlag getAutoAuditConfigFlag() {
         return SALE_BILL_AUTO_AUDIT;
     }
-
 
     @Override
     protected void afterBillAudited(long billId) {

@@ -229,12 +229,7 @@ public class DataPermissionProperties {
         private boolean persist = true;
 
         /**
-         * 单次比对允许记录的最大明细行数（超过则只记行数不记主键）
-         */
-        private int maxDetailRows = 200;
-
-        /**
-         * 是否自动清理到期的影子与 ORM 对账证据。
+         * 是否自动清理到期的证据（影子差异表 + 拒绝日志）。
          *
          * <p>清理不是"把审计关掉"：任务只删除超过 {@link #retentionDays} 的记录，
          * 并且默认保留至少 30 天。需要更长留存时调大天数；需要长期归档时应在数据库备份/归档层

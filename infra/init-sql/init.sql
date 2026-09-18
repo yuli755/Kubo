@@ -168,27 +168,6 @@ CREATE TABLE IF NOT EXISTS `data_permission_diff_log` (
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'data_permission_diff_log';
 
-CREATE TABLE IF NOT EXISTS `data_permission_orm_parity_log` (
-    `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-    `create_time` bigint UNSIGNED DEFAULT 0 NOT NULL,
-    `update_time` bigint UNSIGNED DEFAULT 0 NOT NULL,
-    `is_disabled` tinyint(1) DEFAULT 0 NOT NULL,
-    `is_published` tinyint(1) DEFAULT 0 NOT NULL,
-    `resource_key` varchar(255),
-    `action_name` varchar(255),
-    `table_name` varchar(255),
-    `user_id` bigint UNSIGNED,
-    `tenant_id` bigint UNSIGNED,
-    `jpa_count` bigint UNSIGNED,
-    `mapper_count` bigint UNSIGNED,
-    `verdict` varchar(255),
-    `fragment_sql` varchar(255),
-    `cost_ms` bigint UNSIGNED,
-    `detail` text,
-    KEY `idx_dp_parity_create_time` (`create_time`),
-    PRIMARY KEY (`id`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'data_permission_orm_parity_log';
-
 CREATE TABLE IF NOT EXISTS `data_policy` (
     `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
     `create_time` bigint UNSIGNED DEFAULT 0 NOT NULL,
@@ -738,7 +717,6 @@ CREATE TABLE IF NOT EXISTS `user` (
     UNIQUE KEY `uk_user_tenant_phone` (`tenant_id`, `phone`),
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'user';
-
 
 -- ============================================================================
 -- Hibernate 隐式命名策略生成的关联表 + 显式 @JoinTable

@@ -3,7 +3,6 @@ package cn.hamm.spms.module.wms.output.mapper;
 import cn.hamm.spms.base.mapper.KuboBaseMapper;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
-import cn.hamm.spms.framework.curd.datapermission.RowParityCounter;
 import cn.hamm.spms.module.wms.output.OutputEntity;
 import org.apache.ibatis.annotations.Param;
 
@@ -18,12 +17,8 @@ import java.util.Map;
  * @author Hamm.cn
  */
 @DataResource(key = "wms.output", alias = "output")
-public interface OutputMapper extends KuboBaseMapper<OutputEntity>, RowParityCounter {
+public interface OutputMapper extends KuboBaseMapper<OutputEntity> {
     @Override
-    default String parityResourceKey() {
-        return "wms.output";
-    }
-
     List<OutputEntity> selectPageByPermission(
             @Param("billCode") String billCode,
             @Param("status") Integer status,
@@ -58,5 +53,4 @@ public interface OutputMapper extends KuboBaseMapper<OutputEntity>, RowParityCou
             @Param("type") Integer type
     );
 
-    Long countByPermissionFragment(Map<String, Object> parameters);
 }

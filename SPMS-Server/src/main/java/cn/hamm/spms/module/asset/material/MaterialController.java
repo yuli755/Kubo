@@ -20,7 +20,7 @@ import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 /**
  * <h1>物料控制器</h1>
  *
- * <p>写接口继续复用 AirPower JPA CRUD；读接口在本类显式换到 MaterialMapper，
+ * <p>写接口继续复用写侧仓储（`ICurdRepository`）CRUD；读接口在本类显式换到 MaterialMapper，
  * 让 page/detail/stat/count 都经过同一条 statement 绑定和行级权限拦截链。</p>
  *
  * @author Hamm.cn

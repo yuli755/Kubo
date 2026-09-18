@@ -22,7 +22,7 @@ import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 /**
  * <h1>Controller</h1>
  *
- * <p>写接口继续复用 AirPower JPA CRUD；page/detail/stat/count/export 在本类显式换到 ContractMapper，
+ * <p>写接口继续复用写侧仓储（`ICurdRepository`）CRUD；page/detail/stat/count/export 在本类显式换到 ContractMapper，
  * 让它们都经过同一条 statement 绑定和行级权限拦截链。生效/终止两个写出口保持原样。</p>
  *
  * @author Hamm.cn

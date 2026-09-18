@@ -1,8 +1,5 @@
 package cn.hamm.spms.module.system.datapermission.rule;
 
-import jakarta.persistence.criteria.Path;
-import jakarta.persistence.criteria.Root;
-
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -11,10 +8,13 @@ import java.util.Set;
 /**
  * <h1>列名 / 属性名互转</h1>
  *
- * <p>{@code data_resource} 里登记的是数据库列名（{@code tenant_id}），
- * JPA 侧要的是实体属性名（{@code tenantId}），MyBatis/JSqlParser 侧要的是列名。
- * 条件树必须同时认这两种写法，否则就会出现"策略配了、条件生成不出来"的静默空转
- * —— 这正是历史实现最贵的一课。</p>
+ * <p>{@code data_resource} 里登记的是数据库列名（{@code tenant_id}），而历史策略里也写满了
+ * 实体属性名（{@code tenantId}）——<b>注入与渲染只认列名，但解析/校验/盘点阶段必须同时认这两种写法</b>：
+ * 否则就会出现"策略配了、条件生成不出来"的静默空转 —— 这正是历史实现最贵的一课。</p>
+ *
+ * <p>J4（2026-09-18）：本类原先还替 JPA 侧回答"这个登记名能不能 `root.get()` 到"（`findPath`），
+ * 那一半随 {@code spring-boot-starter-data-jpa} 一起删除；留下的是纯字符串/标识符规则，
+ * 没有一行依赖某个 ORM 的类型系统。</p>
  *
  * @author Hamm.cn
  */
@@ -66,13 +66,13 @@ public final class PermissionRuleSupport {
     }
 
     /**
-     * 一个登记名在 JPA 侧的候选写法，按优先级排列
+     * 一个登记名的候选写法，按优先级排列
      *
      * <p>{@code data_resource} 的 {@code tenant_column} / {@code owner_columns} 存的是**数据库列名**
-     * （{@code tenant_id}），而 {@code Root.get(String)} 要的是**实体属性名**（{@code tenantId}）：
-     * 名字取不到时 Hibernate 抛 {@code IllegalArgumentException}。这个转换表只该有一份，
-     * 因此它同时服务于条件树编译器与主体谓词构建 —— 否则就会出现"同一个 {@code tenant_id}，
-     * 写在 condition_json 里能用、当租户列登记就静默失效"这种半修状态（本仓踩过）。</p>
+     * （{@code tenant_id}），而策略的 {@code condition_json} 与实体盘点里写的是**属性名**
+     * （{@code tenantId}）：枚举实体字段、比对白名单、生成列名都要把这两边对上。
+     * 这个转换表只该有一份 —— 否则就会出现"同一个 {@code tenant_id}，写在 condition_json 里能用、
+     * 当租户列登记就静默失效"这种半修状态（本仓踩过）。</p>
      *
      * @param field 登记名（列名或属性名皆可，允许带空白）
      * @return 候选名列表；入参为空时返回空列表
@@ -96,35 +96,10 @@ public final class PermissionRuleSupport {
     }
 
     /**
-     * 按候选名依次尝试取路径，取到为止；都取不到返回 {@code null}
-     *
-     * <p>调用方自己决定"取不到"意味着什么：条件树要报错（不能静默放开），
-     * 主体谓词要计入绑定失败数（由上层按 enforce / shadow 分别拒绝或记账）。</p>
-     *
-     * @param root  查询根
-     * @param field 登记名
-     * @return 路径；无法解析时 {@code null}
-     */
-    public static Path<?> findPath(Root<?> root, String field) {
-        for (String candidate : pathCandidates(field)) {
-            try {
-                Path<?> path = root.get(candidate);
-                if (path != null) {
-                    return path;
-                }
-            }
-            catch (IllegalArgumentException ignored) {
-                // 换下一个候选写法
-            }
-        }
-        return null;
-    }
-
-    /**
      * 拆一条登记路径：{@code storage.id} 两段、{@code creatorId} 一段
      *
      * <p>刻意只认"合法标识符用点号连接"这一种形状，不认 {@code a.b.c.d}、不认引号与空格：
-     * 关联路径要变成 {@code root.join(...).get(...)}，形状必须能被静态盘点复现
+     * 关联路径最终要变成本表外键列（{@code storage.id} ⇒ {@code storage_id}），形状必须能被静态盘点复现
      * （见 {@code EntityShapeIndex}），宽松一点就会变成"运行期能跑、面板说没配"。</p>
      *
      * @param path 登记路径
@@ -200,7 +175,7 @@ public final class PermissionRuleSupport {
     }
 
     /**
-     * 是否合法 SQL/JPA 标识符
+     * 是否合法 SQL 标识符（列名/表别名；只允许字母、数字、下划线，且不以数字开头）
      */
     public static boolean isIdentifier(String value) {
         if (value == null || value.isEmpty() || value.length() > 64) {

@@ -33,9 +33,10 @@ const {
   summary: runtimeSummary,
   pendingCount: runtimePendingCount,
   notePreview: runtimeNotePreview,
-  resources: runtimeResources,
   unmanaged: runtimeUnmanaged,
 } = useDataPermissionRuntimeStatus()
+// J4：这一页原先还逐资源渲染「ORM 对账分布」面板（那是 resources 的唯一消费者）。
+// 对账随 spring-boot-starter-data-jpa 一起退场，面板删除；档位与前置检查仍在上面按后端算好的结论显示。
 
 // 放开前置检查：ready / blockers 都是后端算好的（影子证据那条判据前端根本无从复现），这里只数条数
 const {
@@ -184,38 +185,6 @@ function onSaved() {
       title="未能取得灰度状态总览"
       description="刷新本页或检查 /dataResource/runtime-status 是否可用；取不到结果时不会显示为「一切正常」。"
     />
-    <section
-      v-if="runtimeReady"
-      class="parity-panel"
-      aria-label="ORM 对账分布"
-    >
-      <div class="parity-panel__title">
-        ORM 对账分布（后端已按资源统计，未登记探针不等于通过）
-      </div>
-      <div
-        v-for="item in runtimeResources"
-        :key="item.resourceKey"
-        class="parity-panel__row"
-      >
-        <strong>{{ item.resourceKey }}</strong>
-        <span
-          v-if="!item.ormParityRequired"
-          class="parity-panel__muted"
-        >
-          未进入 Mapper 换轨范围
-        </span>
-        <span
-          v-else-if="!item.ormParityTableAvailable"
-          class="parity-panel__danger"
-        >
-          缺证据：对账表不可读
-        </span>
-        <span v-else>
-          一致 {{ item.ormParityConsistentCount }} · Mapper 少放行 {{ item.ormParityStricterCount }} ·
-          Mapper 多放行 {{ item.ormParityLooserCount }} · 错误 {{ item.ormParityErrorCount }}
-        </span>
-      </div>
-    </section>
     <ElAlert
       v-if="readinessFailed"
       class="gap-warning"

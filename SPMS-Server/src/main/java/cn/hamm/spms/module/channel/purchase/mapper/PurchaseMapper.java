@@ -4,7 +4,6 @@ import cn.hamm.spms.base.mapper.KuboBaseMapper;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.channel.purchase.PurchaseEntity;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
-import cn.hamm.spms.framework.curd.datapermission.RowParityCounter;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -19,13 +18,9 @@ import java.util.Map;
  * @author Hamm.cn
  */
 @DataResource(key = "channel.purchase", alias = "p")
-public interface PurchaseMapper extends KuboBaseMapper<PurchaseEntity>, RowParityCounter {
+public interface PurchaseMapper extends KuboBaseMapper<PurchaseEntity> {
 
     @Override
-    default String parityResourceKey() {
-        return "channel.purchase";
-    }
-
     /**
      * @param billCode 单号模糊筛选
      * @param reason   采购事由模糊筛选
@@ -83,9 +78,4 @@ public interface PurchaseMapper extends KuboBaseMapper<PurchaseEntity>, RowParit
             @Param("status") Integer status
     );
 
-    /**
-     * @param parameters fragment 与业务筛选参数
-     * @return 行数
-     */
-    Long countByPermissionFragment(Map<String, Object> parameters);
 }

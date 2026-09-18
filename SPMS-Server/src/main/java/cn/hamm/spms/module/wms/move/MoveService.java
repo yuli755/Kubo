@@ -30,7 +30,6 @@ import cn.hamm.spms.module.wms.move.detail.MoveDetailRepository;
 import cn.hamm.spms.module.wms.move.detail.MoveDetailService;
 import cn.hamm.spms.module.wms.move.enums.MoveStatus;
 import cn.hamm.spms.module.wms.move.mapper.MoveMapper;
-import cn.hamm.spms.module.wms.move.mapper.MoveReadShadowService;
 import cn.hamm.spms.module.wms.output.OutputEntity;
 import cn.hamm.spms.module.wms.output.detail.OutputDetailEntity;
 import cn.hamm.spms.module.wms.output.enums.OutputStatus;
@@ -59,9 +58,6 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
 
     @Autowired(required = false)
     private MoveMapper moveMapper;
-
-    @Autowired
-    private MoveReadShadowService moveReadShadowService;
 
     @Autowired
     private ExportHelper exportHelper;
@@ -94,7 +90,6 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
         if (offset > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
-        moveReadShadowService.submit(filter);
         List<MoveEntity> rows = moveMapper.selectPageByPermission(filter.getBillCode(), filter.getStatus(),
                 (int) offset, pageSize);
         long total = moveMapper.countByPermission(filter.getBillCode(), filter.getStatus());
@@ -116,7 +111,6 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
         if (!isMapperReadEnabled()) {
             return get(id);
         }
-        moveReadShadowService.submit(new MoveEntity());
         MoveEntity bill = moveMapper.selectDetailByPermission(id);
         if (bill == null) {
             return null;
@@ -140,7 +134,6 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
     public long getMapperCount(MoveEntity filter) {
         MoveEntity normalized = filter == null ? new MoveEntity() : filter;
         if (isMapperReadEnabled()) {
-            moveReadShadowService.submit(normalized);
             return moveMapper.countByPermission(normalized.getBillCode(), normalized.getStatus());
         }
         return filter(normalized).size();
@@ -155,7 +148,6 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
     public ReadStat getMapperStat(MoveEntity filter) {
         MoveEntity normalized = filter == null ? new MoveEntity() : filter;
         if (isMapperReadEnabled()) {
-            moveReadShadowService.submit(normalized);
             return moveMapper.statByPermission(normalized.getBillCode(), normalized.getStatus());
         }
         List<MoveEntity> rows = filter(normalized);
@@ -173,7 +165,6 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
      */
     public String createMapperExportTask(QueryListRequest<MoveEntity> request) {
         MoveEntity filter = request == null || request.getFilter() == null ? new MoveEntity() : request.getFilter();
-        moveReadShadowService.submit(filter);
         List<MoveEntity> rows = moveMapper.selectForExport(filter.getBillCode(), filter.getStatus());
         List<MoveEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {

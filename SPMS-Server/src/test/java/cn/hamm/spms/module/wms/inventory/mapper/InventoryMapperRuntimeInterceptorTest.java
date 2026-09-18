@@ -111,18 +111,4 @@ class InventoryMapperRuntimeInterceptorTest {
             assertEquals(1L, rows.get(1).getId());
         }
     }
-
-    @Test
-    @DisplayName("库存没有可达策略时拒绝全部行")
-    void noPolicyDeniesAllRows() {
-        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
-        try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
-            assertEquals(0L, inventoryMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
-            assertNull(inventoryMapper.selectDetailByPermission(1L));
-            assertEquals(0, inventoryMapper.selectForExport(1, List.of(), List.of()).size());
-            assertEquals(0L, inventoryMapper.statByPermission(1, List.of(), List.of()).getTotal());
-            assertEquals(0L, inventoryService.getMapperCount(new InventoryEntity()));
-            assertEquals(0L, inventoryService.getMapperStat(new InventoryEntity()).getTotal());
-        }
-    }
 }

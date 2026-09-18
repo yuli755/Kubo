@@ -12,7 +12,6 @@ import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.factory.storage.mapper.StorageMapper;
-import cn.hamm.spms.module.factory.storage.mapper.StorageReadShadowService;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
@@ -38,13 +37,10 @@ public class StorageService extends BaseService<StorageEntity, StorageRepository
     private static final int MAX_READ_PAGE_SIZE = 200;
 
     /**
-     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留 JPA 回滚路径。
+     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留「关掉读侧就回到引擎读路径」的回滚位。
      */
     @Autowired(required = false)
     private StorageMapper storageMapper;
-
-    @Autowired
-    private StorageReadShadowService storageReadShadowService;
 
     @Autowired
     private ExportHelper exportHelper;
@@ -66,7 +62,7 @@ public class StorageService extends BaseService<StorageEntity, StorageRepository
     }
 
     /**
-     * 仓库分页读出口；树导航（children）仍走 JPA {@code getList}，写路径仍走 AirPower JPA。
+     * 仓库分页读出口；树导航（children）仍走 JPA {@code getList}，写路径走写侧仓储（`ICurdRepository` + mapper XML）。
      *
      * @param request 分页请求
      * @return 分页结果
@@ -90,7 +86,6 @@ public class StorageService extends BaseService<StorageEntity, StorageRepository
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
         int offset = (int) offsetValue;
-        storageReadShadowService.submit(filter);
         List<StorageEntity> list = storageMapper.selectPageByPermission(filter, offset, pageSize);
         long total = storageMapper.countByPermission(filter);
         int totalAsInt = Math.toIntExact(total);
@@ -115,7 +110,6 @@ public class StorageService extends BaseService<StorageEntity, StorageRepository
         if (!isMapperReadEnabled()) {
             return get(id);
         }
-        storageReadShadowService.submit();
         if (storageMapper.selectDetailByPermission(id) == null) {
             return null;
         }
@@ -131,7 +125,6 @@ public class StorageService extends BaseService<StorageEntity, StorageRepository
     public long getMapperCount(StorageEntity filter) {
         StorageEntity normalized = filter == null ? new StorageEntity() : filter;
         if (isMapperReadEnabled()) {
-            storageReadShadowService.submit(normalized);
             return storageMapper.countByPermission(normalized);
         }
         return filter(normalized).size();
@@ -146,7 +139,6 @@ public class StorageService extends BaseService<StorageEntity, StorageRepository
     public ReadStat getMapperStat(StorageEntity filter) {
         StorageEntity normalized = filter == null ? new StorageEntity() : filter;
         if (isMapperReadEnabled()) {
-            storageReadShadowService.submit(normalized);
             return storageMapper.statByPermission(normalized);
         }
         List<StorageEntity> rows = filter(normalized);
@@ -168,7 +160,6 @@ public class StorageService extends BaseService<StorageEntity, StorageRepository
     public String createMapperExportTask(QueryListRequest<StorageEntity> request) {
         StorageEntity filter = request == null || request.getFilter() == null
                 ? new StorageEntity() : request.getFilter();
-        storageReadShadowService.submit(filter);
         List<StorageEntity> rows = storageMapper.selectForExport(filter);
         List<StorageEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {

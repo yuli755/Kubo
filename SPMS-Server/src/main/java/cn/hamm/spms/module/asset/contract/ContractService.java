@@ -12,7 +12,6 @@ import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.asset.contract.enums.ContractStatus;
 import cn.hamm.spms.module.asset.contract.mapper.ContractMapper;
-import cn.hamm.spms.module.asset.contract.mapper.ContractReadShadowService;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
@@ -37,13 +36,10 @@ public class ContractService extends BaseService<ContractEntity, ContractReposit
     private static final int MAX_READ_PAGE_SIZE = 200;
 
     /**
-     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留 JPA 回滚路径。
+     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留「关掉读侧就回到引擎读路径」的回滚位。
      */
     @Autowired(required = false)
     private ContractMapper contractMapper;
-
-    @Autowired
-    private ContractReadShadowService contractReadShadowService;
 
     @Autowired
     private ExportHelper exportHelper;
@@ -59,7 +55,7 @@ public class ContractService extends BaseService<ContractEntity, ContractReposit
     }
 
     /**
-     * 合同分页读出口；写路径仍走 AirPower JPA。
+     * 合同分页读出口；写路径走写侧仓储（`ICurdRepository` + mapper XML）。
      *
      * @param request 分页请求
      * @return 分页结果
@@ -83,7 +79,6 @@ public class ContractService extends BaseService<ContractEntity, ContractReposit
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
         int offset = (int) offsetValue;
-        contractReadShadowService.submit(filter);
         List<ContractEntity> list = contractMapper.selectPageByPermission(filter, offset, pageSize);
         long total = contractMapper.countByPermission(filter);
         int totalAsInt = Math.toIntExact(total);
@@ -111,7 +106,6 @@ public class ContractService extends BaseService<ContractEntity, ContractReposit
         if (!isMapperReadEnabled()) {
             return get(id);
         }
-        contractReadShadowService.submit();
         if (contractMapper.selectDetailByPermission(id) == null) {
             return null;
         }
@@ -127,7 +121,6 @@ public class ContractService extends BaseService<ContractEntity, ContractReposit
     public long getMapperCount(ContractEntity filter) {
         ContractEntity normalized = filter == null ? new ContractEntity() : filter;
         if (isMapperReadEnabled()) {
-            contractReadShadowService.submit(normalized);
             return contractMapper.countByPermission(normalized);
         }
         return filter(normalized).size();
@@ -142,7 +135,6 @@ public class ContractService extends BaseService<ContractEntity, ContractReposit
     public ReadStat getMapperStat(ContractEntity filter) {
         ContractEntity normalized = filter == null ? new ContractEntity() : filter;
         if (isMapperReadEnabled()) {
-            contractReadShadowService.submit(normalized);
             return contractMapper.statByPermission(normalized);
         }
         List<ContractEntity> rows = filter(normalized);
@@ -164,7 +156,6 @@ public class ContractService extends BaseService<ContractEntity, ContractReposit
     public String createMapperExportTask(QueryListRequest<ContractEntity> request) {
         ContractEntity filter = request == null || request.getFilter() == null
                 ? new ContractEntity() : request.getFilter();
-        contractReadShadowService.submit(filter);
         List<ContractEntity> rows = contractMapper.selectForExport(filter);
         List<ContractEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {

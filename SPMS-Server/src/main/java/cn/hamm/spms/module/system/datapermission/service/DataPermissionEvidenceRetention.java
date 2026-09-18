@@ -3,7 +3,6 @@ package cn.hamm.spms.module.system.datapermission.service;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDenyLogRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDiffRepository;
-import cn.hamm.spms.module.system.datapermission.repository.DataPermissionOrmParityRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -12,12 +11,16 @@ import org.springframework.stereotype.Component;
 /**
  * <h1>数据权限证据留存</h1>
  *
- * <p>影子差异与 ORM 对账都是放开决策的证据，不是业务数据，也不应该无限增长。任务按统一的
- * {@code create_time} 截止线清理两张表：默认至少保留 30 天，长期归档由数据库备份/归档层先行完成，
- * 应用本身不把历史证据复制到业务库的第三张表里。</p>
+ * <p>影子差异（{@code data_permission_diff_log}）与拒绝日志都是放开决策的证据，不是业务数据，
+ * 也不应该无限增长。任务按统一的 {@code create_time} 截止线清理这两张表：默认至少保留 30 天，
+ * 长期归档由数据库备份/归档层先行完成，应用本身不把历史证据复制到业务库的第三张表里。</p>
  *
  * <p>清理失败只影响观测表，不影响请求链路；下一次调度会重试。两个仓库分别处理，是为了让一张表
  * 缺失或迁移尚未执行时，另一张已经就绪的证据仍然可以按自己的周期清理。</p>
+ *
+ * <p><b>2026-09-18 J4</b>：原先还清理 {@code data_permission_orm_parity_log}（JPA 侧 / Mapper 侧的
+ * 行数对账）；那张表随 {@code spring-boot-starter-data-jpa} 一起退场 —— 只剩一条读取与渲染路径之后，
+ * "两套 ORM 数出来一不一样"这个问题本身不存在了。</p>
  *
  * @author Hamm.cn
  */
@@ -29,22 +32,19 @@ public class DataPermissionEvidenceRetention {
 
     private final DataPermissionProperties properties;
     private final ObjectProvider<DataPermissionDiffRepository> diffRepositoryProvider;
-    private final ObjectProvider<DataPermissionOrmParityRepository> parityRepositoryProvider;
     private final ObjectProvider<DataPermissionDenyLogRepository> denyLogRepositoryProvider;
 
     public DataPermissionEvidenceRetention(
             DataPermissionProperties properties,
             ObjectProvider<DataPermissionDiffRepository> diffRepositoryProvider,
-            ObjectProvider<DataPermissionOrmParityRepository> parityRepositoryProvider,
             ObjectProvider<DataPermissionDenyLogRepository> denyLogRepositoryProvider) {
         this.properties = properties;
         this.diffRepositoryProvider = diffRepositoryProvider;
-        this.parityRepositoryProvider = parityRepositoryProvider;
         this.denyLogRepositoryProvider = denyLogRepositoryProvider;
     }
 
     /**
-     * 每日清理到期的两类观测证据。
+     * 每日清理到期的观测证据（差异表 + 拒绝日志）。
      *
      * <p>cron 由配置覆盖，默认时间与 {@link DataPermissionProperties.Shadow#retentionCleanupCron} 一致。
      * 不把任务绑定到某个运行模式：即使当前切回 OFF，也要把已经产生的历史证据按留存策略收口。</p>
@@ -62,11 +62,10 @@ public class DataPermissionEvidenceRetention {
         }
         long cutoff = cutoffEpochMillis(System.currentTimeMillis(), retentionDays);
         int diffRows = deleteDiff(cutoff);
-        int parityRows = deleteParity(cutoff);
         int denyRows = deleteDeny(cutoff);
-        if (diffRows > 0 || parityRows > 0 || denyRows > 0) {
-            log.info("[data-permission][retention] 清理到期证据：diff={}，orm-parity={}，deny-log={}，cutoff={}（保留 {} 天）",
-                    diffRows, parityRows, denyRows, cutoff, retentionDays);
+        if (diffRows > 0 || denyRows > 0) {
+            log.info("[data-permission][retention] 清理到期证据：diff={}，deny-log={}，cutoff={}（保留 {} 天）",
+                    diffRows, denyRows, cutoff, retentionDays);
         }
     }
 
@@ -94,20 +93,6 @@ public class DataPermissionEvidenceRetention {
         }
         catch (RuntimeException ex) {
             log.warn("[data-permission][retention] 清理影子差异表失败，下一轮重试：{}", ex.getMessage());
-            return 0;
-        }
-    }
-
-    private int deleteParity(long cutoff) {
-        DataPermissionOrmParityRepository repository = parityRepositoryProvider.getIfAvailable();
-        if (repository == null) {
-            return 0;
-        }
-        try {
-            return repository.deleteExpiredBefore(cutoff);
-        }
-        catch (RuntimeException ex) {
-            log.warn("[data-permission][retention] 清理 ORM 对账表失败，下一轮重试：{}", ex.getMessage());
             return 0;
         }
     }

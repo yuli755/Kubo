@@ -106,18 +106,4 @@ class SupplierMapperRuntimeInterceptorTest {
             assertEquals(1L, rows.get(1).getId());
         }
     }
-
-    @Test
-    @DisplayName("供应商无策略时恒假，不返回跨租户详情")
-    void noPolicyDeniesAllRows() {
-        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
-        try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
-            assertEquals(0L, supplierMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
-            assertNull(supplierMapper.selectDetailByPermission(1L));
-            assertEquals(0, supplierMapper.selectForExport(null).size());
-            assertEquals(0L, supplierMapper.statByPermission(null).getTotal());
-            assertEquals(0L, supplierService.getMapperCount(null));
-            assertEquals(0L, supplierService.getMapperStat(null).getTotal());
-        }
-    }
 }

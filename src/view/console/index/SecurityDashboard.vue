@@ -20,7 +20,7 @@ import { useRowPolicyRiskReport } from '@/composables/useRowPolicyRiskReport'
  * # 数据权限安全态势看板（P2 · 前端二次改造）
  *
  * ## 它只做一件事：把 9 份既有的盘点汇成一处可见
- * 这里**不新增任何判定**：enforce 进度、SHADOW 对账、拒绝事件、导出缺口、惰性策略、
+ * 这里**不新增任何判定**：enforce 进度、影子证据、拒绝事件、导出缺口、惰性策略、
  * 维度绑定、行级/资源风险、Outbox 死信，全部来自后端已算好的结论
  * （`dataResource/*` 管理端点）。前端若在这里再算一遍「什么算缺口 / 什么算风险」，
  * 就是抄第二份真相 —— 后端一改判据，看板立刻开始说谎。
@@ -31,9 +31,13 @@ import { useRowPolicyRiskReport } from '@/composables/useRowPolicyRiskReport'
  * 因此本组件只挂载在持有数据权限管理身份的页面里（见 `index.vue` 的 `v-if`）。
  *
  * ## 图表
- * 两张图都只聚合 `runtimeStatus.resources` 里后端给出的字段，不做任何语义推断：
- * - 档位分布（OFF / SHADOW / ENFORCE 资源数）—— 展示灰度进展；
- * - ORM 对账分布（一致 / 偏严 / 偏松 / 错误）—— 展示 shadow 证据质量，偏松是泄露方向。
+ * 只剩一张：档位分布（OFF / SHADOW / ENFORCE 资源数），只聚合
+ * `runtimeStatus.resources` 里后端给出的字段，不做任何语义推断。
+ *
+ * J4（2026-09-18）删掉了第二张「ORM 对账分布」图：它画的是"JPA 侧与 Mapper 侧数出来一不一样"，
+ * 而 `spring-boot-starter-data-jpa` 退场之后没有第二套 ORM 可比 —— 留着它只会变成一张
+ * 永远"全部一致"的装饰图，那比没有图更危险（它看起来像证据）。
+ * 影子证据本身仍在：`enforce-readiness` 的 `SHADOW_EVIDENCE` 档继续是放开的阻塞项。
  */
 
 const runtime = useDataPermissionRuntimeStatus()
@@ -139,27 +143,8 @@ const cardsReady = computed(() => {
     && settled(outbox)
 })
 
-/**
- * ORM 对账分布：跨资源累加后端给的四个计数器，不自行判定方向语义。
- */
-const ormParity = computed(() => {
-  let consistent = 0
-  let stricter = 0
-  let looser = 0
-  let error = 0
-  for (const resource of runtime.resources) {
-    consistent += resource.ormParityConsistentCount
-    stricter += resource.ormParityStricterCount
-    looser += resource.ormParityLooserCount
-    error += resource.ormParityErrorCount
-  }
-  return { consistent, stricter, looser, error }
-})
-
 const modeChartEl = ref<HTMLDivElement>()
-const parityChartEl = ref<HTMLDivElement>()
 let modeChart: EChartsType | undefined
-let parityChart: EChartsType | undefined
 
 async function renderCharts() {
   if (!runtime.ready)
@@ -172,11 +157,7 @@ async function renderCharts() {
   if (modeChartEl.value && !modeChart) {
     modeChart = echarts.init(modeChartEl.value)
   }
-  if (parityChartEl.value && !parityChart) {
-    parityChart = echarts.init(parityChartEl.value)
-  }
   modeChart?.setOption(buildModeOption(runtime.resources))
-  parityChart?.setOption(buildParityOption())
 }
 
 function buildModeOption(resources: ResourceRuntimeStatus[]) {
@@ -200,36 +181,6 @@ function buildModeOption(resources: ResourceRuntimeStatus[]) {
         avoidLabelOverlap: true,
         label: { formatter: '{b}: {c}' },
         data,
-      },
-    ],
-  }
-}
-
-function buildParityOption() {
-  const { consistent, stricter, looser, error } = ormParity.value
-  return {
-    // V6：图表入场动画（柱状生长过渡）
-    animationDuration: 600,
-    animationEasing: 'cubicOut' as const,
-    tooltip: { trigger: 'axis' as const },
-    legend: { bottom: 0 },
-    grid: { left: '8%', right: '4%', top: '8%', bottom: '22%', containLabel: true },
-    xAxis: {
-      type: 'category' as const,
-      data: ['一致', '偏严', '偏松', '错误'],
-    },
-    yAxis: { type: 'value' as const, minInterval: 1 },
-    series: [
-      {
-        name: '对账样本数',
-        type: 'bar' as const,
-        data: [
-          { value: consistent, itemStyle: { color: '#67c23a' } },
-          { value: stricter, itemStyle: { color: '#909399' } },
-          { value: looser, itemStyle: { color: '#f56c6c' } },
-          { value: error, itemStyle: { color: '#e6a23c' } },
-        ],
-        barMaxWidth: 60,
       },
     ],
   }
@@ -265,9 +216,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   modeChart?.dispose()
-  parityChart?.dispose()
   modeChart = undefined
-  parityChart = undefined
 })
 </script>
 
@@ -359,29 +308,6 @@ onBeforeUnmount(() => {
         <EmptyState
           v-else
           :description="runtime.failed ? '未能取得资源档位分布' : '暂无已登记资源'"
-          :image-size="60"
-        />
-      </el-card>
-
-      <el-card
-        class="chart-card"
-        shadow="never"
-      >
-        <template #header>
-          <span class="chart-title">ORM 对账分布（shadow 证据）</span>
-        </template>
-        <div
-          v-if="runtime.ready && runtime.resources.length"
-          ref="parityChartEl"
-          class="chart"
-        />
-        <Skeleton
-          v-else-if="runtime.loading"
-          variant="chart"
-        />
-        <EmptyState
-          v-else
-          :description="runtime.failed ? '未能取得 ORM 对账分布' : '暂无对账样本'"
           :image-size="60"
         />
       </el-card>

@@ -45,7 +45,7 @@ import org.springframework.stereotype.Component;
 public class RowWriteGuard implements RowPermissionEnforcer {
 
     /**
-     * 既存行可见性探针（JPA 实现在 {@link JpaRowVisibilityProbe}）
+     * 既存行可见性探针（实现在 {@link RowVisibilityProbe}：与读侧同一份条件、同一套 wrapper）
      *
      * <p>单独抽出来的理由与本模块所有判定一致：把"拿数据"与"下结论"分开，
      * 结论这一半必须能在不起 Spring、不连库的情况下被逐条断言。</p>

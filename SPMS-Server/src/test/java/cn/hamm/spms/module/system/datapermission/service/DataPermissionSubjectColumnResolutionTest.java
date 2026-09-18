@@ -6,7 +6,7 @@ import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
-import cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler;
+import cn.hamm.spms.module.system.datapermission.rule.SqlPermissionRuleRenderer;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.junit.jupiter.api.AfterEach;
@@ -69,7 +69,7 @@ class DataPermissionSubjectColumnResolutionTest {
         properties.setMode(DataPermissionProperties.Mode.ENFORCE);
         specification = new DataPermissionSpecification(
                 dataPermissionService, properties, audit,
-                new PermissionRuleParser(), new JpaPermissionRuleCompiler());
+                new PermissionRuleParser(), new SqlPermissionRuleRenderer());
         PermissionContextHolder.clear();
     }
 

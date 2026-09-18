@@ -41,15 +41,6 @@
         </if>
     </sql>
 
-    <sql id="moveParityFilter">
-        <if test="billCode != null and billCode != ''">
-            AND bill_code LIKE CONCAT('%', #{billCode}, '%')
-        </if>
-        <if test="status != null">
-            AND status = #{status}
-        </if>
-    </sql>
-
     <select id="selectPageByPermission" resultMap="moveReadMap">
         SELECT <include refid="moveColumns"/>
         FROM move m
@@ -85,11 +76,4 @@
         <where><include refid="moveFilter"/></where>
     </select>
 
-    <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM move
-        <where>
-            <include refid="moveParityFilter"/>
-            <if test="fragment != null and fragment != ''">AND ${fragment}</if>
-        </where>
-    </select>
 </mapper>

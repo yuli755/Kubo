@@ -19,9 +19,10 @@ import lombok.Getter;
  * 后台任务写入的数据默认归平台，不让它猜租户。</p>
  *
  * <p><b>读链路的行级过滤不在这里</b>：JPA 时代刻意没加 Hibernate 的 {@code @Filter}（没人
- * {@code enableFilter}，加了只会制造"已经隔离了"的错觉）；J3 之后实体上没有任何 JPA 注解，
- * 真正的过滤在 MyBatis 拦截器（{@code KuboDataPermissionHandler}）里做，
- * 影子比对线（{@code DataPermissionSpecification}）自持到 J4 退场。</p>
+ * {@code enableFilter}，加了只会制造"已经隔离了"的错觉）；现在读侧过滤由
+ * {@code DataPermissionSpecification}（引擎 wrapper 路径）与
+ * {@code KuboDataPermissionHandler}（Mapper 拦截器路径）两条注入点共用同一个渲染器完成，
+ * 写侧另由 {@code RowVisibilityProbe} 守"看得见才改得动"。</p>
  *
  * @author Hamm.cn
  */

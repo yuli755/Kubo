@@ -65,7 +65,7 @@ class DataPermissionModeSemanticsTest {
         audit = mock(DataPermissionAudit.class);
         specification = new DataPermissionSpecification(dataPermissionService, properties, audit,
                 new cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser(),
-                new cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler());
+                new cn.hamm.spms.module.system.datapermission.rule.SqlPermissionRuleRenderer());
         PermissionContextHolder.open(new PermissionContext(1L, 100L, Set.of(1L), Set.of(), Set.of(), Set.of("planner"), false));
     }
 
@@ -90,8 +90,8 @@ class DataPermissionModeSemanticsTest {
      * 走一次注入，返回 wrapper 的 WHERE 片段（空串 = 不注入任何条件）
      *
      * @return WHERE 片段
-     * @apiNote J2 起注入的是 SQL 片段而不是 Criteria 谓词，所以观察对象是片段文本：
-     * ShadowDiffService 仍走 JPA（影子线自持），但规格本身不再需要 Root/CriteriaBuilder。
+     * @apiNote J2 起注入的是 SQL 片段而不是 Criteria 谓词，所以观察对象是片段文本；
+     * J4 起影子比对也走同一条 MP 路径，全类不再需要 Root/CriteriaBuilder 这类 JPA 类型。
      */
     private String build() {
         QueryWrapper<DataResourceEntity> wrapper = new QueryWrapper<>();

@@ -49,7 +49,7 @@ public class DataPermissionDiffEntity extends BaseEntity<DataPermissionDiffEntit
     @Description("比对耗时（毫秒）")
     private Long costMs;
 
-    @Description("明细（被过滤掉的主键样本等，受 shadow.max-detail-rows 限制）")
+    @Description("差异说明：比对失败时的异常摘要（没失败时为 null）")
     private String detail;
 
     /**

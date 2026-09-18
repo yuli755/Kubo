@@ -20,7 +20,7 @@ import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 /**
  * <h1>Controller</h1>
  *
- * <p>写接口继续复用 AirPower JPA CRUD；page/detail/stat/count/export 在本类显式换到 StorageMapper。
+ * <p>写接口继续复用写侧仓储（`ICurdRepository`）CRUD；page/detail/stat/count/export 在本类显式换到 StorageMapper。
  * 树导航 {@code getList}（前端 tree selector 用）仍走 JPA，经 {@code beforeGetList}/{@code afterGetList}
  * 递归补 {@code children}。</p>
  *

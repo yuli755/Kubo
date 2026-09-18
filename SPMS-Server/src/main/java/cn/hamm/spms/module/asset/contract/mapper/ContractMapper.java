@@ -4,7 +4,6 @@ import cn.hamm.spms.base.mapper.KuboBaseMapper;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.asset.contract.ContractEntity;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
-import cn.hamm.spms.framework.curd.datapermission.RowParityCounter;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -20,13 +19,9 @@ import java.util.Map;
  * @author Hamm.cn
  */
 @DataResource(key = "asset.contract", alias = "contract")
-public interface ContractMapper extends KuboBaseMapper<ContractEntity>, RowParityCounter {
+public interface ContractMapper extends KuboBaseMapper<ContractEntity> {
 
     @Override
-    default String parityResourceKey() {
-        return "asset.contract";
-    }
-
     /**
      * @param filter 合同筛选（编码 / 名称 / 内容）
      * @param offset 分页偏移
@@ -64,9 +59,4 @@ public interface ContractMapper extends KuboBaseMapper<ContractEntity>, RowParit
      */
     List<ContractEntity> selectForExport(@Param("filter") ContractEntity filter);
 
-    /**
-     * @param parameters fragment 与业务筛选参数
-     * @return 行数
-     */
-    Long countByPermissionFragment(Map<String, Object> parameters);
 }

@@ -135,7 +135,7 @@ class FactoryDimensionReadinessTest {
     }
 
     @Test
-    @DisplayName("登记 FACTORY:storage.id 且实体真挂 @ManyToOne storage → 就绪（D13-B）")
+    @DisplayName("登记 FACTORY:storage.id 且实体真挂 storage 关系字段 → 就绪（D13-B）")
     void recognizesFactoryAssociationPath() {
         List<String> problems = FactoryDimensionReadiness.inspect(
                 List.of(ReadyUserEntity.class, InventoryWithStorageAssociation.class),

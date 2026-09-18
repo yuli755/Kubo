@@ -2,53 +2,42 @@ package cn.hamm.spms.framework;
 
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.PersistenceContext;
-import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 
-import java.sql.ResultSet;
-import java.sql.Statement;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import cn.hamm.spms.support.SqlFixtures;
 
 /**
- * <h1>MyBatis-Plus 与残留 JPA 并存的最小验证（P2 换轨的前提）</h1>
+ * <h1>持久化栈：只有一套 ORM（MyBatis-Plus），JPA 不许回来</h1>
  *
- * <p>本类<em>不测任何业务读路径</em>。§19.34 之后仓里多了一个读侧 Mapper（{@code MaterialMapper}）与一份 XML，
- * 但默认配置下它们<b>根本不会注册</b>（开关 {@code kubo.data-permission.mapper-read.enabled=false}），
- * 所以本类的口径不变：它只回答一个此前只能靠猜的问题 —— <b>把 MyBatis-Plus 放进这个应用，
- * 两件事会不会互相挤掉</b>；外加一条：那个开关是否真的能把注册一刀切断（见最后一例）。
- * 风险表里那行"MyBatis 与 AirPower-JPA 并存 → 事务/一二级缓存语义不一致"（🔴 P0）说的就是这个，
- * 而它无法在本地验证（沙箱没有 JDK、也没有依赖树），所以把它做成一次可回归的断言，
- * 而不是"我看着应该没问题"。</p>
+ * <p>本类原名 {@code MybatisJpaCoexistenceTest}，J2 之前它验的是"两套 ORM 能不能共存"
+ * （P2 换轨的前提）；J4（2026-09-18）删掉 {@code spring-boot-starter-data-jpa} 之后，
+ * <b>它验的是反向事实</b>：容器里没有 {@code EntityManagerFactory}、没有
+ * {@code JpaTransactionManager}，事务管理器只有 {@link DataSourceTransactionManager} 一个。
+ * 换判据不删测试 —— 这条测试的价值是"回滚位/共存位"的回归信号，现在它是"两套 ORM 不许回来"的回归信号。</p>
  *
- * <p><b>J3 之后这里的"JPA"指什么</b>：实体上的 JPA 注解已经退场（41 个实体只剩 {@code @TableName}），
- * 所以 JPA 侧的实体集合是空的；本类验的不再是"两套 ORM 抢同一张表"，而是
- * <b>"残留 JPA 还在原位、且没有第二个 EntityManagerFactory / 第二个事务管理器"</b>。
- * J4 删掉 {@code spring-boot-starter-data-jpa} 时，本类里那两条断言会红 —— 那是预期信号
- * （届时事务管理器应当变成 {@code DataSourceTransactionManager}）。</p>
+ * <p>为什么用 {@code Class.forName} 而不是 {@code getBeanNamesForType(...)} 去数 JPA 的 Bean：
+ * 那两个类型是<b>编译期就不该存在于 classpath 上</b>的（starter 已删），写成静态类型会让本类
+ * 自己把 JPA 拉回来 —— 于是"JPA 不许回来"这句话在测试里先被违反一次。按名字探一次 classpath
+ * 既说清了事实，也让回退（有人把 starter 加回来）立刻变红。</p>
  *
- * <p>档位刻意钉在 {@code kubo.data-permission.mode=off}：本类要验的是两套 ORM 能不能共存，
- * 掺进权限判定只会让失败原因分不清是谁（同 §19.29 的教训：<em>集成测试要显式声明它站在哪一档</em>，
- * 哪怕这一档是"都不介入"）。</p>
+ * <p>档位刻意钉在 {@code kubo.data-permission.mode=off}：本类要验的是持久化栈的形状，
+ * 掺进权限判定只会让失败原因分不清是谁（同 §19.29 的教训：<em>集成测试要显式声明它站在哪一档</em>）。</p>
  *
  * @author Hamm.cn
  */
@@ -61,11 +50,8 @@ import cn.hamm.spms.support.SqlFixtures;
 )
 @ActiveProfiles("test")
 @Transactional
-@DisplayName("MyBatis-Plus 与 JPA 并存（P2 前提）")
-class MybatisJpaCoexistenceTest {
-
-    @PersistenceContext
-    private EntityManager entityManager;
+@DisplayName("持久化栈 · 只有一套 ORM")
+class PersistenceStackTest {
 
     @Autowired
     private DataSource dataSource;
@@ -75,19 +61,21 @@ class MybatisJpaCoexistenceTest {
 
     private SqlSessionFactory sqlSessionFactory() {
         SqlSessionFactory factory = applicationContext.getBeanProvider(SqlSessionFactory.class).getIfAvailable();
-        assertNotNull(factory, "MyBatis-Plus 的自动配置没起来：starter 没生效或被 airpower 的条件挤掉了，换轨前提不成立");
+        assertNotNull(factory, "MyBatis-Plus 的自动配置没起来：starter 没生效或被条件挤掉了，整条读写链路都不成立");
         return factory;
     }
 
     @Test
-    @DisplayName("加进来之后，JPA 那套还在原位（不能被自动配置悄悄换掉）")
-    void jpaSideStillFullyWired() {
-        assertNotNull(applicationContext.getBeanProvider(EntityManagerFactory.class).getIfAvailable(),
-                "EntityManagerFactory 没了：影子比对（ShadowDiffService / JpaRowVisibilityProbe）会一起塌。"
-                        + "J2 之后 CURD 引擎已不依赖 JPA，但影子线仍是 JPA；到 J4 删 starter 时这条会红，那正是预期信号");
-        assertNotNull(entityManager);
-        assertEquals(1L, applicationContext.getBeanNamesForType(EntityManagerFactory.class).length,
-                "出现第二个 EntityManagerFactory = 两套一级/二级缓存，同一个实体会被两份会话各自持有");
+    @DisplayName("JPA 已经整体退场：classpath 上连 EntityManagerFactory 与 JpaTransactionManager 都不该有")
+    void jpaIsGoneForGood() {
+        assertThrows(ClassNotFoundException.class,
+                () -> Class.forName("jakarta.persistence.EntityManagerFactory"),
+                "classpath 上又有 JPA 了：spring-boot-starter-data-jpa 被加回来了？"
+                        + "本仓的实体/仓储/数据权限都只认 MyBatis-Plus，两套 ORM 并存会同时引入两套一级缓存与 flush 语义");
+        assertThrows(ClassNotFoundException.class,
+                () -> Class.forName("org.springframework.orm.jpa.JpaTransactionManager"),
+                "又出现了 JPA 事务管理器：@Transactional 会随机绑到其中一个，"
+                        + "而且它管不到 MyBatis 的会话，flush 语义直接失真");
     }
 
     @Test
@@ -95,23 +83,22 @@ class MybatisJpaCoexistenceTest {
     void mybatisReusesTheContainerDataSource() {
         assertSame(dataSource, sqlSessionFactory().getConfiguration().getEnvironment().getDataSource(),
                 "两套连接池就是两套事务语义：@Transactional 对 Mapper 写入不生效，"
-                        + "读写分开提交会造出「JPA 回滚了、Mapper 已落库」这类查不出来的脏数据");
+                        + "读写分开提交会造出「回滚了一份、另一份已落库」这类查不出来的脏数据");
     }
 
     @Test
-    @DisplayName("全容器只有一个事务管理器，且是 JpaTransactionManager")
-    void singleTransactionManagerIsJpa() {
+    @DisplayName("全容器只有一个事务管理器，且是 DataSourceTransactionManager")
+    void singleTransactionManagerIsDataSourceBacked() {
         String[] names = applicationContext.getBeanNamesForType(PlatformTransactionManager.class);
         assertEquals(1, names.length,
-                "出现了多个事务管理器（含 DataSourceTransactionManager）：@Transactional 会随机绑到其中一个，"
-                        + "换轨期间必须先把这个歧义消掉");
-        assertInstanceOf(JpaTransactionManager.class, applicationContext.getBean(PlatformTransactionManager.class),
-                "事务管理器不是 JPA 那个：残留 JPA（影子线）的 flush/一级缓存语义将不受 @Transactional 管；"
-                        + "J4 删掉 starter 之后这里应当变成 DataSourceTransactionManager —— 那时改这条断言，别删这个测试");
+                "出现了多个事务管理器：@Transactional 会随机绑到其中一个，"
+                        + "这类歧义在 J2 换轨期被专门清理过一次，别让它回来（names=" + String.join(",", names) + "）");
+        assertInstanceOf(DataSourceTransactionManager.class, applicationContext.getBean(PlatformTransactionManager.class),
+                "事务管理器不是数据源那个：MyBatis-Plus 的会话与它共用同一个连接才能保证「一个事务里一次提交」");
     }
 
     /**
-     * 本轮只验「并存」，不验「能改 SQL」。
+     * 本轮只验「只有一套 ORM」，不验「JPQL 能不能跑」。
      *
      * <p><b>这段注释曾经记错了一次，记录如下，别把它当装饰。</b>最初这里写的是「{@code jsqlparser}
      * 本体没有随 {@code mybatis-plus-jsqlparser:3.5.9} 传递进来」，依据是 CI 报的
@@ -165,24 +152,5 @@ class MybatisJpaCoexistenceTest {
         assertEquals(1, applicationContext.getBeanNamesForType(
                         cn.hamm.spms.module.asset.contract.ContractRepository.class).length,
                 "写侧仓储没注册：增删改会整体失效（@MapperScan 的 marker/basePackages 漂了？）");
-    }
-
-    @Test
-    @DisplayName("MyBatis 能查到 JPA 那张表（同一库、同一 schema）")
-    void mybatisReadsTheSameSchema() throws Exception {
-        String countSql = SqlFixtures.text("coexistence/count_data_resource.sql");
-        // SQL-IGNORE: createNativeQuery 是 JPA 的原生查询入口（语句本身在 coexistence/count_data_resource.sql）
-        long viaJpa = ((Number) entityManager.createNativeQuery(countSql)
-                .getSingleResult()).longValue();
-        long viaMyBatis;
-        try (SqlSession session = sqlSessionFactory().openSession()) {
-            try (Statement statement = session.getConnection().createStatement();
-                 ResultSet rs = statement.executeQuery(countSql)) {
-                assertTrue(rs.next(), "COUNT 查询必须返回一行");
-                viaMyBatis = rs.getLong(1);
-            }
-        }
-        assertEquals(viaJpa, viaMyBatis,
-                "两套 ORM 读到的行数不同：测试库里存在两份 schema 或两条连接指向不同库，换轨的对账前提不成立");
     }
 }

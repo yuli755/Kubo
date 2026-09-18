@@ -127,8 +127,9 @@ const RESPONSIBILITY_RULES = [
     id: 'L3',
     desc: 'mapper / repository 不得依赖 service / controller',
     // 只认"数据访问层自己的接口文件"：按文件名判定，不按目录 ——
-    // `module/**/mapper/` 下还住着 *ReadShadowService 这类实现类（它们属于服务层，
-    // 放在 mapper 目录只是为了和读侧 Mapper 挨着），按目录判定会误报（第一版就是这么错的）
+    // `module/**/mapper/` 下除了 Mapper 接口，还住过 *ReadShadowService 这类实现类
+    // （J4 已随 JPA 一起删除，但它们演示了"目录≠层次"：把实现类放进 mapper 目录、
+    // 按目录判定就会误报 —— 第一版就是这么错的）。这条按文件名判定的口径因此保留。
     matchFile: f => /(Repository|Mapper)\.java$/.test(f),
     regs: [/^import\s+(?:static\s+)?cn\.hamm\.spms\..*\.service\./, /^import\s+(?:static\s+)?cn\.hamm\.spms\..*Controller;/],
   },

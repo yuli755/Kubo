@@ -34,7 +34,7 @@ public class PurchaseController extends BaseBillController<
         > {
 
     /**
-     * 采购单分页读出口（Mapper）；开关关闭时回退 AirPower JPA。
+     * 采购单分页读出口（Mapper）；开关关闭时回退到引擎（wrapper）读路径。
      */
     @Override
     @PostMapping("getPage")

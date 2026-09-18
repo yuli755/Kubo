@@ -31,7 +31,7 @@ import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 public class InputController extends BaseBillController<InputEntity, InputService, InputRepository, InputDetailEntity, InputDetailService, InputDetailRepository> {
 
     /**
-     * 入库单分页读出口（Mapper）；开关关闭时回退 AirPower JPA。
+     * 入库单分页读出口（Mapper）；开关关闭时回退到引擎（wrapper）读路径。
      */
     @Override
     @PostMapping("getPage")

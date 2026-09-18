@@ -17,7 +17,6 @@ import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.asset.material.MaterialService;
 import cn.hamm.spms.module.wms.inventory.mapper.InventoryMapper;
-import cn.hamm.spms.module.wms.inventory.mapper.InventoryReadShadowService;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.factory.storage.StorageService;
 import cn.hamm.spms.module.factory.structure.StructureEntity;
@@ -59,9 +58,6 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
      */
     @Autowired
     private InventoryWriteMapper inventoryWriteMapper;
-
-    @Autowired
-    private InventoryReadShadowService inventoryReadShadowService;
 
     @Autowired
     private ExportHelper exportHelper;
@@ -113,7 +109,6 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
         Integer type = filter.getType();
         List<Long> storageIds = storageIds(filter, type);
         List<Long> structureIds = structureIds(filter, type);
-        inventoryReadShadowService.submit(type, storageIds, structureIds);
         List<InventoryEntity> rows = inventoryMapper.selectPageByPermission(type, storageIds, structureIds,
                 (int) offsetValue, pageSize).stream().map(this::hydrateRelations).toList();
         long total = inventoryMapper.countByPermission(type, storageIds, structureIds);
@@ -167,7 +162,6 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
             Integer type = normalized.getType();
             List<Long> storageIds = storageIds(normalized, type);
             List<Long> structureIds = structureIds(normalized, type);
-            inventoryReadShadowService.submit(type, storageIds, structureIds);
             return inventoryMapper.statByPermission(type, storageIds, structureIds);
         }
         List<InventoryEntity> rows = filter(normalized);
@@ -194,7 +188,6 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
         Integer type = filter.getType();
         List<Long> storageIds = storageIds(filter, type);
         List<Long> structureIds = structureIds(filter, type);
-        inventoryReadShadowService.submit(type, storageIds, structureIds);
         List<InventoryEntity> rows = inventoryMapper.selectForExport(type, storageIds, structureIds);
         List<InventoryEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {

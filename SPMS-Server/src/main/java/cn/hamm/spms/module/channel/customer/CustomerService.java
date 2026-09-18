@@ -11,7 +11,6 @@ import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.channel.customer.mapper.CustomerMapper;
-import cn.hamm.spms.module.channel.customer.mapper.CustomerReadShadowService;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
@@ -34,13 +33,10 @@ public class CustomerService extends BaseService<CustomerEntity, CustomerReposit
     private static final int MAX_READ_PAGE_SIZE = 200;
 
     /**
-     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留 JPA 回滚路径。
+     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留「关掉读侧就回到引擎读路径」的回滚位。
      */
     @Autowired(required = false)
     private CustomerMapper customerMapper;
-
-    @Autowired
-    private CustomerReadShadowService customerReadShadowService;
 
     @Autowired
     private ExportHelper exportHelper;
@@ -56,7 +52,7 @@ public class CustomerService extends BaseService<CustomerEntity, CustomerReposit
     }
 
     /**
-     * 客户分页读出口；写路径仍走 AirPower JPA。
+     * 客户分页读出口；写路径走写侧仓储（`ICurdRepository` + mapper XML）。
      */
     public @NotNull QueryPageResponse<CustomerEntity> getMapperPage(QueryPageRequest<CustomerEntity> request) {
         QueryPageRequest<CustomerEntity> normalized = request == null ? new QueryPageRequest<>() : request;
@@ -77,7 +73,6 @@ public class CustomerService extends BaseService<CustomerEntity, CustomerReposit
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
         int offset = (int) offsetValue;
-        customerReadShadowService.submit(filter);
         List<CustomerEntity> list = customerMapper.selectPageByPermission(filter, offset, pageSize);
         long total = customerMapper.countByPermission(filter);
         int totalAsInt = Math.toIntExact(total);
@@ -102,7 +97,6 @@ public class CustomerService extends BaseService<CustomerEntity, CustomerReposit
         if (!isMapperReadEnabled()) {
             return get(id);
         }
-        customerReadShadowService.submit();
         return customerMapper.selectDetailByPermission(id);
     }
 
@@ -115,7 +109,6 @@ public class CustomerService extends BaseService<CustomerEntity, CustomerReposit
     public long getMapperCount(CustomerEntity filter) {
         CustomerEntity normalized = filter == null ? new CustomerEntity() : filter;
         if (isMapperReadEnabled()) {
-            customerReadShadowService.submit(normalized);
             return customerMapper.countByPermission(normalized);
         }
         return filter(normalized).size();
@@ -130,7 +123,6 @@ public class CustomerService extends BaseService<CustomerEntity, CustomerReposit
     public ReadStat getMapperStat(CustomerEntity filter) {
         CustomerEntity normalized = filter == null ? new CustomerEntity() : filter;
         if (isMapperReadEnabled()) {
-            customerReadShadowService.submit(normalized);
             return customerMapper.statByPermission(normalized);
         }
         List<CustomerEntity> rows = filter(normalized);
@@ -152,7 +144,6 @@ public class CustomerService extends BaseService<CustomerEntity, CustomerReposit
     public String createMapperExportTask(QueryListRequest<CustomerEntity> request) {
         CustomerEntity filter = request == null || request.getFilter() == null
                 ? new CustomerEntity() : request.getFilter();
-        customerReadShadowService.submit(filter);
         List<CustomerEntity> rows = customerMapper.selectForExport(filter);
         List<CustomerEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {

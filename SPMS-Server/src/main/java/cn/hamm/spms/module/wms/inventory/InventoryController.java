@@ -34,7 +34,7 @@ import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 public class InventoryController extends BaseController<InventoryEntity, InventoryService, InventoryRepository> {
 
     /**
-     * 库存分页读出口（Mapper）；开关关闭时回到 AirPower JPA。
+     * 库存分页读出口（Mapper）；开关关闭时回退到引擎（wrapper）读路径。
      */
     @Override
     @PostMapping("getPage")

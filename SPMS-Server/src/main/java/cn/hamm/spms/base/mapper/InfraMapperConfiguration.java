@@ -3,7 +3,6 @@ package cn.hamm.spms.base.mapper;
 import cn.hamm.spms.module.system.datapermission.mapper.DataFieldPolicyQueryMapper;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDenyLogRepository;
 import cn.hamm.spms.module.system.datapermission.repository.DataPermissionDiffRepository;
-import cn.hamm.spms.module.system.datapermission.repository.DataPermissionOrmParityRepository;
 import cn.hamm.spms.module.system.datapermission.repository.OperationLogRepository;
 import cn.hamm.spms.module.wms.inventory.mapper.InventoryWriteMapper;
 import org.apache.ibatis.session.SqlSessionFactory;
@@ -76,17 +75,6 @@ public class InfraMapperConfiguration {
     @Bean
     public MapperFactoryBean<DataPermissionDiffRepository> dataPermissionDiffRepository(SqlSessionFactory sqlSessionFactory) {
         return register(DataPermissionDiffRepository.class, sqlSessionFactory);
-    }
-
-    /**
-     * ORM 行数对账表
-     *
-     * @param sqlSessionFactory MyBatis 会话工厂
-     * @return Mapper
-     */
-    @Bean
-    public MapperFactoryBean<DataPermissionOrmParityRepository> dataPermissionOrmParityRepository(SqlSessionFactory sqlSessionFactory) {
-        return register(DataPermissionOrmParityRepository.class, sqlSessionFactory);
     }
 
     /**

@@ -102,7 +102,7 @@ public final class SqlPermissionRuleRenderer {
     }
 
     /**
-     * 主体维度 → SQL 片段（与 {@link JpaPermissionRuleCompiler} 读同一棵树）
+     * 主体维度 → SQL 片段（本仓唯一的条件注入出口，读的是策略建树器产出的那棵树）
      *
      * <p>SQL 侧没有实体元模型可问，所以"挑第一个绑得上的候选"在这里退化成"取登记的第一个"。
      * 两者不一致的情形只有一种：登记的第一个候选在数据库里有列、在这个实体的 JPA 映射里却没有

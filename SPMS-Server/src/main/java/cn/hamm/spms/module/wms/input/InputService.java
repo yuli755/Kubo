@@ -25,7 +25,6 @@ import cn.hamm.spms.module.wms.input.detail.InputDetailRepository;
 import cn.hamm.spms.module.wms.input.detail.InputDetailService;
 import cn.hamm.spms.module.wms.input.enums.InputStatus;
 import cn.hamm.spms.module.wms.input.mapper.InputMapper;
-import cn.hamm.spms.module.wms.input.mapper.InputReadShadowService;
 import cn.hamm.spms.module.wms.input.enums.InputType;
 import cn.hamm.spms.module.wms.inventory.InventoryEntity;
 import cn.hamm.spms.module.wms.inventory.InventoryService;
@@ -56,9 +55,6 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
 
     @Autowired(required = false)
     private InputMapper inputMapper;
-
-    @Autowired
-    private InputReadShadowService inputReadShadowService;
 
     @Autowired
     private ExportHelper exportHelper;
@@ -94,7 +90,6 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
         if (offset > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
-        inputReadShadowService.submit(filter);
         List<InputEntity> rows = inputMapper.selectPageByPermission(filter.getBillCode(), filter.getStatus(),
                 filter.getType(), (int) offset, pageSize);
         long total = inputMapper.countByPermission(filter.getBillCode(), filter.getStatus(), filter.getType());
@@ -117,7 +112,6 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
         if (!isMapperReadEnabled()) {
             return get(id);
         }
-        inputReadShadowService.submit(new InputEntity());
         InputEntity bill = inputMapper.selectDetailByPermission(id);
         if (bill == null) {
             return null;
@@ -138,7 +132,6 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
     public long getMapperCount(InputEntity filter) {
         InputEntity normalized = filter == null ? new InputEntity() : filter;
         if (isMapperReadEnabled()) {
-            inputReadShadowService.submit(normalized);
             return inputMapper.countByPermission(normalized.getBillCode(), normalized.getStatus(), normalized.getType());
         }
         return filter(normalized).size();
@@ -153,7 +146,6 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
     public ReadStat getMapperStat(InputEntity filter) {
         InputEntity normalized = filter == null ? new InputEntity() : filter;
         if (isMapperReadEnabled()) {
-            inputReadShadowService.submit(normalized);
             return inputMapper.statByPermission(normalized.getBillCode(), normalized.getStatus(), normalized.getType());
         }
         List<InputEntity> rows = filter(normalized);
@@ -176,7 +168,6 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
      */
     public String createMapperExportTask(QueryListRequest<InputEntity> request) {
         InputEntity filter = request == null || request.getFilter() == null ? new InputEntity() : request.getFilter();
-        inputReadShadowService.submit(filter);
         List<InputEntity> rows = inputMapper.selectForExport(filter.getBillCode(), filter.getStatus(), filter.getType());
         List<InputEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {

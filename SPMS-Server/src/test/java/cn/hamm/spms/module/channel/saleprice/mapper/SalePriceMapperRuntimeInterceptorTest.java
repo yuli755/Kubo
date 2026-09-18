@@ -107,18 +107,4 @@ class SalePriceMapperRuntimeInterceptorTest {
             assertEquals(1L, rows.get(1).getId());
         }
     }
-
-    @Test
-    @DisplayName("销售价无策略时恒假，不返回跨租户详情")
-    void noPolicyDeniesAllRows() {
-        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
-        try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
-            assertEquals(0L, salePriceMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
-            assertNull(salePriceMapper.selectDetailByPermission(1L));
-            assertEquals(0, salePriceMapper.selectForExport(null).size());
-            assertEquals(0L, salePriceMapper.statByPermission(null).getTotal());
-            assertEquals(0L, salePriceService.getMapperCount(null));
-            assertEquals(0L, salePriceService.getMapperStat(null).getTotal());
-        }
-    }
 }

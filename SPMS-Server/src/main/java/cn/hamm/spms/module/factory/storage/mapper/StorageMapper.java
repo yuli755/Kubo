@@ -4,7 +4,6 @@ import cn.hamm.spms.base.mapper.KuboBaseMapper;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
-import cn.hamm.spms.framework.curd.datapermission.RowParityCounter;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -21,13 +20,9 @@ import java.util.Map;
  * @author Hamm.cn
  */
 @DataResource(key = "factory.storage", alias = "storage")
-public interface StorageMapper extends KuboBaseMapper<StorageEntity>, RowParityCounter {
+public interface StorageMapper extends KuboBaseMapper<StorageEntity> {
 
     @Override
-    default String parityResourceKey() {
-        return "factory.storage";
-    }
-
     /**
      * @param filter 仓库筛选（编码 / 名称）
      * @param offset 分页偏移
@@ -65,9 +60,4 @@ public interface StorageMapper extends KuboBaseMapper<StorageEntity>, RowParityC
      */
     List<StorageEntity> selectForExport(@Param("filter") StorageEntity filter);
 
-    /**
-     * @param parameters fragment 与业务筛选参数
-     * @return 行数
-     */
-    Long countByPermissionFragment(Map<String, Object> parameters);
 }

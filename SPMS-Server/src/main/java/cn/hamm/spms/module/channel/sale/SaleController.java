@@ -31,7 +31,7 @@ import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 public class SaleController extends BaseBillController<SaleEntity, SaleService, SaleRepository, SaleDetailEntity, SaleDetailService, SaleDetailRepository> {
 
     /**
-     * 销售单分页读出口（Mapper）；开关关闭时回退 AirPower JPA。
+     * 销售单分页读出口（Mapper）；开关关闭时回退到引擎（wrapper）读路径。
      */
     @Override
     @PostMapping("getPage")

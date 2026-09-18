@@ -11,7 +11,6 @@ import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.channel.supplier.mapper.SupplierMapper;
-import cn.hamm.spms.module.channel.supplier.mapper.SupplierReadShadowService;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
@@ -34,13 +33,10 @@ public class SupplierService extends BaseService<SupplierEntity, SupplierReposit
     private static final int MAX_READ_PAGE_SIZE = 200;
 
     /**
-     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留 JPA 回滚路径。
+     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留「关掉读侧就回到引擎读路径」的回滚位。
      */
     @Autowired(required = false)
     private SupplierMapper supplierMapper;
-
-    @Autowired
-    private SupplierReadShadowService supplierReadShadowService;
 
     @Autowired
     private ExportHelper exportHelper;
@@ -56,7 +52,7 @@ public class SupplierService extends BaseService<SupplierEntity, SupplierReposit
     }
 
     /**
-     * 供应商分页读出口；写路径仍走 AirPower JPA。
+     * 供应商分页读出口；写路径走写侧仓储（`ICurdRepository` + mapper XML）。
      */
     public @NotNull QueryPageResponse<SupplierEntity> getMapperPage(QueryPageRequest<SupplierEntity> request) {
         QueryPageRequest<SupplierEntity> normalized = request == null ? new QueryPageRequest<>() : request;
@@ -77,7 +73,6 @@ public class SupplierService extends BaseService<SupplierEntity, SupplierReposit
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
         int offset = (int) offsetValue;
-        supplierReadShadowService.submit(filter);
         List<SupplierEntity> list = supplierMapper.selectPageByPermission(filter, offset, pageSize);
         long total = supplierMapper.countByPermission(filter);
         int totalAsInt = Math.toIntExact(total);
@@ -102,7 +97,6 @@ public class SupplierService extends BaseService<SupplierEntity, SupplierReposit
         if (!isMapperReadEnabled()) {
             return get(id);
         }
-        supplierReadShadowService.submit();
         return supplierMapper.selectDetailByPermission(id);
     }
 
@@ -115,7 +109,6 @@ public class SupplierService extends BaseService<SupplierEntity, SupplierReposit
     public long getMapperCount(SupplierEntity filter) {
         SupplierEntity normalized = filter == null ? new SupplierEntity() : filter;
         if (isMapperReadEnabled()) {
-            supplierReadShadowService.submit(normalized);
             return supplierMapper.countByPermission(normalized);
         }
         return filter(normalized).size();
@@ -130,7 +123,6 @@ public class SupplierService extends BaseService<SupplierEntity, SupplierReposit
     public ReadStat getMapperStat(SupplierEntity filter) {
         SupplierEntity normalized = filter == null ? new SupplierEntity() : filter;
         if (isMapperReadEnabled()) {
-            supplierReadShadowService.submit(normalized);
             return supplierMapper.statByPermission(normalized);
         }
         List<SupplierEntity> rows = filter(normalized);
@@ -152,7 +144,6 @@ public class SupplierService extends BaseService<SupplierEntity, SupplierReposit
     public String createMapperExportTask(QueryListRequest<SupplierEntity> request) {
         SupplierEntity filter = request == null || request.getFilter() == null
                 ? new SupplierEntity() : request.getFilter();
-        supplierReadShadowService.submit(filter);
         List<SupplierEntity> rows = supplierMapper.selectForExport(filter);
         List<SupplierEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {

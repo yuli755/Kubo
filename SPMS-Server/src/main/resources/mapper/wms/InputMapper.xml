@@ -62,18 +62,6 @@
         </if>
     </sql>
 
-    <sql id="inputParityFilter">
-        <if test="billCode != null and billCode != ''">
-            AND bill_code LIKE CONCAT('%', #{billCode}, '%')
-        </if>
-        <if test="status != null">
-            AND status = #{status}
-        </if>
-        <if test="type != null">
-            AND type = #{type}
-        </if>
-    </sql>
-
     <select id="selectPageByPermission" resultMap="inputReadMap">
         SELECT
         <include refid="inputColumns"/>
@@ -117,16 +105,6 @@
         FROM input i
         <where>
             <include refid="inputFilter"/>
-        </where>
-    </select>
-
-    <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM input
-        <where>
-            <include refid="inputParityFilter"/>
-            <if test="fragment != null and fragment != ''">
-                AND ${fragment}
-            </if>
         </where>
     </select>
 

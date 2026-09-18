@@ -984,13 +984,23 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
       expect(bodyOf(base, hook), `BaseService.${hook} 没接写侧行级守卫：那条路径上"这行归谁"没人判`)
         .toContain('enforceRowPermission(')
     }
-    const probe = readJavaCode(join(SERVER, 'module/system/datapermission/service/JpaRowVisibilityProbe.java'))
-    expect(probe, '可见性探针不复用读侧条件生成：读写判定会分家').toContain('buildPredicates')
-    expect(probe, '探针没用 COMMIT flush：改完再判等于给绕过留门').toContain('FlushModeType.COMMIT')
-    expect(probe, 'JPA 的 FlushModeType 没有 MANUAL：别退回 Hibernate 专有枚举，那会多绑一层实现依赖')
+    const probe = readJavaCode(join(SERVER, 'module/system/datapermission/service/RowVisibilityProbe.java'))
+    expect(probe, '可见性探针不复用读侧条件生成：读写判定会分家').toContain('applyQuery(')
+    expect(probe, '探针自己又拼了一遍条件（J4 起读写只有一份 applyQuery）').not.toContain('buildPredicates')
+    expect(probe, '解析不到仓储时要抛：调用方按不可见处理，静默 true 是"探针坏了自动开闸"')
+      .toContain('IllegalStateException')
+    // J4：写侧也从 JPA 换成了 MyBatis-Plus，「不拿改完之后的状态证明改之前有权」的表达方式跟着换 ——
+    // 现在是靠调用点的先后（探针排在 saveToDatabase 之前，且 MP 的 DML 立即执行）。
+    expect(probe, 'JPA 的 FlushModeType 又回来了：那是另一套 ORM 的脏值语义，本仓已经没有它')
       .not
-      .toContain('FlushModeType.MANUAL')
-    expect(probe).not.toMatch(/getOwnerColumns\(\)/)
+      .toContain('FlushModeType')
+    expect(probe, '探针自己去拆 owner_columns：登记语法只许有一处解析（OwnerColumnRegistration）')
+      .not
+      .toMatch(/getOwnerColumns\(\)/)
+    const writeHook = bodyOf(readJavaCode(join(SERVER, 'base/BaseService.java')), 'E beforeSaveToDatabase(')
+    expect(writeHook.indexOf('enforceRowPermission('), '行级守卫排到了落库调用之后：那等于用改完之后的状态'
+    + '证明改之前有权（J4 之前这条纪律靠 FlushModeType.COMMIT 表达，现在是靠先后）')
+      .toBeLessThan(writeHook.indexOf('beforeAppSaveToDatabase('))
     const props = readJavaCode(join(SERVER, 'module/system/datapermission/config/DataPermissionProperties.java'))
     expect(props, '写侧行级保护必须默认关（开了会直接打断业务，见 §19.27）')
       .toMatch(/class RowWrite[\s\S]{0,400}private boolean enabled = false/)
@@ -1296,22 +1306,31 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
     }
   })
 
-  it('灰度页逐资源回显 ORM_PARITY 四档分布，不把缺证据显示成零', () => {
+  it('oRM 对账退场：接口与面板都不许再把「两套 ORM 一致」显示成证据（J4）', () => {
+    // J4（2026-09-18）删掉了 spring-boot-starter-data-jpa：没有第二个 ORM，就没有「两边数出来一样」
+    // 这件事。判据从「面板必须显示对账分布」翻成「对账面不许回来」—— 换判据不删测试：
+    // 一条永远显示「全部一致」的装饰面板比没有面板更危险，它看起来像证据。
     const service = readJavaCode(join(DPM, 'service', 'DataResourceService.java'))
     const status = methodBody(service, 'ResourceRuntimeStatus statusOf(')
-    for (const field of ['ormParityRequired', 'ormParityTableAvailable', 'ormParityConsistentCount', 'ormParityStricterCount', 'ormParityLooserCount', 'ormParityErrorCount']) {
-      const suffix = field.slice('ormParity'.length).replace(/Count$/, '')
-      const accessor = suffix.charAt(0).toLowerCase() + suffix.slice(1)
-      expect(status, `状态面板缺少 ${field}：灰度页会把 ORM 对账结论丢掉`).toContain(`parity.${accessor}()`)
-    }
-    const composable = read(join(ROOT, 'src', 'composables', 'useDataPermissionRuntimeStatus.ts'))
-    expect(composable).toContain('resources: ResourceRuntimeStatus[]')
-    expect(composable).toContain('state.resources = state.status?.resources ?? []')
-    const list = read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'resource', 'list.vue'))
-    expect(list, '资源列表页没有逐资源渲染 ORM 对账分布').toContain('v-for="item in runtimeResources"')
-    for (const field of ['ormParityRequired', 'ormParityTableAvailable', 'ormParityConsistentCount', 'ormParityStricterCount', 'ormParityLooserCount', 'ormParityErrorCount']) {
-      expect(list, `资源列表页没有显示 ${field}`).toContain(`item.${field}`)
-    }
+    expect(status, '资源档位面板又把 ORM 对账的数字装回去了：单 ORM 下它们恒为 0，'
+    + '灰度页会显示成「对账全部一致」').not.toMatch(/parity\.(?:required|tableAvailable|consistent|stricter|looser|error)/)
+    // 前端判据剥注释后判：这三个文件里都留着"J4 为什么删它"的说明（说明本身是历史，不算回归）
+    expect(stripComments(read(TYPES)), '前端 interface 里还留着 ormParity 字段：后端不发的字段是 undefined，'
+    + '页面会把它显示成 0 而不是「不适用」').not.toMatch(/ormParity/)
+    const list = stripComments(read(join(ROOT, 'src', 'view', 'console', 'system', 'datapermission', 'resource', 'list.vue')))
+    expect(list, '资源列表页又渲染 ORM 对账分布了').not.toMatch(/ormParity|ORM 对账/)
+    const dashboard = stripComments(read(join(ROOT, 'src', 'view', 'console', 'index', 'SecurityDashboard.vue')))
+    expect(dashboard, '看板又把对账分布图画回来了：那张图在单 ORM 下只会是一条"全部一致"的直线')
+      .not
+      .toMatch(/ormParity|ORM 对账/)
+    // 同一个语义换到唯一活着的证据链上：拿不到 EXPECTED_FILTER 样本必须阻塞放开
+    const checks = methodBody(service, 'static List<ReadinessCheck> readinessChecks(')
+    expect(checks, 'SHADOW_EVIDENCE 不在放开前置里了：影子证据从此可以只是口头承诺')
+      .toContain('SHADOW_EVIDENCE')
+    expect(checks, '零样本被当成通过了：EXPECTED_FILTER 为 0 时必须红（"还没跑够"不是证据）')
+      .toContain('shadowFilteredSamples() == 0L')
+    expect(checks, '读不到差异表被当成「没有差异」：那是把没证据伪装成已验证')
+      .toContain('shadowTableAvailable()')
   })
 
   it('证据留存有正数天数、独立定时清理与 create_time 索引', () => {
@@ -1321,7 +1340,6 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
     // 判据不变 —— 表名 + create_time 条件必须"可审计地写在某处"，只是那处从 .java 换成了 .xml
     const MAPPER_XML = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'mapper', 'system', 'datapermission')
     const diffRepository = read(join(MAPPER_XML, 'DataPermissionDiffRepository.xml'))
-    const parityRepository = read(join(MAPPER_XML, 'DataPermissionOrmParityRepository.xml'))
     const yml = read(join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'application.yml'))
     expect(properties).toContain('retentionCleanupEnabled = false')
     expect(properties).toContain('retentionDays = 30')
@@ -1337,12 +1355,12 @@ describe('mask contract · 灰度状态面板与写侧 OFF 档', () => {
     // `pnpm sql:check` 作为通用规则兜住。这里只钉住"这两张表的清理条件长什么样"。
     // XML 里 `<` 是实体转义（`&lt;`），所以断言按转义后的文本写：判据本身没变。
     expect(diffRepository).toContain('delete from data_permission_diff_log where create_time &lt; #{cutoff}')
-    expect(parityRepository).toContain('delete from data_permission_orm_parity_log where create_time &lt; #{cutoff}')
+    expect(statSync(join(MAPPER_XML, 'DataPermissionOrmParityRepository.xml'), { throwIfNoEntry: false }), '对账表的清理 XML 又出现了：J4 删掉了整套 ORM 对账（表、实体、仓储、清理），'
+    + '只留清理语句等于给一张不存在的表派活').toBeUndefined()
     // 建库脚本 2026-09-18 起只有 infra/init-sql/{init,init_data}.sql 两个（见 SPMS-Server/docs/DATABASE_MIGRATION_STRATEGY.md）
     const initSql = read(join(ROOT, 'infra', 'init-sql', 'init.sql'))
     expect(initSql, '留存清理按 create_time 滚动删除：这张表没有时间索引就是全表扫')
       .toContain('`idx_dp_diff_create_time` (`create_time`)')
-    expect(initSql).toContain('`idx_dp_parity_create_time` (`create_time`)')
   })
 
   it('写侧动作级守卫必须认得 mode 与「资源是否纳管」', () => {
@@ -1421,17 +1439,14 @@ describe('mask contract · 逐资源放开的前置检查', () => {
     expect(methodBody(service, 'List<ReadinessCheck> readinessChecks('), '放开前置检查另抄了一份配置判据：面板与检查会说法不一')
       .toContain('runtimeNotes(')
     // 影子证据读的是 verdict 常量，不是字符串（表里改枚举时这里要一起红）。
-    // ORM_PARITY 的四档计数现在由面板与 readiness 共用的快照集中读取，不能只盯 readinessOf 的装配体。
+    // J4：ORM 对账那半（MAPPER_STRICTER / MAPPER_LOOSER 四档）随第二个 ORM 一起退场，
+    // 判据没有放宽 —— 少的是"两套 ORM 会不会一致"这个已经不存在的问题。
     const assembly = methodBody(service, 'Readiness readinessOf(DataResourceEntity resource, long bindingRiskCount')
-    const parity = methodBody(service, 'OrmParityCounts ormParityCounts(String resourceKey)')
     for (const constant of ['VERDICT_ANOMALY', 'VERDICT_ERROR', 'VERDICT_EXPECTED_FILTER']) {
       expect(assembly, `影子证据不再认 ${constant}：判据与表里的枚举定义开始分叉`).toContain(constant)
     }
-    for (const constant of ['VERDICT_CONSISTENT', 'VERDICT_MAPPER_STRICTER', 'VERDICT_MAPPER_LOOSER', 'VERDICT_ERROR']) {
-      expect(parity, `ORM 对账分布不再认 ${constant}：面板与 readiness 会丢掉一档`).toContain(constant)
-    }
     expect(service, '用字符串比较 verdict：枚举改名时会静默失效').not.toMatch(/equals\("(?:ANOMALY|ERROR|EXPECTED_FILTER)"\)/)
-    expect(parity, '读不到 ORM 对账表时不得当成「没有差异」').toContain('getIfAvailable()')
+    expect(assembly, '读不到影子差异表时不得当成「没有差异」').toContain('getIfAvailable()')
   })
 
   it('行级策略计数只有一份数法（面板与放开检查共用）', () => {
@@ -1559,31 +1574,47 @@ describe('mask contract · 影子双跑的调用点', () => {
   const SPEC = join(DPM, 'service', 'DataPermissionSpecification.java')
   const DIFF = join(DPM, 'service', 'ShadowDiffService.java')
 
-  it('sHADOW 分支必须把比对叫起来（否则差异表永远空，放开前置永远「无证据」）', () => {
-    const code = readJavaCode(SPEC)
-    const shadow = methodBody(code, 'private <T> void submitShadowDiff(')
-    expect(shadow, '读侧不再交给比对：那 data_permission_diff_log 没有生产者，'
+  it('两条注入路径都必须把比对叫起来（否则差异表永远空，放开前置永远「无证据」）', () => {
+    // 注入路径有两条：wrapper（引擎读侧）与 MultiDataPermissionHandler（Mapper 读出口，不走 wrapper）。
+    // 任一条断着，对应流量就没有证据，而面板上看起来只像「还没跑够几天」。
+    const spec = readJavaCode(SPEC)
+    const submit = methodBody(spec, 'private void submitShadowDiff(')
+    expect(submit, '读侧（wrapper 路径）不再交给比对：data_permission_diff_log 少一个生产者，'
     + 'enforce-readiness 的 SHADOW_EVIDENCE 判据在任何环境都会永远红')
       .toContain('shadowDiffService.compare(')
-    // 条件必须是"读侧算出来的那份"，不能是比对侧另拼一份
-    expect(shadow, '比对用的是另拼的条件：那比的是两份实现，不是「加条件会不会少行」')
-      .toContain('buildPredicatesFromPolicies(')
+    const handler = readJavaCode(join(DPM, 'mybatis', 'KuboDataPermissionHandler.java'))
+    expect(methodBody(handler, 'private void submitShadowDiff('), 'Mapper 读出口不再交给比对：mapper-read 打开时这些资源一条 EXPECTED_FILTER 样本都不会有').toContain('shadowDiffService.compare(')
+    // 交出去的是「本次渲染出的那一批」，不是另拼一份条件
+    expect(submit, '交出去的不是本次渲染出的片段：那比的就是两份实现，而不是「加条件会不会少行」')
+      .toContain('fragments')
+    expect(submit, '又拿规则树在比对侧重算了一遍条件：J4 起单路径取证，片段只有一份产物')
+      .not
+      .toContain('build(')
     // 只在影子档跑：enforce 下条件已注入，再双跑是多打一次全表 COUNT
-    const apply = methodBody(code, 'private <T> List<Predicate> apply(')
-    expect(apply.indexOf('submitShadowDiff('), '调用点不在 shadow 分支里').toBeGreaterThan(apply.indexOf('audit.shadow(resourceKey, "would-filter"'))
-    expect(apply.indexOf('return predicates;'), '调用点跑到 enforce 分支去了').toBeLessThan(apply.length)
+    const inject = methodBody(spec, 'private void inject(')
+    expect(inject.indexOf('submitShadowDiff('), '调用点不在 shadow 分支里：enforce/off 档也会白打两次 COUNT')
+      .toBeGreaterThan(inject.indexOf('audit.shadow(resourceKey, "would-filter"'))
+    expect(inject.indexOf('submitShadowDiff('), '调用点跑到 enforce 分支去了（条件已经真注入，不需要取证）')
+      .toBeLessThan(inject.indexOf('for (RowPermissionPredicate fragment : fragments)'))
   })
 
   it('观测件坏了不能影响判定，也绝不读 ThreadLocal', () => {
-    const code = readJavaCode(SPEC)
-    const submit = methodBody(code, 'private <T> void submitShadowDiff(')
+    const spec = readJavaCode(SPEC)
+    const submit = methodBody(spec, 'private void submitShadowDiff(')
     expect(submit, '缺 Bean 时改成抛异常：一个观测件把查询打挂，这是灰度工具最典型的自伤')
       .toContain('if (shadowDiffService == null)')
     const diff = readJavaCode(DIFF)
-    expect(diff, '后台线程读 ThreadLocal：拿到的是"上一个占用该线程的请求"的身份')
-      .not
-      .toContain('PermissionContextHolder')
+    // 判据盯的是"读身份"，不是"碰这个类"：J4 起两次 COUNT 要装在探针旁路里跑（否则拦截器会把权限
+    // 条件再注入一次，探针数出来的永远是 0），所以出现 PermissionContextHolder.Scope 是**必须的**。
+    // 不许出现的是从环境里取身份的那两个出口 —— 后台线程只会读到"上一个占用该线程的请求"。
+    for (const read of ['PermissionContextHolder.current(', 'PermissionContextHolder.require(']) {
+      expect(diff, `后台线程从 ${read}) 取身份：拿到的是别的请求的上下文`)
+        .not
+        .toContain(read)
+    }
     const compare = methodBody(diff, 'public void compare(String resourceKey,')
+    expect(compare, '身份不是在业务线程上取成值再带进异步任务的：那后台任务用的就是别人（或没有）的身份')
+      .toMatch(/context == null \? null : context\.userId\(\)/)
     expect(compare, '比对改回同步跑：影子双跑是额外一次 COUNT，占用业务线程就是在拿生产 QPS 换观测')
       .toContain('executor.execute(')
     expect(compare, '采样判定被抄第二份').toContain('sampled(resourceKey)')
@@ -1909,11 +1940,14 @@ describe('mask contract · 读侧 Mapper（P2 换轨的注册面）', () => {
         .not
         .toMatch(/(?:tenant|creator|department|factory|warehouse)_id\s*(?:=|in)\s/i)
     }
-    const name = /FRAGMENT_KEY\s*=\s*"(\w+)"/.exec(readJavaCode(PREDICATE))?.[1] ?? ''
-    expect(name, 'RowPermissionPredicate.FRAGMENT_KEY 必须是个简单标识符（它是 ${} 的键名）')
-      .toMatch(/^[A-Z_]\w*$/i)
-    expect(xmls.some(entry => entry.source.includes(`\${${name}}`)), `没有任何 mapper XML 使用 \${${name}}：片段注入只是名义上接上了`)
-      .toBe(true)
+    // J2 换轨后片段不再走 XML 里的 \${fragment} 占位符：MyBatis-Plus 的 DataPermissionInterceptor 在
+    // 语句编译期直接改写 AST（见 KuboDataPermissionHandler），所以「接上了没有」改成查这条接线 ——
+    // 判据的语义没变（片段必须真的进到 SQL 里），换的是承载它的机制。
+    const mapperConfig = join(DPM, 'config', 'MapperReadConfiguration.java')
+    expect(readJavaCode(mapperConfig), '注册面不再挂 DataPermissionInterceptor：片段渲染出来了却没人往 SQL 里拼')
+      .toContain('DataPermissionInterceptor')
+    expect(readJavaCode(join(DPM, 'mybatis', 'KuboDataPermissionHandler.java')), '读侧处理器不再是 MultiDataPermissionHandler：那它不会参与 AST 改写，条件永远进不去')
+      .toContain('MultiDataPermissionHandler')
   })
 
   it('命名参数换写与片段工厂各只有一处（判据合一前不许出现第二份实现）', () => {
@@ -1941,7 +1975,9 @@ describe('mask contract · 归属判据合一', () => {
   const SUBJECT = join(RULE, 'SubjectDimensionRules.java')
   const SPEC = join(DPM, 'service', 'DataPermissionSpecification.java')
   const PREDICATE = join(DPM, 'service', 'RowPermissionPredicate.java')
-  const RENDERERS = ['JpaPermissionRuleCompiler.java', 'SqlPermissionRuleRenderer.java', 'PermissionRuleEvaluator.java']
+  // J4：JpaPermissionRuleCompiler 随 spring-boot-starter-data-jpa 一起删除 —— 规则树 → 条件
+  // 只剩 SQL 这一条渲染方向，"三个方向都要认 Dimension" 的判据因此只盯活着的两个出口。
+  const RENDERERS = ['SqlPermissionRuleRenderer.java', 'PermissionRuleEvaluator.java']
 
   const dimensionSubjectSwitch = /case\s+"TENANT"\s*->/
 
@@ -1992,142 +2028,81 @@ describe('mask contract · 归属判据合一', () => {
   })
 })
 
-describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
+describe('mask contract · ORM 对账的退场（J4）', () => {
+  // 2026-09-18 J4：`spring-boot-starter-data-jpa` 整体删除，于是"JPA 侧算一遍、Mapper 侧算一遍、
+  // 两边行数对一对"这套装置失去了它的第二个 ORM。这一组判据从"这些文件/表/面板必须在"翻成
+  // **"它们都不许回来"** —— 换判据，不放宽：唯一活着的证据链（SHADOW_EVIDENCE）在同一批变更里
+  // 被钉得更紧了（见上一条「灰度状态面板与写侧 OFF 档」）。
   const DPM = join(SERVER, 'module', 'system', 'datapermission')
-  const CONFIG = join(DPM, 'config', 'MapperReadConfiguration.java')
-  const SHADOW = join(DPM, 'service', 'ShadowDiffService.java')
-  const REGISTRY = join(DPM, 'service', 'RowParityRegistry.java')
-  const COUNTER = join(SERVER, 'framework/curd/datapermission', 'RowParityCounter.java')
-  const READINESS = join(DPM, 'service', 'DataResourceService.java')
-  const PARITY_ENTITY = join(DPM, 'entity', 'DataPermissionOrmParityEntity.java')
-  const DIFF_ENTITY = join(DPM, 'entity', 'DataPermissionDiffEntity.java')
+  const MAPPER_XML = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'mapper', 'system', 'datapermission')
   // 建库脚本：全仓只有 infra/init-sql/init.sql（结构）+ init_data.sql（数据）
   const INIT_SQL = join(ROOT, 'infra', 'init-sql', 'init.sql')
   const TEST_SCHEMA = join(ROOT, 'SPMS-Server', 'src', 'test', 'resources', 'schema-test.sql')
-  const YML = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'application.yml')
   const PARITY_TABLE = 'data_permission_orm_parity_log'
-  const snake = (value: string): string => value.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()
 
-  it('对账表名三处同源：建库脚本 / 实体 / H2 测试 schema', () => {
-    const ddl = read(INIT_SQL)
-    expect(ddl, `init.sql 里没有 ${PARITY_TABLE}：生产上是"实体在、表不在"，`
-    + '启动期 ddl-auto=validate 直接崩，而 H2 那边因为另有手抄 schema 完全不会红')
-      .toContain(`CREATE TABLE IF NOT EXISTS \`${PARITY_TABLE}\``)
-    expect(read(PARITY_ENTITY), '对账实体没把表名钉在 @TableName 上：那三处同源就无从对起')
-      .toContain(`@TableName("${PARITY_TABLE}")`)
-    expect(read(TEST_SCHEMA), 'H2 测试 schema 里没有这张表：对账用例会在"表不存在"上红，'
-    + '而那条红看起来像业务缺陷，实际是缺一份手抄')
-      .toContain(PARITY_TABLE)
+  /** 判定某个路径已经不存在（{@code throwIfNoEntry: false} 让"没有这个文件"不是异常而是结果） */
+  const gone = (relativePath: string): boolean =>
+    statSync(join(ROOT, relativePath), { throwIfNoEntry: false }) === undefined
 
-    // 实体声明的每一列都要在建库脚本里出现（ddl:check 也查这件事，但它跑在 Web job；
-    // 这里只查表名与列名是否同现于那份 CREATE TABLE，出错时 annotation 更早、更靠近改代码的人）
-    const block = ddl.slice(ddl.indexOf(`CREATE TABLE IF NOT EXISTS \`${PARITY_TABLE}\``))
-    const columns = [...readJavaCode(PARITY_ENTITY).matchAll(/^\s*private\s+\w+\s+(\w+)\s*;/gm)].map(m => snake(m[1]))
-    // 列数写死是有意的：加列时必须同时改迁移脚本、H2 手抄与这个数字，
-    // 少改一处就会在这里红 —— 换成"至少 12 列"就变成一条永远过的计数
-    // 12 → 11（2026-09-18 去 JPA）：实体里**冗余重声明**的 `@Id private Long id` 被删掉
-    // （`id` 由基类 CurdEntity 声明，其余 40 个实体都不重复声明；留着会让 MyBatis-Plus 看到
-    // 两个同名 id 字段）。`id` 列本身仍由 ddl:check 与基类保证，这里数的是"本实体自己声明的列"。
-    expect(columns, '对账实体的 @Column 数量与门禁不符：新增/删除列要同时改迁移脚本、schema-test.sql 和这一处')
-      .toHaveLength(11)
-    for (const column of columns) {
-      expect(block, `${PARITY_TABLE} 少了列 ${column}：MySQL 上"表存在但少列"是运行期 500，不是启动期报错`)
-        .toContain(`\`${column}\``)
+  it('对账装置整体退场：影子读服务、注册表、计数器、实体、仓储 XML 都不许回来', () => {
+    const dpmDir = 'SPMS-Server/src/main/java/cn/hamm/spms/module/system/datapermission'
+    for (const relativePath of [
+      `${dpmDir}/service/MapperShadowReadService.java`,
+      `${dpmDir}/service/RowParityRegistry.java`,
+      `${dpmDir}/service/ShadowModeReadiness.java`,
+      `${dpmDir}/service/JpaRowVisibilityProbe.java`,
+      `${dpmDir}/rule/JpaPermissionRuleCompiler.java`,
+      `${dpmDir}/rule/JpaPathResolver.java`,
+      `${dpmDir}/entity/DataPermissionOrmParityEntity.java`,
+      'SPMS-Server/src/main/java/cn/hamm/spms/framework/curd/datapermission/RowParityCounter.java',
+      'SPMS-Server/src/main/resources/mapper/system/datapermission/DataPermissionOrmParityRepository.xml',
+    ]) {
+      expect(gone(relativePath), `${relativePath} 又出现了：J4 删掉的是"两套 ORM 互相对账"这一整套装置，`
+      + '单 ORM 下它没有第二个 ORM 可比，留着只能生产恒为「一致」的假证据').toBe(true)
     }
-  })
-
-  it('两张证据表互不越界：verdict 常量不许复用', () => {
-    const parity = readJavaCode(PARITY_ENTITY)
-    const diff = readJavaCode(DIFF_ENTITY)
-    expect(parity, '对账表里出现了影子差异的 verdict：两种判据混进一张表之后，'
-    + 'enforce-readiness 的"有正向样本"就会被"两套 ORM 一致"这种无关语义污染')
-      .not
-      .toContain('EXPECTED_FILTER')
-    expect(diff, '影子差异表里出现了对账的 MAPPER_* verdict：同上，方向反了')
-      .not
-      .toMatch(/VERDICT_MAPPER_(?:LOOSER|STRICTER)/)
-    for (const verdict of ['CONSISTENT', 'MAPPER_STRICT', 'MAPPER_LOOSE', 'ERROR']) {
-      expect(parity, `对账实体缺 verdict 常量 ${verdict}：判据分档写死在 SQL 字符串上，改一处漏一处`)
-        .toContain(`"${verdict}"`)
-    }
-  })
-
-  it('对账只在 mapper-read 那块开关底下注册；registry 全仓只构造一次', () => {
-    const config = readJavaCode(CONFIG)
-    expect(config, 'RowParityRegistry 的构造点跑了：注册面与开关分离之后，'
-    + '"关掉就没有对账"这句不再成立，运维要从两个地方确认同一件事')
-      .toContain('new RowParityRegistry(')
-    expect(config, 'MapperReadConfiguration 不再是条件装配的：它一存在，探针就在，默认关等于没关')
-      .toMatch(/@ConditionalOnProperty\(prefix = "kubo\.data-permission\.mapper-read", name = "enabled", havingValue = "true"\)/)
-
-    const holders = collect(SERVER, '.java')
-      .filter(file => !file.endsWith('RowParityRegistry.java') && readJavaCode(file).includes('new RowParityRegistry('))
+    // 14 个按资源写的影子读服务：按后缀扫目录（不写死 14 —— 写死数字会在加资源时变成一条误报）
+    const shadowReaders = collect(SERVER, '.java').filter(file => baseName(file).endsWith('ReadShadowService.java'))
+    expect(shadowReaders, `影子读服务又回来了（${shadowReaders.length} 个）：它们是把业务筛选用另一套 ORM `
+    + 'Criteria 再抄一遍的第三套真值，业务改一处它不会跟着改').toEqual([])
+    // 关键词全仓归零：谁把这条线写回来，这里先红（剥注释后判，历史说明不算数）
+    const offenders = collect(SERVER, '.java')
+      .filter(file => /RowParity|OrmParity|data_permission_orm_parity|countByPermissionFragment/.test(readJavaCode(file)))
       .map(file => baseName(file))
-    expect(holders, '`new RowParityRegistry(` 出现在第二个地方：注册面分裂，谁在跑对账就没人说得清')
-      .toEqual(['MapperReadConfiguration.java'])
-
-    const yml = read(YML)
-    // 注释写在键的<em>上面</em>（YAML 的习惯），所以从键往前取一段再判：
-    // 只往后取会永远判不到，那条"配置必须自己说清楚"的门禁就变成一条常绿的装饰
-    const keyAt = yml.indexOf('mapper-read:\n')
-    expect(keyAt, 'application.yml 里找不到 mapper-read 这一段：读侧开关漂了位置，注释与配置对不上').toBeGreaterThan(-1)
-    const block = yml.slice(Math.max(0, keyAt - 1200), keyAt + 60)
-    expect(block, 'application.yml 里 mapper-read 那段没提对账：一个开关管两件事，配置必须自己说清楚，'
-    + '否则运维以为它只管读端点')
-      .toMatch(/ORM_PARITY|对账/)
-    expect(yml.match(/^ {4}mapper-read:\n {6}enabled: false$/m), '读侧 Mapper 不再是默认关：那对账就默认在生产跑').toBeTruthy()
-    expect(readJavaCode(REGISTRY), '注册表没有对"同一资源两个探针"设防：静默取第一个，证据就来自随机那张表')
-      .toContain('duplicated RowParityCounter')
+    expect(offenders, 'ORM 对账的关键词又出现在源码里：这条线在 J4 已经整体退场').toEqual([])
+    expect(statSync(MAPPER_XML, { throwIfNoEntry: false })?.isDirectory(), 'mapper/system/datapermission 目录不见了：'
+    + '下面"清理语句只留差异表"的判据会静默空转').toBe(true)
   })
 
-  it('探针接口的方法形状：MyBatis 会给抽象方法找语句', () => {
-    const counter = readJavaCode(COUNTER)
-    expect(counter, 'RowParityCounter 自己声明了非 default 的业务方法之外的东西：实现方一旦把它写成抽象方法，'
-    + 'MyBatis 会去找一条不存在的语句，报 Invalid bound statement（通常已经是线上）')
-      .toContain('String parityResourceKey();')
-
-    const implementors = collect(SERVER, '.java').filter(file => /implements[^;]*RowParityCounter|extends[^;]*RowParityCounter/.test(readJavaCode(file)))
-    expect(implementors, '没有任何探针实现：这张表与整套对账判据就成了没人消费的机器，要么接上第一个资源，要么删掉')
-      .toHaveLength(14)
-    for (const file of implementors) {
-      expect(readJavaCode(file), `${baseName(file)} 的 parityResourceKey 必须是 default 方法`)
-        .toMatch(/default\s+String\s+parityResourceKey\s*\(\)/)
+  it('对账表在两个建库脚本里一起消失（删生产者却留表 = 看起来有证据、实际永远空）', () => {
+    for (const file of [INIT_SQL, TEST_SCHEMA]) {
+      expect(read(file), `${baseName(file)} 里还有 ${PARITY_TABLE}：生产者已经删了，表还在，`
+      + '下一个人看到它会以为对账还在跑').not.toContain(PARITY_TABLE)
     }
+    // 空转守卫：这两份脚本必须真的被读到，路径漂了的话上面两条会永远通过
+    expect(read(INIT_SQL), 'init.sql 里连影子差异表都没了：说明路径或口径漂了，上面那条判据在空转')
+      .toContain('data_permission_diff_log')
+    expect(read(TEST_SCHEMA), 'H2 schema 里连影子差异表都没了：同上')
+      .toContain('data_permission_diff_log')
   })
 
-  it('对账的组合方向必须是 ALL_OF，且判据只认 LOOSE/ERROR 两档', () => {
-    const shadow = readJavaCode(SHADOW)
-    const parityBody = shadow.slice(shadow.indexOf('private void runParity('))
-    expect(parityBody, '对账侧不是 ALL_OF：多策略在 JPA 侧是被 builder.and(...) 合起来的，'
-    + '这里写成 ANY_OF 会让两边一起放松，行数还"一致"，对账从此只生产假绿灯')
-      .toContain('PermissionRuleOp.ALL_OF')
-    expect(parityBody, '对账侧出现了 ANY_OF：同上，这是能把整套证据变成噪声的一处改动')
-      .not
-      .toContain('ANY_OF')
-
-    const readiness = readJavaCode(READINESS)
-    for (const verdict of ['VERDICT_MAPPER_LOOSER', 'VERDICT_ERROR', 'VERDICT_CONSISTENT', 'VERDICT_MAPPER_STRICTER']) {
-      expect(readiness, `放开判据没引用 ${verdict}：改成"verdict 不等于 CONSISTENT 就算异常"是一把捞，`
-      + '会把可解释的 MAPPER_STRICT 也变成长期红灯')
-        .toContain(verdict)
-    }
-    // 阻塞位用"读结构"而不是"匹配一段代码"：后者要靠 [\s\S]{0,400} 这种区间正则，
-    // 既能被 ESLint 的 no-super-linear-backtracking 挡下，也容易在下次换行就悄悄不再匹配
-    const from = readiness.indexOf('in.parityRequired()')
+  it('证据链只剩一条也不许松：SHADOW_EVIDENCE 恒为阻塞项，零样本 / 缺表 / 有异常都算红', () => {
+    const readiness = readJavaCode(join(DPM, 'service', 'DataResourceService.java'))
+    const from = readiness.indexOf('boolean shadowOk;')
     const to = readiness.indexOf('checks.add(new ReadinessCheck("CONFIG_NOTES"')
-    expect(from, 'ORM_PARITY 的三档判据找不到了：是谁把它挪出 readinessChecks 的？').toBeGreaterThan(-1)
-    const parityBlock = readiness.slice(from, to > from ? to : readiness.length)
-    // 逐档把 (passed, blocking) 两个位读出来比"数逗号"可靠：反证时我先写成统计 'true, false,'，
-    // 结果把 LOOSE 那一档改成 'false, false,' 照样过关 —— 计数式判据只认它自己想到过的写法，
-    // 而这种门禁的价值恰恰在"没想到的那种改法也要红"
-    const flags = [...parityBlock.matchAll(
-      /new ReadinessCheck\("ORM_PARITY",\s*"[^"]*",\s*(true|false),\s*(true|false),/g,
-    )].map(hit => `${hit[1]}/${hit[2]}`)
-    expect(flags, 'ORM_PARITY 五档的 (passed, blocking) 组合变了。期望：不适用=通过且不阻塞，'
-    + '缺表/多放行/零样本=红且阻塞，有证据=绿且阻塞。'
-    + '把任何一档的 blocking 降成 false，换轨就重新变成"一次改配置就能打坏生产"的动作；'
-    + '把"不适用"升成 true，未换轨的 23 个资源会被一条它永远无法满足的判据挡住')
-      .toEqual(['true/false', 'false/true', 'false/true', 'false/true', 'true/true'])
+    expect(from, '影子证据的三档判据找不到了：是谁把它挪出 readinessChecks 的？').toBeGreaterThan(-1)
+    const block = readiness.slice(from, to > from ? to : readiness.length)
+    expect(block, 'ANOMALY/ERROR 不再阻塞：多放行方向的事故会被静默放过').toContain('shadowAnomalies() > 0L')
+    expect(block, '零样本被当成通过了（EXPECTED_FILTER == 0 必须红，不是"还没跑够几天"）')
+      .toContain('shadowFilteredSamples() == 0L')
+    expect(block, '读不到差异表被当成「没有差异」：没证据 ≠ 已验证')
+      .toContain('shadowTableAvailable()')
+    // 逐档读结构而不是匹配一段区间正则：后者会在下次换行时悄悄不再匹配
+    expect(block, 'SHADOW_EVIDENCE 的 (passed, blocking) 变了。期望：判定值取自 shadowOk，'
+    + 'blocking 恒为 true —— 把 blocking 降成 false，换轨就重新变成「一次改配置就能打坏生产」的动作')
+      .toMatch(/new ReadinessCheck\("SHADOW_EVIDENCE",\s*"[^"]*",\s*shadowOk,\s*true,/)
+    // 反证：这条判据本身认得"被降级"的写法
+    const relaxed = 'new ReadinessCheck("SHADOW_EVIDENCE", "x", shadowOk, false, d)'
+    expect(/new ReadinessCheck\("SHADOW_EVIDENCE",\s*"[^"]*",\s*shadowOk,\s*true,/.test(relaxed), '这条判据本身失效了').toBe(false)
   })
 })
 

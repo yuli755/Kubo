@@ -12,7 +12,6 @@ import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.factory.structure.mapper.StructureMapper;
-import cn.hamm.spms.module.factory.structure.mapper.StructureReadShadowService;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
@@ -36,13 +35,10 @@ public class StructureService extends BaseService<StructureEntity, StructureRepo
     private static final int MAX_READ_PAGE_SIZE = 200;
 
     /**
-     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留 JPA 回滚路径。
+     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留「关掉读侧就回到引擎读路径」的回滚位。
      */
     @Autowired(required = false)
     private StructureMapper structureMapper;
-
-    @Autowired
-    private StructureReadShadowService structureReadShadowService;
 
     @Autowired
     private ExportHelper exportHelper;
@@ -58,7 +54,7 @@ public class StructureService extends BaseService<StructureEntity, StructureRepo
     }
 
     /**
-     * 生产单元分页读出口；树导航（children）仍走 JPA {@code getList}，写路径仍走 AirPower JPA。
+     * 生产单元分页读出口；树导航（children）仍走 JPA {@code getList}，写路径走写侧仓储（`ICurdRepository` + mapper XML）。
      *
      * @param request 分页请求
      * @return 分页结果
@@ -82,7 +78,6 @@ public class StructureService extends BaseService<StructureEntity, StructureRepo
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
         int offset = (int) offsetValue;
-        structureReadShadowService.submit(filter);
         List<StructureEntity> list = structureMapper.selectPageByPermission(filter, offset, pageSize);
         long total = structureMapper.countByPermission(filter);
         int totalAsInt = Math.toIntExact(total);
@@ -109,7 +104,6 @@ public class StructureService extends BaseService<StructureEntity, StructureRepo
         if (!isMapperReadEnabled()) {
             return get(id);
         }
-        structureReadShadowService.submit();
         if (structureMapper.selectDetailByPermission(id) == null) {
             return null;
         }
@@ -125,7 +119,6 @@ public class StructureService extends BaseService<StructureEntity, StructureRepo
     public long getMapperCount(StructureEntity filter) {
         StructureEntity normalized = filter == null ? new StructureEntity() : filter;
         if (isMapperReadEnabled()) {
-            structureReadShadowService.submit(normalized);
             return structureMapper.countByPermission(normalized);
         }
         return filter(normalized).size();
@@ -140,7 +133,6 @@ public class StructureService extends BaseService<StructureEntity, StructureRepo
     public ReadStat getMapperStat(StructureEntity filter) {
         StructureEntity normalized = filter == null ? new StructureEntity() : filter;
         if (isMapperReadEnabled()) {
-            structureReadShadowService.submit(normalized);
             return structureMapper.statByPermission(normalized);
         }
         List<StructureEntity> rows = filter(normalized);
@@ -162,7 +154,6 @@ public class StructureService extends BaseService<StructureEntity, StructureRepo
     public String createMapperExportTask(QueryListRequest<StructureEntity> request) {
         StructureEntity filter = request == null || request.getFilter() == null
                 ? new StructureEntity() : request.getFilter();
-        structureReadShadowService.submit(filter);
         List<StructureEntity> rows = structureMapper.selectForExport(filter);
         List<StructureEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {

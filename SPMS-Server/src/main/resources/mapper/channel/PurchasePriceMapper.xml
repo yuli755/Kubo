@@ -72,13 +72,4 @@
         FROM purchase_price pp
     </select>
 
-    <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM purchase_price
-        <where>
-            <if test="fragment != null and fragment != ''">
-                AND ${fragment}
-            </if>
-        </where>
-    </select>
-
 </mapper>

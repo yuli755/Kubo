@@ -97,18 +97,6 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
-        <!--
-          过渡依赖：JPA / Hibernate 目前仍被**自持层**使用（framework.curd.base.ICurdRepository 继承
-          JpaRepository/JpaSpecificationExecutor，CurdService 用 EntityManager + Specification），
-          实体与仓储接口也还是 JPA 注解。原来它由 airpower-curd 传递带入，现在显式写在这里——
-          好处是"还有多少东西依赖 JPA"不再是隐藏事实。
-          删掉它的条件见 docs/去JPA决策评估.md §8：实体/仓储/数据权限三块换到 MyBatis-Plus 之后，
-          这一条与 jakarta.persistence/@DynamicInsert 一起消失。
-        -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
-        </dependency>
         <!-- WebAuthn 相关依赖 -->
         <!-- 阿里云OSS开始 -->
         <!-- no more than 2.3.3-->
@@ -145,11 +133,11 @@
         </dependency>
 
         <!--
-          MyBatis-Plus（P2 读链路换轨用）。读侧接线由 `kubo.data-permission.mapper-read.enabled`
-          条件控制，默认仍关闭：默认上下文没有 @MapperScan、MybatisPlusInterceptor 或读侧 Mapper；
-          打开开关的接线与 XML 只服务后端 shadow COUNT/拦截器验证，业务 page/detail/stat/export
-          读端点仍按施工图逐资源收口。`MybatisJpaCoexistenceTest` 继续验证默认关闭时两套 ORM
-          能共存且回滚位有效。
+          MyBatis-Plus = 本仓唯一的 ORM（J4，2026-09-18）。读侧接线由
+          `kubo.data-permission.mapper-read.enabled` 条件控制，默认关闭：关着时容器里没有
+          @MapperScan 注册的读侧 Mapper，也没有权限拦截器；写链路与实体映射无条件走这一族。
+          原来的 spring-boot-starter-data-jpa 已删除（JPA/Hibernate 在本仓不再出现），
+          `PersistenceStackTest` 钉住"只有一套 ORM、只有一个事务管理器"。
         -->
         <!-- 数据库脚本：**没有迁移框架**（Flyway 已退场）。
              全仓只有两个 SQL：infra/init-sql/init.sql（结构）+ init_data.sql（数据），

@@ -113,7 +113,7 @@ class RowPermissionPredicateMyBatisTest {
     }
 
     @Test
-    @DisplayName("参数对象里的片段键名与常量同源（XML 用 ${fragment}，两处不许各写一遍）")
+    @DisplayName("参数对象里的片段键名由常量单点决定（漂了就没人对得上模板字符串）")
     void statementParametersCarryFragmentUnderTheContractKey() {
         Map<String, Object> statement = new RowPermissionPredicate(
                 "(material.tenant_id = :dpRule0)", Map.of("dpRule0", 7L)).myBatisStatementParameters();

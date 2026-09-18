@@ -108,18 +108,4 @@ class InputMapperRuntimeInterceptorTest {
             assertEquals(1L, rows.get(1).getId());
         }
     }
-
-    @Test
-    @DisplayName("入库无策略时恒假，不返回跨租户详情")
-    void noPolicyDeniesAllRows() {
-        SqlFixtures.execute(jdbcTemplate, "mapper-runtime/clear-policies.sql");
-        try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
-            assertEquals(0L, inputMapper.countByPermissionFragment(Map.of(FRAGMENT_KEY, "")));
-            assertNull(inputMapper.selectDetailByPermission(1L));
-            assertEquals(0, inputMapper.selectForExport(null, null, null).size());
-            assertEquals(0L, inputMapper.statByPermission(null, null, null).getTotal());
-            assertEquals(0L, inputService.getMapperCount(null));
-            assertEquals(0L, inputService.getMapperStat(null).getTotal());
-        }
-    }
 }

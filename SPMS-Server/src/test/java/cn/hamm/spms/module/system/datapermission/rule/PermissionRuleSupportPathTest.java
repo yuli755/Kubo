@@ -1,41 +1,31 @@
 package cn.hamm.spms.module.system.datapermission.rule;
 
-import jakarta.persistence.criteria.Path;
-import jakarta.persistence.criteria.Root;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * <h1>登记名 → JPA 路径的候选名规则</h1>
+ * <h1>登记名 → 候选名的规则</h1>
  *
- * <p>这里钉的是"列名登记法"与"属性名登记法"都必须能绑上条件。它之所以值得单独立一个文件：
+ * <p>这里钉的是"列名登记法"与"属性名登记法"都必须能对上。它之所以值得单独立一个文件：
  * {@code data_resource.tenant_column} 的缺省值就是列名风格的 {@code tenant_id}，而运营看到的是
- * 数据库里的列，几乎必然按列名填 —— 填对了名字却静默不生效，是这套配置最容易踩的空转。</p>
+ * 数据库里的列，几乎必然按列名填；策略的 {@code condition_json} 里则写满了属性名 ——
+ * 填对了名字却静默不生效，是这套配置最容易踩的空转。</p>
+ *
+ * <p><b>J4（2026-09-18）</b>：本类原来还测 {@code PermissionRuleSupport#findPath(Root, …)}
+ * （"这个名字在 JPA 实体上取不舍得到"），那一半随 {@code spring-boot-starter-data-jpa} 删除 ——
+ * 现在没有实体元模型可问，能不能绑由 SQL 渲染阶段按列白名单决定。留下的是纯字符串规则，
+ * 因此本类不再需要 Mockito、也不再有 JPA 类型出现在签名里。</p>
  *
  * @author Hamm.cn
  */
-@ExtendWith(MockitoExtension.class)
-@DisplayName("PermissionRuleSupport · 列名与属性名都要能解析")
+@DisplayName("PermissionRuleSupport · 列名与属性名互认")
 class PermissionRuleSupportPathTest {
-
-    @Mock
-    private Root<Object> root;
-
-    @Mock
-    private Path<Object> path;
 
     @Test
     @DisplayName("登记列名 → 候选名是 原名 + camelCase")
@@ -59,26 +49,23 @@ class PermissionRuleSupportPathTest {
     }
 
     @Test
-    @DisplayName("原名取不到但 camel 取得到 → 返回 camel 的路径")
-    void fallsBackToCamelWhenColumnStyleMissing() {
-        given(root.get("tenant_id")).willThrow(new IllegalArgumentException("Unable to locate Attribute [tenant_id]"));
-        given(root.get("tenantId")).willReturn(path);
-
-        assertSame(path, PermissionRuleSupport.findPath(root, "tenant_id"));
+    @DisplayName("一跳的关联路径：两段都是合法标识符才算数（storage.id 合法、storage. 不合法）")
+    void associationPathIsTwoIdentifiers() {
+        assertEquals(List.of("storage", "id"), PermissionRuleSupport.pathSegments("storage.id"));
+        assertEquals(List.of("creatorId"), PermissionRuleSupport.pathSegments("creatorId"));
+        assertTrue(PermissionRuleSupport.isPath("storage.id"));
+        assertFalse(PermissionRuleSupport.isPath("storage."), "尾部空段必须被拒，不许 split 悄悄吞掉");
+        assertFalse(PermissionRuleSupport.isPath("storage.factory.id"),
+                "超过一跳就不是本表外键列能表达的了：多展开一层等于宣布一个假的能力");
+        // SQL-IGNORE: 恶意输入样例（断言它连"路径"这一关都过不去，不会被拆成标识符）
+        assertFalse(PermissionRuleSupport.isPath("storage; DROP TABLE x"), "这不是路径，是注入形状");
     }
 
     @Test
-    @DisplayName("两种写法都取不到 → 返回 null（由调用方决定报错还是计入绑定失败）")
-    void returnsNullWhenNothingResolves() {
-        lenient().when(root.get(anyString())).thenThrow(new IllegalArgumentException("Unable to locate Attribute"));
-
-        assertNull(PermissionRuleSupport.findPath(root, "warehouse_id"));
-    }
-
-    @Test
-    @DisplayName("空登记名 → 直接 null，不去调 root.get")
-    void blankFieldShortCircuits() {
-        assertNull(PermissionRuleSupport.findPath(root, "  "));
-        verifyNoInteractions(root);
+    @DisplayName("等价写法展开：每一段各自展开后再组合（白名单比对就吃这个）")
+    void pathVariantsExpandEachSegment() {
+        assertTrue(PermissionRuleSupport.pathVariants("storage_detail.id").contains("storageDetail.id"));
+        assertTrue(PermissionRuleSupport.pathVariants("storageDetail.id").contains("storage_detail.id"));
+        assertEquals(java.util.Set.of(), PermissionRuleSupport.pathVariants("a..b"));
     }
 }

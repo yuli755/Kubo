@@ -44,18 +44,6 @@
         </if>
     </sql>
 
-    <sql id="customerParityFilter">
-        <if test="filter != null and filter.name != null and filter.name != ''">
-            AND name LIKE CONCAT('%', #{filter.name}, '%')
-        </if>
-        <if test="filter != null and filter.code != null and filter.code != ''">
-            AND code LIKE CONCAT('%', #{filter.code}, '%')
-        </if>
-        <if test="filter != null and filter.phone != null and filter.phone != ''">
-            AND phone LIKE CONCAT('%', #{filter.phone}, '%')
-        </if>
-    </sql>
-
     <select id="selectPageByPermission" resultMap="customerReadMap">
         SELECT
         <include refid="customerColumns"/>
@@ -99,16 +87,6 @@
         FROM customer c
         <where>
             <include refid="customerFilter"/>
-        </where>
-    </select>
-
-    <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM customer
-        <where>
-            <include refid="customerParityFilter"/>
-            <if test="fragment != null and fragment != ''">
-                AND ${fragment}
-            </if>
         </where>
     </select>
 

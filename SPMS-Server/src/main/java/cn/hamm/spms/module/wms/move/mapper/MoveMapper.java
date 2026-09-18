@@ -3,7 +3,6 @@ package cn.hamm.spms.module.wms.move.mapper;
 import cn.hamm.spms.base.mapper.KuboBaseMapper;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.system.datapermission.annotation.DataResource;
-import cn.hamm.spms.framework.curd.datapermission.RowParityCounter;
 import cn.hamm.spms.module.wms.move.MoveEntity;
 import org.apache.ibatis.annotations.Param;
 
@@ -16,12 +15,8 @@ import java.util.Map;
  * @author Hamm.cn
  */
 @DataResource(key = "wms.move", alias = "move")
-public interface MoveMapper extends KuboBaseMapper<MoveEntity>, RowParityCounter {
+public interface MoveMapper extends KuboBaseMapper<MoveEntity> {
     @Override
-    default String parityResourceKey() {
-        return "wms.move";
-    }
-
     List<MoveEntity> selectPageByPermission(
             @Param("billCode") String billCode,
             @Param("status") Integer status,
@@ -52,5 +47,4 @@ public interface MoveMapper extends KuboBaseMapper<MoveEntity>, RowParityCounter
             @Param("status") Integer status
     );
 
-    Long countByPermissionFragment(Map<String, Object> parameters);
 }

@@ -54,18 +54,6 @@
         </if>
     </sql>
 
-    <sql id="outputParityFilter">
-        <if test="billCode != null and billCode != ''">
-            AND bill_code LIKE CONCAT('%', #{billCode}, '%')
-        </if>
-        <if test="status != null">
-            AND status = #{status}
-        </if>
-        <if test="type != null">
-            AND type = #{type}
-        </if>
-    </sql>
-
     <!-- Keep the physical table explicit for source-integrity checks; parser-safe statements quote it below. -->
     <sql id="outputPhysicalTableName">FROM output</sql>
 
@@ -104,11 +92,4 @@
         <where><include refid="outputFilter"/></where>
     </select>
 
-    <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM `output`
-        <where>
-            <include refid="outputParityFilter"/>
-            <if test="fragment != null and fragment != ''">AND ${fragment}</if>
-        </where>
-    </select>
 </mapper>

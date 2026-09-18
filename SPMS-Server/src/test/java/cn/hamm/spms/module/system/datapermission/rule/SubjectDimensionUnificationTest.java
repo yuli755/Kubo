@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>这一格没有新增功能，它做的是"把一句话从两处收到一处"。要保证的不是"新逻辑对"，
  * 而是<b>三个消费方读到的是同一棵树、并且各自的分歧都是刻意的</b>：</p>
  * <ul>
- *   <li>{@link JpaPermissionRuleCompiler}：候选列按元模型试绑，绑不上的跳过；</li>
+ *   <li>JPA 侧编译器（J4 已随 starter 退场）：候选列按元模型试绑，绑不上的跳过；</li>
  *   <li>{@link SqlPermissionRuleRenderer}：没有元模型可问，按登记顺序取，绑不上就是 SQL 报错；</li>
  *   <li>{@link PermissionRuleEvaluator}：语义裁判（行样本 + 三值逻辑保守子集），
  *       前两个渲染器任何一边跑偏，这里就会给出不同的答案。</li>

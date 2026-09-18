@@ -14,7 +14,6 @@ import cn.hamm.spms.module.asset.AssetServices;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.channel.ChannelServices;
 import cn.hamm.spms.module.channel.purchaseprice.mapper.PurchasePriceMapper;
-import cn.hamm.spms.module.channel.purchaseprice.mapper.PurchasePriceReadShadowService;
 import cn.hamm.spms.module.channel.supplier.SupplierEntity;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
@@ -42,13 +41,10 @@ public class PurchasePriceService extends BaseService<PurchasePriceEntity, Purch
     private static final int MAX_READ_PAGE_SIZE = 200;
 
     /**
-     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留 JPA 回滚路径。
+     * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留「关掉读侧就回到引擎读路径」的回滚位。
      */
     @Autowired(required = false)
     private PurchasePriceMapper purchasePriceMapper;
-
-    @Autowired
-    private PurchasePriceReadShadowService purchasePriceReadShadowService;
 
     @Autowired
     private ExportHelper exportHelper;
@@ -64,7 +60,7 @@ public class PurchasePriceService extends BaseService<PurchasePriceEntity, Purch
     }
 
     /**
-     * 采购价分页读出口；写路径仍走 AirPower JPA。
+     * 采购价分页读出口；写路径走写侧仓储（`ICurdRepository` + mapper XML）。
      */
     public @NotNull QueryPageResponse<PurchasePriceEntity> getMapperPage(QueryPageRequest<PurchasePriceEntity> request) {
         QueryPageRequest<PurchasePriceEntity> normalized = request == null ? new QueryPageRequest<>() : request;
@@ -85,7 +81,6 @@ public class PurchasePriceService extends BaseService<PurchasePriceEntity, Purch
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
         int offset = (int) offsetValue;
-        purchasePriceReadShadowService.submit(filter);
         List<PurchasePriceEntity> list = purchasePriceMapper.selectPageByPermission(filter, offset, pageSize)
                 .stream().map(this::hydrateRelations).toList();
         long total = purchasePriceMapper.countByPermission(filter);
@@ -111,7 +106,6 @@ public class PurchasePriceService extends BaseService<PurchasePriceEntity, Purch
         if (!isMapperReadEnabled()) {
             return get(id);
         }
-        purchasePriceReadShadowService.submit();
         PurchasePriceEntity entity = purchasePriceMapper.selectDetailByPermission(id);
         return entity == null ? null : hydrateRelations(entity);
     }
@@ -125,7 +119,6 @@ public class PurchasePriceService extends BaseService<PurchasePriceEntity, Purch
     public long getMapperCount(PurchasePriceEntity filter) {
         PurchasePriceEntity normalized = filter == null ? new PurchasePriceEntity() : filter;
         if (isMapperReadEnabled()) {
-            purchasePriceReadShadowService.submit(normalized);
             return purchasePriceMapper.countByPermission(normalized);
         }
         return filter(normalized).size();
@@ -140,7 +133,6 @@ public class PurchasePriceService extends BaseService<PurchasePriceEntity, Purch
     public ReadStat getMapperStat(PurchasePriceEntity filter) {
         PurchasePriceEntity normalized = filter == null ? new PurchasePriceEntity() : filter;
         if (isMapperReadEnabled()) {
-            purchasePriceReadShadowService.submit(normalized);
             return purchasePriceMapper.statByPermission(normalized);
         }
         List<PurchasePriceEntity> rows = filter(normalized);
@@ -163,7 +155,6 @@ public class PurchasePriceService extends BaseService<PurchasePriceEntity, Purch
     public String createMapperExportTask(QueryListRequest<PurchasePriceEntity> request) {
         PurchasePriceEntity filter = request == null || request.getFilter() == null
                 ? new PurchasePriceEntity() : request.getFilter();
-        purchasePriceReadShadowService.submit(filter);
         List<PurchasePriceEntity> rows = purchasePriceMapper.selectForExport(filter).stream()
                 .map(this::hydrateRelations).toList();
         List<PurchasePriceEntity> masked = ExportColumnMasker.maskForExport(rows);

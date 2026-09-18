@@ -10,7 +10,6 @@ import cn.hamm.spms.framework.curd.model.query.QueryPageResponse;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.asset.material.mapper.MaterialMapper;
-import cn.hamm.spms.module.asset.material.mapper.MaterialReadShadowService;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
@@ -40,9 +39,6 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
      */
     @Autowired(required = false)
     private MaterialMapper materialMapper;
-
-    @Autowired
-    private MaterialReadShadowService materialReadShadowService;
 
     @Autowired
     private ExportHelper exportHelper;
@@ -82,7 +78,6 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
         int offset = (int) offsetValue;
-        materialReadShadowService.submit(filter);
         List<MaterialEntity> list = materialMapper.selectPageByPermission(filter, offset, pageSize)
                 .stream().map(this::hydrateRelations).toList();
         long total = materialMapper.countByPermission(filter);
@@ -108,7 +103,6 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
         if (!isMapperReadEnabled()) {
             return get(id);
         }
-        materialReadShadowService.submit();
         MaterialEntity material = materialMapper.selectDetailByPermission(id);
         return material == null ? null : hydrateRelations(material);
     }
@@ -122,7 +116,6 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
     public long getMapperCount(MaterialEntity filter) {
         MaterialEntity normalized = filter == null ? new MaterialEntity() : filter;
         if (isMapperReadEnabled()) {
-            materialReadShadowService.submit(normalized);
             return materialMapper.countByPermission(normalized);
         }
         return filter(normalized).size();
@@ -137,7 +130,6 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
     public ReadStat getMapperStat(MaterialEntity filter) {
         MaterialEntity normalized = filter == null ? new MaterialEntity() : filter;
         if (isMapperReadEnabled()) {
-            materialReadShadowService.submit(normalized);
             return materialMapper.statByPermission(normalized);
         }
         List<MaterialEntity> rows = filter(normalized);
@@ -164,7 +156,6 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
     public String createMapperExportTask(QueryListRequest<MaterialEntity> request) {
         MaterialEntity filter = request == null || request.getFilter() == null
                 ? new MaterialEntity() : request.getFilter();
-        materialReadShadowService.submit(filter);
         List<MaterialEntity> rows = materialMapper.selectForExport(filter).stream()
                 .map(this::hydrateRelations).toList();
         List<MaterialEntity> masked = ExportColumnMasker.maskForExport(rows);

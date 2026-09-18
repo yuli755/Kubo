@@ -11,11 +11,10 @@ import java.util.List;
  * <h1>主体维度 → 条件树（行级判据的唯一出处）</h1>
  *
  * <p>本类只回答三件事：<b>这条策略属于哪个主体维度</b>、<b>该维度在资源上登记了哪些候选列</b>、
- * <b>拿什么值去比</b>。它不碰 JPA Criteria、也不拼 SQL —— 那两个渲染器
- * （{@link JpaPermissionRuleCompiler} / {@link SqlPermissionRuleRenderer}）读同一棵返回来的树。
- * 判据分家的代价不是"两边算得不一样"这么温和：写侧行级保护（{@code JpaRowVisibilityProbe}）
- * 与读侧共用 {@code DataPermissionSpecification}，而 Mapper 读端点迟早要用 SQL 那份，
- * 于是"查得到却改不动"或者反过来的问题会从两个方向轮流出现。</p>
+ * <b>拿什么值去比</b>。它不拼 SQL —— 渲染器（{@link SqlPermissionRuleRenderer}）读同一棵返回来的树。
+ * 判据分家的代价不是"两边算得不一样"这么温和：写侧行级保护（{@code RowVisibilityProbe}）
+ * 与读侧共用 {@code DataPermissionSpecification}，两处一旦各判一次，
+ * "查得到却改不动"或者反过来的问题会从两个方向轮流出现。</p>
  *
  * <h2>与 {@code DataPermissionSubjectMatcher} 的分工（各有一份 switch 是刻意的）</h2>
  * <p>那边回答"这条策略适不适用于当前主体"，本类回答"适用之后要拼什么条件"。

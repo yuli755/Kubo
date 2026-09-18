@@ -17,7 +17,6 @@ import cn.hamm.spms.module.channel.purchase.detail.PurchaseDetailRepository;
 import cn.hamm.spms.module.channel.purchase.detail.PurchaseDetailService;
 import cn.hamm.spms.module.channel.purchase.enums.PurchaseStatus;
 import cn.hamm.spms.module.channel.purchase.mapper.PurchaseMapper;
-import cn.hamm.spms.module.channel.purchase.mapper.PurchaseReadShadowService;
 import cn.hamm.spms.base.config.ConfigFlag;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
@@ -57,9 +56,6 @@ public class PurchaseService extends AbstractBaseBillService<
     private PurchaseMapper purchaseMapper;
 
     @Autowired
-    private PurchaseReadShadowService purchaseReadShadowService;
-
-    @Autowired
     private ExportHelper exportHelper;
 
     private static final int DEFAULT_READ_PAGE_SIZE = 20;
@@ -93,7 +89,6 @@ public class PurchaseService extends AbstractBaseBillService<
         if (offset > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("分页页码超出可查询范围");
         }
-        purchaseReadShadowService.submit(filter);
         List<PurchaseEntity> rows = purchaseMapper.selectPageByPermission(filter.getBillCode(), filter.getReason(),
                 filter.getStatus(), (int) offset, pageSize);
         long total = purchaseMapper.countByPermission(filter.getBillCode(), filter.getReason(), filter.getStatus());
@@ -116,7 +111,6 @@ public class PurchaseService extends AbstractBaseBillService<
         if (!isMapperReadEnabled()) {
             return get(id);
         }
-        purchaseReadShadowService.submit(new PurchaseEntity());
         PurchaseEntity bill = purchaseMapper.selectDetailByPermission(id);
         if (bill == null) {
             return null;
@@ -136,7 +130,6 @@ public class PurchaseService extends AbstractBaseBillService<
     public long getMapperCount(PurchaseEntity filter) {
         PurchaseEntity normalized = filter == null ? new PurchaseEntity() : filter;
         if (isMapperReadEnabled()) {
-            purchaseReadShadowService.submit(normalized);
             return purchaseMapper.countByPermission(normalized.getBillCode(), normalized.getReason(), normalized.getStatus());
         }
         return filter(normalized).size();
@@ -151,7 +144,6 @@ public class PurchaseService extends AbstractBaseBillService<
     public ReadStat getMapperStat(PurchaseEntity filter) {
         PurchaseEntity normalized = filter == null ? new PurchaseEntity() : filter;
         if (isMapperReadEnabled()) {
-            purchaseReadShadowService.submit(normalized);
             return purchaseMapper.statByPermission(normalized.getBillCode(), normalized.getReason(), normalized.getStatus());
         }
         List<PurchaseEntity> rows = filter(normalized);
@@ -174,7 +166,6 @@ public class PurchaseService extends AbstractBaseBillService<
      */
     public String createMapperExportTask(QueryListRequest<PurchaseEntity> request) {
         PurchaseEntity filter = request == null || request.getFilter() == null ? new PurchaseEntity() : request.getFilter();
-        purchaseReadShadowService.submit(filter);
         List<PurchaseEntity> rows = purchaseMapper.selectForExport(filter.getBillCode(), filter.getReason(), filter.getStatus());
         List<PurchaseEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {

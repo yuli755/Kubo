@@ -53,7 +53,7 @@ class DataPermissionSpecificationTest {
         specification = new DataPermissionSpecification(
                 dataPermissionService, properties, mock(DataPermissionAudit.class),
                 new cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser(),
-                new cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler());
+                new cn.hamm.spms.module.system.datapermission.rule.SqlPermissionRuleRenderer());
         PermissionContextHolder.clear();
     }
 
@@ -63,8 +63,8 @@ class DataPermissionSpecificationTest {
      * @param resourceKey 资源标识
      * @return wrapper
      * @apiNote J2 之前这个位置是 {@code buildPredicates(root, builder, …)}：断言的对象是 Criteria 谓词，
-     * 要靠 mock 出 {@code Root}/{@code CriteriaBuilder} 才能观察。现在观察对象是 wrapper 上的 SQL 片段，
-     * 断言直接读片段文本 —— 少了两层 mock，测的还是同一件事（注入了什么）。
+     * 要靠 mock 出 {@code Root}/{@code CriteriaBuilder} 才能观察；J4 之后连那套 API 都不在了。
+     * 现在观察对象是 wrapper 上的 SQL 片段，断言直接读片段文本 —— 少了两层 mock，测的还是同一件事（注入了什么）。
      */
     private QueryWrapper<DataResourceEntity> applyQuery(String resourceKey) {
         QueryWrapper<DataResourceEntity> wrapper = new QueryWrapper<>();

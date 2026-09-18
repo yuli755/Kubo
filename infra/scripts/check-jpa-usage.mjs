@@ -63,6 +63,14 @@ const SERVER = path.join(ROOT, 'SPMS-Server')
  *   实体注解批量替换 + 影子线收尾 + 删 starter，届时这三行归零。
  *   注意本批的教训同样值得记：换轨**没有**碰 `org.springframework.data.redis`（那不是 JPA），
  *   数字掉下来的那部分是 `org.springframework.data.jpa.*` 与 `org.springframework.data.domain.*`。
+ * - 2026-09-18 J4（去 starter + ddl-auto + 影子线收尾）：**30 → 0 文件 / 122 → 0 引用 / 77 → 0 import**。
+ *   影子比对那 30 个文件随 `spring-boot-starter-data-jpa` 一起退场：JPA 侧已被整个删掉，
+ *   "两套 ORM 行数对不一致"这个问题从此不存在（§10.5 的口径：换完只剩一条路径）；
+ *   `ShadowDiffService` 留下来但换成 MP 单路径取证（同一份渲染产物挂到 wrapper 上数两遍），
+ *   `SHADOW_EVIDENCE` 继续是放开 enforce 的阻塞项 —— 证据链没有因此变松。
+ *   **棘轮到 0 之后这个脚本不删**：它现在唯一的职责是"谁把 JPA 写回来立刻红"。
+ *   判据从"数字只许降"换成三条硬事实：pom 里没有 starter、任何 yml 里没有 `spring.jpa`/`ddl-auto`、
+ *   实体上没有 JPA 注解。留着一条只会打印 0 的棘轮是装饰，换成硬判据才是门禁。
  * - 2026-09-18 J3（实体注解换 MP + 关系字段对象图）：**84 → 30 文件 / 503 → 122 引用 / 385 → 77 import**。
  *   这一批把 41 个实体 + 4 个基类上的 JPA 注解（`@Entity`/`@Table`/`@Column`/`@Id`/`@GeneratedValue`/
  *   `@ManyToOne`/`@ManyToMany`/`@MappedSuperclass`/`@PrePersist`/`@DynamicInsert`）整体换成
@@ -77,7 +85,7 @@ const SERVER = path.join(ROOT, 'SPMS-Server')
  *   `@PrePersist` 这种生命周期回调要换宿主（→ `KuboMetaObjectHandler`），
  *   否则删的当天没有任何东西会红，直到线上出现重复数据或归属为空。
  */
-const BASELINE = { files: 30, refs: 122, imports: 77 }
+const BASELINE = { files: 0, refs: 0, imports: 0 }
 
 /**
  * JPA / Hibernate / Spring Data 的 import 根（命中即计入 imports）。
@@ -205,13 +213,30 @@ const pomPath = path.join(SERVER, 'pom.xml')
 const pom = fs.existsSync(pomPath) ? fs.readFileSync(pomPath, 'utf8') : ''
 const jpaStarterDeclared = /<artifactId>spring-boot-starter-data-jpa<\/artifactId>/.test(pom)
 
-const ddlAuto = []
+/**
+ * J4 判据：配置面里不许再有 JPA 的东西
+ *
+ * 口径从"数 `ddl-auto`"扩成"数 `spring.jpa` 这一段" —— 删掉 starter 之后，
+ * 任何一个 yml 里剩下的 `spring.jpa.*` 都是**没人读的配置**：它不会报错、也不会生效，
+ * 只会让下一个读配置的人以为 schema 校验还开着（`ddl-auto: validate` 的注释尤其容易被这么读）。
+ * 两条都判：整段（`spring:\n  jpa:`）与孤立的 `ddl-auto`（有人可能把它挪到别处）。
+ */
+const jpaConfigHits = []
 for (const yml of walk(path.join(SERVER, 'src', 'main', 'resources')).filter(f => /\.ya?ml$/.test(f))) {
   const lines = fs.readFileSync(yml, 'utf8').split('\n')
+  let inSpringBlock = false
   lines.forEach((line, index) => {
+    const rel = `${path.relative(ROOT, yml).replaceAll('\\', '/')}:${index + 1}`
+    if (/^\S/.test(line)) {
+      // 顶层键（注释行以 # 开头，不算）：离开 spring 段
+      inSpringBlock = /^spring:\s*(?:#.*)?$/.test(line)
+    }
+    if (inSpringBlock && /^\s{2}jpa:\s*(?:#.*)?$/.test(line)) {
+      jpaConfigHits.push(`${rel} spring.jpa 段（J4 之后没有东西会读它）`)
+    }
     const m = line.match(/^\s*ddl-auto:\s*(\S+)/)
     if (m) {
-      ddlAuto.push(`${path.relative(ROOT, yml).replaceAll('\\', '/')}:${index + 1}=${m[1]}`)
+      jpaConfigHits.push(`${rel} ddl-auto=${m[1]}`)
     }
   })
 }
@@ -285,7 +310,7 @@ const report = {
   totals,
   baseline: BASELINE,
   jpaStarterDeclared,
-  ddlAuto,
+  jpaConfigHits,
   entityFiles: entityFiles.length,
   annotationLeaks,
   byModule: [...moduleHits.entries()]
@@ -313,6 +338,16 @@ if (process.argv.includes('--check')) {
   if (totals.imports > BASELINE.imports) {
     grows.push(`JPA import ${totals.imports} > 基线 ${BASELINE.imports}`)
   }
+  // J4 硬判据：棘轮已经到 0，再往后"只许降"没有下降空间 —— 判的是"不许回来"
+  const facts = []
+  if (jpaStarterDeclared) {
+    facts.push('pom.xml 里又声明了 spring-boot-starter-data-jpa：J4 之后写链路引擎与实体注解都是 MP 口径，'
+      + '把它加回来会同时引入两套一级缓存/flush 语义（实体上也没有 JPA 注解，启动即报"没有映射的实体"）')
+  }
+  if (jpaConfigHits.length) {
+    facts.push(`配置面还有 JPA 的残留：${jpaConfigHits.join(' · ')}`
+      + '（没有 starter 时这些键没人读，留着只会让人以为 schema 校验还开着）')
+  }
   if (entityFiles.length < 30) {
     console.error(`\n✗ 只扫到 ${entityFiles.length} 个 @TableName 实体 —— 解析口径失效，别让本条门禁空转\n`)
     process.exit(1)
@@ -327,6 +362,16 @@ if (process.argv.includes('--check')) {
       + '它们会变成"看起来在声明什么、其实没人读"的死注解（@Id 还会让主键回填静默失效）。\n')
     process.exit(1)
   }
+  if (facts.length) {
+    console.error('\n✗ JPA 又回来了：\n')
+    for (const line of facts) {
+      console.error(`  · ${line}`)
+    }
+    console.error('\n本仓只保留 MyBatis-Plus：读侧 `KuboBaseMapper` / 写侧 `KuboInfraMapper` +'
+      + ' `LambdaQueryWrapper`，表结构由 `infra/init-sql/init.sql` 单一维护、'
+      + '由 `pnpm ddl:check` 与 schemaContract 在 CI 里核对。\n')
+    process.exit(1)
+  }
   if (grows.length) {
     console.error('\n✗ JPA 足迹比基线更大：\n')
     for (const line of grows) {
@@ -337,9 +382,10 @@ if (process.argv.includes('--check')) {
     process.exit(1)
   }
   console.log(
-    `✓ JPA 棘轮通过：文件 ${totals.jpaFiles}/${BASELINE.files} · `
-    + `引用 ${totals.refs}/${BASELINE.refs} · import ${totals.imports}/${BASELINE.imports}（只许降）`,
+    `✓ JPA 归零：文件 ${totals.jpaFiles}/${BASELINE.files} · `
+    + `引用 ${totals.refs}/${BASELINE.refs} · import ${totals.imports}/${BASELINE.imports}`,
   )
+  console.log('✓ 依赖与配置面干净：pom 无 spring-boot-starter-data-jpa · 无 spring.jpa / ddl-auto')
   console.log(`✓ 实体注解干净：${entityFiles.length} 个 @TableName 实体里 0 处 JPA 映射注解`)
   process.exit(0)
 }
@@ -351,7 +397,7 @@ if (process.argv.includes('--json')) {
 
 console.log(`\n🧱 JPA 足迹（${totals.jpaFiles} / ${totals.javaFiles} 个 Java 文件，${totals.refs} 处引用，${totals.imports} 条 JPA import）`)
 console.log(`  依赖：spring-boot-starter-data-jpa ${jpaStarterDeclared ? '**仍在 pom 里**（删它的条件是写链路与实体都换完）' : '已删除'}`)
-console.log(`  ddl-auto：${ddlAuto.join(' · ') || '无'}\n`)
+console.log(`  spring.jpa 配置面：${jpaConfigHits.join(' · ') || '无'}\n`)
 
 console.log('── 按模块 ──────────────────────────────────────────────')
 for (const { module, refs } of report.byModule.slice(0, 15)) {

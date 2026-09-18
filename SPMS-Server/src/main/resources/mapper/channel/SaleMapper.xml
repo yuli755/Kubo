@@ -52,18 +52,6 @@
         </if>
     </sql>
 
-    <sql id="saleParityFilter">
-        <if test="billCode != null and billCode != ''">
-            AND bill_code LIKE CONCAT('%', #{billCode}, '%')
-        </if>
-        <if test="reason != null and reason != ''">
-            AND reason LIKE CONCAT('%', #{reason}, '%')
-        </if>
-        <if test="status != null">
-            AND status = #{status}
-        </if>
-    </sql>
-
     <select id="selectPageByPermission" resultMap="saleReadMap">
         SELECT
         <include refid="saleColumns"/>
@@ -107,16 +95,6 @@
         FROM sale s
         <where>
             <include refid="saleFilter"/>
-        </where>
-    </select>
-
-    <select id="countByPermissionFragment" resultType="long">
-        SELECT COUNT(1) FROM sale
-        <where>
-            <include refid="saleParityFilter"/>
-            <if test="fragment != null and fragment != ''">
-                AND ${fragment}
-            </if>
         </where>
     </select>
 
