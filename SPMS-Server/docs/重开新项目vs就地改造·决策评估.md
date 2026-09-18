@@ -145,7 +145,7 @@ find SPMS-Server/src/main/java/cn/hamm/spms/module/system/datapermission -name '
 find src -type f \( -name '*.vue' -o -name '*.ts' \) -exec cat {} + | wc -l
 find src/view -name '*.vue' | wc -l
 
-# 迁移脚本与门禁
-find SPMS-Server/docs/database/migration -name '*.sql' -exec cat {} + | wc -l
+# 建库脚本与门禁（2026-09-18 起：只有 infra/init-sql 两份脚本）
+wc -l infra/init-sql/init.sql infra/init-sql/init_data.sql
 find infra/scripts -name '*.mjs' | wc -l
 ```

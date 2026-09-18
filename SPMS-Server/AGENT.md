@@ -9,10 +9,10 @@
 | Java            | 17              | 开发语言   |
 | Spring Boot     | 3.x             | 应用框架   |
 | Maven           | 3.9+            | 依赖管理   |
-| JPA + Hibernate | Spring Data JPA | ORM框架  |
+| MyBatis-Plus    | 3.5.9           | ORM 框架（唯一；JPA 已于 2026-09-18 整体退场） |
 | MySQL           | 8.x             | 数据库    |
 | Redis           | -               | 缓存     |
-| AirPower4J      | 6.x             | 核心基础框架 |
+| 本仓自持框架层   | -               | 原 AirPower4J（84 类）已整模块搬入 `cn.hamm.spms.core` / `framework` |
 | Lombok          | -               | 代码简化   |
 
 ## 项目整体结构
@@ -199,7 +199,7 @@ private Integer type;
 
 ### 9. 异常处理
 
-使用 AirPower 的 `Errors` 抛出业务异常：
+使用本仓的 `Errors`（`cn.hamm.spms.common.exception`，错误码是前端契约）抛出业务异常：
 
 ```java
 Errors.FORBIDDEN_EDIT.when(subtract < 0, "库存数量不足");
@@ -225,8 +225,14 @@ private StorageService storageService;
 > **注（2026-09-18，已收官）**：`cn.hamm.airpower` **已整体退场** —— 0 引用 / 0 依赖 / 无父 POM /
 > 0 配置键（`pnpm airpower:backend -- --check`，基线 0 必须保持）。框架层（原 core/curd/api/redis 四模块）
 > 整模块搬进本仓：`cn.hamm.spms.core.*` 与 `cn.hamm.spms.framework.{api,curd,redis}.*`（MIT，来源见各文件头），
-> **改框架代码就改这些文件**。后续只剩内务：编译修复 + JPA→MyBatis-Plus 的持久化换轨，见
-> `docs/后端airpower退场·可行性评估与分批建议.md` §9 与 `docs/去JPA决策评估.md`。
+> **改框架代码就改这些文件**。
+>
+> **注（2026-09-18，去 JPA 也已收官）**：J1–J4 全部落地 —— 写链路引擎、41 个实体的注解、
+> 数据权限读侧、影子比对线都换到 MyBatis-Plus；`spring-boot-starter-data-jpa`、`spring.jpa`（含 `ddl-auto`）
+> 与 ORM 对账装置整体退场（`pnpm jpa:check -- --check` 的足迹是 0/0/0，并硬判"JPA 不许回来"）。
+> 数据库只有两个脚本（`infra/init-sql/init.sql` + `init_data.sql`），**应用不建表、不改表**。
+> 全过程见 `docs/去JPA决策评估.md` §9.2 / §9.6 / §9.7.7 / §9.8.7。
+> 当前只剩"需要你本机做"的事：`mvn -q compile` → `mvn -q test` → 真库 ENFORCE 回归（见 §9.8.6）。
 
 ## 继承体系
 
@@ -249,7 +255,7 @@ private StorageService storageService;
 - 添加 `comment` 描述字段用途
 - 使用 `bit(1)` 存储布尔类型，默认值 `0`
 
-## AirPower4J 框架使用规范
+## 框架层使用规范（原 AirPower4J，MIT，已整模块搬入本仓）
 
 ### 1. CURD 扩展
 
@@ -285,7 +291,7 @@ Service 中重写 `beforeGetPage`、`beforeCreatePredicate`、`addSearchPredicat
 2. `jakarta.*`
 3. `org.*`
 4. `springframework.*`
-5. `cn.hamm.airpower.*`
+5. `cn.hamm.spms.core.*` / `cn.hamm.spms.framework.*`
 6. `cn.hamm.spms.*`
 7. `lombok.*`
 
@@ -293,7 +299,7 @@ Service 中重写 `beforeGetPage`、`beforeCreatePredicate`、`addSearchPredicat
 
 ## 依赖新增原则
 
-- 优先使用 `AirPower4J` 已提供的能力
+- 优先使用本仓 `core` / `framework` 已提供的能力（原 AirPower4J，改框架代码就改这两个包）
 - 不随意新增第三方依赖，确实需要时先评审
 - 新增依赖必须指定版本
 

@@ -29,7 +29,7 @@
 | 默认值 | `1234567890`（弱，10 字符） | `application.yml`（**生产必须用环境变量覆盖**，`AccessTokenSecretGuard` 会 fail-fast） |
 | 验签方 | **本仓库源码**：`cn.hamm.spms.framework.api.config.ApiConfig.accessTokenSecret`（单字段，HS256）——原 airpower-api 已整模块搬入本仓（MIT），改名同时把配置前缀改成 `spms.api` | `framework/api/config/ApiConfig.java` |
 | Token TTL | 默认 `authorizeExpireSecond = 86400`（1 天），仓库未覆盖 | 本仓 `framework/curd/config/AccessConfig.java` |
-| Token 载体 | 前端 `Authorization: Bearer <token>`，token 存 localStorage key `Authorization` | `src/api/axios.ts:61`、`src/utils/airpowerCompat.ts` |
+| Token 载体 | 前端 `Authorization: Bearer <token>`，token 存 localStorage key `Authorization` | 请求头在 `src/api/axios.ts`（拦截器里拼 `Bearer ${userStore.token}`）、存取在 `src/utils/authStorage.ts`（`authToken` 对象；键名保留历史值，改名会让在线用户静默登出） |
 | Refresh Token | **无**（`SECURITY_GUIDE.md` 所述为目标态） | 全仓无 refresh 端点 |
 | 轮换后果 | 换密钥 = 全员登出 | airpower 单密钥验签 |
 

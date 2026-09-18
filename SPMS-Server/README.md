@@ -6,12 +6,13 @@
   <img src="https://svg.hamm.cn?key=Lang&value=Java17&bg=green"/>
   <img src="https://svg.hamm.cn?key=Base&value=SpringBoot3"/>
   <img src="https://svg.hamm.cn?key=Data&value=MySQL8"/>
-  <img src="https://svg.hamm.cn?key=ORM.&value=JPA"/>
+  <img src="https://svg.hamm.cn?key=ORM.&value=MyBatis-Plus"/>
 </p>
 
 ## Kubo · 智方 (后端项目)
 
-**Kubo** 智能生产管理系统后端项目，基于 **Java 17 + Spring Boot 3 + MySQL 8 + JPA** 开发，依赖 **AirPower4J** 基础框架。
+**Kubo** 智能生产管理系统后端项目，基于 **Java 17 + Spring Boot 3 + MySQL 8 + MyBatis-Plus 3.5.9** 开发。
+原 **AirPower4J** 框架层已于 2026-09-18 整模块搬入本仓（`cn.hamm.spms.core` / `cn.hamm.spms.framework`，MIT，见各文件头），**不再依赖任何外部框架包**。
 
 集成了 MES、WMS、ERP、QMS、IoTS 等核心生产管理模块，实现从采购、生产、仓储到销售全流程的信息化管理。
 
@@ -28,19 +29,15 @@
 ### 下载源码
 
 ```shell
-git clone https://github.com/s-pms/SPMS-Server.git
-cd SPMS-Server
+git clone https://github.com/yuli755/Kubo.git
+cd Kubo/SPMS-Server          # 后端在本仓的 SPMS-Server/ 子目录，前端在仓库根目录
 ```
 
 ### 配置数据库
 
-复制配置模板：
-
-```shell
-cp src/main/resources/application-template.yml src/main/resources/application-local.yml
-```
-
-修改 `application-local.yml` 中的数据库连接：
+连接默认值已入库（`application.yml` / `application-local.yml`，本地 `root/root@localhost:3306/kubo`），
+**直接编辑 `application-local.yml` 即可**（本地 profile 默认启用；原 `application-template.yml` 模板文件已不存在，
+`cp` 那一步作废）。要改的连接长这样：
 
 ```yaml
 spring:
@@ -71,16 +68,20 @@ spring:
 
 ### 数据库初始化
 
-项目使用 **JPA** 自动管理数据库表结构：
+表结构的唯一真值是 **`infra/init-sql/init.sql`**（49 张表，幂等 `CREATE TABLE IF NOT EXISTS`），种子数据在 `init_data.sql`：
 
-- 开发环境：`ddl-auto: create-drop` 自动创建表结构
-- 生产环境：导出测试完毕的数据库，设置 `ddl-auto: validate`，然后导入数据
+- 全新环境：`docker compose up -d mysql`（脚本挂进 `/docker-entrypoint-initdb.d`，首次启动自动执行）；
+- 已有库 / 手动：`mysql -u root -p kubo < infra/init-sql/init.sql && mysql -u root -p kubo < infra/init-sql/init_data.sql`；
+- **应用不建表、不改表**：`spring.jpa`（含 `ddl-auto`）随 JPA 于 2026-09-18 整体退场（J4），
+  "实体 ↔ 库表"是否一致改由 `pnpm ddl:check` 与 `schemaContract.spec.ts` 在 CI 里判。
+- 改结构的动作：改实体 + 改 `init.sql`（+ `init_data.sql` 补数据），两处必须同批。
 
 ## 依赖框架
 
-本项目依赖 **AirPower4J** 基础框架：
-- [Github](https://github.com/AirPowerTeam/AirPower4J)
-- [Gitee](https://gitee.com/air-power/AirPower4J)
+原 **AirPower4J** 框架层已整模块搬入本仓（`cn.hamm.spms.core` / `cn.hamm.spms.framework`，共 84 类），
+`pom.xml` 里没有任何 `cn.hamm` 依赖（`pnpm pom:check` + `pnpm airpower:backend -- --check` 守着），
+因此不再需要引入外部框架包。上游项目仍可参考：
+- [Github](https://github.com/AirPowerTeam/AirPower4J)（MIT，本仓搬入代码的来源）
 
 ## AI 辅助开发
 

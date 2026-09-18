@@ -1,8 +1,8 @@
 # Kubo 启动指南
 
 > 本文档描述在**本仓库当前结构**（前端在根目录，后端在 `SPMS-Server/`）下本地启动的步骤。
-> 数据权限二次改造引入了手写幂等迁移脚本（见 `SPMS-Server/docs/database/migration/`），
-> 生产/`validate` 环境下必须**先跑迁移再启动**，详见下文「表结构怎么建」。
+> 建库脚本只有两份：`infra/init-sql/init.sql`（结构）+ `init_data.sql`（数据），
+> **启动前先把它们执行一遍**（应用不建表），详见下文「表结构怎么建」。
 
 ## ✅ 前置条件
 
@@ -32,7 +32,7 @@ mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS kubo CHARACTER SET utf8mb4 CO
 
 ```bash
 cd SPMS-Server
-./mvnw spring-boot:run        # 默认 application-local（ddl-auto=update，自动建业务表）
+./mvnw spring-boot:run        # 默认 application-local（应用不建表，库结构先由 infra/init-sql 两份脚本建好）
 ```
 
 - 后端端口 **8080**。
@@ -65,22 +65,24 @@ pnpm dev                      # 启动开发服务器（默认 3000，/api 代�
 
 ---
 
-## 📋 表结构怎么建（重要：本地 / 生产不一致）
+## 📋 表结构怎么建（**所有环境一致**）
 
-| 环境 | `spring.jpa.hibernate.ddl-auto` | 建表方式 |
-| --- | --- | --- |
-| `application-local.yml` | `update` | JPA/Hibernate 自动建业务表（开发用） |
-| `application.yml` / `application-production.yml` | `validate` | **不建表、只校验**，必须**先执行迁移脚本** |
-
-**生产（validate）上线前**，先落一次合并迁移脚本（幂等、可重复执行）：
+结构真值只有一份：`infra/init-sql/init.sql`（49 张表，幂等）；种子与回填在 `init_data.sql`。
+**应用不建表、不改表**（J4 起 `spring.jpa` 与 `ddl-auto` 已整体退场，本地与生产没有差别）。
 
 ```bash
-mysql -u root -p kubo < SPMS-Server/docs/database/migration/20260909_data_permission_migrations_consolidated.sql
+# 全新环境（推荐）：compose 把 infra/init-sql 挂进 /docker-entrypoint-initdb.d，
+# 容器首次启动（数据卷为空）时按文件名顺序自动执行
+docker compose up -d mysql
+
+# 已有库 / 手工执行（两个脚本都幂等，可重复跑）
+mysql -u root -p kubo < infra/init-sql/init.sql
+mysql -u root -p kubo < infra/init-sql/init_data.sql
 ```
 
-该脚本只建 `data_*` / `tenant` / `user_tenant` / `user_factory` 等增量表并回填归属列；
-`user`/`permission`/`bom`/`contract` 等业务表仍由 JPA 建（validate 只校验结构，不建表）。
-详情见 [WHY_NO_SQL.md](./WHY_NO_SQL.md) 与 [SPMS-Server/docs/README.md](./SPMS-Server/docs/README.md)。
+改结构的动作是**同批改两处**：实体（`@TableName`/`@TableField`）+ `init.sql`；
+`pnpm ddl:check` 与 `schemaContract.spec.ts` 在 CI 里双向对账，`pnpm migration:check` 守着"目录里恰好两个脚本 + 幂等"。
+详情见 [WHY_NO_SQL.md](./WHY_NO_SQL.md) 与 [SPMS-Server/docs/DATABASE_MIGRATION_STRATEGY.md](./SPMS-Server/docs/DATABASE_MIGRATION_STRATEGY.md)。
 
 ---
 
@@ -130,7 +132,7 @@ mysql -u root -proot -e "DROP DATABASE kubo; CREATE DATABASE kubo CHARACTER SET 
 | [README.md](./README.md) | 项目介绍与命令 |
 | [LOGIN.md](./LOGIN.md) | 登录测试和默认数据说明 |
 | [AGENT.md](./AGENT.md) | 开发规范 |
-| [WHY_NO_SQL.md](./WHY_NO_SQL.md) | JPA 建表 vs 手写迁移的现行口径 |
+| [WHY_NO_SQL.md](./WHY_NO_SQL.md) | 为什么现在只有两个 SQL 文件（建库脚本口径） |
 | [SPMS-Server/docs/README.md](./SPMS-Server/docs/README.md) | 后端文档索引（施工图、验收清单、迁移脚本） |
 
 ---

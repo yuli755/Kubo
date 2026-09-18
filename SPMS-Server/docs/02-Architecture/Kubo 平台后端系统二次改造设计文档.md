@@ -2151,7 +2151,7 @@ Data Rollback:
 
 ## 附录 B: 参考文档
 
-- [Kubo 平台高并发重构实施路线规划计划.md](../Kubo%20平台高并发重构实施路线规划计划.md)
+- [Kubo 平台高并发重构实施路线规划计划.md](../archive/Kubo%20平台高并发重构实施路线规划计划.md)（已归档）
 - [前后端重构规划差距分析报告.md](../archive/前后端重构规划差距分析报告.md)
 - [Kubo 平台前端系统二次改造设计文档](./Kubo%20平台前端系统二次改造设计文档.md)
 - [SECURITY_GUIDE.md](../05-Development/SECURITY_GUIDE.md)

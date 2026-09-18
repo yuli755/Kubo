@@ -474,7 +474,7 @@ Warning: 299 - "API v1 is deprecated, will sunset on 2027-01-01. Please migrate 
 - [HTTP 状态码规范 (RFC 7231)](https://tools.ietf.org/html/rfc7231)
 - [OpenAPI 3.0 规范](https://spec.openapis.org/oas/v3.1.0)
 - [JSON:API 规范](https://jsonapi.org/)
-- [ADR-001 到 ADR-007](../adr/) - 架构决策记录
+- [ADR-001 到 ADR-007](./adr/) - 架构决策记录
 
 ---
 

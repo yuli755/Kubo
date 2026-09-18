@@ -41,8 +41,10 @@ mysql -h 127.0.0.1 -uroot -p kubo < infra/init-sql/init_data.sql
 > 注意 `docker-entrypoint-initdb.d` 只在**数据目录为空**时生效：库已经在跑就不会重跑脚本，
 > 此时用 ② 手工执行（两个脚本都幂等，重复执行没有副作用）。
 
-应用侧行为：`ddl-auto = validate`（local 目前是 `update`，J4 关掉）——**应用不建表、不改表**，
-库结构与脚本不一致时启动即报 `Schema-validation`，这正是我们要的"早失败"。
+应用侧行为：**应用不建表、不改表**，也不再有 `ddl-auto`（`spring.jpa` 随 `spring-boot-starter-data-jpa`
+于 2026-09-18 整体退场，J4）。"库结构 ↔ 实体"是否一致不再靠启动期校验，改由 CI 判：
+`pnpm ddl:check`（列集合）、`schemaContract.spec.ts`（含唯一键交叉）、CI 的 Migrations job（真库两遍幂等）。
+换句话说：**早失败没变，只是从"某个环境的启动期"搬到了"每次提交的 CI"**。
 
 ## 3. 谁在守这两个文件（4 道机器判据）
 

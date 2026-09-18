@@ -103,7 +103,7 @@ pnpm dev
 
 1. ✅ `AppConfig.isDevMode = true` (开发模式)
 2. ✅ 首次启动或不存在 `init.lock` 文件
-3. ✅ 或者 `ddl-auto: create-drop` (重建数据库)
+3. ✅ 或者数据库是空的（建库脚本 `infra/init-sql/init.sql` + `init_data.sql` 刚跑过；J4 起应用不再自动建表，也就没有 `ddl-auto: create-drop` 这条路）
 
 初始化完成后会生成 `init.lock` 文件，避免重复初始化。
 
@@ -115,15 +115,16 @@ pnpm dev
 
 ### 方式 1: 删除锁文件
 ```bash
-cd D:\JAVA\Code_repository\SPMS-Web\SPMS-Server
-rm init.lock
+rm SPMS-Server/init.lock
 # 重启后端即可重新初始化
 ```
 
-### 方式 2: 清空数据库
+### 方式 2: 清空数据库（表结构也要重建）
 ```bash
 mysql -u root -proot -e "DROP DATABASE kubo; CREATE DATABASE kubo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-# 重启后端会自动建表并初始化数据
+mysql -u root -p kubo < infra/init-sql/init.sql
+mysql -u root -p kubo < infra/init-sql/init_data.sql
+# 重启后端（应用不建表：J4 起 JPA 与 ddl-auto 已退场），DevDataInitRunner 再灌开发演示数据
 ```
 
 ---

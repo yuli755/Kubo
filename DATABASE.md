@@ -1,13 +1,17 @@
 # Kubo 数据库表结构文档
 
-> 本文档由 JPA 实体类自动生成，表结构会在首次启动时由 Hibernate 自动创建
+> ⚠️ **这份列表不是建库依据**：建库的唯一真值是 `infra/init-sql/init.sql`（结构）+ `init_data.sql`（数据），
+> 由 compose 首次启动自动执行或手工 `mysql < 文件`。**应用不建表、不改表**
+> （2026-09-18 J4：`spring-boot-starter-data-jpa` 与 `spring.jpa`/`ddl-auto` 已整体退场）。
 >
-> ⚠️ **补充**：本文只覆盖 JPA 建的业务表。数据权限二次改造另有一批**手写幂等迁移表**——
-> `data_resource` / `data_policy` / `data_field_policy` / `permission_change_outbox` /
-> `tenant` / `user_tenant` / `user_factory` / `data_permission_diff_log` /
-> `data_permission_deny_log` / `data_permission_orm_parity_log` 等——见
-> `infra/init-sql/init.sql` + `infra/init-sql/init_data.sql`（全仓只有这两个 SQL 脚本，2026-09-18 起；原 Flyway V1–V10 已折叠进它们）
-> 与 `SPMS-Server/docs/database/tenant_readiness_matrix.md`。
+> 本文档早期由 JPA 实体自动生成，现在**人工维护**：与 `init.sql` 不一致时，以 `init.sql` 为准，
+> 并由 `pnpm ddl:check`（列集合）与 `schemaContract.spec.ts`（含唯一键）在 CI 里对账 ——
+> 发现漂移请改脚本或实体，而不是改这里的描述性文字。
+>
+> 数据权限相关的十张表（`data_resource` / `data_policy` / `data_field_policy` /
+> `permission_change_outbox` / `tenant` / `user_tenant` / `user_factory` /
+> `data_permission_diff_log` / `data_permission_deny_log` / `operation_log`）同样在这两份脚本里；
+> 归属列矩阵见 `SPMS-Server/docs/database/tenant_readiness_matrix.md`。
 
 ## 📊 数据库信息
 
@@ -335,7 +339,8 @@ ORDER BY
 
 ### 方式 3: 查看后端日志
 
-启动后端时，控制台会输出 Hibernate 生成的所有 SQL 语句 (需要配置 `show-sql: true`)
+需要看 SQL 时打开 MyBatis 的日志（`logging.level` 里给对应的 Mapper 包名开 `DEBUG`）：
+J4 之后没有 Hibernate，也就不再有 `spring.jpa.show-sql`。
 
 ---
 
@@ -343,32 +348,35 @@ ORDER BY
 
 ### 如何修改表结构？
 
-1. 修改对应的 Entity 类
-2. 重启后端，Hibernate 会自动更新表结构 (ddl-auto: update)
+1. 改实体（MyBatis-Plus 口径：`@TableName` / `@TableField`；唯一列用 `@Unique`）；
+2. 改 `infra/init-sql/init.sql` 里那张表的 `CREATE TABLE`（新列 / 索引 / 唯一键一并写）；
+3. 存量库要补数据就写进 `init_data.sql`（幂等）；
+4. 跑 `pnpm check`，推送后看 CI 的 `migrations` job（真实 MySQL 8 空库连跑两遍）。
 
 ### 示例: 给 user 表添加新字段
 
 ```java
 // UserEntity.java
-@Column(columnDefinition = "varchar(255) default '' comment '微信号'")
+@TableField("wechat")
 private String wechat;
 ```
 
-保存后重启，Hibernate 会自动执行:
-
 ```sql
-ALTER TABLE `user` ADD COLUMN `wechat` varchar(255) DEFAULT '' COMMENT '微信号';
+-- infra/init-sql/init.sql：user 表里补上这一列（幂等脚本，直接改这一行）
+`wechat` varchar(255) NOT NULL DEFAULT '' COMMENT '微信号',
 ```
 
 ---
 
 ## ⚠️ 注意事项
 
-1. **ddl-auto: update** 只能增加字段，不能删除字段
-2. 修改字段类型需要谨慎，可能导致数据丢失
-3. 生产环境（`validate`）**先建库再启动**：`mysql < infra/init-sql/init.sql` + `init_data.sql`（compose 首次起库会自动跑，见 `docker-compose.yml` 的 `/docker-entrypoint-initdb.d` 挂载），**没有任何自动迁移框架**
-4. 结构变更的约定：**改表结构 = 改 `infra/init-sql/init.sql`，同时改实体**（`pnpm ddl:check` 与 `schemaContract.spec.ts` 双向对账）；新数据/新回填写进 `init_data.sql`。两个脚本都必须幂等（CI 用真实 MySQL 8 空库连跑两遍并比对 `information_schema`）。应用不建表（`ddl-auto: validate`）
+1. **没有任何自动改表机制**：应用不建表、不改表，也没有 `ddl-auto`（J4 起 JPA 整体退场）——
+   忘了改 `init.sql` 不会在启动期报错，而是在用到那一列时报 500，所以 `pnpm ddl:check` 必须绿。
+2. 修改字段类型/删列需要迁移存量数据时：备份 → 改 `init.sql` → 在 `init_data.sql` 里写幂等回填。
+3. **先建库再启动**：`mysql < infra/init-sql/init.sql` + `init_data.sql`（compose 首次起库会自动跑，见 `docker-compose.yml` 的 `/docker-entrypoint-initdb.d` 挂载）。
+4. 全仓**只有这两个 SQL 脚本**（`pnpm migration:check` 守着）：不再新增迁移文件、不再引入迁移框架。
 
 ---
 
-**更多信息**: 查看 [WHY_NO_SQL.md](./WHY_NO_SQL.md) 了解「JPA 建表 + 手写迁移」的现行口径
+**更多信息**: 查看 [WHY_NO_SQL.md](./WHY_NO_SQL.md)（为什么只有两个 SQL 文件）与
+[SPMS-Server/docs/DATABASE_MIGRATION_STRATEGY.md](./SPMS-Server/docs/DATABASE_MIGRATION_STRATEGY.md)（脚本策略与判据）

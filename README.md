@@ -26,7 +26,7 @@
 | 目录 | 说明 |
 | --- | --- |
 | `/`（根） | 前端 **kubo-web**（Vue 3 + Vite + Pinia + Element Plus + TanStack Query） |
-| `SPMS-Server/` | 后端 **SPMS-Server**（Spring Boot 3 + MyBatis-Plus/JPA + MySQL + Redis）。**前后端的 airpower 均已于 2026-09-18 退场完毕**：前端 `@airpower/web` 0 引用（`pnpm airpower:check`）；后端 `cn.hamm:airpower` **0 引用 / 0 依赖 / 无父 POM / 0 配置键**（`pnpm airpower:backend -- --check`，基线 0 必须保持）——原 airpower 的 core/curd/api/redis 四模块已整模块搬入本仓 `cn.hamm.spms.core.*` 与 `cn.hamm.spms.framework.*`（MIT，来源见各文件头），**框架层从此由本仓拥有**。全项目技术栈见 `SPMS-Server/docs/项目整体技术栈详细信息.md`，退场全过程见 `SPMS-Server/docs/后端airpower退场·可行性评估与分批建议.md` |
+| `SPMS-Server/` | 后端 **SPMS-Server**（Spring Boot 3 + MyBatis-Plus 3.5.9 + MySQL + Redis）。**前后端的 airpower 均已于 2026-09-18 退场完毕**：前端 `@airpower/web` 0 引用（`pnpm airpower:check`）；后端 `cn.hamm:airpower` **0 引用 / 0 依赖 / 无父 POM / 0 配置键**（`pnpm airpower:backend -- --check`，基线 0 必须保持）——原 airpower 的 core/curd/api/redis 四模块已整模块搬入本仓 `cn.hamm.spms.core.*` 与 `cn.hamm.spms.framework.*`（MIT，来源见各文件头），**框架层从此由本仓拥有**。全项目技术栈见 `SPMS-Server/docs/项目整体技术栈详细信息.md`，退场全过程见 `SPMS-Server/docs/后端airpower退场·可行性评估与分批建议.md` |
 
 | `SPMS-Server/docs/` | 后端/全栈文档（见 [文档索引](./SPMS-Server/docs/README.md)） |
 | `src/framework/` | 新底座框架层（元数据/实体/HTTP/脱敏策略等），业务只从 `@/framework` 取能力 |
@@ -45,7 +45,7 @@
 - Node.js 18+
 - pnpm 9+（`package.json` 已声明 `packageManager: pnpm@9.0.0`）
 - TypeScript 5.9+
-- MySQL 8+（后端用；表结构由 JPA `ddl-auto=validate` 校验，建库脚本只有 `infra/init-sql/init.sql` + `init_data.sql` 两份）
+- MySQL 8+（后端用；表结构唯一真值是 `infra/init-sql/init.sql` + `init_data.sql` 两份脚本，由 `pnpm ddl:check` / `schemaContract` 与实体对账）
 - Redis（后端）
 - JDK 17+（后端，仅运行 SPMS-Server 时需要）
 

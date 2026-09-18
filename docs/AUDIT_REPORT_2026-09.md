@@ -129,6 +129,9 @@ auditA–F 合计 72 项黑盒场景全部 PASS。
       A-3 空串清洗、C-3 库存唯一键迁移；**F 阶段新增**：
       `20260914_menu_permission.sql`（menu.permission 列，幂等）。base profile 为
       `ddl-auto=validate`，先迁移后发版。
+      > **2026-09-18 后续（J4 + 数据库收敛）**：上面这些编号迁移脚本已全部折叠进
+      > `infra/init-sql/init.sql`（结构）+ `init_data.sql`（数据），`ddl-auto` 也已随 JPA 退场；
+      > 现在"先建库后发版"= 跑这两份幂等脚本。本段的旧文件名保留为当时的事实记录。
 - [ ] **F-1**：如有 nginx 等反向代理，把代理机 IP/网段写入
       `kubo.security.trusted-proxies`（逗号分隔 CIDR）；不配置则所有请求按代理
       出口 IP 归并计数（安全但共享 IP 的用户会互相挤占限流/锁定额度）。

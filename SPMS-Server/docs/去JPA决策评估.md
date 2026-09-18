@@ -4,6 +4,18 @@
 >
 > 本文基于代码实测（JPA 注解/API 用量、Service/Controller/Mapper 数量、测试依赖），
 > 给出**结论 + 隐藏职责清单 + 分期路线 + 成本**。数字可复现（命令见文末）。
+>
+> ---
+>
+> **状态（2026-09-18 收口，读 §1–§8 前先看这一段）**：本文是 2026-09-17 的**决策评估**，
+> §1–§8 里的"现状"（JPA 在用、220 处 `columnDefinition`、`ddl-auto`、必须先让迁移框架接管 DDL）
+> **都是当时的事实**，不是现在。最终执行走的是一条更省事的路线 ——
+> **栈内 MyBatis-Plus 直换、不引入迁移框架**：建库收敛为 `infra/init-sql/init.sql` + `init_data.sql` 两份脚本
+> （原 Flyway V1–V10 折叠进去），J1–J4 已全部落地并**删净 JPA**：
+> `spring-boot-starter-data-jpa`、任何 yml 里的 `spring.jpa`（含 `ddl-auto`）、实体上的 JPA 注解、
+> ORM 对账线（`*ReadShadowService` / `RowParityRegistry` / `data_permission_orm_parity_log`）全部退场，
+> `pnpm jpa:check` 从棘轮换成**归零硬判据**。**要看"现在长什么样" → §9.8.7 与
+> `项目整体技术栈详细信息.md`**；§1–§8 保留为当时的评估过程（含走弯路的思路），不再更新。
 
 ---
 

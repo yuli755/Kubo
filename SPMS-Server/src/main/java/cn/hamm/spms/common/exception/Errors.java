@@ -2,7 +2,7 @@ package cn.hamm.spms.common.exception;
 
 /*
  * 2026-09-18（后端 airpower 退场 B1 · 错误码层接管）：
- * 本文件从 {@code cn.hamm.spms.common.exception.Errors}（airpower-exception 6.4.3）**逐行搬来**，
+ * 本文件从 airpower-exception 6.4.3 的同名类 `Errors` **逐行搬来**（只改包名），
  * 常量名、code 数值、文案一字未改 —— 这些 code 是**前端契约**（axios 拦截器按 code 分流），
  * 所以"搬"必须等价，"改"要单独一批并同步前端。
  *
@@ -13,7 +13,8 @@ package cn.hamm.spms.common.exception;
  *   · {@code IException} 与 {@code ServiceException} 已在 **B2** 由本仓自持
  *     （{@link cn.hamm.spms.core.interfaces.IException} / {@link cn.hamm.spms.core.exception.ServiceException}），
  *     配套的本仓 advice 见 {@link ServiceExceptionAdvice}；
- *   · 仍留在 airpower 的只有 {@code IDictionary} —— 它被框架按**类身份**反射消费，B3 一起处理。
+ *   · {@code IDictionary} 也已在 **B3** 由本仓自持（{@link cn.hamm.spms.core.interfaces.IDictionary}）——
+ *     它被框架按**类身份**反射消费，所以搬的时候随枚举一起改；至此错误码链路上再无外部框架类型。
  */
 
 import cn.hamm.spms.core.exception.ServiceException;
