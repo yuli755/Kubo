@@ -66,46 +66,46 @@ class StorageHierarchyIndexTest {
     @Test
     @DisplayName("展开包含全部后代，且同一 TTL 内只读一次全表")
     void expandsFromSnapshotAndReadsOnce() {
-        doReturn(sampleTree()).when(repository).findAll();
+        doReturn(sampleTree()).when(repository).selectList(null);
 
         HierarchyClosure.Closure first = index.expandFrom(Set.of(1L));
         HierarchyClosure.Closure second = index.expandFrom(Set.of(2L));
 
         assertEquals(Set.of(1L, 2L, 3L, 4L, 5L), first.ids());
         assertEquals(Set.of(2L, 4L, 5L), second.ids());
-        verify(repository, times(1)).findAll();
+        verify(repository, times(1)).selectList(null);
     }
 
     @Test
     @DisplayName("invalidate 之后重建：树改完立刻生效，不用等 TTL")
     void invalidateForcesRebuild() {
-        doReturn(sampleTree()).when(repository).findAll();
+        doReturn(sampleTree()).when(repository).selectList(null);
         assertTrue(index.expandFrom(Set.of(1L)).ids().contains(5L));
 
         index.invalidate();
-        doReturn(List.of(storage(1L, 0L), storage(2L, 1L))).when(repository).findAll();
+        doReturn(List.of(storage(1L, 0L), storage(2L, 1L))).when(repository).selectList(null);
 
         Set<Long> ids = index.expandFrom(Set.of(1L)).ids();
         assertEquals(Set.of(1L, 2L), ids);
-        verify(repository, times(2)).findAll();
+        verify(repository, times(2)).selectList(null);
     }
 
     @Test
     @DisplayName("TTL 置 0 = 每次判定都重读")
     void zeroTtlDisablesCaching() {
-        doReturn(sampleTree()).when(repository).findAll();
+        doReturn(sampleTree()).when(repository).selectList(null);
         properties.getHierarchy().setTtlSeconds(0L);
 
         index.expandFrom(Set.of(1L));
         index.expandFrom(Set.of(1L));
 
-        verify(repository, times(2)).findAll();
+        verify(repository, times(2)).selectList(null);
     }
 
     @Test
     @DisplayName("读库失败：沿用不展开的语义，不抛异常也不放开")
     void degradesToSeedsOnlyWhenLoadFails() {
-        doThrow(new IllegalStateException("db down")).when(repository).findAll();
+        doThrow(new IllegalStateException("db down")).when(repository).selectList(null);
 
         HierarchyClosure.Closure closure = index.expandFrom(Set.of(1L, 2L));
 
@@ -120,6 +120,6 @@ class StorageHierarchyIndexTest {
         HierarchyClosure.Closure closure = index.expandFrom(Set.of());
 
         assertEquals(Set.of(), closure.ids());
-        verify(repository, times(0)).findAll();
+        verify(repository, times(0)).selectList(null);
     }
 }

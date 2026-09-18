@@ -2,6 +2,7 @@ package cn.hamm.spms.module.system.coderule;
 
 import cn.hamm.spms.base.BaseRepository;
 import org.springframework.stereotype.Repository;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 
 /**
  * <h1>数据库连接信息</h1>
@@ -16,5 +17,13 @@ public interface CodeRuleRepository extends BaseRepository<CodeRuleEntity> {
      * @param ruleField 从枚举字典中传入
      * @return 编码规则实体
      */
-    CodeRuleEntity getByRuleField(Integer ruleField);
+    /**
+     * 按规则字段查询
+     *
+     * @param ruleField 规则字段
+     * @return 规则
+     */
+    default CodeRuleEntity getByRuleField(Integer ruleField) {
+        return selectOne(new QueryWrapper<CodeRuleEntity>().eq("rule_field", ruleField));
+    }
 }

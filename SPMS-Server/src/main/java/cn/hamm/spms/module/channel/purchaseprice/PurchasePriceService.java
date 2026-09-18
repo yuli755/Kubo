@@ -19,20 +19,17 @@ import cn.hamm.spms.module.channel.supplier.SupplierEntity;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 import static cn.hamm.spms.common.exception.Errors.FORBIDDEN_EXIST;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 
 /**
  * <h1>Service</h1>
@@ -190,17 +187,10 @@ public class PurchasePriceService extends BaseService<PurchasePriceEntity, Purch
     }
 
     @Override
-    protected @NotNull List<Predicate> addSearchPredicate(
-            @NotNull Root<PurchasePriceEntity> root,
-            @NotNull CriteriaBuilder builder,
-            @NotNull PurchasePriceEntity search
-    ) {
-        List<Predicate> predicateList = new ArrayList<>();
-        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
-                root, builder, "channel.purchasePrice", DataPermissionAction.QUERY
-        );
-        predicateList.addAll(dataPermissionPredicates);
-        return predicateList;
+    protected void addSearchPredicate(@NotNull QueryWrapper<PurchasePriceEntity> wrapper, @NotNull PurchasePriceEntity search) {
+        // 数据权限：渲染器产出的 SQL 片段直接挂到 wrapper 上（J2 起不再编 JPA Criteria）。
+        // 引擎把这个钩子接在通用条件之后，所以片段与用户条件天然是 AND 关系。
+        dataPermissionSpecification.applyQuery(wrapper, getEntityClass(), "channel.purchasePrice", DataPermissionAction.QUERY);
     }
 
     @Override

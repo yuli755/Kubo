@@ -1,18 +1,14 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
-import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
+import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
+import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
-import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Expression;
-import jakarta.persistence.criteria.Path;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,35 +18,39 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.lenient;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 
 /**
  * <h1>主体谓词的列名解析用例（租户 / 负责人 / 部门 / 工厂 / 仓库）</h1>
  *
- * <p>这批用例存在的理由很具体：既有的 {@code DataPermissionSpecificationTest} 把
- * {@code root.get(anyString())} 一律 stub 成"取得到"，于是<b>任何实体上都取不到的名字</b>
- * （真实 Hibernate 会抛 {@code IllegalArgumentException}）在那份测试里永远暴露不出来 ——
- * 列名 / 属性名写错这一整类静默空转就这么被 mock 的乐观假设盖住了。</p>
+ * <p>这批用例盯的是同一件事：<b>登记里的列名最终变成了哪一列、有没有变成"不加条件"</b>。</p>
  *
- * <p>这里刻意用<b>两个不同的</b> mock 谓词：{@code equality}（真正拼出来的过滤条件）与
- * {@code denial}（{@code builder.disjunction()}，恒假）。绑不上时框架必须给出 {@code denial}，
- * 而不是返回空列表 —— 返回空列表 = 完全不过滤 = 数据全量可见。若两者共用同一个 mock，
- * 这条区分就断言不出来（本仓的测试原先正是共用的，这也是它看不见该看见的东西的原因之一）。</p>
+ * <p>2026-09-18 J2：注入侧从 Criteria 谓词换成 wrapper 上的 SQL 片段，判据的形状随之改变，三处要点写在这里，
+ * 免得下一个人按旧口径读：</p>
+ *
+ * <ul>
+ *   <li><b>不再是"挑第一个绑得上的候选"</b>：渲染器不查实体形状，{@code tenant_id} 与 {@code tenantId}
+ *       都由 {@code toSnake} 归一成 {@code tenant_id}（所以两种写法都能注入，且注入的是同一列）；</li>
+ *   <li><b>一跳关联 {@code storage.id} 落到本表外键列</b> {@code storage_id}（Hibernate 对
+ *       {@code @ManyToOne.get("id")} 本来也是直取 FK），两跳/非 id 的关联路径仍然抛；</li>
+ *   <li><b>"实体上没有这一列"这类错误不再在这一层被拦下</b>：片段照样产出，数据库会以"列不存在"报错
+ *       （响亮失败），而 binding 记账与 enforce-readiness 面板负责在放开前清零这类登记 ——
+ *       判据从 CURD 引擎搬到了 readiness/shadow 线（docs/去JPA决策评估.md §10.8.4）。</li>
+ * </ul>
  *
  * @author Hamm.cn
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("DataPermissionSpecification · 归属列取不到时不得静默放开")
+@DisplayName("DataPermissionSpecification · 归属列最终落到哪一列、会不会变成不加条件")
 class DataPermissionSubjectColumnResolutionTest {
 
     private static final String KEY = "asset.material";
@@ -59,25 +59,7 @@ class DataPermissionSubjectColumnResolutionTest {
     private DataPermissionService dataPermissionService;
 
     @Mock
-    private Root<Object> root;
-
-    @Mock
-    private CriteriaBuilder builder;
-
-    @Mock
-    private Path<Object> tenantPath;
-
-    @Mock
-    private Path<Object> storagePath;
-
-    @Mock
-    private Path<Object> storageIdPath;
-
-    @Mock
-    private Predicate equality;
-
-    @Mock
-    private Predicate denial;
+    private DataPermissionAudit audit;
 
     private DataPermissionSpecification specification;
 
@@ -86,13 +68,9 @@ class DataPermissionSubjectColumnResolutionTest {
         DataPermissionProperties properties = new DataPermissionProperties();
         properties.setMode(DataPermissionProperties.Mode.ENFORCE);
         specification = new DataPermissionSpecification(
-                dataPermissionService, properties, mock(DataPermissionAudit.class),
+                dataPermissionService, properties, audit,
                 new PermissionRuleParser(), new JpaPermissionRuleCompiler());
         PermissionContextHolder.clear();
-        // 恒假与真条件必须是两个对象，否则断言不出「绑不上时到底是拒绝还是放开」
-        lenient().when(builder.disjunction()).thenReturn(denial);
-        lenient().when(builder.equal(any(Expression.class), any(Expression.class))).thenReturn(equality);
-        lenient().when(builder.equal(any(Expression.class), any(Object.class))).thenReturn(equality);
     }
 
     @AfterEach
@@ -105,15 +83,30 @@ class DataPermissionSubjectColumnResolutionTest {
     }
 
     /**
-     * 打开上下文再打桩：{@code apply()} 第一步就取 {@code PermissionContextHolder.current()}，
-     * 没有上下文时它按「定时任务/内部调用」处理——不注入条件、只记账。
-     * （本轮第一版就是漏了这一行，三条用例一律返回空列表；空列表在这里与「防护失效」同形，
+     * 打开上下文再打桩：{@code applyQuery()} 第一步就取 {@code PermissionContextHolder.current()}，
+     * 没有上下文时它按「定时任务/内部调用」处理 —— 不注入条件、只记账。
+     * （本轮第一版就是漏了这一行，三条用例一律返回空片段；空片段在这里与「防护失效」同形，
      * 所以这类"看起来像断言失败"的红其实是最有价值的红：它说明断言真的在盯住注入与否。）
+     *
+     * @param resource 数据资源
+     * @param policy   策略
+     * @param context  权限上下文
      */
     private void givenResourceAndPolicy(DataResourceEntity resource, DataPolicyEntity policy, PermissionContext context) {
         PermissionContextHolder.open(context);
         given(dataPermissionService.requireResource(KEY)).willReturn(resource);
         given(dataPermissionService.getPolicies(KEY, DataPermissionAction.QUERY, context)).willReturn(List.of(policy));
+    }
+
+    /**
+     * 走一次注入，返回 wrapper 的 WHERE 片段（空串 = 一条条件都没加 = 放开了全部行）
+     *
+     * @return WHERE 片段
+     */
+    private String build() {
+        QueryWrapper<DataResourceEntity> wrapper = new QueryWrapper<>();
+        specification.applyQuery(wrapper, DataResourceEntity.class, KEY, DataPermissionAction.QUERY);
+        return Objects.requireNonNullElse(wrapper.getSqlSegment(), "");
     }
 
     private DataResourceEntity resource(String tenantColumn, String ownerColumns) {
@@ -133,93 +126,106 @@ class DataPermissionSubjectColumnResolutionTest {
     }
 
     @Test
-    @DisplayName("按列名登记 tenant_id：实体只有 tenantId 也必须绑上条件")
+    @DisplayName("按列名登记 tenant_id：条件落在 tenant_id 上")
     void columnStyleTenantColumnStillFilters() {
         PermissionContext context = context();
         givenResourceAndPolicy(resource("tenant_id", null), policy("TENANT"), context);
-        given(root.get("tenant_id")).willThrow(new IllegalArgumentException("Unable to locate Attribute [tenant_id]"));
-        given(root.get("tenantId")).willReturn(tenantPath);
 
-        List<Predicate> result = specification.buildPredicates(root, builder, KEY, DataPermissionAction.QUERY);
+        String where = build();
 
-        assertEquals(1, result.size(), "必须真的拼出一条过滤条件，而不是空列表（空列表 = 不过滤）");
-        assertSame(equality, result.get(0), "绑不上时会退回恒假谓词，这里必须是等值条件");
+        assertFalse(where.isEmpty(), "必须真的拼出过滤条件，空片段 = 不过滤 = 全量可见");
+        assertTrue(where.contains("tenant_id"), "登记的就是 tenant_id：" + where);
     }
 
     @Test
-    @DisplayName("按属性名登记 tenantId：反方向也能救回列名")
+    @DisplayName("按属性名登记 tenantId：同样落到 tenant_id（渲染器只做 snake，不查实体）")
     void attributeStyleTenantColumnResolvesColumn() {
         PermissionContext context = context();
         givenResourceAndPolicy(resource("tenantId", null), policy("TENANT"), context);
-        given(root.get("tenantId")).willThrow(new IllegalArgumentException("Unable to locate Attribute [tenantId]"));
-        given(root.get("tenant_id")).willReturn(tenantPath);
 
-        List<Predicate> result = specification.buildPredicates(root, builder, KEY, DataPermissionAction.QUERY);
+        String where = build();
 
-        assertEquals(1, result.size());
-        assertSame(equality, result.get(0));
+        assertTrue(where.contains("tenant_id"), "属性名写法要归一成列名：" + where);
     }
 
     @Test
-    @DisplayName("仓库档登记 WAREHOUSE:storage.id → 沿关联走一跳绑上条件（D1(b) 的闭环）")
+    @DisplayName("仓库档登记 WAREHOUSE:storage.id → 一跳落到本表外键列 storage_id")
     void warehouseAssociationPathFilters() {
         PermissionContext context = context();
         DataResourceEntity resource = resource("tenant_id", "WAREHOUSE:storage.id");
         DataPolicyEntity policy = policy("WAREHOUSE").setSubjectId(5L);
         givenResourceAndPolicy(resource, policy, context);
-        given(root.get("storage")).willReturn(storagePath);
-        given(storagePath.get("id")).willReturn(storageIdPath);
 
-        List<Predicate> result = specification.buildPredicates(root, builder, KEY, DataPermissionAction.QUERY);
+        String where = build();
 
-        assertEquals(1, result.size(), "关联路径绑上了就必须真有一条条件");
-        assertSame(equality, result.get(0));
-        verify(root).get("storage");
-        // 关键反证：不能再拿写死的 warehouseId 去撞一次 —— 撞不上是"绑不上"，会被算进绑定失败，
-        // 于是这条已经配对的登记会被面板报成"实体形状不对"
-        verify(root, never()).get("warehouseId");
+        assertFalse(where.isEmpty(), "关联路径必须能注入，空片段 = 不过滤");
+        assertTrue(where.contains("storage_id"), "一跳的 .id 要落到本表外键列：" + where);
+        // 关键反证：不许退回写死的 warehouseId —— 本仓没有这一列，撞上去只会得到"列不存在"
+        assertFalse(where.contains("warehouse_id"), "登记了 storage.id 就不该再去看 warehouse_id：" + where);
     }
 
     @Test
-    @DisplayName("没登记 WAREHOUSE: 时仍按写死的 warehouseId 找：回退语义没有被改动")
+    @DisplayName("没登记 WAREHOUSE: 时按兜底候选列找：条件写进 warehouse_id，由数据库判它存不存在")
     void warehouseFallsBackToHardCodedAttributeName() {
         PermissionContext context = context();
         DataPolicyEntity policy = policy("WAREHOUSE").setSubjectId(5L);
         givenResourceAndPolicy(resource("tenant_id", "creatorId"), policy, context);
-        lenient().when(root.get(anyString())).thenThrow(new IllegalArgumentException("Unable to locate Attribute"));
 
-        List<Predicate> result = specification.buildPredicates(root, builder, KEY, DataPermissionAction.QUERY);
+        String where = build();
 
-        assertEquals(1, result.size(), "裸写法管不到仓库档，这一档仍是绑定失败 ⇒ 恒假");
-        assertSame(denial, result.get(0));
-        verify(root).get("warehouseId");
+        // J2 之前：绑不上 ⇒ 恒假（查不到）。J2 之后：条件写进兜底列名，列不存在时数据库报错。
+        // 两种都不会"静默放开"，区别只是失败发生在哪一层（这里刻意把差异钉住，免得被误读成回归）。
+        assertTrue(where.contains("warehouse_id"), "兜底候选列要真的写进片段：" + where);
+        then(audit).should(never()).deny(any(), any(), any());
     }
 
     @Test
-    @DisplayName("部门档登记 DEPARTMENT:dept_id → 不再与负责人档抢 owner_columns 第一项")
+    @DisplayName("部门档登记 DEPARTMENT:dept_id → 用自己那一项，不抢负责人档")
     void departmentUsesItsOwnEntry() {
         PermissionContext context = context();
         DataPolicyEntity policy = policy("DEPARTMENT").setSubjectId(7L);
         givenResourceAndPolicy(resource("tenant_id", "creatorId,DEPARTMENT:dept_id"), policy, context);
-        given(root.get("dept_id")).willReturn(storageIdPath);
 
-        List<Predicate> result = specification.buildPredicates(root, builder, KEY, DataPermissionAction.QUERY);
+        String where = build();
 
-        assertEquals(1, result.size());
-        assertSame(equality, result.get(0));
-        verify(root, never()).get("creatorId");
+        assertTrue(where.contains("dept_id"), "部门档要用登记里的 dept_id：" + where);
+        assertFalse(where.contains("creator_id"), "部门档不该退到负责人列：" + where);
     }
 
     @Test
-    @DisplayName("归属列在实体上不存在：enforce 下必须恒假拒绝，不能返回空列表")
-    void unresolvableColumnDeniesInsteadOfReleasing() {
+    @DisplayName("登记了一个不存在的列：片段照样产出（数据库报错），且不再被记成 binding 失败")
+    void unresolvableColumnIsNotDetectedHere() {
         PermissionContext context = context();
         givenResourceAndPolicy(resource("tenant_created_at", null), policy("TENANT"), context);
-        lenient().when(root.get(anyString())).thenThrow(new IllegalArgumentException("Unable to locate Attribute"));
 
-        List<Predicate> result = specification.buildPredicates(root, builder, KEY, DataPermissionAction.QUERY);
+        String where = build();
 
-        assertEquals(1, result.size(), "本该产生条件却没绑上 = 绑定失败，enforce 下要落进拒绝分支");
-        assertSame(denial, result.get(0), "安全侧只能选恒假，返回空列表等于把数据全量放开");
+        assertTrue(where.contains("tenant_created_at"), "片段按登记内容产出：" + where);
+        then(audit).should(never()).binding(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("关联路径超过一跳：渲染器仍旧直接抛，不许编出查不到数据的条件")
+    void multiHopPathStillThrows() {
+        PermissionContext context = context();
+        DataResourceEntity resource = resource("tenant_id", "WAREHOUSE:storage.factory.id");
+        DataPolicyEntity policy = policy("WAREHOUSE").setSubjectId(5L);
+        givenResourceAndPolicy(resource, policy, context);
+
+        // 渲染器对两跳路径抛 PermissionRuleException（校验期也可能先拦）；applyQuery 把它变成
+        // ENFORCE 下的恒假 + binding 记账 —— 无论在哪一层失败，都必须是"查不到"，不是"全量放开"
+        assertTrue(build().contains(RowPermissionPredicate.DENY_SQL),
+                "渲染不出来时必须恒假：返回空片段等于把数据全量放开");
+        then(audit).should().binding(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("上下文里没有这一维的值：恒假，而不是不加条件")
+    void missingContextValueDenies() {
+        PermissionContext context = new PermissionContext(1L, 100L, Set.of(), Set.of(), Set.of(), Set.of("buyer"), false);
+        DataPolicyEntity policy = policy("DEPARTMENT").setSubjectId(7L);
+        givenResourceAndPolicy(resource("tenant_id", "creatorId,DEPARTMENT:dept_id"), policy, context);
+
+        assertTrue(build().contains(RowPermissionPredicate.DENY_SQL), "值为空必须退化成恒假，而不是不加条件");
     }
 }

@@ -26,7 +26,7 @@ public class TenantService extends BaseService<TenantEntity, TenantRepository> {
      * @return 租户列表
      */
     public List<TenantEntity> listAll() {
-        return repository.findAll();
+        return repository.selectList(null);
     }
 
     /**
@@ -39,6 +39,7 @@ public class TenantService extends BaseService<TenantEntity, TenantRepository> {
         if (ids == null || ids.isEmpty()) {
             return List.of();
         }
-        return repository.findAllById(ids);
+        // MP 的批量按主键查询叫 selectBatchIds（Spring Data 的 findAllById）
+        return repository.selectBatchIds(ids);
     }
 }

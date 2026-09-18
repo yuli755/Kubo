@@ -149,7 +149,7 @@ public class DepartmentHierarchyIndex {
         }
         try {
             Map<Long, Long> parentById = new HashMap<>();
-            for (DepartmentEntity department : departmentRepository.findAll()) {
+            for (DepartmentEntity department : departmentRepository.selectList(null)) {
                 if (department == null || department.getId() == null) {
                     continue;
                 }

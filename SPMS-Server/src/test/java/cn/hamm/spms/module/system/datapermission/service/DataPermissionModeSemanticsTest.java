@@ -6,11 +6,8 @@ import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Expression;
-import jakarta.persistence.criteria.Path;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +21,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -57,18 +55,6 @@ class DataPermissionModeSemanticsTest {
     @Mock
     private DataPermissionService dataPermissionService;
 
-    @Mock
-    private Root<Object> root;
-
-    @Mock
-    private CriteriaBuilder builder;
-
-    @Mock
-    private Path<Object> path;
-
-    @Mock
-    private Predicate disjunction;
-
     private DataPermissionProperties properties;
     private DataPermissionAudit audit;
     private DataPermissionSpecification specification;
@@ -80,16 +66,6 @@ class DataPermissionModeSemanticsTest {
         specification = new DataPermissionSpecification(dataPermissionService, properties, audit,
                 new cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser(),
                 new cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler());
-        lenient().when(builder.disjunction()).thenReturn(disjunction);
-        lenient().when(root.get(anyString())).thenReturn(path);
-        // 编译器对 EQ 条件调的是 builder.equal(...)；不打桩就返回 null，
-        // 于是规格把这条策略读成"绑不上列"（binding-invalid），根本走不到 shadow 打点 ——
-        // 看起来像实现漏了打点，其实是 mock 少了一个桩。用 disjunction 这个现成 mock 当返回值即可。
-        // 第 2 个参数必须写成 any(Object.class)：`any()` 会让 javac 把调用绑到
-        // equal(Expression, Expression) 这个**更具体的重载**上，而生产代码传的是 Long，
-        // 绑到 equal(Expression, Object) —— stub 打在另一个重载上就等于没打，
-        // 现象是"补了桩还是说绑不上列"，非常费解。
-        lenient().when(builder.equal(any(Expression.class), any(Object.class))).thenReturn(disjunction);
         PermissionContextHolder.open(new PermissionContext(1L, 100L, Set.of(1L), Set.of(), Set.of(), Set.of("planner"), false));
     }
 
@@ -110,8 +86,17 @@ class DataPermissionModeSemanticsTest {
         return new DataPolicyEntity().setSubjectType("TENANT").setActionName("QUERY").setEnabled(true);
     }
 
-    private List<Predicate> build() {
-        return specification.buildPredicates(root, builder, RESOURCE, DataPermissionAction.QUERY);
+    /**
+     * 走一次注入，返回 wrapper 的 WHERE 片段（空串 = 不注入任何条件）
+     *
+     * @return WHERE 片段
+     * @apiNote J2 起注入的是 SQL 片段而不是 Criteria 谓词，所以观察对象是片段文本：
+     * ShadowDiffService 仍走 JPA（影子线自持），但规格本身不再需要 Root/CriteriaBuilder。
+     */
+    private String build() {
+        QueryWrapper<DataResourceEntity> wrapper = new QueryWrapper<>();
+        specification.applyQuery(wrapper, DataResourceEntity.class, RESOURCE, DataPermissionAction.QUERY);
+        return java.util.Objects.requireNonNullElse(wrapper.getSqlSegment(), "");
     }
 
     @Nested
@@ -140,7 +125,7 @@ class DataPermissionModeSemanticsTest {
             given(dataPermissionService.getPolicies(eq(RESOURCE), any(DataPermissionAction.class), any(PermissionContext.class)))
                     .willReturn(List.of(tenantPolicy()));
 
-            List<Predicate> result = build();
+            String result = build();
 
             assertTrue(result.isEmpty(), "shadow 模式绝不能改变查询结果");
             then(audit).should().shadow(eq(RESOURCE), eq("would-filter"), any());
@@ -173,27 +158,28 @@ class DataPermissionModeSemanticsTest {
             given(dataPermissionService.getPolicies(eq(RESOURCE), any(DataPermissionAction.class), any(PermissionContext.class)))
                     .willReturn(List.of(tenantPolicy()));
 
-            List<Predicate> result = build();
+            String result = build();
 
-            assertEquals(1, result.size(), "enforce 模式必须真正注入过滤条件");
+            assertFalse(result.isEmpty(), "enforce 模式必须真正注入过滤条件");
             then(audit).should(never()).shadow(eq(RESOURCE), eq("would-filter"), any());
         }
 
         @Test
-        @DisplayName("归属列绑不上（实体未映射 tenant_id）→ 空结果集，而不是放行")
-        void failsClosedWhenColumnCannotBeBound() {
+        @DisplayName("归属列写错（实体没有这一列）→ 片段照样产出，由数据库响亮报错；不许静默放行")
+        void wrongColumnIsNotSilentlyReleased() {
             properties.setMode(DataPermissionProperties.Mode.ENFORCE);
             given(dataPermissionService.requireResource(RESOURCE)).willReturn(resource());
             given(dataPermissionService.getPolicies(eq(RESOURCE), any(DataPermissionAction.class), any(PermissionContext.class)))
                     .willReturn(List.of(tenantPolicy()));
-            // 实体上没有这列 = 任何写法都取不到（不是只有一种拼法取不到），故按 anyString 打桩
-            given(root.get(anyString())).willThrow(new IllegalArgumentException("Unable to locate Attribute"));
 
-            List<Predicate> result = build();
+            String result = build();
 
-            assertEquals(1, result.size(), "enforce + 绑定失败应返回恒假谓词（查不到而不是全查到）");
-            assertSame(disjunction, result.get(0));
-            then(audit).should().binding(eq(RESOURCE), eq(DataPermissionAudit.REASON_BINDING_INVALID), contains("tenant_id"));
+            // J2 之前这条靠 JPA 的 root.get() 抛异常发现"实体没这一列"，于是恒假（查不到）。
+            // 现在渲染器不查实体形状：片段照样写进 tenant_id，列不存在时由数据库直接报错 ——
+            // 失败是响亮的（SQL 异常 / 500），不是静默放行。这类登记错误由 enforce 放开前的
+            // readiness 面板按 binding 指标清零（判据不再藏在 CURD 引擎里，见 docs §10.8.4）。
+            assertTrue(result.contains("tenant_id"), "片段必须写进 tenant_id，让数据库在列不存在时直接报错");
+            then(audit).should(never()).shadow(eq(RESOURCE), eq("would-filter"), any());
         }
 
         @Test
@@ -202,11 +188,10 @@ class DataPermissionModeSemanticsTest {
             /**
              * 这条用例存在的理由是 D13 的开关语义：把 {@code factory-dimension-enabled} 打开后，
              * {@code DimensionGuard} 不再拒 FACTORY 策略，于是"策略能存下来"与"策略能生效"第一次
-             * 变成两件事。工厂归属列在业务实体上目前并不存在：{@code SubjectDimensionRules} 给的候选列名
-             * （兜底 {@code factoryId}）在 {@code root.get} 上取不到路径（真实 Hibernate 抛
-             * {@code IllegalArgumentException}，被 JpaPathResolver 归一成"这个候选绑不上"），若规格把"绑不上"当成"不约束"，
-             * 结果就是<b>所有人都能看到全部行</b> —— 那比没开开关更糟。
-             * 所以这里钉住：绑不上列 ⇒ 恒假 + binding 记账（与 tenant 那条同一条安全网）。
+             * 变成两件事。工厂归属列在业务实体上目前并不存在（{@code SubjectDimensionRules} 给的兜底
+             * 候选列名是 {@code factoryId}），JPA 时代靠 {@code root.get} 抛异常把这种策略读成"绑不上"⇒恒假。
+             * J2 之后渲染器不查实体形状：条件照写进 {@code factory_id}，列不存在由数据库报错 ——
+             * 关键是**永远不能变成"不追加条件"**，那等于所有人都能看到全部行，比没开开关更糟。
              */
             properties.setMode(DataPermissionProperties.Mode.ENFORCE);
             // factoryIds 必须非空：subjectId 不在集合里时策略在 getPolicies 阶段就被过滤，
@@ -217,14 +202,10 @@ class DataPermissionModeSemanticsTest {
             given(dataPermissionService.getPolicies(eq(RESOURCE), any(DataPermissionAction.class), any(PermissionContext.class)))
                     .willReturn(List.of(new DataPolicyEntity()
                             .setSubjectType("FACTORY").setSubjectId(7L).setActionName("QUERY").setEnabled(true)));
-            // 同 tenant 那条：实体上没有工厂列时，factoryId / factory_id 都取不到
-            given(root.get(anyString())).willThrow(new IllegalArgumentException("Unable to locate Attribute factoryId"));
+            String result = build();
 
-            List<Predicate> result = build();
-
-            assertEquals(1, result.size(), "工厂列绑不上时必须退化为恒假，而不是返回空列表（=不追加条件）");
-            assertSame(disjunction, result.get(0));
-            then(audit).should().binding(eq(RESOURCE), eq(DataPermissionAudit.REASON_BINDING_INVALID), contains("条策略无法绑定"));
+            assertTrue(result.contains("factory_id") || result.contains("factoryId"),
+                    "工厂策略必须产出条件（列不存在时数据库报错），绝不能变成「不追加条件」（=全员可见）");
         }
 
         @Test
@@ -237,11 +218,9 @@ class DataPermissionModeSemanticsTest {
             given(dataPermissionService.getPolicies(eq(RESOURCE), any(DataPermissionAction.class), any(PermissionContext.class)))
                     .willReturn(List.of(new DataPolicyEntity()
                             .setSubjectType("FACTORY").setSubjectId(7L).setActionName("QUERY").setEnabled(true)));
-            // 同 tenant 那条：实体上没有工厂列时，factoryId / factory_id 都取不到
-            given(root.get(anyString())).willThrow(new IllegalArgumentException("Unable to locate Attribute factoryId"));
 
             assertTrue(build().isEmpty(), "shadow 不改变结果：只把「该拦」记下来");
-            then(audit).should().binding(eq(RESOURCE), eq(DataPermissionAudit.REASON_BINDING_INVALID), any());
+            then(audit).should().shadow(eq(RESOURCE), eq("would-filter"), any());
         }
 
         @Test
@@ -251,9 +230,7 @@ class DataPermissionModeSemanticsTest {
             properties.setDenyUnregistered(true);
             given(dataPermissionService.requireResource(RESOURCE)).willThrow(new IllegalStateException("未注册"));
 
-            List<Predicate> result = build();
-
-            assertEquals(1, result.size());
+            assertTrue(build().contains(RowPermissionPredicate.DENY_SQL), "未注册资源必须恒假");
             then(audit).should().deny(eq(RESOURCE), eq(DataPermissionAudit.REASON_UNREGISTERED), any());
         }
 
@@ -293,7 +270,7 @@ class DataPermissionModeSemanticsTest {
             given(dataPermissionService.getPolicies(eq(RESOURCE), any(DataPermissionAction.class), any(PermissionContext.class)))
                     .willReturn(List.of(tenantPolicy()));
 
-            assertEquals(1, build().size(), "白名单内资源应已按 enforce 注入");
+            assertFalse(build().isEmpty(), "白名单内资源应已按 enforce 注入");
         }
 
         @Test

@@ -5,6 +5,7 @@ import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.factory.structure.StructureEntity;
 import org.springframework.stereotype.Repository;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 
 /**
  * <h1>库存仓储（CRUD 部分）</h1>
@@ -25,7 +26,11 @@ public interface InventoryRepository extends BaseRepository<InventoryEntity> {
      * @param storage  仓库
      * @return 库存
      */
-    InventoryEntity getByMaterialAndStorage(MaterialEntity material, StorageEntity storage);
+    default InventoryEntity getByMaterialAndStorage(MaterialEntity material, StorageEntity storage) {
+        return selectOne(new QueryWrapper<InventoryEntity>()
+                .eq("material_id", material.getId())
+                .eq("storage_id", storage.getId()));
+    }
 
     /**
      * 查询指定物料在指定生产单元下的库存
@@ -34,5 +39,9 @@ public interface InventoryRepository extends BaseRepository<InventoryEntity> {
      * @param structure 生产单元
      * @return 库存
      */
-    InventoryEntity getByMaterialAndStructure(MaterialEntity material, StructureEntity structure);
+    default InventoryEntity getByMaterialAndStructure(MaterialEntity material, StructureEntity structure) {
+        return selectOne(new QueryWrapper<InventoryEntity>()
+                .eq("material_id", material.getId())
+                .eq("structure_id", structure.getId()));
+    }
 

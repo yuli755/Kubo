@@ -37,18 +37,22 @@ public class QueryPageResponse<M extends RootModel<M>> extends PageData<M> {
     /**
      * 获取新的实例
      *
-     * @param page Spring 分页数据
+     * @param page MyBatis-Plus 分页数据
      * @param <M>  实体类型
      * @return 实例
+     * @apiNote J2：原来这里收的是 Spring Data 的 {@code Page}（JPA 路径的产物）。引擎换到
+     * MyBatis-Plus 之后全仓没有 Spring Data Page 的生产者了，所以直接换成 {@code IPage} ——
+     * 而不是又加一个重载把两者并存（那正是"双路径"）。
      */
-    public static <M extends RootModel<M>> @NotNull QueryPageResponse<M> newInstance(org.springframework.data.domain.@NotNull Page<M> page) {
+    public static <M extends RootModel<M>> @NotNull QueryPageResponse<M> newInstance(
+            com.baomidou.mybatisplus.core.metadata.@NotNull IPage<M> page) {
         QueryPageResponse<M> queryPageResponse = new QueryPageResponse<>();
-        queryPageResponse.setList(page.getContent())
-                .setTotal(Math.toIntExact(page.getTotalElements()))
-                .setPageCount(page.getTotalPages())
+        queryPageResponse.setList(page.getRecords())
+                .setTotal(Math.toIntExact(page.getTotal()))
+                .setPageCount(Math.toIntExact(page.getPages()))
                 .setPage(new Page()
-                        .setPageSize(page.getPageable().getPageSize())
-                        .setPageNum(page.getPageable().getPageNumber() + 1)
+                        .setPageSize(Math.toIntExact(page.getSize()))
+                        .setPageNum(Math.toIntExact(page.getCurrent()))
                 );
         return queryPageResponse;
     }

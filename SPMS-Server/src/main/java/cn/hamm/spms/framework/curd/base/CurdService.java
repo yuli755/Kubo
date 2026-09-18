@@ -21,13 +21,8 @@ import cn.hamm.spms.framework.curd.helper.ExportHelper;
 import cn.hamm.spms.framework.curd.helper.TransactionHelper;
 import cn.hamm.spms.framework.curd.model.query.*;
 import cn.hamm.spms.framework.curd.service.RootService;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import jakarta.persistence.Column;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.CriteriaQuery;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
 import jakarta.validation.constraints.Null;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Contract;
@@ -37,8 +32,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Example;
-import org.springframework.data.jpa.domain.Specification;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.beans.PropertyDescriptor;
 import java.lang.reflect.Field;
@@ -67,11 +61,6 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
      * 提交的数据不允许为空
      */
     private static final String DATA_REQUIRED = "提交的数据不允许为空";
-    /**
-     * 实体管理器
-     */
-    @PersistenceContext
-    protected EntityManager entityManager;
     /**
      * 数据源
      */
@@ -324,8 +313,20 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
      * @see #updateWithLock(long, Consumer)
      */
     public final @NotNull E getForUpdate(long id) {
-        entityManager.clear();
-        E forUpdate = repository.getForUpdateById(id);
+        // 行锁子句在 autocommit 下等于没加锁：拿不到锁、也不报错，只是并发时静默丢写。
+        // 旧实现挂在 Mapper 接口上的 @Lock(PESSIMISTIC_WRITE) 是否真被织入存疑，所以这里
+        // 不赌：没有真实事务就直接抛，把"以为是原子的读-改-写"变成一条立刻可见的错误。
+        // 报错文案里不出现 SQL 关键字：`pnpm sql:check` 认字面量不认意图，
+        // 而这条规则唯一的豁免口径是测试里的"非可执行 SQL"，生产代码不留豁免（见 CODE_STYLE.md）。
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            SERVICE_ERROR.show(String.format(
+                    "加锁查询 %s(ID=%s) 必须在事务内调用：当前没有活动事务，语句带的写锁不会生效",
+                    getEntityDescription(), id));
+        }
+        // 语句住在各实体 Mapper XML 的 selectByIdForUpdate 里（SQL 不落 Java），
+        // 且带 flushCache="true" —— 它替代了 JPA 时代的 entityManager.clear()：
+        // 保证同一事务里重复调用会真的再发一次 SQL，而不是命中 MyBatis 的本地缓存。
+        E forUpdate = repository.selectByIdForUpdate(id);
         DATA_NOT_FOUND.whenNull(forUpdate, String.format("没有查询到ID为%s的%s", id, getEntityDescription()));
         return forUpdate;
     }
@@ -714,10 +715,9 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
      * @return 查询结果数据列表
      */
     private @NotNull List<E> find(@Nullable E filter, @Nullable Sort sort, boolean isEquals) {
-        return repository.findAll(
-                createSpecification(filter, isEquals),
-                queryHelper.createSort(sort)
-        );
+        QueryWrapper<E> wrapper = createWrapper(filter, isEquals);
+        queryHelper.applySort(wrapper, getEntityClass(), sort);
+        return repository.selectList(wrapper);
     }
 
     /**
@@ -735,10 +735,9 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
             @Nullable Sort sort,
             boolean isEquals
     ) {
-        return PageData.newInstance(repository.findAll(
-                createSpecification(filter, isEquals),
-                queryHelper.createPageable(page, sort)
-        ));
+        QueryWrapper<E> wrapper = createWrapper(filter, isEquals);
+        queryHelper.applySort(wrapper, getEntityClass(), sort);
+        return PageData.newInstance(repository.selectPage(queryHelper.createPage(page), wrapper));
     }
 
     /**
@@ -773,18 +772,17 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
     /**
      * 添加搜索的查询条件
      *
-     * @param root    {@code ROOT}
-     * @param builder 参数构造器
+     * @param wrapper 查询条件（直接往上挂：{@code wrapper.eq(...)} / {@code wrapper.apply(...)}）
      * @param search  原始查询对象
-     * @return 查询条件列表
      * @apiNote 如需要删除自动添加的查询条件，请调用 {@link #beforeCreatePredicate(CurdEntity)}
+     * <p>J2 之前这个钩子返回 {@code List<Predicate>}（JPA Criteria）。换轨时**签名一起换**：
+     * 只换引擎不换覆写，覆写会退化成普通方法 —— 编译不报错、运行时永不调用，
+     * 查询条件与权限条件一起静默消失。判据见 {@code maskContract.spec.ts}（旧签名残留即红）。</p>
+     * <p>参数类型选 {@code QueryWrapper} 而不是 {@code LambdaQueryWrapper}：权限片段必须走
+     * {@code apply(sql, values)} 注入，且当前实体还没有标量外键字段（{@code storageId}）可写方法引用；
+     * J3 让实体带上外键列后，具体覆写可以逐步换成方法引用。</p>
      */
-    protected @NotNull List<Predicate> addSearchPredicate(
-            @NotNull Root<E> root,
-            @NotNull CriteriaBuilder builder,
-            @NotNull E search
-    ) {
-        return new ArrayList<>();
+    protected void addSearchPredicate(@NotNull QueryWrapper<E> wrapper, @NotNull E search) {
     }
 
     /**
@@ -796,12 +794,14 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
     private @NotNull E getById(Long id) {
         String description = getEntityDescription();
         PARAM_MISSING.whenNull(id, String.format("查询失败，请传入%s的ID！", description));
-        entityManager.clear();
-        Optional<E> optional = repository.findById(id);
-        if (optional.isEmpty()) {
+        // 旧实现这里是 entityManager.clear() + findById：clear 是为了躲开 JPA 的一级缓存
+        // （同一事务里拿到陈旧实体）。MyBatis 没有一级缓存这回事（本地缓冲随写语句清理），
+        // 所以这一句是可以放心删的（§10.3 写明了依据），删掉的后果是"少一次无意义的清理"。
+        E entity = repository.selectById(id);
+        if (Objects.isNull(entity)) {
             throw new ServiceException(DATA_NOT_FOUND, String.format("没有查询到ID为%s的%s", id, description));
         }
-        return optional.get();
+        return entity;
     }
 
     /**
@@ -821,28 +821,32 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
             entity.setCreateTime(System.currentTimeMillis())
                     .setIsDisabled(false);
             // 新增
-            return saveToDatabase(entity);
+            return persist(entity, false);
         }
         // 更新 不允许修改创建时间
         entity.setCreateTime(null);
         // 有ID 走修改 且不允许修改下列字段
         E existEntity = getById(entity.getId());
         entity = withNull ? entity : getEntityForUpdate(entity, existEntity);
-        return saveToDatabase(entity);
+        return persist(entity, withNull);
     }
 
     /**
-     * 保存并强刷到数据库
+     * 落库（插入或整行更新）
      *
-     * @param entity 保存的实体
+     * @param entity   保存的实体
+     * @param withNull 是否把 null 也真的写进库
      * @return 保存的主键
-     * @apiNote 仅供 {@link #saveToDatabase(E, boolean)} 调用
+     * @apiNote 仅供 {@link #saveToDatabase(E, boolean)} 调用；`saveAndFlush` 的语义由
+     * {@code ICurdRepository#save/saveWithNull} 两个垫片承担（id 为空 insert、否则 updateById）。
+     * MP 的 {@code updateById} 默认跳过 null 列，与"null = 不改这一列"的引擎语义一致；
+     * 只有 {@code withNull = true} 这一条路要逐列写（并且跳过 create_time）。
      */
-    private long saveToDatabase(@NotNull E entity) {
+    private long persist(@NotNull E entity, boolean withNull) {
         E target = getEntityInstance();
         BeanUtils.copyProperties(entity, target);
         target = beforeSaveToDatabase(target);
-        target = repository.saveAndFlush(target);
+        target = withNull ? repository.saveWithNull(target) : repository.save(target);
         return target.getId();
     }
 
@@ -865,8 +869,10 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
      * 获取实体类
      *
      * @return 实体类
+     * @apiNote J2 起改为 {@code protected}：子类的 {@code addSearchPredicate} 要把它交给
+     * 数据权限适配层（渲染器要按实体登记的表名/资源名工作）
      */
-    private @NotNull Class<E> getEntityClass() {
+    protected @NotNull Class<E> getEntityClass() {
         return getFirstParameterizedTypeClass();
     }
 
@@ -894,14 +900,16 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
             }
             E search = getEntityInstance();
             ReflectUtil.setFieldValue(search, field, fieldValue);
-            Example<E> example = Example.of(search);
-            Optional<E> exist = repository.findOne(example);
-            if (exist.isEmpty()) {
-                // 没查到 不校验
-                return;
+            // 旧实现是 Example.of(search) + findOne：JPA 的 QBE。换成 wrapper 后条件完全相同
+            // （唯一列上的等值匹配），只是"修改自己"这一条从"查出 id 再比对"变成 SQL 里的 id <> 自己：
+            // 一次查询、且不会因为唯一列上的重复行只取一条而误判。
+            QueryWrapper<E> wrapper = queryHelper.createWrapper(search, true);
+            if (Objects.nonNull(entity.getId())) {
+                wrapper.ne(CurdEntity.STRING_ID, entity.getId());
             }
-            if (Objects.nonNull(entity.getId()) && Objects.equals(exist.get().getId(), entity.getId())) {
-                // 修改自己 不校验
+            Long existCount = repository.selectCount(wrapper);
+            if (Objects.isNull(existCount) || existCount == 0) {
+                // 没查到 不校验
                 return;
             }
             FORBIDDEN_EXIST.show(String.format("%s (%s) 已经存在，请修改后重新提交！",
@@ -945,73 +953,28 @@ public class CurdService<E extends CurdEntity<E>, R extends ICurdRepository<E>> 
      *
      * @param filter 过滤器
      * @return 处理后的过滤器
-     * @apiNote 此处理不影响 {@link #addSearchPredicate(Root, CriteriaBuilder, CurdEntity)} 的 {@code search} 参数
+     * @apiNote 此处理不影响 {@link #addSearchPredicate(QueryWrapper, CurdEntity)} 的 {@code search} 参数
      */
     protected E beforeCreatePredicate(@NotNull E filter) {
         return filter;
     }
 
     /**
-     * 创建查询对象
+     * 创建查询条件
      *
      * @param filter  过滤器对象
      * @param isEqual 是否强匹配
-     * @return 查询对象
-     */
-    @Contract(pure = true)
-    private @NotNull Specification<E> createSpecification(@Nullable E filter, boolean isEqual) {
-        final E finalFilter = requireFilterNonNull(filter);
-        return (root, criteriaQuery, criteriaBuilder) ->
-                createPredicate(
-                        root,
-                        criteriaQuery,
-                        criteriaBuilder,
-                        finalFilter,
-                        isEqual,
-                        this::beforeCreatePredicate,
-                        (f, predicateList) -> {
-                            // 添加更多自定义查询条件
-                            predicateList.addAll(addSearchPredicate(root, criteriaBuilder, finalFilter));
-                        }
-                );
-    }
-
-    /**
-     * 创建查询的 {@code Predicate}
-     *
-     * @param root             {@code model}
-     * @param criteriaQuery    {@code query}
-     * @param builder          {@code builder}
-     * @param sourceFilter     过滤器实体
-     * @param isEqual          是否强匹配
-     * @param before           创建查询条件前对实体进行处理
-     * @param addMorePredicate 添加更多查询条件(原始条件，已有条件，处理后的条件)
      * @return 查询条件
      */
-    private @Nullable Predicate createPredicate(
-            @NotNull Root<E> root, CriteriaQuery<?> criteriaQuery,
-            @NotNull CriteriaBuilder builder,
-            E sourceFilter,
-            boolean isEqual,
-            Function<E, E> before,
-            BiConsumer<E, List<Predicate>> addMorePredicate
-
-    ) {
-        if (Objects.isNull(criteriaQuery)) {
-            return null;
-        }
-        E lastFilter = sourceFilter;
-        if (Objects.nonNull(before)) {
-            lastFilter = before.apply(sourceFilter.copy());
-        }
-        List<Predicate> predicateList = queryHelper.getPredicateList(root, builder, lastFilter, isEqual);
-        if (Objects.nonNull(addMorePredicate)) {
-            // 需要添加自定义处理条件
-            addMorePredicate.accept(sourceFilter, predicateList);
-        }
-        Predicate[] predicates = new Predicate[predicateList.size()];
-        criteriaQuery.where(builder.and(predicateList.toArray(predicates)));
-        return criteriaQuery.getRestriction();
+    @Contract(pure = true)
+    private @NotNull QueryWrapper<E> createWrapper(@Nullable E filter, boolean isEqual) {
+        final E finalFilter = requireFilterNonNull(filter);
+        // 建条件前处理 filter 的**副本**（旧注释写明了：此处理不影响 addSearchPredicate 的 search 参数）
+        E searchFilter = beforeCreatePredicate(finalFilter.copy());
+        QueryWrapper<E> wrapper = queryHelper.createWrapper(searchFilter, isEqual);
+        // 添加更多自定义查询条件：钩子拿到的是原始 filter，不是副本
+        addSearchPredicate(wrapper, finalFilter);
+        return wrapper;
     }
 
     /**

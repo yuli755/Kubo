@@ -170,7 +170,7 @@ public class BaseService<
         if (id == null) {
             return;
         }
-        E stored = repository.findById(id).orElse(null);
+        E stored = repository.selectById(id);
         if (!(stored instanceof TenantAwareEntity<?> storedOwned)) {
             return;
         }
@@ -201,7 +201,7 @@ public class BaseService<
         sensitiveFieldProtector.restoreOnUpdate(
                 entity,
                 PermissionContextHolder.current().orElse(null),
-                () -> repository.findById(id).orElse(null)
+                () -> repository.selectById(id)
         );
     }
 
@@ -290,7 +290,7 @@ public class BaseService<
             return;
         }
         Long id = entity.getId();
-        operationLogBeforeSnapshot.set(id == null ? null : repository.findById(id).orElse(null));
+        operationLogBeforeSnapshot.set(id == null ? null : repository.selectById(id));
     }
 
     /**

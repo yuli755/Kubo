@@ -5,6 +5,7 @@ import cn.hamm.spms.module.system.datapermission.entity.DataFieldPolicyEntity;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 
 /**
  * <h1>数据字段权限仓库</h1>
@@ -21,9 +22,20 @@ public interface DataFieldPolicyRepository extends BaseRepository<DataFieldPolic
      * 判断某资源某字段是否已登记脱敏策略（同 {@code DataPolicyRepository#existsBy...} 的理由：
      * 实体默认值会污染 filter 查询条件，初始化守卫必须走显式存在性查询）
      */
-    boolean existsByResourceIdAndFieldName(Long resourceId, String fieldName);
+    default boolean existsByResourceIdAndFieldName(Long resourceId, String fieldName) {
+        Long count = selectCount(new QueryWrapper<DataFieldPolicyEntity>()
+                .eq("resource_id", resourceId)
+                .eq("field_name", fieldName));
+        return count != null && count > 0;
+    }
 
-    List<DataFieldPolicyEntity> findByResourceIdAndActionNameAndEnabledTrueOrderByPriorityDesc(Long resourceId, String actionName);
+    default List<DataFieldPolicyEntity> findByResourceIdAndActionNameAndEnabledTrueOrderByPriorityDesc(Long resourceId, String actionName) {
+        return selectList(new QueryWrapper<DataFieldPolicyEntity>()
+                .eq("resource_id", resourceId)
+                .eq("action_name", actionName)
+                .eq("enabled", true)
+                .orderByDesc("priority"));
+    }
 
     /**
      * 按资源取全部启用策略（不分动作）
@@ -32,6 +44,11 @@ public interface DataFieldPolicyRepository extends BaseRepository<DataFieldPolic
      * 按动作逐个查（6 个枚举值 × 每个资源）既慢又抓不到写错的动作名（如 `REPROT`）
      * —— 而写错动作恰恰是最该被发现的。</p>
      */
-    List<DataFieldPolicyEntity> findByResourceIdAndEnabledTrueOrderByPriorityDesc(Long resourceId);
+    default List<DataFieldPolicyEntity> findByResourceIdAndEnabledTrueOrderByPriorityDesc(Long resourceId) {
+        return selectList(new QueryWrapper<DataFieldPolicyEntity>()
+                .eq("resource_id", resourceId)
+                .eq("enabled", true)
+                .orderByDesc("priority"));
+    }
 
 

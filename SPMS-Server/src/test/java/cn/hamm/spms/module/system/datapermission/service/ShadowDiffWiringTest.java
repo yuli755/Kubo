@@ -8,11 +8,6 @@ import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Expression;
-import jakarta.persistence.criteria.Path;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,10 +31,10 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 
 /**
  * 影子双跑的调用点测试（读侧这一半）
@@ -66,17 +61,9 @@ class ShadowDiffWiringTest {
     @Mock
     private ShadowDiffService shadowDiffService;
 
-    @Mock
-    private Root<Object> root;
 
-    @Mock
-    private CriteriaBuilder builder;
 
-    @Mock
-    private Path<Object> path;
 
-    @Mock
-    private Predicate filterPredicate;
 
     private DataPermissionProperties properties;
     private DataPermissionSpecification specification;
@@ -87,9 +74,6 @@ class ShadowDiffWiringTest {
         specification = new DataPermissionSpecification(dataPermissionService, properties,
                 mock(DataPermissionAudit.class), new PermissionRuleParser(), new JpaPermissionRuleCompiler());
         specification.setShadowDiffService(shadowDiffService);
-        lenient().when(builder.disjunction()).thenReturn(filterPredicate);
-        lenient().when(builder.equal(any(Expression.class), any(Object.class))).thenReturn(filterPredicate);
-        lenient().when(root.get(anyString())).thenReturn(path);
         PermissionContextHolder.open(new PermissionContext(1L, 100L, Set.of(1L), Set.of(), Set.of(),
                 Set.of("planner"), false));
     }
@@ -118,17 +102,27 @@ class ShadowDiffWiringTest {
                 .willReturn(List.of(tenantPolicy()));
     }
 
-    private List<Predicate> build() {
-        return specification.buildPredicates(root, builder, RESOURCE, DataPermissionAction.QUERY);
+    /**
+     * 走一次注入，返回 wrapper 的 WHERE 片段（空串 = 不注入任何条件）
+     *
+     * @return WHERE 片段
+     * @apiNote J2 起影子线拿到的实体类是**调用方直接给的**（旧实现从 {@code root.getJavaType()} 取）：
+     * 引擎不再持有 Criteria，影子比对自己那份 Specification 仍然是 JPA 的（影子线自持）。
+     */
+    private String build() {
+        return buildWith(DataResourceEntity.class);
+    }
+
+    private String buildWith(Class<?> entityClass) {
+        QueryWrapper<DataResourceEntity> wrapper = new QueryWrapper<>();
+        specification.applyQuery(wrapper, entityClass, RESOURCE, DataPermissionAction.QUERY);
+        return java.util.Objects.requireNonNullElse(wrapper.getSqlSegment(), "");
     }
 
     @Test
     @DisplayName("SHADOW：算出了条件就把同一份条件交给比对（不是重新拼一遍）")
     void handsTheSameConditionsToTheDiffService() {
         standOnShadow();
-        // 只能写成 doReturn 形状：getJavaType() 声明的是 Class<? extends X>，
-        // when(...).thenReturn(Class) 在通配符捕获上过不了 javac（CI 抓过一次）
-        doReturn(DataResourceEntity.class).when(root).getJavaType();
 
         assertTrue(build().isEmpty(), "shadow 模式绝不能改变查询结果");
         then(shadowDiffService).should().compare(eq(RESOURCE), eq(DataPermissionAction.QUERY),
@@ -140,7 +134,6 @@ class ShadowDiffWiringTest {
     @DisplayName("对账探针带的是登记表里的表名与同一批树（比对侧不许再按策略算一遍）")
     void probeCarriesRegisteredTableAndTheSameTrees() {
         standOnShadow();
-        doReturn(DataResourceEntity.class).when(root).getJavaType();
 
         build();
 
@@ -200,9 +193,8 @@ class ShadowDiffWiringTest {
     @DisplayName("拿不到可 COUNT 的实体类（投影/tuple root）：跳过，不把 NPE 丢进异步队列")
     void projectionRootIsSkipped() {
         standOnShadow();
-        doReturn(Object.class).when(root).getJavaType();
 
-        build();
+        buildWith(Object.class);
 
         then(shadowDiffService).should(never()).compare(any(), any(), any(), any(), any(), any());
     }
@@ -213,7 +205,7 @@ class ShadowDiffWiringTest {
         standOnShadow();
         specification.setShadowDiffService(null);
 
-        List<Predicate> predicates = assertDoesNotThrow(this::build);
+        String predicates = assertDoesNotThrow(this::build);
 
         assertTrue(predicates.isEmpty(), "shadow 档下不该注入条件，与比对件在不在无关");
     }

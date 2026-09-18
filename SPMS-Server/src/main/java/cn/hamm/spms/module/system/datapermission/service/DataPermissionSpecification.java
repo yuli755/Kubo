@@ -5,6 +5,7 @@ import cn.hamm.spms.framework.curd.datapermission.PermissionContext;
 import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
+import cn.hamm.spms.module.system.datapermission.rule.SqlPermissionRuleRenderer;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRule;
@@ -12,6 +13,7 @@ import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleContext;
 import cn.hamm.spms.module.system.datapermission.rule.PermissionRuleTreeBuilder;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import jakarta.persistence.criteria.Root;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
@@ -25,6 +27,11 @@ import java.util.stream.Collectors;
  *
  * <p>基于当前请求的 {@link PermissionContext} 和资源标识生成 JPA Criteria 的 {@link Predicate} 列表，
  * 供业务 Service 的 {@code addSearchPredicate} 叠加使用。</p>
+ *
+ * <p><b>2026-09-18 J2（去 JPA）</b>：注入侧从"编 Criteria 谓词"换成"渲染 SQL 片段挂到 wrapper 上"
+ * （{@link #applyQuery}）—— 片段来自读侧同一个 {@link SqlPermissionRuleRenderer}，全仓只剩一份
+ * "谁能看哪些行"的实现。JPA Criteria 的编译仍留着，但只服务影子比对（{@link #submitShadowDiff}，
+ * 需要一份"enforce 会注入的条件"去和 Mapper 侧对账），不再参与真实查询。</p>
  *
  * <p><b>模式语义</b>（{@code kubo.data-permission.mode}）：</p>
  * <ul>
@@ -56,6 +63,10 @@ public class DataPermissionSpecification {
     private final DataPermissionAudit audit;
     private final JpaPermissionRuleCompiler ruleCompiler;
     private final PermissionRuleTreeBuilder ruleTreeBuilder;
+    /**
+     * 读侧 SQL 片段渲染器（J2 起注入侧复用它；影子比对仍走 {@link #ruleCompiler}）
+     */
+    private final SqlPermissionRuleRenderer ruleRenderer;
 
     /**
      * 影子双跑（只观测，不参与判定）。
@@ -76,12 +87,14 @@ public class DataPermissionSpecification {
             DataPermissionProperties properties,
             DataPermissionAudit audit,
             JpaPermissionRuleCompiler ruleCompiler,
-            PermissionRuleTreeBuilder ruleTreeBuilder) {
+            PermissionRuleTreeBuilder ruleTreeBuilder,
+            SqlPermissionRuleRenderer ruleRenderer) {
         this.dataPermissionService = dataPermissionService;
         this.properties = properties;
         this.audit = audit;
         this.ruleCompiler = ruleCompiler;
         this.ruleTreeBuilder = ruleTreeBuilder;
+        this.ruleRenderer = ruleRenderer;
     }
 
     /**
@@ -94,7 +107,7 @@ public class DataPermissionSpecification {
             cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser ruleParser,
             JpaPermissionRuleCompiler ruleCompiler) {
         this(dataPermissionService, properties, audit, ruleCompiler,
-                new PermissionRuleTreeBuilder(ruleParser));
+                new PermissionRuleTreeBuilder(ruleParser), new SqlPermissionRuleRenderer());
     }
 
     /**
@@ -106,6 +119,21 @@ public class DataPermissionSpecification {
      * @param action      数据操作类型
      * @param <T>         实体类型
      * @return 权限过滤谓词列表；空列表表示不追加条件
+     */
+    /**
+     * <h2>两条路：wrapper（注入）与 JPA（可见性探针 / 影子比对）</h2>
+     *
+     * <p>J2 之后本类有两个入口，选择它们的规则只有一条：<b>真实查询走 wrapper，观测走 JPA</b>。</p>
+     *
+     * <ul>
+     *   <li>{@link #applyQuery} —— 业务钩子（{@code addSearchPredicate}）调用：条件由
+     *       {@code SqlPermissionRuleRenderer} 渲染成 SQL 片段挂到 wrapper 上，与读侧拦截器同源；</li>
+     *   <li>{@link #buildPredicates} —— {@code JpaRowVisibilityProbe} 与影子比对调用：它们要拿"enforce
+     *       本会注入的那份条件"去和实际行数对账，而这条链仍是 JPA 的（§10.8.4：影子线自持）。
+     *       两条路读的是同一次建树 / 同一批策略，所以不会出现两份"谁能看哪些行"的判定。</li>
+     * </ul>
+     *
+     * <p>往 {@link #buildPredicates} 上接新的业务调用点是被禁止的：那会把 JPA 依赖重新拽回引擎。</p>
      */
     public <T> List<Predicate> buildPredicates(
             Root<T> root,
@@ -124,7 +152,7 @@ public class DataPermissionSpecification {
         catch (RuntimeException ex) {
             // 权限计算自身异常属于安全事件：ENFORCE 拒绝，SHADOW 记录后放行
             audit.binding(resourceKey, DataPermissionAudit.REASON_PARSE_FAILED, ex.getMessage());
-            return enforced(mode) ? deny(builder, resourceKey, DataPermissionAudit.REASON_PARSE_FAILED, ex.getMessage()) : List.of();
+            return enforced(mode) ? denyPredicates(builder, resourceKey, DataPermissionAudit.REASON_PARSE_FAILED, ex.getMessage()) : List.of();
         }
         finally {
             audit.recordDecisionNanos(resourceKey, System.nanoTime() - started);
@@ -155,7 +183,7 @@ public class DataPermissionSpecification {
         }
         catch (RuntimeException ex) {
             if (enforced(mode) && properties.isDenyUnregistered()) {
-                return deny(builder, resourceKey, DataPermissionAudit.REASON_UNREGISTERED, ex.getMessage());
+                return denyPredicates(builder, resourceKey, DataPermissionAudit.REASON_UNREGISTERED, ex.getMessage());
             }
             audit.binding(resourceKey, DataPermissionAudit.REASON_UNREGISTERED, ex.getMessage());
             return List.of();
@@ -166,7 +194,7 @@ public class DataPermissionSpecification {
         if (policies.isEmpty()) {
             if (dataPermissionService.shouldDenyByDefault(resourceKey, context)) {
                 if (enforced(mode)) {
-                    return deny(builder, resourceKey, DataPermissionAudit.REASON_NO_POLICY, "无 QUERY 策略且资源要求默认拒绝");
+                    return denyPredicates(builder, resourceKey, DataPermissionAudit.REASON_NO_POLICY, "无 QUERY 策略且资源要求默认拒绝");
                 }
                 audit.shadow(resourceKey, DataPermissionAudit.REASON_NO_POLICY, "enforce 后将返回空结果");
             }
@@ -183,18 +211,203 @@ public class DataPermissionSpecification {
         if (predicates.isEmpty() && build.expectedConditions() > 0) {
             audit.binding(resourceKey, DataPermissionAudit.REASON_BINDING_INVALID,
                     build.expectedConditions() + " 条策略无法绑定到实体列，检查 tenant_id/creator_id 是否在实体上映射");
-            return enforced(mode) ? deny(builder, resourceKey, DataPermissionAudit.REASON_BINDING_INVALID, null) : List.of();
+            return enforced(mode) ? denyPredicates(builder, resourceKey, DataPermissionAudit.REASON_BINDING_INVALID, null) : List.of();
         }
         if (predicates.isEmpty()) {
             return List.of();
         }
 
         if (!enforced(mode)) {
-            audit.shadow(resourceKey, "would-filter", describe(predicates));
-            submitShadowDiff(root, resourceKey, action, resource, policies, context, build.ruleTrees());
+            audit.shadow(resourceKey, "would-filter", describePredicates(predicates));
+            submitShadowDiff(root.getJavaType(), resourceKey, action, resource, policies, context, build.ruleTrees());
             return List.of();
         }
         return predicates;
+    }
+
+    /**
+     * 默认拒绝（JPA 侧）：返回恒假谓词，而不是放开原查询
+     *
+     * @apiNote 与 wrapper 侧的 {@link #deny(QueryWrapper, String, String, String)} 是同一语义的两个出口：
+     * 真实查询走 wrapper（恒假片段 {@link RowPermissionPredicate#DENY_SQL}），
+     * 可见性探针 / 影子比对走这里（Criteria 的 disjunction）。
+     */
+    private List<Predicate> denyPredicates(CriteriaBuilder builder, String resourceKey, String reason, String detail) {
+        audit.deny(resourceKey, reason, detail);
+        return List.of(builder.disjunction());
+    }
+
+    private boolean enforced(DataPermissionProperties.Mode mode) {
+        return mode == DataPermissionProperties.Mode.ENFORCE;
+    }
+
+    /**
+     * JPA 侧的条件描述（与 wrapper 侧的 {@link #describe(List)} 只是重载关系，
+     * 泛型擦除后签名相同，所以必须分开命名）
+     */
+    private String describePredicates(List<Predicate> predicates) {
+        return predicates.stream().map(Predicate::toString).collect(Collectors.joining(" AND "));
+    }
+
+    /**
+     * 把指定资源的数据权限条件挂到查询条件上
+     *
+     * @param wrapper     查询条件（调用方的 wrapper；片段会与其他条件 AND 在一起）
+     * @param entityClass 实体类（只给影子比对用：它需要知道对哪张表做行数对账）
+     * @param resourceKey 数据资源标识（如 {@code wms.inventory}）
+     * @param action      数据操作类型
+     * @apiNote J2 之前这里返回 {@code List<Predicate>}（JPA Criteria），由引擎塞进 Specification；
+     * 现在两步都省了：**渲染出的片段直接挂在调用方的 wrapper 上**。
+     * <p>取不到上下文、资源未登记、模式为 OFF / SHADOW 时都不加条件（与旧实现逐条对齐）；
+     * ENFORCE 下"本该有条件却一条都没渲染出来"＝绑定失败，返回恒假（不是放行）。</p>
+     */
+    public void applyQuery(@NotNull QueryWrapper<?> wrapper,
+                           @NotNull Class<?> entityClass,
+                           @NotNull String resourceKey,
+                           @NotNull DataPermissionAction action) {
+        DataPermissionProperties.Mode mode = properties.effectiveMode(resourceKey);
+        if (mode == DataPermissionProperties.Mode.OFF) {
+            return;
+        }
+        long started = System.nanoTime();
+        try {
+            inject(wrapper, entityClass, resourceKey, action, mode);
+        }
+        catch (RuntimeException ex) {
+            // 权限计算自身异常属于安全事件：ENFORCE 拒绝，SHADOW 记录后放行
+            audit.binding(resourceKey, DataPermissionAudit.REASON_PARSE_FAILED, ex.getMessage());
+            if (enforced(mode)) {
+                deny(wrapper, resourceKey, DataPermissionAudit.REASON_PARSE_FAILED, ex.getMessage());
+            }
+        }
+        finally {
+            audit.recordDecisionNanos(resourceKey, System.nanoTime() - started);
+        }
+    }
+
+    /**
+     * 渲染并注入（{@link #applyQuery} 的主体，异常策略在外层）
+     *
+     * @param wrapper     查询条件
+     * @param entityClass 实体类
+     * @param resourceKey 资源标识
+     * @param action      动作
+     * @param mode        生效模式
+     */
+    private void inject(@NotNull QueryWrapper<?> wrapper,
+                        @NotNull Class<?> entityClass,
+                        @NotNull String resourceKey,
+                        @NotNull DataPermissionAction action,
+                        @NotNull DataPermissionProperties.Mode mode) {
+        PermissionContext context = PermissionContextHolder.current().orElse(null);
+        if (context == null) {
+            // 无上下文 = 定时任务/内部调用。不放大权限（不注入），但必须显式记账：
+            // 这类调用点应改为构造系统身份上下文，而不是长期依赖此旁路。
+            audit.binding(resourceKey, "no-permission-context", "跳过注入，调用方应显式构造系统身份上下文");
+            return;
+        }
+        if (context.bypassDataPermission()) {
+            return;
+        }
+
+        DataResourceEntity resource;
+        try {
+            resource = dataPermissionService.requireResource(resourceKey);
+        }
+        catch (RuntimeException ex) {
+            if (enforced(mode) && properties.isDenyUnregistered()) {
+                deny(wrapper, resourceKey, DataPermissionAudit.REASON_UNREGISTERED, ex.getMessage());
+                return;
+            }
+            audit.binding(resourceKey, DataPermissionAudit.REASON_UNREGISTERED, ex.getMessage());
+            return;
+        }
+
+        List<DataPolicyEntity> policies = dataPermissionService.getPolicies(resourceKey, action, context);
+
+        if (policies.isEmpty()) {
+            if (dataPermissionService.shouldDenyByDefault(resourceKey, context)) {
+                if (enforced(mode)) {
+                    deny(wrapper, resourceKey, DataPermissionAudit.REASON_NO_POLICY, "无 QUERY 策略且资源要求默认拒绝");
+                    return;
+                }
+                audit.shadow(resourceKey, DataPermissionAudit.REASON_NO_POLICY, "enforce 后将返回空结果");
+            }
+            return;
+        }
+
+        RenderResult render = renderFromPolicies(resource, policies, context);
+        List<RowPermissionPredicate> fragments = render.fragments();
+
+        // 只有「本该产生 SQL 条件却一条都没渲染出来」才算绑定失败；
+        // SYSTEM / ROLE 策略语义是"允许全部"，生成不出条件是正确结果，不能误判为异常。
+        // expectedConditions() 是 int 计数（"本该产生几条条件"），不是一眼看上去像布尔的开关；
+        // 这里必须显式比较，写成 `&& build.expectedConditions()` 是 javac 级别的错误。
+        if (fragments.isEmpty() && render.expectedConditions() > 0) {
+            audit.binding(resourceKey, DataPermissionAudit.REASON_BINDING_INVALID,
+                    render.expectedConditions() + " 条策略在 SQL 侧渲染不出条件（列名/维度登记问题）");
+            if (enforced(mode)) {
+                deny(wrapper, resourceKey, DataPermissionAudit.REASON_BINDING_INVALID, null);
+            }
+            return;
+        }
+        if (fragments.isEmpty()) {
+            return;
+        }
+
+        if (!enforced(mode)) {
+            audit.shadow(resourceKey, "would-filter", describe(fragments));
+            submitShadowDiff(entityClass, resourceKey, action, resource, policies, context, render.ruleTrees());
+            return;
+        }
+        for (RowPermissionPredicate fragment : fragments) {
+            RowPermissionPredicate.ApplyFragment applyFragment = fragment.forQueryWrapper();
+            wrapper.apply(applyFragment.sql(), applyFragment.values());
+        }
+    }
+
+    /**
+     * 渲染结果
+     *
+     * @param fragments          渲染出的片段（挂到 wrapper 上的就是它们）
+     * @param expectedConditions 本该渲染出条件、却一条都没有的策略条数（识别"静默空转"）
+     * @param ruleTrees          与 fragments 同一批的<em>条件树</em>（未渲染的形状），影子对账用
+     */
+    private record RenderResult(List<RowPermissionPredicate> fragments, int expectedConditions,
+                                List<PermissionRule> ruleTrees) {
+    }
+
+    /**
+     * 从策略列表渲染 SQL 片段
+     *
+     * <p>{@code tableAlias} 传 {@code null}：MyBatis-Plus 生成的语句里表名没有别名，
+     * 片段必须用裸列名（渲染器支持"为空表示不带别名"）。</p>
+     */
+    private RenderResult renderFromPolicies(DataResourceEntity resource,
+                                            List<DataPolicyEntity> policies,
+                                            PermissionContext context) {
+        List<RowPermissionPredicate> fragments = new ArrayList<>();
+        List<PermissionRule> ruleTrees = new ArrayList<>(policies.size());
+        int expected = 0;
+
+        for (PermissionRuleTreeBuilder.PolicyRule policyRule : ruleTreeBuilder.build(resource, policies, context)) {
+            PermissionRule tree = policyRule.rule();
+            if (tree != null) {
+                ruleTrees.add(tree);
+                RowPermissionPredicate fragment = ruleRenderer.render(tree, null, new PermissionRuleContext(context));
+                if (fragment != null) {
+                    fragments.add(fragment);
+                }
+                else if (policyRule.shouldBind()) {
+                    expected++;
+                }
+            }
+            else if (policyRule.shouldBind()) {
+                expected++;
+            }
+        }
+
+        return new RenderResult(List.copyOf(fragments), expected, List.copyOf(ruleTrees));
     }
 
     /**
@@ -210,7 +423,7 @@ public class DataPermissionSpecification {
      * Mapper 侧比"同一棵树换个渲染方向"，所以这里额外把 {@code BuildResult#ruleTrees} 交出去 ——
      * 两个消费方读的都是同一次建树的产物，§19.35 之后这条链上再没有第二处会算"谁能看哪些行"。</p>
      */
-    private <T> void submitShadowDiff(Root<T> root,
+    private <T> void submitShadowDiff(Class<?> entityClass,
                                       String resourceKey,
                                       DataPermissionAction action,
                                       DataResourceEntity resource,
@@ -220,9 +433,8 @@ public class DataPermissionSpecification {
         if (shadowDiffService == null) {
             return;
         }
-        // 投影查询 / tuple root 没有可 COUNT 的实体，拿不到实体类就跳过：
+        // 拿不到实体类就跳过对账（旧实现从 root.getJavaType() 取，J2 起由调用方直接给）：
         // 让异步任务去 NPE，等于把一次观测变成一条没人认领的错误日志
-        Class<?> entityClass = root.getJavaType();
         if (entityClass == null || Object.class.equals(entityClass)) {
             return;
         }
@@ -251,19 +463,18 @@ public class DataPermissionSpecification {
     }
 
     /**
-     * 默认拒绝：返回恒假谓词，而不是放开原查询
+     * 默认拒绝：给 wrapper 挂一个恒假条件，而不是放开原查询
+     *
+     * @apiNote 恒假片段复用 {@link RowPermissionPredicate#DENY_SQL}（全仓只有这一处字面量）：
+     * 哪一处写成 {@code 1 = 1}，表现就是那个分支静默放开全表。
      */
-    private <T> List<Predicate> deny(CriteriaBuilder builder, String resourceKey, String reason, String detail) {
+    private void deny(@NotNull QueryWrapper<?> wrapper, String resourceKey, String reason, String detail) {
         audit.deny(resourceKey, reason, detail);
-        return List.of(builder.disjunction());
+        wrapper.apply(RowPermissionPredicate.DENY_SQL);
     }
 
-    private boolean enforced(DataPermissionProperties.Mode mode) {
-        return mode == DataPermissionProperties.Mode.ENFORCE;
-    }
-
-    private String describe(List<Predicate> predicates) {
-        return predicates.stream().map(Predicate::toString).collect(Collectors.joining(" AND "));
+    private String describe(List<RowPermissionPredicate> fragments) {
+        return fragments.stream().map(RowPermissionPredicate::sql).collect(Collectors.joining(" AND "));
     }
 
     /**

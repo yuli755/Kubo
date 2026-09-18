@@ -52,15 +52,10 @@ public class MapperReadConfiguration {
                 ruleTreeBuilder, renderer);
     }
 
-    /**
-     * MyBatis-Plus 的唯一插件入口：数据权限拦截器只处理已绑定的读侧 statement。
-     */
-    @Bean
-    MybatisPlusInterceptor kuboMybatisPlusInterceptor(KuboDataPermissionHandler handler) {
-        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
-        interceptor.addInnerInterceptor(new DataPermissionInterceptor(handler));
-        return interceptor;
-    }
+    // 2026-09-18 J2：MybatisPlusInterceptor 这个 Bean 搬去了 CurdMapperConfiguration
+    //（MyBatis-Plus 只认一个插件 Bean，写侧分页插件必须永远注册）。本类继续提供
+    // KuboDataPermissionHandler（受开关控制），由那边的 ObjectProvider 条件性挂上
+    // DataPermissionInterceptor —— “开关关掉 ⇒ 容器里没有这条读路径”的口径没变。
 
     /**
      * 对账探针的索引：从容器里的 {@link RowParityCounter} 汇总，不在这里逐个点名资源

@@ -235,7 +235,7 @@ public class FactoryDimensionReadiness {
         if (resourceRepository == null) {
             return List.of();
         }
-        List<DataResourceEntity> all = resourceRepository.findAll();
+        List<DataResourceEntity> all = resourceRepository.selectList(null);
         return all == null ? List.of() : all;
     }
 }

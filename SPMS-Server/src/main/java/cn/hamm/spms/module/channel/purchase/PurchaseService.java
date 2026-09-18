@@ -27,9 +27,6 @@ import cn.hamm.spms.module.wms.input.InputEntity;
 import cn.hamm.spms.module.wms.input.detail.InputDetailEntity;
 import cn.hamm.spms.module.wms.input.enums.InputStatus;
 import cn.hamm.spms.module.wms.input.enums.InputType;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static cn.hamm.spms.base.config.ConfigFlag.PURCHASE_BILL_AUTO_AUDIT;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 
 /**
  * <h1>Service</h1>
@@ -186,17 +184,10 @@ public class PurchaseService extends AbstractBaseBillService<
     }
 
     @Override
-    protected @NotNull List<Predicate> addSearchPredicate(
-            @NotNull Root<PurchaseEntity> root,
-            @NotNull CriteriaBuilder builder,
-            @NotNull PurchaseEntity search
-    ) {
-        List<Predicate> predicateList = new ArrayList<>();
-        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
-                root, builder, "channel.purchase", DataPermissionAction.QUERY
-        );
-        predicateList.addAll(dataPermissionPredicates);
-        return predicateList;
+    protected void addSearchPredicate(@NotNull QueryWrapper<PurchaseEntity> wrapper, @NotNull PurchaseEntity search) {
+        // 数据权限：渲染器产出的 SQL 片段直接挂到 wrapper 上（J2 起不再编 JPA Criteria）。
+        // 引擎把这个钩子接在通用条件之后，所以片段与用户条件天然是 AND 关系。
+        dataPermissionSpecification.applyQuery(wrapper, getEntityClass(), "channel.purchase", DataPermissionAction.QUERY);
     }
 
     @Override

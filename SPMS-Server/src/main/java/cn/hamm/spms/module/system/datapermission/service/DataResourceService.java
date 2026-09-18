@@ -277,7 +277,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      * @return 总览
      */
     public RuntimeStatus runtimeStatus() {
-        List<DataResourceEntity> all = repository.findAll();
+        List<DataResourceEntity> all = repository.selectList(null);
         Set<String> registeredKeys = new LinkedHashSet<>();
         if (all != null) {
             for (DataResourceEntity resource : all) {
@@ -729,7 +729,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      */
     public List<Readiness> readinessAll() {
         List<Readiness> result = new ArrayList<>();
-        List<DataResourceEntity> all = repository.findAll();
+        List<DataResourceEntity> all = repository.selectList(null);
         if (all == null) {
             return result;
         }
@@ -845,7 +845,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
             return List.of();
         }
         Map<String, Class<?>> byTable = EntityShapeIndex.byTable(entities);
-        List<DataResourceEntity> resources = repository.findAll();
+        List<DataResourceEntity> resources = repository.selectList(null);
         if (resources == null || resources.isEmpty()) {
             return List.of();
         }
@@ -912,7 +912,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      */
     public List<RowPolicyRiskItem> rowPolicyRisks() {
         boolean factoryWired = DimensionGuard.isFactoryAvailable();
-        List<DataResourceEntity> resources = repository.findAll();
+        List<DataResourceEntity> resources = repository.selectList(null);
         if (resources == null || resources.isEmpty()) {
             return List.of();
         }
@@ -962,7 +962,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
         if (policies == null || policies.isEmpty()) {
             return List.of();
         }
-        List<DataResourceEntity> resources = repository.findAll();
+        List<DataResourceEntity> resources = repository.selectList(null);
         Map<Long, DataResourceEntity> byId = new LinkedHashMap<>();
         if (resources != null) {
             for (DataResourceEntity resource : resources) {
@@ -1024,7 +1024,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
     public List<InertPolicyItem> inertPolicies() {
         // 消费集取自后端常量本身，而不是又抄一份名单 —— 前端那份由 maskContract 对账
         Set<String> consumed = Set.of(ColumnMaskingService.DEFAULT_ACTION, ExportBypassGuard.ACTION_EXPORT);
-        List<DataResourceEntity> resources = repository.findAll();
+        List<DataResourceEntity> resources = repository.selectList(null);
         if (resources == null || resources.isEmpty()) {
             return List.of();
         }
@@ -1060,7 +1060,7 @@ public class DataResourceService extends BaseService<DataResourceEntity, DataRes
      * @return 缺口条目列表（只含有缺口的资源，按资源登记顺序）
      */
     public List<ExportGapItem> exportGaps() {
-        List<DataResourceEntity> resources = repository.findAll();
+        List<DataResourceEntity> resources = repository.selectList(null);
         if (resources == null || resources.isEmpty()) {
             return List.of();
         }

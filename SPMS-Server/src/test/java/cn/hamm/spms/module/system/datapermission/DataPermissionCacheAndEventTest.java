@@ -205,7 +205,7 @@ class DataPermissionCacheAndEventTest {
                 .setTenantColumn("tenant_id")
                 .setSupportedActions("QUERY")
                 .setStatus("ENABLED");
-        resource = resourceRepository.saveAndFlush(resource);
+        resource = resourceRepository.save(resource);
 
         // 创建字段策略 - 设置 resource 关系和 actionName 避免 NULL
         DataFieldPolicyEntity fieldPolicy = new DataFieldPolicyEntity()
@@ -215,7 +215,7 @@ class DataPermissionCacheAndEventTest {
                 .setActionName("QUERY")
                 .setMaskType("FULL")
                 .setEnabled(true);
-        fieldPolicyRepository.saveAndFlush(fieldPolicy);
+        fieldPolicyRepository.save(fieldPolicy);
 
         // 设置上下文
         try (PermissionContextHolder.Scope scope = PermissionContextHolder.open(new PermissionContext(

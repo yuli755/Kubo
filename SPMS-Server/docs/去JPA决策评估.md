@@ -382,6 +382,66 @@ MyBatis-Plus 的 `MetaObjectHandler`（审计字段自动填充）正好是修�
 | **编译** | ❌ 沙箱无 JDK、Maven 仓库不可达 | 需要你本机 `mvn -q compile`（或 CI） |
 | **运行时语义**（MP 的 insert/update 与 JPA 脏检查是否等价、数据权限拦截器是否覆盖写语句） | ❌ 需要真库 | 需要你本机跑一次：新增/改/删各一条 + 证据日志落库 + 保留期清理 |
 
+### 9.6 J2 执行记录（2026-09-18，写链路引擎干净切除 —— **已落地**）
+
+按 §10.8 的照做清单执行完毕，**一个原子提交**。下面按"改了什么 / 与清单的偏差（及理由）/ 怎么验的 /
+还剩什么"四段写，偏差那一段是这一节的重点：清单是动手前写的，实际做的时候有三处必须偏离，
+**每一处都是被现有门禁逼出来的**，不是为了省事。
+
+#### 9.6.1 改了什么（按文件族）
+
+| 族 | 文件 | 关键变化 |
+| --- | --- | --- |
+| 底座 | `framework/curd/base/ICurdRepository` | 不再继承 `JpaRepository`/`JpaSpecificationExecutor`，改继承 `BaseMapper`；补两个垫片 `save` / `saveWithNull`（把 `saveAndFlush` 的语义补齐，调用点一行不改）；`getForUpdateById` → `selectByIdForUpdate` |
+| 底座 | `base/BaseRepository`、`base/bill/*Repository` | 同步换基类；账单明细的 `getAllByBillId` 从派生查询改成 `default` + wrapper |
+| 引擎 | `framework/curd/base/CurdService`（重写 ~29 KB） | 7 个动作全部落到 MP：`getById`= `selectById`、`find/findPage`= `createWrapper`+`selectList/selectPage`、`checkUnique`= `selectCount`、`saveToDatabase`= 垫片；`entityManager.clear()` 全面删除（MP 无一级缓存陈旧读）；`getForUpdate` 加**真实事务校验** |
+| 引擎 | `framework/curd/model/query/QueryHelper` | Criteria/CriteriaBuilder/Sort/Pageable → wrapper：`createWrapper` / `applySearch` / `applySort` / `createPage`；`@ManyToOne` 直接落本表 FK 列（`storage` → `storage_id`） |
+| 引擎 | `PageData`、`QueryPageResponse` | `newInstance(IPage)`（Spring Data `Page` 重载**删除**，不是并存）；`ColumnMaskingAspect` 里的 Spring Data `Page` 分支随之成为死代码，一并删 |
+| 注册 | `base/mapper/CurdMapperConfiguration`（新增） | 第二个 `@MapperScan`（`markerInterface = ICurdRepository.class`，**不挂开关**）+ **唯一的 `MybatisPlusInterceptor`**（分页插件永远注册；数据权限拦截器跟读侧开关） |
+| 查询钩子 | 17 个域 `Service#addSearchPredicate` | 签名 `(QueryWrapper<E>, E)`；数据权限条件改为"渲染器产物挂 wrapper"，不再由引擎持有 Criteria |
+| 派生查询 | 15 个仓储接口、28 个方法 | `findByXOrderByY` 逐条翻成 `default` + wrapper（含 `findTop100…` → `selectPage(new Page<>(1,100,false))` —— **不写 `last("LIMIT 100")`**） |
+| 数据权限 | `DataPermissionSpecification`、`RowPermissionPredicate`、`SqlPermissionRuleRenderer` | 新增 wrapper 注入路径（`applyQuery`）；渲染器补"一跳关联落 FK 列"（`storage.id` → `storage_id`）与 `{N}` 下标化占位符适配 |
+| 写侧 SQL | 40 个 `mapper/**/<X>Repository.xml`（新增 36 个写侧仓储的） | 每个写侧仓储一条 `selectByIdForUpdate`（`flushCache="true"`）：**行锁语句住 XML**，替代 JPA 时代的 `@Lock(PESSIMISTIC_WRITE)` + `entityManager.clear()` |
+| 测试 | 迁移 8 个、改断言 2 个 | `DataPermissionSpecificationTest` / `DataPermissionModeSemanticsTest` / `DataPermissionSubjectColumnResolutionTest` / `ShadowDiffWiringTest` / `DataPermissionIntegrationTest` / `DataPermissionCacheAndEventTest` / 两个层级索引测试；`PermissionRuleKernelTest` 的"关联路径必须抛"改成"一跳 `.id` 渲染、需要 join 的仍旧拒" |
+
+#### 9.6.2 与 §10.8 清单的**三处偏差**（都是门禁逼出来的）
+
+| # | 清单怎么写 | 实际怎么做 | 为什么 |
+| --- | --- | --- | --- |
+| 1 | 钩子签名用 `LambdaQueryWrapper<E>`（§10.8.2） | 用 `QueryWrapper<E>` | ① 权限片段只能走 `apply(String, Object...)`（`LambdaQueryWrapper` 没有字符串列重载）；② `InventoryService`/`UserService` 要按**外键列名**做 `in(...)`，而实体上还没有标量 FK 字段（J3 才加），方法引用暂时写不出来。`QueryWrapper` 的字符串列名来自注释与渲染器，不是手写 SQL —— 与 `pnpm sql:check` 的口径不冲突。J3 补了标量 FK 后可逐步换成方法引用 |
+| 2 | `getForUpdate` 用 `last("FOR UPDATE")`（§10.8.3） | 每条 `selectByIdForUpdate` 住 XML | `last("FOR UPDATE")` 就是**把可执行 SQL 写进 Java** —— 与用户同批拍板的 SQL 分层规则（§11：`.java` 里零 SQL）直接冲突。清单那一行写在 SQL 分层之前的口径里，冲突以后者为准：40 个写侧 XML + `maskContract` 判据（每个写侧仓储必须有同名 XML 且含 `FOR UPDATE`）。**副作用是好的**：行锁语句现在能被 DBA 直接读到 |
+| 3 | 写侧 `@MapperScan(basePackages = "cn.hamm.spms")`（§10.8.3） | `basePackages = "cn.hamm.spms.module"` | 整个 `cn.hamm.spms` 会让 `BaseRepository<E>` / `BaseBillRepository<E,D>` / `BaseBillDetailRepository<E,D>` **也匹配 marker**：它们是带类型变量的抽象接口，MyBatis-Plus 会拿 `E` 去建 `TableInfo`，**启动即炸**。扫描根只覆盖业务域后，"抽象基类不进注册面"从约定变成了结构性事实；新增写侧仓储放 `module/` 即可，判据在 `maskContract` 里 |
+
+#### 9.6.3 顺手修掉的两处旧缺陷（写在注释里，不另开单）
+
+1. **默认排序从未生效**：旧 `QueryHelper.createSort` 写的是 `result.and(by(desc(...)))`，而 Spring Data 的
+   `Sort` 是不可变对象 —— 返回值被丢弃，于是"追加 `create_time DESC, id DESC`"从来没落过 SQL。
+   表现是 `create_time` 相同的行上**翻页重复/漏行**（分页静默错行）。J2 按注释写明的本意执行。
+2. **`withNull=true` 路径真的把 `create_time` 写成 NULL**：旧 JPA 路径把 null 合并进库，而引擎注释写着
+   "更新不允许修改创建时间"。新的 `saveWithNull` 跳过 `create_time` —— 这是本批**唯一一处行为与换轨前不同**。
+
+#### 9.6.4 怎么验的（沙箱没有 JDK，判据替编译器挡住静默错误）
+
+- `pnpm check` **24 道全绿**（含 53 个前端测试文件、`sql:check`、`layer:check`、`java:decl`、`java:imports`）；
+- `pnpm jpa:check` 棘轮**已按实测下调并固化**：**108 → 84 文件 / 594 → 503 引用 / 473 → 385 import**；
+- `maskContract.spec.ts` 新增/改写了 6 条 J2 判据：① 除引擎外不得残留 `List<Predicate> addSearchPredicate(`；
+  ② `@MapperScan` **恰好两处**且写侧不带 `@ConditionalOnProperty`；③ 每个写侧仓储必须有同名 XML + `selectByIdForUpdate` + `FOR UPDATE`；
+  ④ `getForUpdate` 必须校验真实事务；⑤ 引擎文件里不得出现 `EntityManager`/`PersistenceContext`/`org.springframework.data`/`saveAndFlush`/`findAll(`/`getForUpdateById`；
+  ⑥ `ICurdRepository` 必须建在 `BaseMapper` 上。
+- **仍然验不了**（需要你本机）：编译、真库回归（尤其 §9.6.5 第 1 条）。
+
+#### 9.6.5 还剩什么（J3/J4，以及本机一定会看到的一件事）
+
+1. **本机启动后第一批报错会来自实体关系字段**：41 个实体里 25 个 `@ManyToOne`/`@ManyToMany` 关系字段
+   在 MyBatis-Plus 侧没有列映射。JPA 时代由 Hibernate 处理对象图，MP 会把 `storage` 当成列 `storage`
+   （真列 `storage_id`）。**这是 J3 的首任务**，与 §9.3 的 `create_time` 隐患同一类：先记账、别猜。
+   关系读的对象图还有一层：前端列表读 `row.material.code` 这类嵌套路径，所以"只存 FK"不够，
+   J3 要按 J1 的范式（标量 FK 字段 + XML `resultMap`/join）把对象图补回来。
+2. **影子比对线仍是 JPA**（`ShadowDiffService` / `JpaRowVisibilityProbe` / 14 个 `*ReadShadowService` /
+   `JpaPermissionRuleCompiler`）：按 §10.5 的口径"换完之后应当只剩一条路径"，它们与
+   `spring-boot-starter-data-jpa` 一起在 J4 退场；在那之前，`jpa:check` 的 84 个文件就是这条线的账。
+3. **create_time 隐患**（§9.3）：保持 `keep_bug`，只留记录。
+
 ## §10 J2 执行清单（**干净切除**：不接受 JPA 与 MyBatis-Plus 并存）
 
 > 决策更新（用户 2026-09-18）：**"只保留 MyBatis-Plus"** —— 本节先前写过的"引擎双路径、JPA 分支先留着"

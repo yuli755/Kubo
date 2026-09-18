@@ -6,11 +6,7 @@ import cn.hamm.spms.framework.curd.datapermission.PermissionContextHolder;
 import cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Expression;
-import jakarta.persistence.criteria.Path;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -20,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -32,6 +29,11 @@ import static org.mockito.Mockito.mock;
 /**
  * <h1>DataPermissionSpecification 单元测试</h1>
  *
+ * <p>2026-09-18 J2：注入侧从 Criteria 换成 wrapper 上的 SQL 片段，本类断言的对象随之变成片段文本。
+ * <b>不再覆盖的一件事</b>："实体上没有这一列"这类绑定失败 —— 渲染器只看规则与登记，不查实体形状，
+ * 所以它照样能产出片段（数据库会以"列不存在"报错，是响亮失败而不是静默放行）；
+ * 这类判据留在影子比对与 enforce-readiness 那两条线上，见 docs/去JPA决策评估.md §10.8.4。</p>
+ *
  * @author Hamm.cn
  */
 @ExtendWith(MockitoExtension.class)
@@ -39,18 +41,6 @@ class DataPermissionSpecificationTest {
 
     @Mock
     private DataPermissionService dataPermissionService;
-
-    @Mock
-    private Root<Object> root;
-
-    @Mock
-    private CriteriaBuilder builder;
-
-    @Mock
-    private Path<Object> path;
-
-    @Mock
-    private Predicate predicate;
 
     private DataPermissionSpecification specification;
 
@@ -65,12 +55,31 @@ class DataPermissionSpecificationTest {
                 new cn.hamm.spms.module.system.datapermission.rule.PermissionRuleParser(),
                 new cn.hamm.spms.module.system.datapermission.rule.JpaPermissionRuleCompiler());
         PermissionContextHolder.clear();
-        lenient().when(builder.disjunction()).thenReturn(predicate);
-        // builder.equal(Expression, Expression) 与 builder.equal(Expression, Object) 是两个重载方法，
-        // 必须分别 stub，否则 any() 会被编译器解析为 Expression 类型，导致 equal(Expression, Object) 未被匹配
-        lenient().when(builder.equal(any(Expression.class), any(Expression.class))).thenReturn(predicate);
-        lenient().when(builder.equal(any(Expression.class), any(Object.class))).thenReturn(predicate);
-        lenient().when(root.get(anyString())).thenReturn(path);
+    }
+
+    /**
+     * 走一次注入，返回被挂条件的那只 wrapper
+     *
+     * @param resourceKey 资源标识
+     * @return wrapper
+     * @apiNote J2 之前这个位置是 {@code buildPredicates(root, builder, …)}：断言的对象是 Criteria 谓词，
+     * 要靠 mock 出 {@code Root}/{@code CriteriaBuilder} 才能观察。现在观察对象是 wrapper 上的 SQL 片段，
+     * 断言直接读片段文本 —— 少了两层 mock，测的还是同一件事（注入了什么）。
+     */
+    private QueryWrapper<DataResourceEntity> applyQuery(String resourceKey) {
+        QueryWrapper<DataResourceEntity> wrapper = new QueryWrapper<>();
+        specification.applyQuery(wrapper, DataResourceEntity.class, resourceKey, DataPermissionAction.QUERY);
+        return wrapper;
+    }
+
+    /**
+     * 注入结果：wrapper 的 WHERE 片段（空串 = 一条条件都没加）
+     *
+     * @param wrapper 查询条件
+     * @return 片段
+     */
+    private static String where(QueryWrapper<?> wrapper) {
+        return Objects.requireNonNullElse(wrapper.getSqlSegment(), "");
     }
 
     @AfterEach
@@ -82,10 +91,7 @@ class DataPermissionSpecificationTest {
     class ContextAbsentOrBypass {
         @Test
         void returnsEmptyWhenNoContext() {
-            List<Predicate> result = specification.buildPredicates(
-                    root, builder, "wms.inventory", DataPermissionAction.QUERY
-            );
-            assertTrue(result.isEmpty(), "无上下文时应返回空列表");
+            assertTrue(where(applyQuery("wms.inventory")).isEmpty(), "无上下文时不应注入任何条件");
         }
 
         @Test
@@ -95,10 +101,7 @@ class DataPermissionSpecificationTest {
             );
             PermissionContextHolder.open(bypassContext);
 
-            List<Predicate> result = specification.buildPredicates(
-                    root, builder, "wms.inventory", DataPermissionAction.QUERY
-            );
-            assertTrue(result.isEmpty(), "绕过权限时应返回空列表");
+            assertTrue(where(applyQuery("wms.inventory")).isEmpty(), "绕过权限时不应注入任何条件");
         }
     }
 
@@ -114,10 +117,7 @@ class DataPermissionSpecificationTest {
             given(dataPermissionService.requireResource("unknown.resource"))
                     .willThrow(new IllegalStateException("资源未注册"));
 
-            List<Predicate> result = specification.buildPredicates(
-                    root, builder, "unknown.resource", DataPermissionAction.QUERY
-            );
-            assertTrue(result.isEmpty(), "资源未注册时应返回空列表（向后兼容）");
+            assertTrue(where(applyQuery("unknown.resource")).isEmpty(), "资源未注册时不注入（向后兼容）");
         }
     }
 
@@ -142,11 +142,10 @@ class DataPermissionSpecificationTest {
             given(dataPermissionService.shouldDenyByDefault("wms.inventory", context))
                     .willReturn(true);
 
-            List<Predicate> result = specification.buildPredicates(
-                    root, builder, "wms.inventory", DataPermissionAction.QUERY
-            );
-            assertEquals(1, result.size(), "无策略且默认拒绝时应返回一个 disjunction 谓词");
-            assertSame(predicate, result.get(0));
+            QueryWrapper<DataResourceEntity> wrapper = applyQuery("wms.inventory");
+
+            assertTrue(where(wrapper).contains(RowPermissionPredicate.DENY_SQL),
+                    "无策略且默认拒绝时应给恒假条件（1 = 0），而不是放开原查询");
         }
     }
 
@@ -174,10 +173,9 @@ class DataPermissionSpecificationTest {
             given(dataPermissionService.getPolicies("wms.inventory", DataPermissionAction.QUERY, context))
                     .willReturn(List.of(policy));
 
-            List<Predicate> result = specification.buildPredicates(
-                    root, builder, "wms.inventory", DataPermissionAction.QUERY
-            );
-            assertEquals(1, result.size(), "TENANT 策略应生成一个谓词");
+            QueryWrapper<DataResourceEntity> wrapper = applyQuery("wms.inventory");
+
+            assertTrue(where(wrapper).contains("tenant_id"), "TENANT 策略应生成 tenant_id 条件");
         }
     }
 
@@ -205,10 +203,7 @@ class DataPermissionSpecificationTest {
             given(dataPermissionService.getPolicies("wms.inventory", DataPermissionAction.QUERY, context))
                     .willReturn(List.of(systemPolicy));
 
-            List<Predicate> result = specification.buildPredicates(
-                    root, builder, "wms.inventory", DataPermissionAction.QUERY
-            );
-            assertTrue(result.isEmpty(), "SYSTEM 策略不应生成 SQL 级谓词（允许所有）");
+            assertTrue(where(applyQuery("wms.inventory")).isEmpty(), "SYSTEM 策略不应生成条件（允许所有）");
         }
     }
 }

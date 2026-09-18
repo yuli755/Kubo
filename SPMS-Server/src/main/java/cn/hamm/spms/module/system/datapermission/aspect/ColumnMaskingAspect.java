@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Field;
@@ -103,10 +102,6 @@ public class ColumnMaskingAspect {
 
     private void collect(Object value, Set<Class<?>> types, int depth) {
         if (value == null || depth > 3) {
-            return;
-        }
-        if (value instanceof Page<?> page) {
-            page.getContent().forEach(item -> collect(item, types, depth + 1));
             return;
         }
         if (value instanceof Collection<?> collection) {

@@ -122,7 +122,7 @@ public class StorageHierarchyIndex {
         }
         try {
             Map<Long, Long> parentById = new HashMap<>();
-            for (StorageEntity storage : storageRepository.findAll()) {
+            for (StorageEntity storage : storageRepository.selectList(null)) {
                 if (storage == null || storage.getId() == null) {
                     continue;
                 }

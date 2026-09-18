@@ -1,6 +1,7 @@
 package cn.hamm.spms.framework;
 
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
+import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.PersistenceContext;
@@ -76,7 +77,8 @@ class MybatisJpaCoexistenceTest {
     @DisplayName("加进来之后，JPA 那套还在原位（不能被自动配置悄悄换掉）")
     void jpaSideStillFullyWired() {
         assertNotNull(applicationContext.getBeanProvider(EntityManagerFactory.class).getIfAvailable(),
-                "EntityManagerFactory 没了：JPA 读路径与全部 CURD 端点会一起塌");
+                "EntityManagerFactory 没了：影子比对（ShadowDiffService / JpaRowVisibilityProbe）会一起塌。"
+                        + "J2 之后 CURD 引擎已不依赖 JPA，但影子线仍是 JPA；到 J4 删 starter 时这条会红，那正是预期信号");
         assertNotNull(entityManager);
         assertEquals(1L, applicationContext.getBeanNamesForType(EntityManagerFactory.class).length,
                 "出现第二个 EntityManagerFactory = 两套一级/二级缓存，同一个实体会被两份会话各自持有");
@@ -117,18 +119,20 @@ class MybatisJpaCoexistenceTest {
      *       与被测事实无关。解析面就绪与否，留给下一格注册第一个 {@code InnerInterceptor} 时
      *       由编译与启动自然暴露。</li>
      * </ul>
-     * <p>所以下面只钉我们自己的不变量：一个插件都没注册（将来谁接了插件，这条就红，红得有意义）。
-     * jsqlparser 的实际版本每次 CI 都会以 annotation 打出来，不需要人记。</p>
+     * <p>下面钉两件我们自己的不变量：分页插件必须在（不在的话 {@code selectPage} 会静默不分页、
+     * {@code total} 恒 0），以及插件是挂在<b>容器里那个</b> {@code MybatisPlusInterceptor} 上、
+     * 而不再是每处自己 new 一个。jsqlparser 的实际版本每次 CI 都会以 annotation 打出来，不需要人记。</p>
      */
     @Test
-    @DisplayName("MyBatis-Plus 自己的类型可用，且当前一个插件都没注册（别把这一格读成「已经在改 SQL」）")
-    void mybatisPlusIsUsableButNothingIsWired() throws Exception {
-        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
-        assertNotNull(interceptor, "MybatisPlusInterceptor 不可用：分页与数据权限插件都要挂在它上面");
-        assertTrue(interceptor.getInterceptors().isEmpty(),
-                "这一格的前提是零接线：一旦出现插件，上面那段关于「不对外部类名下断言」的注释就必须被反转成「插件与解析面已就绪」");
+    @DisplayName("MyBatis-Plus 的插件已按 J2 的口径装配：分页永远在，数据权限跟读侧开关")
+    void mybatisPlusPluginsAreWired() throws Exception {
+        MybatisPlusInterceptor interceptor = applicationContext.getBean(MybatisPlusInterceptor.class);
+        assertNotNull(interceptor, "MybatisPlusInterceptor 不在容器里：分页与数据权限插件都挂在它上面");
+        assertTrue(interceptor.getInterceptors().stream()
+                        .anyMatch(inner -> inner instanceof PaginationInnerInterceptor),
+                "分页插件没注册：selectPage 会静默不分页（全量返回）且 total 恒 0");
         assertNotNull(Class.forName("com.baomidou.mybatisplus.core.MybatisSqlSessionFactoryBuilder"),
-                "mybatis-plus-core 不在 classpath：starter 被 airpower 的依赖管理挤掉了");
+                "mybatis-plus-core 不在 classpath：starter 被依赖管理挤掉了");
     }
 
     /**
@@ -140,8 +144,8 @@ class MybatisJpaCoexistenceTest {
      * 这句话从此不可信。这条断言只在配置为默认时才有意义，所以它必须留在这个不打开开关的上下文里。</p>
      */
     @Test
-    @DisplayName("读侧 Mapper 默认不注册：开关关掉时容器里一个 Mapper Bean 都没有")
-    void mapperReadIsOffByDefault() {
+    @DisplayName("读侧 Mapper 默认不注册，写侧仓储无条件注册：灰度与写路径互不牵连")
+    void readMapperOffByDefaultWhileWriteSideIsAlwaysRegistered() {
         String[] mappers = applicationContext.getBeanNamesForType(
                 cn.hamm.spms.module.asset.material.mapper.MaterialMapper.class);
         assertEquals(0, mappers.length,
@@ -149,6 +153,11 @@ class MybatisJpaCoexistenceTest {
         assertEquals(0, applicationContext.getBeanNamesForType(
                         cn.hamm.spms.module.system.datapermission.config.MapperReadConfiguration.class).length,
                 "注册配置本身被加载了：@ConditionalOnProperty 的键名或 havingValue 漂了");
+        // J2：写侧 @MapperScan(markerInterface = ICurdRepository.class) 不挂任何开关 ——
+        // 关掉读侧灰度不能把增删改一起关掉，那不是灰度而是停机。这条断言就是钉住这一点。
+        assertEquals(1, applicationContext.getBeanNamesForType(
+                        cn.hamm.spms.module.asset.contract.ContractRepository.class).length,
+                "写侧仓储没注册：增删改会整体失效（@MapperScan 的 marker/basePackages 漂了？）");
     }
 
     @Test

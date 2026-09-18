@@ -251,13 +251,30 @@ class PermissionRuleKernelTest {
         }
 
         @Test
-        @DisplayName("关联路径在 SQL 侧必须被明确拒掉：不许把 storage.id 悄悄 snake 成 storage_id")
-        void rendererRefusesAssociationPath() {
+        @DisplayName("一跳的关联路径落到本表外键列：storage.id → storage_id（J2 换轨后读侧没有 JOIN 可用）")
+        void rendererResolvesOneHopAssociationPath() {
             PermissionRule rule = parser.parse(RESOURCE, "{\"field\":\"storage.id\",\"value\":1}");
 
+            // 旧口径是"明确拒掉，不许悄悄 snake 成 storage_id"。J2 把读侧从 JPA Criteria 换成
+            // wrapper / Mapper 片段后，片段拼不出 JOIN，而 Hibernate 对 @ManyToOne 的 .get("id")
+            // 本来也是直取外键列（没有 join）—— 所以现在**按语义转写**：一跳的 .id ⇒ <字段>_id。
+            // 仍然拒的是需要 JOIN 才能比较的写法（storage.name、两跳路径），见下一条用例。
+            RowPermissionPredicate rendered = renderer.render(rule, "t", context);
+
+            assertEquals("(t.storage_id = :dpRule0)", rendered.sql());
+            assertEquals(1, rendered.parameters().get("dpRule0"));
+        }
+
+        @Test
+        @DisplayName("需要 JOIN 才能比较的关联路径仍旧直接拒：storage.name / 两跳路径")
+        void rendererRefusesAssociationPathNeedingJoin() {
+            PermissionRule otherColumn = parser.parse(RESOURCE, "{\"field\":\"storage.name\",\"value\":\"A\"}");
             PermissionRuleException ex = assertThrows(PermissionRuleException.class,
-                    () -> renderer.render(rule, "t", context));
-            assertTrue(ex.getMessage().contains("D1(b)"), ex.getMessage());
+                    () -> renderer.render(otherColumn, "t", context));
+            assertTrue(ex.getMessage().contains("只有一跳的 .id"), ex.getMessage());
+
+            PermissionRule twoHop = parser.parse(RESOURCE, "{\"field\":\"storage.factory.id\",\"value\":1}");
+            assertThrows(PermissionRuleException.class, () -> renderer.render(twoHop, "t", context));
         }
 
         @Test

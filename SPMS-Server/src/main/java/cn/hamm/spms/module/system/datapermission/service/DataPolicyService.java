@@ -82,8 +82,9 @@ public class DataPolicyService extends BaseService<DataPolicyEntity, DataPolicyR
             entity.setConditionJson("{}");
             return;
         }
+        // J2：仓储底座换成 MyBatis-Plus，取数动作从 findById（Spring Data，返回 Optional）改成 selectById
         DataResourceEntity resource = entity.getResourceId() == null
-                ? null : resourceRepository.findById(entity.getResourceId()).orElse(null);
+                ? null : resourceRepository.selectById(entity.getResourceId());
         String resourceKey = resource != null ? resource.getResourceKey() : ("resourceId=" + entity.getResourceId());
         PermissionRuleValidator.FieldAllowList allowList = allowListOf(resource);
         PermissionRule rule;
@@ -171,7 +172,7 @@ public class DataPolicyService extends BaseService<DataPolicyEntity, DataPolicyR
         if (resourceId == null) {
             return null;
         }
-        DataResourceEntity resource = resourceRepository.findById(resourceId).orElse(null);
+        DataResourceEntity resource = resourceRepository.selectById(resourceId);
         return resource != null ? resource.getResourceKey() : null;
     }
 

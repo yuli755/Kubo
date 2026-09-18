@@ -118,12 +118,6 @@ public final class SqlPermissionRuleRenderer {
         List<String> candidates = dimension.orAllCandidates()
                 ? dimension.candidateFields()
                 : List.of(dimension.candidateFields().get(0));
-        for (String candidate : candidates) {
-            if (candidate.indexOf('.') >= 0) {
-                throw new PermissionRuleException(null, "SQL 侧不支持归属列走关联路径 " + candidate
-                        + "：需要显式 JOIN（施工图 D1(b)），JPA 读侧已支持该写法");
-            }
-        }
         if (dimension.value() == null) {
             // 与 Leaf 同口径：这一维没取到值就恒假。JPA 侧对应"与该列比 null"，同样一行不给看
             appendGroup(sql, RowPermissionPredicate.DENY_SQL);
@@ -142,14 +136,7 @@ public final class SqlPermissionRuleRenderer {
 
     private boolean renderLeaf(PermissionRule.Leaf leaf, String tableAlias, PermissionRuleContext context,
                                StringBuilder sql, Map<String, Object> parameters, int[] counter) {
-        if (leaf.field() != null && leaf.field().indexOf('.') >= 0) {
-            // 单条 SQL 片段拼不出 JOIN，所以关联路径必须在**这里**被明确拒掉。今天没有读路径走渲染器
-            // （JPA 侧编译，见 JpaPathResolver），但 P2 换轨会 —— 那时若让它落到下面的 toSnake，
-            // storage.id 会变成 storage_id：轻则 SQL 报"列不存在"，重则命中一个同名的别的列（静默放宽范围）。
-            throw new PermissionRuleException(null, "SQL 侧不支持关联路径 " + leaf.field()
-                    + "：需要显式 JOIN（施工图 D1(b)，P2 换轨时实现），JPA 读侧已支持该写法");
-        }
-        if (!PermissionRuleSupport.isIdentifier(leaf.field())) {
+        if (!PermissionRuleSupport.isIdentifier(resolveOneHopRelation(leaf.field()))) {
             throw new PermissionRuleException(null, "非法列名：" + leaf.field());
         }
         String column = column(tableAlias, leaf.field());
@@ -213,8 +200,37 @@ public final class SqlPermissionRuleRenderer {
         return context.scalar(leaf.contextVar());
     }
 
+    /**
+     * 一跳关联路径 → 本表外键列：{@code storage.id} → {@code storage_id}
+     *
+     * <p><b>为什么在渲染器里做</b>：P2（J2）之后读路径不再由 JPA 编译，片段要落到 MyBatis-Plus 的
+     * wrapper / Mapper 上，两者都只认本表列 —— 单条 SQL 片段拼不出 JOIN。而 Hibernate 对
+     * {@code @ManyToOne} 的 {@code .get("id")} 本来也是直取外键列（没有 join），所以
+     * "一跳的 .id" 在语义上就是 FK 列，转写不改变判据。</p>
+     *
+     * <p>为什么只有一跳的 {@code .id}：{@code storage.name} 这类要 JOIN 才能比较，
+     * {@code a.b.c} 是两跳 —— 这两类仍旧抛（宁可响亮地失败，也不要编出一个查不到数据的条件）。</p>
+     *
+     * @param field 规则里的字段写法（可能是属性名，也可能是关联路径）
+     * @return 可以直接当列名用的写法（仍走 {@link PermissionRuleSupport#toSnake}）
+     */
+    private static String resolveOneHopRelation(String field) {
+        if (field == null || field.indexOf('.') < 0) {
+            return field;
+        }
+        int dot = field.indexOf('.');
+        String head = field.substring(0, dot);
+        String tail = field.substring(dot + 1);
+        if ("id".equals(tail)) {
+            return head + "Id";
+        }
+        throw new PermissionRuleException(null, "SQL 侧不支持关联路径 " + field
+                + "：只有一跳的 .id 能落到本表外键列（storage.id → storage_id），"
+                + "比较关联表上的其它列需要显式 JOIN");
+    }
+
     private String column(String tableAlias, String field) {
-        String physical = PermissionRuleSupport.toSnake(field);
+        String physical = PermissionRuleSupport.toSnake(resolveOneHopRelation(field));
         if (!PermissionRuleSupport.isIdentifier(physical)) {
             throw new PermissionRuleException(null, "非法列名：" + physical);
         }

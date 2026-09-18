@@ -26,20 +26,16 @@ import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import cn.hamm.spms.module.wms.inventory.enums.InventoryType;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Join;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import cn.hamm.spms.module.wms.inventory.mapper.InventoryWriteMapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 
 /**
  * <h1>Service</h1>
@@ -294,68 +290,56 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
     }
 
     @Override
-    protected @NotNull List<Predicate> addSearchPredicate(
-            @NotNull Root<InventoryEntity> root,
-            @NotNull CriteriaBuilder builder,
-            @NotNull InventoryEntity search
-    ) {
-        List<Predicate> predicateList = new ArrayList<>();
-
-        // 叠加数据权限过滤条件
-        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
-                root, builder, "wms.inventory", DataPermissionAction.QUERY
-        );
-        predicateList.addAll(dataPermissionPredicates);
+    protected void addSearchPredicate(@NotNull QueryWrapper<InventoryEntity> wrapper, @NotNull InventoryEntity search) {
+        // 数据权限：渲染器产出的片段直接挂到 wrapper 上（J2 起不再编 JPA Criteria）
+        dataPermissionSpecification.applyQuery(wrapper, getEntityClass(), "wms.inventory", DataPermissionAction.QUERY);
 
         if (Objects.isNull(search.getType())) {
-            return predicateList;
+            return;
         }
         switch (DictionaryUtil.getDictionary(InventoryType.class, search.getType())) {
-            case STORAGE -> addStoragePredicate(root, search, predicateList);
-            case STRUCTURE -> addStructurePredicate(root, search, predicateList);
+            case STORAGE -> addStoragePredicate(wrapper, search);
+            case STRUCTURE -> addStructurePredicate(wrapper, search);
             default -> {
             }
         }
-        return predicateList;
     }
 
     /**
      * 添加生产单元查询条件
      *
-     * @param root          ROOT
-     * @param search        查询条件
-     * @param predicateList 查询条件列表
+     * @param wrapper 查询条件
+     * @param search  查询条件
+     * @apiNote JPA 时代是 {@code root.join("structure").get("id").in(...)}；wrapper 世界表达不了 join，
+     * 直接落到本表外键列 {@code structure_id}（语义等价：过滤的就是"这个单元及其子节点"）。
      */
-    private void addStructurePredicate(@NotNull Root<InventoryEntity> root, @NotNull InventoryEntity search, List<Predicate> predicateList) {
+    private void addStructurePredicate(@NotNull QueryWrapper<InventoryEntity> wrapper, @NotNull InventoryEntity search) {
         StructureEntity structure = search.getStructure();
         if (Objects.isNull(structure)) {
             return;
         }
         Set<Long> idList = TreeUtil.getChildrenIdList(structure.getId(), id -> structureService.filter(new StructureEntity().setParentId(id)));
         idList.add(structure.getId());
-        Join<InventoryEntity, StructureEntity> join = root.join("structure");
-        Predicate inPredicate = join.get(CurdEntity.STRING_ID).in(idList);
-        predicateList.add(inPredicate);
+        wrapper.in("structure_id", idList);
+        // 置空：避免通用搜索再按 structure 的其他字段加条件（旧实现同样置空）
         search.setStructure(null);
     }
 
     /**
      * 添加仓库查询条件
      *
-     * @param root          ROOT
-     * @param search        查询条件
-     * @param predicateList 查询条件列表
+     * @param wrapper 查询条件
+     * @param search  查询条件
+     * @apiNote 同 {@link #addStructurePredicate}：{@code storage} → {@code storage_id}
      */
-    private void addStoragePredicate(@NotNull Root<InventoryEntity> root, @NotNull InventoryEntity search, List<Predicate> predicateList) {
+    private void addStoragePredicate(@NotNull QueryWrapper<InventoryEntity> wrapper, @NotNull InventoryEntity search) {
         StorageEntity storage = search.getStorage();
         if (Objects.isNull(storage)) {
             return;
         }
         Set<Long> idList = TreeUtil.getChildrenIdList(storage.getId(), id -> storageService.filter(new StorageEntity().setParentId(id)));
         idList.add(storage.getId());
-        Join<InventoryEntity, StorageEntity> join = root.join("storage");
-        Predicate inPredicate = join.get(CurdEntity.STRING_ID).in(idList);
-        predicateList.add(inPredicate);
+        wrapper.in("storage_id", idList);
         search.setStorage(null);
     }
 

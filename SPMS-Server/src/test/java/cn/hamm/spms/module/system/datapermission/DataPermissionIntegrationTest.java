@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * <h1>数据权限集成测试 (H2)</h1>
@@ -251,12 +252,12 @@ class DataPermissionIntegrationTest {
 
         // 更新资源 - 修改 supportedActions
         resource.setSupportedActions("QUERY,EXPORT");
-        resource = resourceRepository.saveAndFlush(resource);
+        resource = resourceRepository.save(resource);
         assertEquals("QUERY,EXPORT", resource.getSupportedActions());
 
         // 删除资源
         dataResourceService.delete(resource.getId());
-        assertTrue(resourceRepository.findById(resource.getId()).isEmpty());
+        assertNull(resourceRepository.selectById(resource.getId()));
     }
 
     @Test
@@ -269,7 +270,7 @@ class DataPermissionIntegrationTest {
                 .setTenantColumn("tenant_id")
                 .setSupportedActions("QUERY")
                 .setStatus("ENABLED");
-        resource = resourceRepository.saveAndFlush(resource);
+        resource = resourceRepository.save(resource);
 
         // 创建字段策略 - 设置 resource 关系和 actionName 避免 NULL
         DataFieldPolicyEntity fieldPolicy = new DataFieldPolicyEntity()
@@ -280,7 +281,7 @@ class DataPermissionIntegrationTest {
                 .setMaskType("PARTIAL")
                 .setMaskExpression("*,4")
                 .setEnabled(true);
-        fieldPolicy = fieldPolicyRepository.saveAndFlush(fieldPolicy);
+        fieldPolicy = fieldPolicyRepository.save(fieldPolicy);
         assertNotNull(fieldPolicy.getId());
 
         // 查询字段策略 - 使用 service 查询方法（走缓存）

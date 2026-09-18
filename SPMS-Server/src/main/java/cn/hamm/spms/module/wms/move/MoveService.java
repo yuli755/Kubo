@@ -35,9 +35,6 @@ import cn.hamm.spms.module.wms.output.OutputEntity;
 import cn.hamm.spms.module.wms.output.detail.OutputDetailEntity;
 import cn.hamm.spms.module.wms.output.enums.OutputStatus;
 import cn.hamm.spms.module.wms.output.enums.OutputType;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -48,6 +45,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static cn.hamm.spms.base.config.ConfigFlag.MOVE_BILL_AUTO_AUDIT;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 
 /**
  * <h1>Service</h1>
@@ -185,17 +183,10 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
     }
 
     @Override
-    protected @NotNull List<Predicate> addSearchPredicate(
-            @NotNull Root<MoveEntity> root,
-            @NotNull CriteriaBuilder builder,
-            @NotNull MoveEntity search
-    ) {
-        List<Predicate> predicateList = new ArrayList<>();
-        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
-                root, builder, "wms.move", DataPermissionAction.QUERY
-        );
-        predicateList.addAll(dataPermissionPredicates);
-        return predicateList;
+    protected void addSearchPredicate(@NotNull QueryWrapper<MoveEntity> wrapper, @NotNull MoveEntity search) {
+        // 数据权限：渲染器产出的 SQL 片段直接挂到 wrapper 上（J2 起不再编 JPA Criteria）。
+        // 引擎把这个钩子接在通用条件之后，所以片段与用户条件天然是 AND 关系。
+        dataPermissionSpecification.applyQuery(wrapper, getEntityClass(), "wms.move", DataPermissionAction.QUERY);
     }
 
     @Override

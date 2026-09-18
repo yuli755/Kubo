@@ -55,8 +55,16 @@ const SERVER = path.join(ROOT, 'SPMS-Server')
  * - 2026-09-18 J1（数据权限证据/审计日志族 → MyBatis-Plus）：4 个仓储 + 4 个实体 + 调用点。
  *   这一批**没有让上面的三行大数字下降**，因为换的是最容易换的那一小块；
  *   真正的下降会来自"实体注解批量替换"与"写链路引擎换轨"两批（见 `docs/去JPA决策评估.md` 的执行记录）。
+ * - 2026-09-18 J2（写链路引擎干净切除）：**108 → 84 文件 / 594 → 503 引用 / 473 → 385 import**。
+ *   引擎（`CurdService`/`QueryHelper`/`PageData`/`QueryPageResponse`/`ICurdRepository`）、
+ *   15 个仓储的派生查询、17 个查询钩子、数据权限的读侧注入全部离开 Spring Data / Criteria；
+ *   剩下的 84 个文件是**实体注解 + 影子比对线**（`ShadowDiffService` / `JpaRowVisibilityProbe` /
+ *   `*ReadShadowService` / `JpaPermissionRuleCompiler`）—— 它们按 §10.8.4 的口径自持到 J3/J4：
+ *   实体注解批量替换 + 影子线收尾 + 删 starter，届时这三行归零。
+ *   注意本批的教训同样值得记：换轨**没有**碰 `org.springframework.data.redis`（那不是 JPA），
+ *   数字掉下来的那部分是 `org.springframework.data.jpa.*` 与 `org.springframework.data.domain.*`。
  */
-const BASELINE = { files: 108, refs: 594, imports: 473 }
+const BASELINE = { files: 84, refs: 503, imports: 385 }
 
 /**
  * JPA / Hibernate / Spring Data 的 import 根（命中即计入 imports）。

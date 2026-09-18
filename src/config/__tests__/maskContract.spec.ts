@@ -1037,7 +1037,9 @@ describe('mask contract · 数据权限动作字典 ↔ 后端枚举', () => {
     const protect = bodyOf(base, 'private void protectAttribution(')
     expect(protect, '归属恢复没调 AttributionWriteProtection.restoreOnUpdate：判定没落在一处可单测的函数上')
       .toContain('AttributionWriteProtection.restoreOnUpdate(')
-    expect(protect, '归属恢复没回表读既存值：只覆盖不恢复，等于把库中值也覆盖掉').toContain('repository.findById(id)')
+    // J2：仓储底座从 Spring Data 换成 MyBatis-Plus，取数动作改名（findById → selectById），
+    // 判据不变 —— 要钉的是"回表读了既存值"，不是某个框架的方法名
+    expect(protect, '归属恢复没回表读既存值：只覆盖不恢复，等于把库中值也覆盖掉').toContain('repository.selectById(id)')
   })
 
   it('字典 tip 引用的后端类必须真实存在', () => {
@@ -1585,6 +1587,84 @@ describe('mask contract · 影子双跑的调用点', () => {
   })
 })
 
+describe('mask contract · 去 JPA 的引擎契约（J2）', () => {
+  const ENGINE = join(SERVER, 'framework', 'curd', 'base', 'CurdService.java')
+  const REPO_BASE = join(SERVER, 'framework', 'curd', 'base', 'ICurdRepository.java')
+  const MAPPER_XML_DIR = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources', 'mapper')
+
+  /**
+   * 具体写侧仓储 = 住在业务域里的、继承三个底座之一的接口
+   *
+   * <p>框架层的 BaseRepository / BaseBillRepository / BaseBillDetailRepository 自身不进扫描面
+   * （它们带类型变量，注册进去会让 MyBatis-Plus 在建表信息时炸），所以这里也把它们排除在外。</p>
+   */
+  function writeRepositories(): { name: string, source: string }[] {
+    return collect(SERVER, '.java')
+      .filter(file => /[\\/]module[\\/]/.test(file))
+      .map(file => ({ file, source: readJavaCode(file) }))
+      .map((entry) => {
+        const matched = /public interface (\w+)\s+extends\s+(?:BaseRepository|BaseBillRepository|BaseBillDetailRepository)</.exec(entry.source)
+        return matched ? { name: matched[1], source: entry.source } : null
+      })
+      .filter((entry): entry is { name: string, source: string } => entry !== null)
+  }
+
+  it('旧钩子签名不得残留：覆写与新签名必须同批改（只改引擎 = 条件静默消失）', () => {
+    const stale = collect(SERVER, '.java')
+      .filter(file => readJavaCode(file).includes('List<Predicate> addSearchPredicate('))
+      .map(baseName)
+    expect(stale, '还有文件声明 List<Predicate> addSearchPredicate(...)：它不会再被引擎调用，'
+    + '查询条件与权限条件会一起静默消失（编译期看不出来）')
+      .toEqual([])
+    const engine = readJavaCode(ENGINE)
+    expect(engine, '引擎的钩子不是 (QueryWrapper, E)：签名漂了，覆写又会退化成死代码')
+      .toContain('void addSearchPredicate(')
+    const hook = methodBody(engine, 'private @NotNull QueryWrapper<E> createWrapper(')
+    expect(hook, '引擎没把钩子接进查询条件：覆写写了也不会被调用')
+      .toContain('addSearchPredicate(')
+  })
+
+  it('写侧底座建在 MyBatis-Plus 上，引擎不再碰 Spring Data / JPA Criteria', () => {
+    const repoBase = readJavaCode(REPO_BASE)
+    expect(repoBase, 'ICurdRepository 没建在 MyBatis-Plus 的 BaseMapper 上').toContain('extends BaseMapper<E>')
+    for (const forbidden of ['JpaRepository', 'JpaSpecificationExecutor', 'CrudRepository']) {
+      expect(repoBase, `ICurdRepository 还继承着 ${forbidden}`).not.toContain(forbidden)
+    }
+    const engine = readJavaCode(ENGINE)
+    for (const forbidden of ['EntityManager', 'PersistenceContext', 'org.springframework.data', 'saveAndFlush', 'findAll(', 'getForUpdateById']) {
+      expect(engine, `CurdService 里还有 ${forbidden}：引擎没有真正离开 JPA / Spring Data`)
+        .not
+        .toContain(forbidden)
+    }
+  })
+
+  it('每个写侧仓储都有同名 XML，且 XML 里有加锁语句 selectByIdForUpdate', () => {
+    const xmls = collect(MAPPER_XML_DIR, '.xml')
+      .map(file => ({ file, source: read(file).replace(/<!--[\s\S]*?-->/g, '') }))
+    const repos = writeRepositories()
+    expect(repos.length, '一个写侧仓储都没扫到：本条判据会空转').toBeGreaterThan(0)
+    for (const repo of repos) {
+      const pkg = /package\s+([\w.]+);/.exec(repo.source)?.[1] ?? ''
+      const expected = `${pkg}.${repo.name}`
+      const hit = xmls.filter(entry => entry.source.includes(`namespace="${expected}"`))
+      expect(hit.length, `${repo.name} 没有 namespace="${expected}" 的 XML：`
+      + '加锁读（getForUpdate）会在第一次调用时才抛 Invalid bound statement')
+        .toBe(1)
+      expect(hit[0].source, `${repo.name} 的 XML 里没有 selectByIdForUpdate：行锁语句是 getForUpdate 的唯一实现`)
+        .toContain('selectByIdForUpdate')
+      expect(hit[0].source, `${repo.name} 的"加锁语句"没真的加锁（缺 FOR UPDATE）`).toMatch(/for\s+update/i)
+    }
+  })
+
+  it('行锁取数必须过事务校验：autocommit 下的 FOR UPDATE 等于没加锁', () => {
+    const body = methodBody(readJavaCode(ENGINE), 'public final @NotNull E getForUpdate(long id)')
+    expect(body, 'getForUpdate 没校验真实事务：没有事务时 FOR UPDATE 既不报错也不加锁，'
+    + '读-改-写会静默丢更新')
+      .toContain('TransactionSynchronizationManager.isActualTransactionActive()')
+    expect(body, 'getForUpdate 没走 XML 里的加锁语句').toContain('selectByIdForUpdate(')
+  })
+})
+
 describe('mask contract · 读侧 Mapper（P2 换轨的注册面）', () => {
   const RESOURCES = join(ROOT, 'SPMS-Server', 'src', 'main', 'resources')
   const MAPPER_XML_DIR = join(RESOURCES, 'mapper')
@@ -1632,9 +1712,20 @@ describe('mask contract · 读侧 Mapper（P2 换轨的注册面）', () => {
       .toMatch(/@ConditionalOnProperty\(prefix = "kubo\.data-permission\.mapper-read", name = "enabled", havingValue = "true"/)
     expect(config, '扫描改成了全量注册：只有继承 KuboBaseMapper 的接口才该成为 Mapper')
       .toContain('markerInterface = KuboBaseMapper.class')
+    // J2：写侧也要注册（引擎换到 MyBatis-Plus 之后，业务仓储本身就是 Mapper），所以是**恰好两处**：
+    // 读侧那处（本文件，带 mapper-read 开关）与写侧那处（base/mapper/CurdMapperConfiguration，不带开关）。
+    // 判据从"只许一处"升级成"两处各自的口径都要对"：多一处仍是注册面散开，少一处则是写路径整体失效。
     const scans = collect(SERVER, '.java').filter(file => readJavaCode(file).includes('@MapperScan'))
-    expect(scans.length, '@MapperScan 出现多于一处 = 注册面散开，开关管不住全部')
-      .toBe(1)
+    expect(scans.map(baseName).sort(), '@MapperScan 必须是恰好两处：读侧（带开关）+ 写侧（不带开关）')
+      .toEqual(['CurdMapperConfiguration.java', 'MapperReadConfiguration.java'])
+    const writeConfig = readJavaCode(join(SERVER, 'base', 'mapper', 'CurdMapperConfiguration.java'))
+    expect(writeConfig, '写侧注册丢了 markerInterface：框架层的抽象仓储接口会被当成 Mapper 注册（启动即炸）')
+      .toContain('markerInterface = ICurdRepository.class')
+    expect(writeConfig, '写侧注册挂了开关：关掉读侧灰度会把增删改一起关掉，那不是灰度是停机')
+      .not
+      .toMatch(/@ConditionalOnProperty/)
+    expect(writeConfig, '扫描根不是业务域：BaseRepository 这类带类型变量的抽象接口会被注册进去')
+      .toContain('basePackages = "cn.hamm.spms.module"')
     // 反证：伪造一份带 @Mapper 的接口源码，判定必须为红（"它没红"不等于"它在防"）
     expect(/@Mapper(?!\s*Scan)/.test('public interface X { } @Mapper\ninterface Y { }'), '这条判据本身失效了：正则不再能识别 @Mapper').toBe(true)
   })
@@ -2341,6 +2432,6 @@ describe('mask contract · 分层 SPI 接线（L2b：底座不许再认识业务
     expect(body, '受限字段保护没走契约：底座又在直接调业务域的类型了')
       .toContain('sensitiveFieldProtector.restoreOnUpdate(')
     expect(body, '底座改成无条件回表了：每次更新都多一次查询（判定方决定要不要取数才是这个接口的意义）')
-      .toContain('() -> repository.findById(id)')
+      .toContain('() -> repository.selectById(id)')
   })
 })

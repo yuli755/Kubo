@@ -25,10 +25,6 @@ import cn.hamm.spms.module.system.permission.PermissionEntity;
 import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import jakarta.mail.MessagingException;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Join;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +41,8 @@ import java.util.Set;
 
 import static cn.hamm.spms.common.exception.Errors.*;
 import static cn.hamm.spms.common.exception.CustomError.*;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import cn.hamm.spms.module.system.datapermission.service.RowPermissionPredicate;
 
 /**
  * <h1>Service</h1>
@@ -587,25 +585,30 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
     }
 
     @Override
-    protected @NotNull List<Predicate> addSearchPredicate(@NotNull Root<UserEntity> root, @NotNull CriteriaBuilder builder, @NotNull UserEntity search) {
-        List<Predicate> predicateList = new ArrayList<>();
-
-        // 叠加数据权限过滤条件
-        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
-                root, builder, "personnel.user", DataPermissionAction.QUERY
-        );
-        predicateList.addAll(dataPermissionPredicates);
+    protected void addSearchPredicate(@NotNull QueryWrapper<UserEntity> wrapper, @NotNull UserEntity search) {
+        // 数据权限：渲染器产出的片段直接挂到 wrapper 上（J2 起不再编 JPA Criteria）
+        dataPermissionSpecification.applyQuery(wrapper, getEntityClass(), "personnel.user", DataPermissionAction.QUERY);
 
         Long departmentId = search.getDepartmentId();
         if (Objects.isNull(departmentId)) {
-            return predicateList;
+            return;
         }
         Set<Long> departmentIdList = PersonnelServices.getDepartmentService().getListByParentId(departmentId);
         departmentIdList.add(departmentId);
-        Join<UserEntity, DepartmentEntity> departmentJoin = root.join("departmentList");
-        Predicate inPredicate = departmentJoin.get(CurdEntity.STRING_ID).in(departmentIdList);
-        predicateList.add(inPredicate);
-        return predicateList;
+        // JPA 时代是 root.join("departmentList")（多对多中间表由 Hibernate 隐式命名）。
+        // wrapper 表达不了 join，也不好在 Java 里拼 EXISTS 子查询（SQL 只许住 mapper XML），
+        // 所以改成"先从中间表取用户 ID，再按 ID 过滤"：语句住在 UserRepository.xml 的
+        // selectIdsByDepartmentIdIn，中间表与列名按 init.sql 的口径
+        // `user_department_list(user_entity_id, department_list_id)`（真库若不同以真库为准）。
+        List<Long> userIdList = repository.selectIdsByDepartmentIdIn(departmentIdList);
+        if (userIdList.isEmpty()) {
+            // 这个部门（及其子树）下没有任何用户：给恒假条件。
+            // 注意不能直接 wrapper.in("id", 空集合) —— 空集合会退化成 `id in ()` 或"不加条件"，
+            // 后者等于把全部用户返回给一个按部门筛选的请求。
+            wrapper.apply(RowPermissionPredicate.DENY_SQL);
+            return;
+        }
+        wrapper.in("id", userIdList);
     }
 
     /**

@@ -18,7 +18,7 @@ import java.util.List;
  * <h1>JPA 实现的行可见性探针</h1>
  *
  * <p>只做一件事：{@code SELECT COUNT(*) FROM 实体 WHERE id = :id AND <读侧条件>}。
- * 条件由 {@link DataPermissionSpecification#buildPredicates} 生成 —— <b>不另写一份</b>，
+ * 条件由 {@link DataPermissionSpecification#applyQuery} 生成 —— <b>不另写一份</b>，
  * 否则"看得见才改得动"这句话就不成立了（读侧与写侧各判一次，迟早给出不同答案）。</p>
  *
  * <p>flush 模式设为 {@link FlushModeType#COMMIT}：本次事务里已改但尚未落库的值<b>不参与</b>判定。

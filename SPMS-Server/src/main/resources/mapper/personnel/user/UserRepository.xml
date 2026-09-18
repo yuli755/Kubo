@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  写侧仓储 UserRepository 的专属语句（2026-09-18 J2 去 JPA 时新增）。
+
+  为什么必须有这条 selectByIdForUpdate：UserEntity 的加锁读（引擎 getForUpdate）靠它。
+  "锁住这一行"只能是 SQL，而本仓的 SQL 分层规则要求可执行 SQL 住在 mapper XML 里，
+  所以它不写成 wrapper.last("FOR UPDATE")（那是把 SQL 塞回 Java）。
+
+  flushCache="true" 不是优化而是正确性：同一事务里重复调用必须真的再发一次 SQL，
+  否则 MyBatis 的会话本地缓冲会把第二次调用变成"读缓存" —— 锁没加、读到旧值，而且不报错。
+  它替代的正是 JPA 时代的 entityManager.clear()。
+-->
+<mapper namespace="cn.hamm.spms.module.personnel.user.UserRepository">
+
+    <select id="selectByIdForUpdate" flushCache="true" resultType="cn.hamm.spms.module.personnel.user.UserEntity">
+        select *
+        from user
+        where id = #{id}
+        for update
+    </select>
+
+    <!--
+      用户 ↔ 部门是多对多，wrapper 表达不了 join（引擎的 wrapper 路径只能落到本表列）。
+      这条语句是 J2 的替代路径：先取"部门子树下的用户 ID"，再在 wrapper 里按 id IN 过滤。
+      中间表与列名按 init.sql 的口径（Hibernate 隐式命名：user_department_list(user_entity_id, department_list_id)）；
+      真库若不同以真库为准（docs/去JPA决策评估.md §10.8.4 坑 3）。
+    -->
+    <select id="selectIdsByDepartmentIdIn" resultType="long">
+        select user_entity_id
+        from user_department_list
+        where department_list_id in
+        <foreach collection="departmentIds" item="departmentId" open="(" separator="," close=")">#{departmentId}</foreach>
+    </select>
+</mapper>

@@ -58,18 +58,21 @@ public class PageData<M extends RootModel<M>> extends RootModel<M> {
     /**
      * 获取新的实例
      *
-     * @param page Spring 分页数据
+     * @param page MyBatis-Plus 分页数据
      * @param <M>  实体类型
      * @return 实例
+     * @apiNote 2026-09-18 J2：参数类型从 Spring Data 的 {@code Page} 换成 MyBatis-Plus 的 {@code IPage}。
+     * {@code IPage.current} 从 1 开始，与 {@link Page#getPageNum()} 同口径，**不再 +1**
+     * （Spring Data 那版要 +1 是因为它的页码从 0 起，照抄会把页码整体错一位）。
      */
-    public static <M extends RootModel<M>> @NotNull PageData<M> newInstance(org.springframework.data.domain.@NotNull Page<M> page) {
+    public static <M extends RootModel<M>> @NotNull PageData<M> newInstance(com.baomidou.mybatisplus.core.metadata.@NotNull IPage<M> page) {
         PageData<M> pageData = new PageData<>();
-        pageData.setList(page.getContent())
-                .setTotal(Math.toIntExact(page.getTotalElements()))
-                .setPageCount(page.getTotalPages())
+        pageData.setList(page.getRecords())
+                .setTotal(Math.toIntExact(page.getTotal()))
+                .setPageCount(Math.toIntExact(page.getPages()))
                 .setPage(new Page()
-                        .setPageSize(page.getPageable().getPageSize())
-                        .setPageNum(page.getPageable().getPageNumber() + 1)
+                        .setPageSize(Math.toIntExact(page.getSize()))
+                        .setPageNum(Math.toIntExact(page.getCurrent()))
                 );
         return pageData;
     }

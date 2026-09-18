@@ -16,17 +16,14 @@ import cn.hamm.spms.framework.curd.datapermission.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import cn.hamm.spms.module.system.unit.UnitService;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 
 /**
  * <h1>Service</h1>
@@ -179,17 +176,10 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
     }
 
     @Override
-    protected @NotNull List<Predicate> addSearchPredicate(
-            @NotNull Root<MaterialEntity> root,
-            @NotNull CriteriaBuilder builder,
-            @NotNull MaterialEntity search
-    ) {
-        List<Predicate> predicateList = new ArrayList<>();
-        List<Predicate> dataPermissionPredicates = dataPermissionSpecification.buildPredicates(
-                root, builder, "asset.material", DataPermissionAction.QUERY
-        );
-        predicateList.addAll(dataPermissionPredicates);
-        return predicateList;
+    protected void addSearchPredicate(@NotNull QueryWrapper<MaterialEntity> wrapper, @NotNull MaterialEntity search) {
+        // 数据权限：渲染器产出的 SQL 片段直接挂到 wrapper 上（J2 起不再编 JPA Criteria）。
+        // 引擎把这个钩子接在通用条件之后，所以片段与用户条件天然是 AND 关系。
+        dataPermissionSpecification.applyQuery(wrapper, getEntityClass(), "asset.material", DataPermissionAction.QUERY);
     }
 
     @Autowired

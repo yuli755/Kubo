@@ -1,6 +1,8 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -93,6 +95,69 @@ public record RowPermissionPredicate(String sql, Map<String, Object> parameters)
             throw new IllegalArgumentException("parameter map carries keys the fragment never references: " + unused);
         }
         return new RowPermissionPredicate(translated.toString(), parameters);
+    }
+
+    /**
+     * 换写成 MyBatis-Plus {@code wrapper.apply(sql, values…)} 的形式：{@code :dpRule0} → {@code {0}}
+     *
+     * <p>为什么不能直接拿 {@link #forMyBatis()} 的产物去 apply：wrapper 的 {@code apply} 只认
+     * {@code {0}}（按下标）与 {@code {name}}（按 Map）两种占位符，{@code #{}} 会被当成**字面量** ——
+     * 不报错、条件恒不成立（§10.8.4 坑 1）。</p>
+     *
+     * <p>校验口径与 {@link #forMyBatis()} 完全一致（禁记号、参数必须被引用、只许标量），
+     * 只是把"查表"从 MyBatis 的命名参数换成了 apply 的下标。两者共用同一张参数表，
+     * 所以不可能出现"读侧片段与写侧片段条件不一致"。</p>
+     *
+     * @return apply 用的 SQL 与按序参数
+     * @throws IllegalArgumentException 片段与参数表不吻合、出现被禁记号、或参数值不是可安全绑定的标量
+     */
+    public ApplyFragment forQueryWrapper() {
+        if (FORBIDDEN_TOKEN.matcher(sql).find()) {
+            throw new IllegalArgumentException("permission fragment contains a forbidden SQL token (';' or a comment)");
+        }
+        List<String> ordered = new ArrayList<>(parameters.keySet());
+        Matcher matcher = NAMED_PARAMETER.matcher(sql);
+        StringBuilder translated = new StringBuilder();
+        Set<String> referenced = new LinkedHashSet<>();
+        while (matcher.find()) {
+            String name = matcher.group(1);
+            int index = ordered.indexOf(name);
+            if (index < 0) {
+                throw new IllegalArgumentException("fragment references :" + name + " but no such parameter was provided");
+            }
+            requireBindable(name, parameters.get(name));
+            referenced.add(name);
+            matcher.appendReplacement(translated, "{" + index + "}");
+        }
+        matcher.appendTail(translated);
+        if (referenced.isEmpty() && !parameters.isEmpty() && alreadyApplied(ordered)) {
+            // 幂等：换写过的片段再过一次本方法不该被判成"参数没被引用"（与 forMyBatis 同一条口径）
+            return new ApplyFragment(sql, ordered.stream().map(parameters::get).toArray());
+        }
+        Set<String> unused = new LinkedHashSet<>(parameters.keySet());
+        unused.removeAll(referenced);
+        if (!unused.isEmpty()) {
+            throw new IllegalArgumentException("parameter map carries keys the fragment never references: " + unused);
+        }
+        return new ApplyFragment(translated.toString(), ordered.stream().map(parameters::get).toArray());
+    }
+
+    /**
+     * MyBatis-Plus {@code apply} 的参数：换写后的 SQL 与按序参数
+     *
+     * @param sql    带 {@code {0}} 占位符的片段
+     * @param values 按占位符下标排列的参数值
+     */
+    public record ApplyFragment(String sql, Object[] values) {
+    }
+
+    private boolean alreadyApplied(List<String> ordered) {
+        for (int index = 0; index < ordered.size(); index++) {
+            if (!sql.contains("{" + index + "}")) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

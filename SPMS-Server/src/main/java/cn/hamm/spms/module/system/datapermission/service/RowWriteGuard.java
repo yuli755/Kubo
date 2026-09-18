@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
  * 读侧被过滤掉的行，到了写侧却能改，这是权限模型里最难被察觉的不对称。</p>
  *
  * <p>本类的判据刻意<b>不新造一套</b>：把这条记录交给读侧同一个条件生成器
- * （{@link DataPermissionSpecification#buildPredicates}）跑一次 COUNT，"看得见"才"改得动"。
+ * （{@link DataPermissionSpecification#applyQuery}）跑一次 COUNT，"看得见"才"改得动"。
  * 只有这样才能保证读写一致 —— 否则会出现"列表里没有、但保存成功"或反过来。</p>
  *
  * <h2>为什么默认关</h2>

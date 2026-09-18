@@ -141,7 +141,7 @@ public class DataFieldPolicyService extends BaseService<DataFieldPolicyEntity, D
         if (resourceId == null) {
             return null;
         }
-        DataResourceEntity resource = resourceRepository.findById(resourceId).orElse(null);
+        DataResourceEntity resource = resourceRepository.selectById(resourceId);
         return resource != null ? resource.getResourceKey() : null;
     }
 

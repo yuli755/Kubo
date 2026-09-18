@@ -2,6 +2,7 @@ package cn.hamm.spms.module.system.config;
 
 import cn.hamm.spms.base.BaseRepository;
 import org.springframework.stereotype.Repository;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 
 /**
  * <h1>数据库连接信息</h1>
@@ -16,5 +17,13 @@ public interface ConfigRepository extends BaseRepository<ConfigEntity> {
      * @param flag 配置标识
      * @return 配置信息
      */
-    ConfigEntity getByFlag(String flag);
+    /**
+     * 按标识查询配置
+     *
+     * @param flag 标识
+     * @return 配置
+     */
+    default ConfigEntity getByFlag(String flag) {
+        return selectOne(new QueryWrapper<ConfigEntity>().eq("flag", flag));
+    }
 }

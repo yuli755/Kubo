@@ -106,7 +106,10 @@ public class PermissionChangeOutboxAdminService {
             applyReplay(row, now);
         }
         if (!dead.isEmpty()) {
-            outboxRepository.saveAll(dead);
+            // JPA 的 saveAll 在 MP 里没有对应物（批量语句要另配 ISqlInjector）。
+            // 这里逐条 updateById：重放是管理员低频动作，条数也在单次列表查询的范围内，
+            // 为它引一套批量注入器不划算（而且 updateById 跳过 null 列的语义与 JPA 合并一致）。
+            dead.forEach(outboxRepository::updateById);
         }
         denyLogRecorder.record(RESOURCE_KEY, DataPermissionAudit.REASON_OUTBOX_REPLAYED,
                 "operator=" + currentUserId() + " count=" + dead.size());
