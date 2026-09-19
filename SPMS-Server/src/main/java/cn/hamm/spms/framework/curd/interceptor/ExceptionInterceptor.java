@@ -21,11 +21,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.InvalidDataAccessResourceUsageException;
-import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -214,15 +213,16 @@ public class ExceptionInterceptor {
     }
 
     /**
-     * 数据字段不存在
+     * ⚠️ 这里原来有一个 {@code PropertyReferenceException}（Spring Data 派生查询的"属性不存在"）处理器，
+     * 返回 {@code DATABASE_UNKNOWN_FIELD} + "数据库缺少字段 X"。
+     *
+     * <p>2026-09-18 已删除：那是 **JPA / Spring Data Repository 时代**的异常 —— 靠方法名派生查询时
+     * 才会抛（`findByNameAndXxx` 里的属性写错）。本仓的持久化已经只剩 MyBatis-Plus，
+     * 没有派生查询，这个处理器**永远不会被触发**；而"库表没有这个列/表"在 MP 下的真实形状是
+     * `BadSqlGrammarException`（`InvalidDataAccessResourceUsageException` 的子类），
+     * 已由下面 {@link #invalidDataAccessResourceUsageExceptionHandle} 统一接住。
+     * 依赖侧的好处：不用为一行 catch 把 spring-data-commons 拉回 pom（`pnpm deps:check` 钉住）。</p>
      */
-    @ExceptionHandler(value = PropertyReferenceException.class)
-    public Json propertyReferenceExceptionHandle(@NotNull PropertyReferenceException exception) {
-        logException(exception);
-        return responseError(DATABASE_UNKNOWN_FIELD, String.format(
-                "数据库缺少字段 %s", exception.getPropertyName()
-        ));
-    }
 
     /**
      * 数据表或字段异常
@@ -244,8 +244,18 @@ public class ExceptionInterceptor {
         return responseError(FORBIDDEN_UPLOAD_MAX_SIZE);
     }
 
-    @ExceptionHandler(value = ObjectOptimisticLockingFailureException.class)
-    public Json objectOptimisticLockingFailureExceptionHandle(@NotNull ObjectOptimisticLockingFailureException exception) {
+    /**
+     * 乐观锁冲突。
+     *
+     * <p><b>为什么抓的是 {@code org.springframework.dao.OptimisticLockingFailureException}
+     * 而不是原来的 {@code org.springframework.orm.ObjectOptimisticLockingFailureException}</b>：
+     * 后者住在 <b>spring-orm</b> 里（JPA/ORM 专属包），JPA 已于 2026-09-18 整体退场，
+     * 再为一行 catch 把 spring-orm 拉回来是反向依赖；前者是它的父类，住在 spring-tx/spring-dao
+     * 的异常族里，任何走 Spring 事务的持久化实现（含 MyBatis-Plus）都抛得出。
+     * 行为等价、依赖更干净，`pnpm deps:check` 钉住"不许再 import org.springframework.orm"。</p>
+     */
+    @ExceptionHandler(value = OptimisticLockingFailureException.class)
+    public Json optimisticLockingFailureExceptionHandle(@NotNull OptimisticLockingFailureException exception) {
         logException(exception);
         return responseError(DATABASE_CONCURRENT_ERROR);
     }

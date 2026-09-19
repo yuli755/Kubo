@@ -86,6 +86,14 @@ public enum Errors implements IException<ServiceException>, IDictionary {
     // 502 内部错误代码
     // 5021 数据库相关代码
     DATABASE_ERROR(5021, "数据库服务连接失败，请稍后再试"),
+    /**
+     * 不支持的数据库字段。
+     *
+     * <p>2026-09-18：**当前没有任何抛出点**（唯一的使用者是 ExceptionInterceptor 里那个
+     * Spring Data 派生查询异常处理器，已随 JPA 退场删除）。这里**保留数值与文案**——
+     * 错误码是前端契约，删号会让前端映射出现空档；真要在"库表缺列"场景报这个码，
+     * 就在 {@code InvalidDataAccessResourceUsageException} 那条分支里改用它。</p>
+     */
     DATABASE_UNKNOWN_FIELD(50211, "不支持的数据库字段"),
     DATABASE_TABLE_OR_FIELD_ERROR(50212, "数据库表或字段信息异常"),
 

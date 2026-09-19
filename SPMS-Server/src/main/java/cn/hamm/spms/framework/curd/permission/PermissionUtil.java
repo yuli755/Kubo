@@ -11,13 +11,16 @@ package cn.hamm.spms.framework.curd.permission;
  * 从此这一层由本仓拥有：改代码改这里，不再有"上游"。
  */
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import cn.hamm.spms.framework.api.annotation.Api;
 import cn.hamm.spms.core.DictionaryUtil;
 import cn.hamm.spms.core.ReflectUtil;
 import cn.hamm.spms.framework.curd.base.Curd;
 import cn.hamm.spms.framework.curd.model.Access;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.codec.digest.DigestUtils;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -225,8 +228,26 @@ public class PermissionUtil {
     public static @NotNull String encodePassword(@NotNull String password, @NotNull String salt) {
         PARAM_MISSING.whenEmpty(password, "密码不能为空");
         PARAM_MISSING.whenEmpty(salt, "盐不能为空");
-        return DigestUtils.sha1Hex(
-                DigestUtils.sha1Hex(password + salt) + DigestUtils.sha1Hex(salt + password)
+        return sha1Hex(
+                sha1Hex(password + salt) + sha1Hex(salt + password)
         );
+    }
+
+    /**
+     * SHA-1 十六进制摘要（小写、定长 40 字符）。
+     *
+     * <p><b>为什么不用 commons-codec 的 {@code DigestUtils.sha1Hex}</b>：本仓自持框架层之后
+     * 少一个依赖就少一份要跟着 Spring Boot BOM 走的东西，而这里只用到一行能力。
+     * 语义与 {@code DigestUtils.sha1Hex(String)} 逐字节一致（UTF-8 字节 → SHA-1 → 小写十六进制，前导零补齐），
+     * 也就是**已落库的密码哈希不会失效**。{@code HexFormat} 是 JDK 17 自带的，零依赖。</p>
+     */
+    private static @NotNull String sha1Hex(@NotNull String text) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-1");
+            return HexFormat.of().formatHex(digest.digest(text.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            // SHA-1 是 JDK 必须实现的算法，走到这里说明运行环境本身坏了 —— 不要吞掉
+            throw new IllegalStateException("当前运行环境不支持 SHA-1", exception);
+        }
     }
 }

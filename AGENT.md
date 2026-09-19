@@ -56,6 +56,7 @@ pnpm airpower:check  # 前端 airpower 不得回潮（剥注释后 0 引用才�
 pnpm airpower:backend -- --check  # 后端 airpower 归零门禁（代码/pom 依赖/父 POM/yml 配置键 四项都必须为 0）
 pnpm stack:project   # 整个仓库的技术栈（前端+后端+部署+CI，读真文件，不靠人写）
 pnpm pom:check       # 后端 pom 自持校验（B0 之后没有父 POM 兜底，靠这道离线闸门）
+pnpm deps:check      # pom 依赖 ↔ Java import 对账（查"该有的依赖在不在"：import 家族必须有依赖兜底 + yml 里的 JDBC 驱动）
 pnpm java:imports    # Java 导入可达性（没有 JDK 时的半个编译器：import 必须落地 / 自持层不得反依赖 airpower / 同名副本必须显式承认）
 pnpm jpa:check       # JPA 归零门禁（足迹必须 0/0/0；pom 无 starter、yml 无 spring.jpa/ddl-auto、实体零 JPA 注解）
 pnpm sql:check       # SQL 分层门禁：禁止 .java 写 SQL，只能住 mapper XML（测试夹具住 src/test/resources/sql）

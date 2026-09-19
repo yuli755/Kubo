@@ -49,6 +49,11 @@ const BOOT_BOM_GROUPS = new Set([
   'io.micrometer',
   'com.h2database',
   'jakarta.validation',
+  // 以下两个族是 2026-09-18 补漏时核对着 Spring Boot 3.4.4 的 BOM 逐条确认过的
+  // （下载 spring-boot-dependencies-3.4.4.pom 搜家族名，命中的是 `<lombok.version>` /
+  //  `<mysql.version>` 两条受管版本）：
+  'org.projectlombok', // BOM 里是 org.projectlombok:lombok ${lombok.version}
+  'com.mysql', // BOM 里是 com.mysql:mysql-connector-j ${mysql.version}
 ])
 
 /**

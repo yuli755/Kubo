@@ -80,6 +80,12 @@ jobs:
       - name: POM 自持校验（无版本依赖 / 悬空属性 / 发版插件残留）
         run: pnpm pom:check
 
+      # 反方向的那一刀：pom 少了**该有的**依赖。父 POM 与 airpower-curd 退场后 starter 不再被传递，
+      # 而 183 个文件 import lombok、97 处 import spring-web…… 沙箱没 JDK、CI 又停摆时，
+      # 这个洞只有靠"按 import 反查 pom"才看得见。含 yml 里的 JDBC 驱动（运行期依赖，代码不 import）。
+      - name: pom 依赖 ↔ Java import 对账
+        run: pnpm deps:check
+
       # 搬类/换 import 是后端退场的每批动作，没有 JDK 时 javac 给不出"找不到符号"，
       # 这道门禁替它兜住三类离线可判的问题（详见脚本头注释）。
       - name: Java 导入可达性（自持层不能反向依赖 airpower / 同名副本要显式承认）
