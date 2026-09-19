@@ -43,7 +43,7 @@ function checkedIds(): number[] {
 async function loadTree() {
   isLoading.value = true
   try {
-    treeList.value = await new KMenuService().getTreeList(new QueryRequest(MenuEntity))
+    treeList.value = await new KMenuService().getList(new QueryRequest(MenuEntity))
   }
   finally {
     isLoading.value = false

@@ -42,7 +42,7 @@ export function demoPermissions(): string[] {
   return cache
 }
 
-/** 演示用的权限树节点（形状对齐 `PermissionEntity` + `getTreeList` 的裸数组） */
+/** 演示用的权限树节点（形状对齐 `PermissionEntity` + `getList` 的裸数组） */
 export interface DemoPermissionNode {
   id: number
   name: string

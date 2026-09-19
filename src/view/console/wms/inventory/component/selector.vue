@@ -83,10 +83,10 @@ async function loadTree() {
   isLoadingTree.value = true
   try {
     if (inventoryType.value === InventoryTypeEnum.STRUCTURE.key) {
-      treeNodes.value = await new KStructureService().getTreeList(new QueryRequest(Structure))
+      treeNodes.value = await new KStructureService().getList(new QueryRequest(Structure))
     }
     else {
-      treeNodes.value = await new KStorageService().getTreeList(new QueryRequest(Storage))
+      treeNodes.value = await new KStorageService().getList(new QueryRequest(Storage))
     }
   }
   finally {

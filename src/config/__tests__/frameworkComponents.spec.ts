@@ -133,7 +133,7 @@ describe('f4 · 批 1（factory + index）迁移完成度', () => {
     expect(offenders.sort()).toEqual([...ALLOWED].sort())
   })
 
-  it('树形页面走 getTreeList（分页接口拿不到树数据）', async () => {
+  it('树形页面开 tree 模式（树数据走 getList，分页接口拿不到树）', async () => {
     const { readFileSync } = await import('node:fs')
     for (const page of ['src/view/console/factory/storage/list.vue', 'src/view/console/factory/structure/list.vue']) {
       const source = readFileSync(page, 'utf8')
@@ -308,7 +308,7 @@ describe('f2 · 第二批组件（KPanel / 树表格 / KSelector / KDetail）', 
     expect(wrapper.find('.k-body').text()).toBe('内容')
   })
 
-  it('树形表格：走 getTreeList、渲染子节点、不显示分页器', async () => {
+  it('树形表格：走 getList、渲染子节点、不显示分页器', async () => {
     const KTable = (await import('@/component/framework/KTable.vue')).default
     const { useTable } = await import('@/hook/kubo/useTable')
 
@@ -316,7 +316,7 @@ describe('f2 · 第二批组件（KPanel / 树表格 / KSelector / KDetail）', 
       { id: 1, name: '一号库', children: [{ id: 2, name: 'A 区', children: [] }] },
       { id: 3, name: '二号库', children: [] },
     ]
-    const getTreeList = vi.spyOn(TreeNodeService.prototype, 'getTreeList').mockResolvedValue(tree as never)
+    const getList = vi.spyOn(TreeNodeService.prototype, 'getList').mockResolvedValue(tree as never)
     const getPage = vi.spyOn(TreeNodeService.prototype, 'getPage')
 
     // 同上一处：泛型组件注册进 `components` 需要放宽类型（见该用例的注释）
@@ -334,11 +334,11 @@ describe('f2 · 第二批组件（KPanel / 树表格 / KSelector / KDetail）', 
       expect(wrapper.text()).toContain('一号库')
     }, { timeout: 8000 })
 
-    expect(getPage, '树模式不能走分页接口（后端 getTreeList 才是树数据源）').not.toHaveBeenCalled()
+    expect(getPage, '树模式不能走分页接口（树数据源是 getList）').not.toHaveBeenCalled()
     expect(wrapper.text(), '子节点没有渲染出来：树表格依赖 row-key + children').toContain('A 区')
     expect(wrapper.find('.el-pagination').exists(), '树数据不分页，分页器应隐藏').toBe(false)
     // 树查询请求体：只有 filter/sort，没有 page
-    const request = getTreeList.mock.calls[0]![0] as unknown as Record<string, unknown>
+    const request = getList.mock.calls[0]![0] as unknown as Record<string, unknown>
     expect(request.page, '树查询不该带 page 参数').toBeUndefined()
   })
 
@@ -346,7 +346,7 @@ describe('f2 · 第二批组件（KPanel / 树表格 / KSelector / KDetail）', 
     const KTable = (await import('@/component/framework/KTable.vue')).default
     const { useTable } = await import('@/hook/kubo/useTable')
 
-    vi.spyOn(TreeNodeService.prototype, 'getTreeList').mockResolvedValue([
+    vi.spyOn(TreeNodeService.prototype, 'getList').mockResolvedValue([
       { id: 9, name: '父节点', children: [] },
     ] as never)
 

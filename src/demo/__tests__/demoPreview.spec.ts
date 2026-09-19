@@ -159,7 +159,7 @@ describe('演示模式 · URL 解析与降级', () => {
     expect(typeof page.total).toBe('number')
   })
 
-  it('`getList`/`getTreeList` 返回裸数组，`getPage` 才返回信封（形状不同，别合并）', async () => {
+  it('`getList` 返回裸数组、`getPage` 才返回信封；树形实体的树也从 `getList` 出（形状不同，别合并）', async () => {
     // 旧页（personnel/wms 的树、wms 库存选择器）用 airpower 的 `getList`，其
     // `Http.requestModelList` 直接 `result.map(...)`：收到信封会抛 TypeError，
     // 而且抛在 nextTick 里 → 变成未处理拒绝（用例全绿但 pnpm test 退出码 1）。
@@ -167,8 +167,10 @@ describe('演示模式 · URL 解析与降级', () => {
     expect(Array.isArray(list.data.data)).toBe(true)
     expect((list.data.data as unknown[]).length).toBeGreaterThan(0)
 
-    const tree = await request('/storage/getTreeList', { params: { pageNum: 1, pageSize: 24 } })
-    expect(Array.isArray(tree.data.data)).toBe(true)
+    // 树形实体：`getList` 返回的是**带 children 的根节点数组**（后端 ITree 契约）。
+    // 这条断言守的是 2026-09-19 修的那处「演示正常、真机 404」：端点曾经是 getTreeList。
+    const roots = list.data.data as { children?: unknown[] }[]
+    expect(roots.some(root => (root.children?.length ?? 0) > 0), 'storage/getList 没返回树').toBe(true)
 
     const page = await request('/storage/getPage', { params: { pageNum: 1, pageSize: 24 } })
     expect(Array.isArray((page.data.data as { list?: unknown[] }).list)).toBe(true)
@@ -177,7 +179,7 @@ describe('演示模式 · URL 解析与降级', () => {
   it('角色授权树：菜单树用真实菜单、权限树用真实权限码（不是造出来的假行）', async () => {
     // 授权弹窗是**真的把 identity 提交给后端**的地方：演示数据里编造的权限码
     // 会让人误判"我授权了什么"。所以这两棵树必须是 fixtures 本身。
-    const menu = await request('/menu/getTreeList', { data: {} })
+    const menu = await request('/menu/getList', { data: {} })
     const menuNames: string[] = []
     const walkMenu = (nodes: { name: string, children?: unknown[] }[]): void => {
       for (const node of nodes) {
@@ -191,7 +193,7 @@ describe('演示模式 · URL 解析与降级', () => {
     expect(menuNames).toContain('部门管理')
     expect(menuNames.length).toBeGreaterThan(demoMenuTree().length)
 
-    const permission = await request('/permission/getTreeList', { data: {} })
+    const permission = await request('/permission/getList', { data: {} })
     const roots = permission.data.data as ReturnType<typeof demoPermissionTree>
     expect(Array.isArray(roots)).toBe(true)
     const identities = roots.flatMap(root => root.children.map(child => child.identity))

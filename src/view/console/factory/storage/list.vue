@@ -10,7 +10,7 @@ import { useTable } from '@/hook/kubo/useTable'
 /**
  * # 仓库（F4 批 1 · 新底座）
  *
- * 仓库是**树形实体**：列表数据来自 `getTreeList`（不分页），所以 `useTable` 开 `tree: true`，
+ * 仓库是**树形实体**：列表数据来自 `getList`（不分页，后端 `afterGetList` 回填 `children`），所以 `useTable` 开 `tree: true`，
  * `KTable` 自动按 `children` 渲染层级、隐藏分页器，并在行操作里给出「添加子级」。
  *
  * ```diff

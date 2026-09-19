@@ -12,7 +12,7 @@ import { KMenuService } from '@/hook/system/useMenu'
 /**
  * # 菜单管理（F4 批 6 · 新底座）
  *
- * 树表（`useTable({ tree: true })` → 后端 `getTreeList`），KTable 自己渲染层级与
+ * 树表（`useTable({ tree: true })` → 后端 `getList` 的树形返回），KTable 自己渲染层级与
  * 「添加子级」按钮 —— 旧页面的 `useTableTree` + `ATable is-tree show-add-row` 是同一件事。
  *
  * 三个行为口径照抄旧页面（它们都是**业务规则**，不是样式）：

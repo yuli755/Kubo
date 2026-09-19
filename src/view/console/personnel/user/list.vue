@@ -20,7 +20,7 @@ import { KUserService } from '@/hook/personnel/useUser'
  * 这一页比其它列表多两块东西，迁移时各有各的坑：
  *
  * 1. **左侧部门树筛选**：旧版是 airpower `ATreeBox` + `hook.request.value.filter.departmentId`
- *    的写法（直接改传输层对象）。新底座用一棵 `ElTree`（数据来自 `KDepartmentService.getTreeList`，
+ *    的写法（直接改传输层对象）。新底座用一棵 `ElTree`（数据来自 `KDepartmentService.getList`，
  *    走 TanStack 缓存）+ `table.search({ departmentId })` —— 页面拿到的仍是"筛选条件"这一个概念，
  *    不再需要知道请求体长什么样。
  * 2. **角色 / 部门多选**：它们不是 `@Form` 字段（实体上是 `RoleEntity[]` / `DepartmentEntity[]`），

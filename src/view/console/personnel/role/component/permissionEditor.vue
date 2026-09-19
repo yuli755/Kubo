@@ -51,7 +51,7 @@ function flatten(nodes: PermissionEntity[]): PermissionEntity[] {
 async function loadTree() {
   isLoading.value = true
   try {
-    treeList.value = await new KPermissionService().getTreeList(new QueryRequest(PermissionEntity))
+    treeList.value = await new KPermissionService().getList(new QueryRequest(PermissionEntity))
     await nextTick()
     // 先清空再回显：弹窗会被反复打开，残留的勾选必须丢掉（否则会悄悄多授权限）
     tableRef.value?.clearSelection()

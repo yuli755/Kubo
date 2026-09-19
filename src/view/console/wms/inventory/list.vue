@@ -36,7 +36,7 @@ const table = useTable(KInventoryService, {
   export: true,
 })
 
-// 两棵树各自缓存（切换维度不需要重新请求）；`tree: true` → `getTreeList` 拿嵌套树
+// 两棵树各自缓存（切换维度不需要重新请求）；`tree: true` → 走 `getList` 拿嵌套树（后端无 getTreeList 端点）
 const storageTable = useTable(KStorageService, { queryKey: ['factory:storage', 'inventoryTree'], tree: true })
 const structureTable = useTable(KStructureService, { queryKey: ['factory:structure', 'inventoryTree'], tree: true })
 

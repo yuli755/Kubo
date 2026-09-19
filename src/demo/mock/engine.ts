@@ -119,13 +119,34 @@ function buildDetail(resourceKey: string, payload: Payload): Row {
  * 依据：框架 `framework/http.ts` 的 `getPage(): Promise<QueryResponsePage<E>>`；
  * airpower 的 `urlGetPage = 'getPage'`（`getPage` 里读 `responsePage.list`）。
  */
+/**
+ * 树形实体（后端实现 `ITree`）：它们的 `getList` 返回的是**嵌套树**而不是平铺列表。
+ *
+ * 依据（后端源码，不是约定俗成）：
+ * - `StorageService#beforeGetList/#afterGetList`：空 `parentId` 兜成根，再递归回填 `children`；
+ * - `StructureService` 同型；`DepartmentController#getList`、`MenuController#getList`、
+ *   `PermissionController#afterGetList` 再套一层 `TreeUtil.buildTreeList`。
+ * 前端 `useTable({ tree: true })` 正是靠这一点 —— 别在这里按"平铺列表"造数，
+ * 否则演示模式的树表看起来是空的。
+ */
+const TREE_RESOURCES = new Set(['storage', 'structure', 'department', 'menu', 'permission'])
+
+/** 把平铺行拼成"根 + 一层子节点"的树（演示数据量小，够验证展开/折叠） */
+function treeRoots(list: Row[]): Row[] {
+  return list.slice(0, 6).map(row => ({
+    ...row,
+    parentId: 0,
+    children: list.slice(6, 12).map(child => ({ ...child, parentId: row.id, children: [] })),
+  }))
+}
+
 const PAGE_ACTIONS = new Set(['getPage', 'getTableList'])
 /**
  * 列表端点：返回**裸数组**。
  *
  * 依据（两边都是硬契约，给错形状就在运行期炸）：
- * - 框架 `framework/http.ts` 的 `getList/getTreeList(): Promise<E[]>`；
- * - airpower `AbstractCurdService.getList/getTreeList` 走 `Http.requestModelList`，
+ * - 框架 `framework/http.ts` 的 `getList(): Promise<E[]>`；
+ * - airpower `AbstractCurdService.getList` 走 `Http.requestModelList`，
  *   里面直接 `result.map(...)` —— 收到信封会抛 `TypeError: result.map is not a function`，
  *   而且是在 `nextTick`/定时器里抛，表现为**未处理拒绝**（2026-09 的 `pnpm test` 就是因为
  *   这里返回了信封而有 7 个未处理拒绝、退出码 1，用例却全绿）。
@@ -155,7 +176,6 @@ const WRITE_ACTIONS = new Set([
   'stop',
   'enforce',
   'addFinish',
-  'setBillDetailsAllFinished',
   'addOrderDetail',
   'addDetail',
   'updateDetail',
@@ -198,13 +218,16 @@ function resolveIdentity(resourcePath: string, action: string): { hit: boolean, 
  * 角色授权树端点（F4 批 3 起）。
  *
  * 菜单/权限两棵授权树**不能走通用树生成器**：
- * - `menu/getTreeList` 返回的是应用菜单树本身（与 `user/getMyMenuList` 同源，
+ * - `menu/getList` 返回的是应用菜单树本身（与 `user/getMyMenuList` 同源，
  *   演示时授权的菜单名与左侧导航一致，评审时对得上）；
- * - `permission/getTreeList` 返回按真实权限码分组的树（identity 提交给后端，
+ * - `permission/getList` 返回按真实权限码分组的树（identity 提交给后端，
  *   演示数据里编造的编码会让人误判授权对象）。
+ *
+ * ⚠️ 2026-09-19：这里原先是 `getTreeList`。后端**没有**这个端点（树是 `getList` 的后置行为），
+ * 演示适配器却实现了它 —— 于是"预览一切正常、连真后端 404、树永远空"。现在两边都按 `getList` 走。
  */
 function resolveAuthTree(resourcePath: string, action: string): { hit: boolean, data?: unknown } {
-  if (action !== 'getTreeList') {
+  if (action !== 'getList') {
     return { hit: false }
   }
   if (resourcePath === 'menu') {
@@ -267,6 +290,12 @@ export function resolveMock(resourcePath: string, action: string, payload: Paylo
   if (PAGE_ACTIONS.has(action)) {
     return buildPage(resourceKey, payload)
   }
+  if (action === 'getList' && TREE_RESOURCES.has(resourceKey)) {
+    // 树形实体的 `getList` 返回**裸数组的根节点树**（后端 `ITree` 契约）。
+    // menu / permission 走上面的 resolveAuthTree（返回真实菜单树 / 权限树）。
+    const page = buildPage(resourceKey, { ...payload, pageSize: 24 })
+    return treeRoots(page.list as Row[])
+  }
   // 之所以还按**名字后缀**兜一层：存量 airpower 服务里有一批 `getXxxList`
   // （`coderule` 的 `getFieldList` / `getParamList`、`getSelectList` …），它们同样走
   // `requestModelList`（裸数组）。落到下面"未覆盖端点返回 {}"的分支会在 `nextTick` 里炸成未处理拒绝。
@@ -277,22 +306,13 @@ export function resolveMock(resourcePath: string, action: string, payload: Paylo
   if (DETAIL_ACTIONS.has(action)) {
     return buildDetail(resourceKey, payload)
   }
-  if (action === 'getTree' || action === 'getTreeList') {
+  if (action === 'getTree') {
+    // `getTree` 是 typed client（`api/personnel`、`api/system`）的端点，返回**信封**；
+    // 它与 `getList` 的裸数组形状不同，别合并。
     const page = buildPage(resourceKey, { ...payload, pageSize: 24 })
     const list = page.list as Row[]
-    // 树形页：把前 6 行作为根，其余挂到「父级」下，验证树表的展开/折叠视觉
-    const roots = list.slice(0, 6).map(row => ({
-      ...row,
-      parentId: 0,
-      children: list.slice(6, 12).map(child => ({ ...child, parentId: row.id, children: [] })),
-    }))
-    // ⚠️ 两个端点的**响应形状不同**，别合并：
-    // - `getTree`（typed client `api/personnel`、`api/system` 用）返回 `{ list, total, ... }`；
-    // - `getTreeList`（airpower 的 useTableTree 与 `@/framework` 的 getTreeList 都用）返回**裸数组**，
-    //   框架层的 getTreeList 见非数组直接返回 `[]` —— 形状不对会表现为「树表永远空」而**不报错**。
-    return action === 'getTreeList'
-      ? roots
-      : { list: roots, total: roots.length, pageNum: 1, pageSize: 24 }
+    const roots = treeRoots(list)
+    return { list: roots, total: roots.length, pageNum: 1, pageSize: 24 }
   }
   if (WRITE_ACTIONS.has(action)) {
     return true

@@ -86,6 +86,13 @@ jobs:
       - name: pom 依赖 ↔ Java import 对账
         run: pnpm deps:check
 
+      # perms:check 只对**权限码**做前后端一致性校验，它假定「权限码存在 ⇒ 端点存在」。
+      # 2026-09-19 在 WMS 页面对账里抓到两个反例（getTreeList / setBillDetailsAllFinished）：
+      # 前端真的在 POST 它们，后端没有任何映射，而演示 mock 恰好实现了 —— 预览正常、真机 404。
+      # 这道门禁直接对字面量：前端用到的每个端点，后端必须有同名 @*Mapping。
+      - name: 前后端端点契约对账（前端端点 → 后端映射）
+        run: pnpm api:check
+
       # 搬类/换 import 是后端退场的每批动作，没有 JDK 时 javac 给不出"找不到符号"，
       # 这道门禁替它兜住三类离线可判的问题（详见脚本头注释）。
       - name: Java 导入可达性（自持层不能反向依赖 airpower / 同名副本要显式承认）

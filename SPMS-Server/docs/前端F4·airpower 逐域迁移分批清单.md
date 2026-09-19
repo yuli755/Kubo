@@ -47,7 +47,7 @@
 | `AButton` / `AInput` / `ASelect` | 15 / 8 / 7 | 直接用 `ElButton`/`ElInput`/`ElSelect`（显式 import，不依赖自动导入） | ✅ 轻量 |
 | `AGroup` | 8 | `KFormDialog` 的 `columns: 2`（两列表单）+ `#extra` 插槽 | ✅ 本轮 |
 | `AMoney` | 3 | `framework/format.ts` 的 `formatMoney`（金额列右对齐 + 千分位 + 两位小数），`@Table({ money: true })` 即生效 | ✅ 本轮 |
-| `useTableTree` | 5 | `useTable({ tree: true })` → `getTreeList`，KTable 自动树渲染（`row-key` + `children`）、隐藏分页器、给「添加子级」 | ✅ 本轮 |
+| `useTableTree` | 5 | `useTable({ tree: true })` → `getList`（树形返回），KTable 自动树渲染（`row-key` + `children`）、隐藏分页器、给「添加子级」 | ✅ 本轮 |
 | `useDetail` | 5 | `useDetail` hook（按 id 重新查，避免列表快照过期）+ `KDetail`（元数据驱动的只读描述列表） | ✅ 本轮 |
 
 **结论（修正上一轮的判断）**：上一版把 `KConfirm`/`DialogUtil` 也算成"缺口"，其实 `@/framework` 的
@@ -238,7 +238,7 @@
 | `personnel/department/list.vue` | `APanel` + `ATable` + `useTableTree` | `KPanel` + `KTable` + `useTable({ tree: true })` + `KFormDialog`；「有子级禁删」改由 `KTable` 内置，`beforeAddRow` 回填父级改成 `preset: { parentId, parent }`；**不传 `enable` 权限**（原页没有启停动作，旧页是靠 `@Table` 有没有 `isDisabled` 列隐式决定的） |
 | `personnel/role/list.vue` | `ATable` + 两个命令式弹窗 | `KTable` + `KFormDialog`；「菜单 / 权限」两个授权动作走 `KTable` 的 `:actions`（与合同页「生效 / 终止」同一条路：权限码由页面给，组件不认识业务常量） |
 | `personnel/role/component/{menuEditor,permissionEditor}.vue` | `ADialog + DialogProps`，靠 `DialogUtil.show` 打开 | `KDialog + v-model`、回调只剩 `saved`。菜单树用 `ElTree`（**`check-strictly` 必须保留**：勾父节点不该连带勾子项，旧版就是这个语义）；权限树用 `ElTable` 树表 + 多选列，不换 `KTable` 的理由写在文件头（权限实体属 system 域，为一个弹窗去给系统域实体补元数据等于把批次边界搞糊） |
-| `personnel/user/list.vue` | `ATreeBox` + `hook.request.value.filter.departmentId` | 左侧改 `ElTree`（数据走 `KDepartmentService.getTreeList`，走 TanStack 缓存）+ `table.search({ departmentId })`；角色/部门多选走 `#extra` 插槽 + `KSelector(multiple/tree)`；提交前把两个列表裁成只带 id（旧 `copyOnlyId()` 语义） |
+| `personnel/user/list.vue` | `ATreeBox` + `hook.request.value.filter.departmentId` | 左侧改 `ElTree`（数据走 `KDepartmentService.getList`，走 TanStack 缓存）+ `table.search({ departmentId })`；角色/部门多选走 `#extra` 插槽 + `KSelector(multiple/tree)`；提交前把两个列表裁成只带 id（旧 `copyOnlyId()` 语义） |
 | `factory/structure/list.vue` | `DialogUtil.selectList(DepartmentSelector, ...)` | `KSelector(:service="KDepartmentService" multiple tree)` + 页面自己持有弹窗显隐 |
 | **删除** | — | `personnel/{department,role,user}/component/*` 8 件（department 的 editor/selector/index、role 的 editor/selector/index、user 的 editor/index；两个 barrel 只是 re-export）+ `model/personnel/{department/DepartmentService,role/RoleService}.ts`（共 10 个文件） |
 
@@ -250,7 +250,7 @@
 
 | 件 | 作用 | 为什么必须有 |
 | --- | --- | --- |
-| `src/framework/bill.ts` | `AbstractBillService`：`audit` / `reject` / `addDetailFinishQuantity` / `setBillDetailsAllFinished` | 单据四动作是后端 `BaseBillController` 的固定契约，三个域各写一遍必然漂移 |
+| `src/framework/bill.ts` | `AbstractBillService`：`audit` / `reject` / `addDetailFinishQuantity`（**三个**动作，2026-09-19 更正） | 单据动作是后端 `BaseBillController` 的固定契约（只有 audit / reject / addFinish），三个域各写一遍必然漂移 |
 | `src/component/framework/KDetailTable.vue` | 内存明细表（`rows` + `entity` + `exclude` + `row-actions` + `#cell-*`） | 单据明细是**表单对象上的数组**（没有服务、没有分页、没有搜索），塞不进 `KTable`（它的契约是 `useTable`） |
 | `KTable` 两处扩展 | `exclude-columns`（同表不同维度要的列不同）与 `hide-delete` / `hide-enable` | `v-permission` 未传值时**不拦截**，所以「没传权限码 ≠ 不渲染按钮」——单据没有删除端点与启停语义，必须显式关掉 |
 
@@ -285,7 +285,7 @@ airpower 生产足迹 **135 → 120**（净 −15）：wms 四个子域 16 个�
 | --- | --- | --- |
 | `framework/validate.ts` | 新增 `WebValidator.ifContain(text)` | 旧角色编辑器有一条业务规则「角色名不允许带『管理员』三个字」。换底座时这类**页面级自定义校验**最容易连规则一起丢；补回链式方法，规则本身仍写在页面里 |
 | `KFormDialog` | 新增 `extraRules`（按字段补充/覆盖规则） | 自动生成的规则只能表达元数据里有的东西（必填/长度/格式/范围）。没有这个口子，上面那条业务规则就只能塞进实体装饰器——那是**把页面规则写进模型**，比丢规则好不了多少 |
-| `MenuEntity` / `PermissionEntity` | 补 `@KType(MenuEntity)` / `@KType(PermissionEntity)`（**只补这一条**，其余 K 装饰器等 system 批） | `getTreeList` 用框架的 `fill()` 递归实例化，递归依据是框架注册表里的 `@KType`，airpower 的 `@Type` 只喂 airpower 的转换器。缺了它，`children` 是裸 JSON：表单**看起来正常**，但勾选子级菜单后 `KRoleService.authorizeMenu` 逐项调 `copyOnlyId()` 会 TypeError ——「能显示、提交才炸」是这批最隐蔽的坑 |
+| `MenuEntity` / `PermissionEntity` | 补 `@KType(MenuEntity)` / `@KType(PermissionEntity)`（**只补这一条**，其余 K 装饰器等 system 批） | 树接口（当时的 `getTreeList`，2026-09-19 起统一为 `getList`）用框架的 `fill()` 递归实例化，递归依据是框架注册表里的 `@KType`，airpower 的 `@Type` 只喂 airpower 的转换器。缺了它，`children` 是裸 JSON：表单**看起来正常**，但勾选子级菜单后 `KRoleService.authorizeMenu` 逐项调 `copyOnlyId()` 会 TypeError ——「能显示、提交才炸」是这批最隐蔽的坑 |
 
 #### 批 3 的验收
 
@@ -295,7 +295,7 @@ airpower 生产足迹 **135 → 120**（净 −15）：wms 四个子域 16 个�
 4. **airpower 退场**：生产文件 **145 → 135**（−10 = 部门/角色/用户三页重写 3 + 角色组件 4（编辑器/选择器/菜单授权/权限授权）+ 部门编辑器与选择器 2 + 用户编辑器 1）。
    另**删除 10 个文件**：8 个旧 `component/**`（两个 barrel 本来就不 import airpower）+ 旧 `DepartmentService`/`RoleService`（它们只 import 本仓 `AbstractBaseService`，不计入 airpower 足迹）。
    模型层 personnel 三实体保留双注册（5 个文件），退役留给 F5；
-5. **演示数据补齐**（`pnpm dev:demo` 下的可看性，属"预览优先"要求）：① `menu/getTreeList` 与 `permission/getTreeList` 不再走通用造数器，改为返回**真实菜单树**（与左侧导航同源）与**按真实权限码分组的权限树** —— 授权弹窗是"真的把 identity 提交给后端"的地方，编造的编码会让人误判授权对象；② 演示行补 `isDisabled`（K 侧状态列与启停按钮读它，缺了就永远显示"启用中"）；③ 用户行补 `departmentId`/`roleList`/`departmentList`，否则用户页点部门树会筛成空表（看起来像功能坏了）。三条都有契约用例（`demoPreview.spec.ts`）。
+5. **演示数据补齐**（`pnpm dev:demo` 下的可看性，属"预览优先"要求）：① `menu/getList` 与 `permission/getList`（当时写作 `getTreeList`）不再走通用造数器，改为返回**真实菜单树**（与左侧导航同源）与**按真实权限码分组的权限树** —— 授权弹窗是"真的把 identity 提交给后端"的地方，编造的编码会让人误判授权对象；② 演示行补 `isDisabled`（K 侧状态列与启停按钮读它，缺了就永远显示"启用中"）；③ 用户行补 `departmentId`/`roleList`/`departmentList`，否则用户页点部门树会筛成空表（看起来像功能坏了）。三条都有契约用例（`demoPreview.spec.ts`）。
 
 > ⚠️ **一条记录在案的边界**：`isDisabled`（本实体的状态列）与 `KEntity.isPublished`（基类的状态列）在语义上是同一件事。
 > 三个实体目前都还继承 airpower 的 `BaseEntity`，所以不冲突；**将来切 `KEntity` 时必须二选一**，
@@ -412,20 +412,27 @@ airpower 生产足迹 **120 → 92**（−28 = 重写 16 个文件不再 import 
 | 模型层双装饰器遗漏 → 页面「字段不见了」但不报错 | 域门禁 spec 断言「实体字段数 == 表格列数 + 表单字段数」，用数量对账替代肉眼检查 |
 | 双底座**枚举基类不同**：airpower 的 `WebEnum` 只有 `toArray()/getLabel()`，本仓是 `getList()` —— 新表格读 airpower 枚举会「列头有、值是数字」 | `framework/enums.ts` 统一取值 `getEnumItems/getEnumLabel/getEnumColor`（两种形状都吃），并有单测钉住；`IWebEnumConstructor` 的静态方法声明为可选 |
 | 迁移中把**跨域公共件**（选择器、单据组件）一起改掉，会连带打挂尚未迁移的域 | 只改"叶子页"，跨域件按"最后一个使用方"排期；新页面通过 `DialogUtil` 打开存量 airpower 选择器（契约一致，可混用） |
-| 树表的**响应形状**搞错：`getTree` 返回 `{ list, total }`，`getTreeList` 返回**裸数组** —— 形状不对时表现为"树表永远空"且**不报错** | 框架 `getList/getTreeList` 对非数组返回 `[]`；演示 mock 已按端点分别返回正确形状（见下） |
+| 树表的**响应形状**搞错：`getTree` 返回 `{ list, total }`，树导航用的 `getList` 返回**裸数组** —— 形状不对时表现为"树表永远空"且**不报错** | 框架 `getList` 对非数组返回 `[]`；演示 mock 已按端点分别返回正确形状（见下） |
 
 ## 八、树查询端点的事实（本轮查证，避免再踩）
 
 | 端点 | 谁在用 | 响应形状 | 说明 |
 | --- | --- | --- | --- |
-| `POST /{baseUrl}/getTreeList` | airpower 的 `useTableTree`、**本仓新底座 `useTable({ tree: true })`** | **裸数组** `E[]` | airpower `urlGetTreeList = 'getTreeList'`；仓库/生产单元/部门/菜单/权限的树页都走它 |
-| `POST /{baseUrl}/getList` | `ASelector`（`un-paginate`）、部分下拉 | `E[]` | `StorageController` 注释里说的"树导航 getList（前端 tree selector 用）"指的是这条 |
+| ~~`POST /{baseUrl}/getTreeList`~~ | —— | —— | **2026-09-19 更正：后端没有这个端点**（本条曾是 airpower 时代的端点名）。前端已全部改走下一行的 `getList`；`pnpm api:check` 现在会拦住这类"前端有、后端无"的端点 |
+| `POST /{baseUrl}/getList` | **所有树页与树选择器**（`useTable({ tree: true })`、`KSelector`）、`ASelector` 下拉 | `E[]`（树实体是嵌套树） | 后端 `ITree` 实体的树导航就在这条上：`beforeGetList` 空 `parentId` 兜成根、`afterGetList` 递归回填 `children`；部门/菜单/权限再套 `TreeUtil.buildTreeList` |
 | `POST /{baseUrl}/getTree` | `src/api/{personnel,system}` 的 typed client | `{ list, total, ... }` | 演示 mock 原本只支持这一条的树形状 |
 
 **演示 mock 的坑（本轮已修）**：`src/demo/mock/engine.ts` 之前只处理 `getTree`，
-`getTreeList` 落到 `action.startsWith('get')` 的兜底分支返回 `{}` → 框架层当成空数组 →
+当时前端调的 `getTreeList` 落到 `action.startsWith('get')` 的兜底分支返回 `{}` → 框架层当成空数组 →
 **树表页在预览里永远是空的**（旧 airpower 树页也一样，不报错所以一直没被发现）。
 修复后仓库/库位结构页的渲染体积从 13 KB / 15 KB 涨到 110 KB / 128 KB（真实树数据）。
+
+> **2026-09-19 更正（本轮抓到的真问题）**：上表原先写 `getTreeList` 是"仓库/生产单元/部门/菜单/权限
+> 树页都走它"—— 查后端源码后确认**后端从没有 `getTreeList` 映射**（`grep '@PostMapping("getTreeList")'` = 0），
+> 那些树页在**真实后端**上是一次 404：演示 mock 实现了这个动作，所以只在预览里"看起来能用"。
+> 已按后端事实统一改走 `getList`，并新增门禁 `pnpm api:check`（前端端点字面量 → 后端 `@*Mapping` 对账，
+> 任一前端端点在后端没有映射即红；防空转：后端 < 40 条或前端 < 12 条同样判红）。
+> 同批清掉的另一个幻影端点是 `setBillDetailsAllFinished`（后端只有同名 Service 内部回调，没有控制器映射）。
 
 **遗留观测的后续（批 3 已解一半）**：当时部门/菜单/权限三页（airpower `useTableTree`）在探针里
 字节数几乎不受该修复影响（30 KB → 30 KB），说明它们**即使拿到数据也没渲染出行**。

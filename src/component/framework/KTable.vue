@@ -179,7 +179,7 @@ const columns = computed<ITableColumn[]>(() => {
 /** 搜索项：来自 `@Search` 元数据 */
 const searchFields = computed<ISearchField[]>(() => getSearchConfigList(EntityClass.value))
 
-/** 树模式：数据来自 `getTreeList`，用 Element Plus 的树表格渲染（不分页） */
+/** 树模式：数据来自 `getList`（树实体），用 Element Plus 的树表格渲染（不分页） */
 const isTree = computed(() => props.table.isTree.value)
 
 /** 搜索表单草稿：编辑中不直接影响列表，点「搜索」才提交（否则每个字符都触发请求） */

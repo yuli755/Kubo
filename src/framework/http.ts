@@ -11,7 +11,7 @@
  * | --- | --- |
  * | `getPage` | `POST /{baseUrl}/getPage` |
  * | `getList` | `POST /{baseUrl}/getList` |
- * | `getTreeList` | `POST /{baseUrl}/getTreeList` |
+ * | （树形实体） | 树导航也走 `getList` —— 后端没有 `getTreeList` 这个端点，见下 |
  * | `getDetail` | `GET /{baseUrl}/getDetail/{id}` |
  * | `add` | `POST /{baseUrl}/add` |
  * | `update` | `POST /{baseUrl}/update` |
@@ -153,9 +153,6 @@ export abstract class AbstractCurdService<E extends IIdentifiableEntity> extends
   /** 不分页查询 */
   protected urlGetList = 'getList'
 
-  /** 树查询 */
-  protected urlGetTreeList = 'getTreeList'
-
   /** 详情查询 */
   protected urlGetDetail = 'getDetail'
 
@@ -223,15 +220,19 @@ export abstract class AbstractCurdService<E extends IIdentifiableEntity> extends
     return response
   }
 
-  /** 不分页查询 */
+  /**
+   * 不分页查询。
+   *
+   * **树形实体（仓库 / 生产单元 / 部门 / 菜单 / 权限）的树导航也走这里** ——
+   * 后端没有 `getTreeList` 端点：`ITree` 实体的层级是 `getList` 的后置行为
+   * （`beforeGetList` 把空 `parentId` 兜成根，`afterGetList` 递归回填 `children`；
+   * 部门 / 菜单 / 权限在控制器里再套一层 `TreeUtil.buildTreeList`）。
+   *
+   * 这一条是 2026-09-19 修的一处**只在真实后端才暴露**的错：前端曾经调
+   * `POST /{baseUrl}/getTreeList`（airpower 时代的端点名），后端早已没有这个映射，
+   * 演示 mock 又恰好实现了它 —— 于是「预览一切正常、真机 404 树永远空」。
+   */
   async getList(request: QueryRequest<E>, apiUrl = this.urlGetList): Promise<E[]> {
-    const data = await this.api(apiUrl).requestRaw<unknown>(request)
-    const EntityClass = this.EntityClass
-    return Array.isArray(data) ? data.map(item => fill(new EntityClass(), item)) : []
-  }
-
-  /** 树结构查询 */
-  async getTreeList(request: QueryRequest<E>, apiUrl = this.urlGetTreeList): Promise<E[]> {
     const data = await this.api(apiUrl).requestRaw<unknown>(request)
     const EntityClass = this.EntityClass
     return Array.isArray(data) ? data.map(item => fill(new EntityClass(), item)) : []

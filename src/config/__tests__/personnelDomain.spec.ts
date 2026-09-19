@@ -160,7 +160,7 @@ describe('f4 · 批 3（personnel）迁移完成度', () => {
       const code = stripComments(read(file))
       expect(code.includes('KDialog'), `${file} 未使用 KDialog`).toBe(true)
       expect(code.includes('DialogUtil'), `${file} 仍在用 DialogUtil`).toBe(false)
-      expect(code.includes('getTreeList'), `${file} 未走 getTreeList 拉授权树`).toBe(true)
+      expect(code.includes('getList('), `${file} 未走 getList 拉授权树（后端没有 getTreeList 端点）`).toBe(true)
     }
   })
 
@@ -194,7 +194,7 @@ describe('f4 · 批 3（personnel）迁移完成度', () => {
     const { MenuEntity } = await import('@/model/system/menu/MenuEntity')
     const { PermissionEntity } = await import('@/model/system/permission/PermissionEntity')
 
-    // 后端返回的是嵌套 JSON；`getTreeList` 用 `fill()` 递归实例化，
+    // 后端返回的是嵌套 JSON；`getList` 用 `fill()` 递归实例化，
     // 而递归的依据是**框架注册表里的 `@KType`**（airpower 的 `@Type` 只喂 airpower 的转换器）。
     // 缺了它，`children` 会是裸对象 —— 表单能显示，但勾选子级后
     // `KRoleService.authorizeMenu` 里逐项调用的 `copyOnlyId()` 直接 TypeError。
@@ -412,7 +412,7 @@ describe('f4 · 批 3 授权弹窗在演示模式下的端到端（真实数据 
       expect(wrapper.text()).toContain('仓管员')
     }, { timeout: 8000 })
 
-    // 部门树（数据来自 `KDepartmentService.getTreeList` + demo 适配器）
+    // 部门树（数据来自 `KDepartmentService.getList` + demo 适配器）
     await vi.waitFor(() => {
       expect(wrapper.findAll('.el-tree-node').length).toBeGreaterThan(0)
     }, { timeout: 8000 })
@@ -467,7 +467,7 @@ describe('f4 · 批 3 授权弹窗在演示模式下的端到端（真实数据 
 describe('f4 · 批 3 树组件冒烟（真实挂载）', () => {
   it('部门页能挂载并渲染树形表格', async () => {
     const { KDepartmentService } = await import('@/model/personnel/department/KDepartmentService')
-    vi.spyOn(KDepartmentService.prototype, 'getTreeList').mockResolvedValue([
+    vi.spyOn(KDepartmentService.prototype, 'getList').mockResolvedValue([
       { id: 1, name: '总部', code: 'HQ', orderNo: 1, parentId: 0, children: [{ id: 2, name: '仓储部', code: 'HQ-WH', orderNo: 2, parentId: 1 }] },
     ] as never)
 

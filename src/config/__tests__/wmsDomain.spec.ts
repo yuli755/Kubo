@@ -270,8 +270,9 @@ describe('f4 · 批 4 单据闭环（审核 / 驳回 / 作业）', () => {
     expect(api).toHaveBeenLastCalledWith('addFinish')
     expect(request).toHaveBeenLastCalledWith({ id: 31, quantity: 4 })
 
-    await service.setBillDetailsAllFinished({ id: 9 } as never)
-    expect(api).toHaveBeenLastCalledWith('setBillDetailsAllFinished')
+    // 单据基类只有三个动作：后端没有「一键完成」端点（`setBillDetailsAllFinished`
+    // 是后端把单据推进终态的**内部回调**，明细必须逐条作业完成）—— 见 framework/bill.ts 头注释
+    expect((service as unknown as Record<string, unknown>).setBillDetailsAllFinished, '幻影端点方法又回来了').toBeUndefined()
   })
 
   it('移库列表：审核要二次确认，驳回要填原因再确认（两步都不能省）', async () => {

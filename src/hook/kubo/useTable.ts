@@ -44,7 +44,7 @@ export interface IUseTableOption<E extends IIdentifiableEntity, S extends Abstra
   /** 默认每页条数 */
   defaultPageSize?: number
   /**
-   * 树形数据（`getTreeList`）：仓库/生产单元/部门/菜单这类实体后端返回的是**嵌套树**，
+   * 树形数据（走 `getList`）：仓库/生产单元/部门/菜单这类实体后端返回的是**嵌套树**，
    * 不分页、不带 `page` 参数。置 `true` 后 `KTable` 会自动开树渲染（`row-key` + 子节点）。
    */
   tree?: boolean
@@ -129,7 +129,7 @@ export function useTable<E extends IIdentifiableEntity, S extends AbstractCurdSe
     return payload
   })
 
-  /** 树查询请求体：`{ filter, sort }`，**没有** `page`（后端 `getTreeList` 不接受分页） */
+  /** 树查询请求体：`{ filter, sort }`，**没有** `page`（`getList` 本就不分页） */
   const treeRequest = computed(() => {
     const payload = new QueryRequest<E>(EntityClass as never)
     if (Object.keys(filter.value).length) {
@@ -155,7 +155,7 @@ export function useTable<E extends IIdentifiableEntity, S extends AbstractCurdSe
   const query = useQuery<E[] | QueryResponsePage<E>>({
     queryKey,
     queryFn: async (): Promise<E[] | QueryResponsePage<E>> =>
-      (option.tree ? service.getTreeList(treeRequest.value) : service.getPage(request.value)),
+      (option.tree ? service.getList(treeRequest.value) : service.getPage(request.value)),
     // 翻页/改排序时保留上一页数据，避免表格整块闪空（这是 WMS 列表的日常操作）
     placeholderData: keepPreviousData,
   })

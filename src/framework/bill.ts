@@ -4,14 +4,19 @@ import { AbstractCurdService } from './http'
 /**
  * # 单据类服务基类（新底座）
  *
- * 单据（入库 / 出库 / 移库 / 采购 / 销售）比普通实体多四个动作：审核、驳回、
- * 添加完成数量、一键完成全部明细。它们不是 CRUD，但**每个单据域都要写一遍** ——
+ * 单据（入库 / 出库 / 移库 / 采购 / 销售）比普通实体多**三个**动作：审核、驳回、
+ * 添加完成数量。它们不是 CRUD，但**每个单据域都要写一遍** ——
  * 放在基类里，域服务只剩 `entityClass` + `baseUrl` 两行。
  *
- * ## 与 airpower `AbstractBaseBillService` 的关系
- * 那份还在（`src/base/bill/`），未迁移的 wms/channel 页面继续用它；两者 baseUrl 与
- * 端点名完全一致（`audit` / `reject` / `addFinish` / `setBillDetailsAllFinished`），
- * 所以过渡期两份实现指向同一后端接口，不存在数据漂移。
+ * ## 只有三个动作：没有「一键完成」
+ * 后端 `BaseBillController` 暴露的是 `audit` / `reject` / `addFinish`，
+ * 明细必须**逐条作业**（`addFinish` 带本次数量）直到最后一条完成 —— 此时后端
+ * `AbstractBaseBillService#setBillDetailsAllFinished` 这个**内部回调**才会把单据推进到终态。
+ *
+ * 2026-09-19 删掉了前端基类里那个同名方法：它调的是 `POST /{baseUrl}/setBillDetailsAllFinished`，
+ * 而后端从来没有这个映射（`grep '@PostMapping("setBillDetailsAllFinished")'` = 0），
+ * 页面也没有调用点 —— 一个"看起来存在"的端点，谁接谁 404。
+ * 想要真正的「一键完成」= 后端按剩余数量批量 `addFinish`（属能力建设，不是前端能自己凑出来的）。
  *
  * ## 两个容易写错的地方（都来自后端实际契约）
  * 1. **`addFinish` 的载荷是「明细」不是「单据」**：后端按明细 id 从库里读来源库存，
@@ -32,9 +37,6 @@ export abstract class AbstractBillService<
   /** 添加完成数量（载荷是明细） */
   protected urlAddFinish = 'addFinish'
 
-  /** 一键完成全部明细 */
-  protected urlSetBillDetailsAllFinished = 'setBillDetailsAllFinished'
-
   /** 审核单据 */
   async audit(bill: B): Promise<void> {
     await this.api(this.urlAudit).request(bill)
@@ -48,10 +50,5 @@ export abstract class AbstractBillService<
   /** 添加完成数量（本次数量；载荷 = 明细实体） */
   async addDetailFinishQuantity(detail: D, apiUrl = this.urlAddFinish): Promise<void> {
     await this.api(apiUrl).request(detail)
-  }
-
-  /** 一键把该单据所有明细标记为已完成 */
-  async setBillDetailsAllFinished(bill: B): Promise<void> {
-    await this.api(this.urlSetBillDetailsAllFinished).request(bill)
   }
 }
