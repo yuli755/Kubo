@@ -3,9 +3,11 @@ import type { InputEntity } from '@/model/wms/input/InputEntity'
 import { ref } from 'vue'
 import BillRejectDialog from '@/component/bill/BillRejectDialog.vue'
 import KPanel from '@/component/framework/KPanel.vue'
+import KStat from '@/component/framework/KStat.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { Permissions } from '@/config/permissions'
-import { FeedbackUtil } from '@/framework'
+import { FeedbackUtil, WebColor } from '@/framework'
+import { useResourceCount } from '@/hook/kubo/useResourceCount'
 import { useTable } from '@/hook/kubo/useTable'
 import { KInputService } from '@/hook/wms/useInput'
 import { InputStatusEnum } from '@/model/wms/input/InputStatusEnum'
@@ -29,6 +31,29 @@ const table = useTable(KInputService, {
   queryKey: ['wms:input'],
   export: true,
 })
+
+/**
+ * 列表上方的状态统计条：走后端 `getCount`（按状态各查一次，只回行数）。
+ *
+ * 后端这四个读出口一直有这个端点，但 2026-09-19 之前**前端一个消费者都没有** ——
+ * 端点活在契约里、页面上看不见。统计条与表格共享同一份 `filter`，改搜索条件时一起变；
+ * 点某一项 = 把该状态筛进表格（再点一次取消），不需要用户去搜索栏里找状态字段。
+ */
+const counts = useResourceCount(new KInputService(), {
+  queryKey: ['wms:input'],
+  filter: table.filter,
+  items: () => [
+    { field: 'status', key: InputStatusEnum.AUDITING.key, label: '审核中', color: WebColor.WARNING },
+    { field: 'status', key: InputStatusEnum.REJECTED.key, label: '已驳回', color: WebColor.DANGER },
+    { field: 'status', key: InputStatusEnum.INPUTTING.key, label: '入库中', color: WebColor.NORMAL },
+    { field: 'status', key: InputStatusEnum.DONE.key, label: '已完成', color: WebColor.SUCCESS },
+  ],
+})
+
+/** 点统计条：当前已按该状态筛选则取消，否则替换为该项 */
+function onStatSelect(value: number | string) {
+  table.search(table.filter.value.status === value ? {} : { status: value })
+}
 
 const editorVisible = ref(false)
 const editingId = ref<number | null>(null)
@@ -90,6 +115,12 @@ function onSaved() {
       title="入库单"
       description="采购入库 / 移动入库 / 普通入库：审核后逐条「作业」登记实际入库数量"
     >
+      <KStat
+        :items="counts.cells.value"
+        :loading="counts.isLoading.value"
+        @select="onStatSelect"
+      />
+
       <KTable
         :actions="[
           { label: '查看', permission: Permissions.Wms.Input.getDetail, handler: openDetail },

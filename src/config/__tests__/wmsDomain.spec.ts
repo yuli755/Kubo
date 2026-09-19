@@ -162,6 +162,71 @@ describe('f4 · 批 4（wms）迁移完成度', () => {
     }
   })
 
+  it('四个列表页都接了后端 `getCount`（统计条），且与表格共享同一份 queryKey 前缀', () => {
+    const pages: Array<[string, string, string]> = [
+      ['src/view/console/wms/input/list.vue', 'wms:input', 'KInputService'],
+      ['src/view/console/wms/output/list.vue', 'wms:output', 'KOutputService'],
+      ['src/view/console/wms/move/list.vue', 'wms:move', 'KMoveService'],
+      ['src/view/console/wms/inventory/list.vue', 'wms:inventory', 'KInventoryService'],
+    ]
+    for (const [file, queryKey, service] of pages) {
+      const code = codeOf(file)
+      expect(code.includes('useResourceCount'), `${file} 没接统计条（后端 getCount 无人消费）`).toBe(true)
+      expect(code.includes('KStat'), `${file} 没渲染 KStat`).toBe(true)
+      expect(code.includes(`queryKey: ['${queryKey}']`), `${file} 统计条与表格的 queryKey 前缀不一致（刷新时会对不上）`).toBe(true)
+      expect(code.includes(`new ${service}()`), `${file} 统计条没有用本域服务`).toBe(true)
+    }
+    // 库存页的"总记录"忽略当前筛选，否则它与「当前筛选」会是同一个数
+    const inventory = codeOf('src/view/console/wms/inventory/list.vue')
+    expect(inventory.includes('ignoreFilter: true'), '库存页缺少忽略筛选的总记录项').toBe(true)
+  })
+
+  it('统计条：点状态计数 → 该状态进表格筛选；再点一次取消', async () => {
+    const { KInputService } = await import('@/model/wms/input/KInputService')
+    const getPage = vi.spyOn(KInputService.prototype, 'getPage').mockResolvedValue(pageResponse([billRow()]))
+    vi.spyOn(KInputService.prototype, 'getCount').mockResolvedValue(3)
+    const Page = (await import('@/view/console/wms/input/list.vue')).default
+    const wrapper = await mountPage(Page)
+    await vi.waitFor(() => {
+      expect(wrapper.text()).toContain('审核中')
+    }, { timeout: 8000 })
+
+    // 计数来自后端 getCount（不是把当前页的行数数一遍）；等渲染结果，别只等调用发生
+    expect(KInputService.prototype.getCount).toHaveBeenCalled()
+    await vi.waitFor(() => {
+      expect(wrapper.text()).toContain('3')
+    }, { timeout: 8000 })
+
+    const chip = wrapper.findAll('.k-stat__item').find(item => item.text().includes('已完成'))
+    expect(chip, '统计条没有渲染「已完成」项').toBeTruthy()
+    await chip!.trigger('click')
+    await vi.waitFor(() => {
+      const last = getPage.mock.calls.at(-1)?.[0] as { filter?: { status?: number } } | undefined
+      expect(last?.filter?.status, '点统计条没有把状态筛进表格').toBe(4)
+    }, { timeout: 8000 })
+
+    await chip!.trigger('click')
+    await vi.waitFor(() => {
+      const last = getPage.mock.calls.at(-1)?.[0] as { filter?: { status?: number } } | undefined
+      expect(last?.filter?.status, '再点一次没有取消筛选').toBeUndefined()
+    }, { timeout: 8000 })
+  })
+
+  it('统计条降级：单项 getCount 失败（如无权限 403）显示 `-`，不影响表格与整页', async () => {
+    const { KInputService } = await import('@/model/wms/input/KInputService')
+    vi.spyOn(KInputService.prototype, 'getPage').mockResolvedValue(pageResponse([billRow()]))
+    vi.spyOn(KInputService.prototype, 'getCount').mockRejectedValue(new Error('FORBIDDEN'))
+    const Page = (await import('@/view/console/wms/input/list.vue')).default
+    const wrapper = await mountPage(Page)
+    await vi.waitFor(() => {
+      expect(wrapper.find('.k-stat').text()).toContain('-')
+    }, { timeout: 8000 })
+    await vi.waitFor(() => {
+      expect(wrapper.text(), '统计条失败不该把表格拖成空').toContain('RK2026090001')
+    }, { timeout: 8000 })
+    expect(capturedErrors).toEqual([])
+  })
+
   it('库存只读页：没有增删改入口，但保留导出', () => {
     const code = codeOf('src/view/console/wms/inventory/list.vue')
     expect(code.includes('hide-actions')).toBe(true)

@@ -4,10 +4,12 @@ import type { StructureEntity } from '@/model/factory/structure/StructureEntity'
 import { ElInput, ElRadioButton, ElRadioGroup, ElTree } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import KPanel from '@/component/framework/KPanel.vue'
+import KStat from '@/component/framework/KStat.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { Permissions } from '@/config/permissions'
 import { KStorageService } from '@/hook/factory/useStorage'
 import { KStructureService } from '@/hook/factory/useStructure'
+import { useResourceCount } from '@/hook/kubo/useResourceCount'
 import { useTable } from '@/hook/kubo/useTable'
 import { KInventoryService } from '@/hook/wms/useInventory'
 import { InventoryTypeEnum } from '@/model/wms/inventory/InventoryTypeEnum'
@@ -37,6 +39,22 @@ const table = useTable(KInventoryService, {
 })
 
 // 两棵树各自缓存（切换维度不需要重新请求）；`tree: true` → 走 `getList` 拿嵌套树（后端无 getTreeList 端点）
+
+/**
+ * 库存统计条：走**后端 `getCount`**（`Inventory_getCount`）。
+ *
+ * 两项都是只读数字、不可点（库存页的筛选来自左侧树与维度开关，统计条只负责"现在看得见多少条"）：
+ * - 「库存总记录」忽略当前筛选（`ignoreFilter`）—— 它是这张表的规模基线；
+ * - 「当前筛选」跟随左侧树/维度/搜索条件，用来确认筛选是否按预期生效。
+ */
+const counts = useResourceCount(new KInventoryService(), {
+  queryKey: ['wms:inventory'],
+  filter: table.filter,
+  items: () => [
+    { field: '*', label: '库存总记录', ignoreFilter: true },
+    { field: '*', label: '当前筛选' },
+  ],
+})
 const storageTable = useTable(KStorageService, { queryKey: ['factory:storage', 'inventoryTree'], tree: true })
 const structureTable = useTable(KStructureService, { queryKey: ['factory:structure', 'inventoryTree'], tree: true })
 
@@ -124,6 +142,11 @@ function onNodeClick(node: StorageEntity | StructureEntity) {
       description="库存数量由出入库与移库驱动，这里只读；切换维度会同步切换左侧树与表格列"
       class="k-page__main"
     >
+      <KStat
+        :items="counts.cells.value"
+        :loading="counts.isLoading.value"
+      />
+
       <KTable
         :exclude-columns="excludeColumns"
         :permissions="{ export: Permissions.Wms.Inventory.export }"

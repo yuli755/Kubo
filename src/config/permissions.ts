@@ -34,6 +34,8 @@ const Crud = {
   audit: 'audit',
   reject: 'reject',
   publish: 'publish',
+  /** 计数（后端 `{Entity}_getCount`）—— 与 Asset.Material 既有写法一致 */
+  getCount: 'getCount',
 } as const
 
 /** 仓储 (WMS) 模块 */
@@ -45,6 +47,8 @@ const Wms = {
     audit: `Input_${Crud.audit}`,
     reject: `Input_${Crud.reject}`,
     addFinish: 'Input_addFinish',
+    /** 列表上方的状态统计条（后端 `getCount`：按状态计数，行数不含敏感字段） */
+    getCount: `Input_${Crud.getCount}`,
     export: `Input_${Crud.export}`,
   },
   Output: {
@@ -54,6 +58,8 @@ const Wms = {
     audit: `Output_${Crud.audit}`,
     reject: `Output_${Crud.reject}`,
     addFinish: 'Output_addFinish',
+    /** 列表上方的状态统计条（后端 `getCount`：按状态计数，行数不含敏感字段） */
+    getCount: `Output_${Crud.getCount}`,
     export: `Output_${Crud.export}`,
   },
   Move: {
@@ -63,11 +69,15 @@ const Wms = {
     audit: `Move_${Crud.audit}`,
     reject: `Move_${Crud.reject}`,
     addFinish: 'Move_addFinish',
+    /** 列表上方的状态统计条（后端 `getCount`：按状态计数，行数不含敏感字段） */
+    getCount: `Move_${Crud.getCount}`,
     export: `Move_${Crud.export}`,
   },
   Inventory: {
     /** 库存只读：无增删改按钮，但可导出当前可见库存 */
     export: `Inventory_${Crud.export}`,
+    /** 库存总数（后端 `getCount`）—— 列表上方的统计条用它 */
+    getCount: `Inventory_${Crud.getCount}`,
   },
 } as const
 

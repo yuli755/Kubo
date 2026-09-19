@@ -155,6 +155,12 @@ const PAGE_ACTIONS = new Set(['getPage', 'getTableList'])
  */
 const ARRAY_ACTIONS = new Set(['getList', 'getAll', 'getSelectList'])
 const DETAIL_ACTIONS = new Set(['getDetail', 'get', 'getOne', 'getInfo'])
+/**
+ * 计数端点（后端 `{baseUrl}/getCount`）：返回**裸数字**（`Json.data(service.getMapperCount(filter))`）。
+ * 列表页上方的统计条按状态各查一次 —— 形状给错（例如返回 `{}`）会渲染成 `NaN`/`-`，
+ * 而且不报错，所以这里单独列出来，别落进 `startsWith('get')` 的空对象兜底。
+ */
+const COUNT_ACTIONS = new Set(['getCount'])
 /** 写操作：演示模式一律「成功」，不做真实落库（刷新即回到初始数据） */
 const WRITE_ACTIONS = new Set([
   'add',
@@ -289,6 +295,14 @@ export function resolveMock(resourcePath: string, action: string, payload: Paylo
 
   if (PAGE_ACTIONS.has(action)) {
     return buildPage(resourceKey, payload)
+  }
+  if (COUNT_ACTIONS.has(action)) {
+    return buildPage(resourceKey, payload).total
+  }
+  if (action === 'getStat') {
+    // 读侧统一形状（后端 `base/mapper/ReadStat`）：行数 + 已发布行数，不做敏感字段聚合
+    const total = buildPage(resourceKey, payload).total
+    return { total, publishedTotal: 0 }
   }
   if (action === 'getList' && TREE_RESOURCES.has(resourceKey)) {
     // 树形实体的 `getList` 返回**裸数组的根节点树**（后端 `ITree` 契约）。

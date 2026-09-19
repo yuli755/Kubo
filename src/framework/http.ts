@@ -177,6 +177,15 @@ export abstract class AbstractCurdService<E extends IIdentifiableEntity> extends
   /** 查询导出结果 */
   protected urlQueryExport = 'queryExport'
 
+  /**
+   * 计数（后端 `{baseUrl}/getCount`）。
+   *
+   * 只读出口，**不带分页**：后端入参是 `QueryListRequest`（只看 `filter`），
+   * 返回权限与筛选条件下的**行数**。WMS 四个读出口（入库/出库/移库/库存）与
+   * 其余十个受保护资源都有这个端点，用来做列表上方的状态统计条。
+   */
+  protected urlGetCount = 'getCount'
+
   /** 实体类（`new this.entityClass()` 的写法会触发 new-cap，统一在这里取一次） */
   protected get EntityClass(): ITransformerConstructor<E> {
     return this.entityClass
@@ -236,6 +245,18 @@ export abstract class AbstractCurdService<E extends IIdentifiableEntity> extends
     const data = await this.api(apiUrl).requestRaw<unknown>(request)
     const EntityClass = this.EntityClass
     return Array.isArray(data) ? data.map(item => fill(new EntityClass(), item)) : []
+  }
+
+  /**
+   * 计数：返回当前筛选（外加数据权限）下的行数。
+   *
+   * 后端契约：`POST /{baseUrl}/getCount`，请求体 `{ filter }`（可省）、响应为裸数字
+   * （`Json.data(service.getMapperCount(filter))`）。列表页的统计条就是按状态各查一次。
+   */
+  async getCount(request?: QueryRequest<E>, apiUrl = this.urlGetCount): Promise<number> {
+    const data = await this.api(apiUrl).requestRaw<unknown>(request ?? {})
+    const count = Number(data)
+    return Number.isFinite(count) ? count : 0
   }
 
   /** 详情查询 */
