@@ -1,6 +1,6 @@
 -- InputMapperRuntimeInterceptorTest 的 H2 夹具（从 Java 字符串搬来，2026-09-18 SQL 分层门禁）
 -- 规则：禁止 .java 写 SQL —— 可执行语句一律住这里，Java 侧用 SqlFixtures.execute() 调用。
-CREATE TABLE IF NOT EXISTS input (id BIGINT PRIMARY KEY, create_time BIGINT DEFAULT 0, update_time BIGINT DEFAULT 0, is_disabled BOOLEAN DEFAULT FALSE, is_published BOOLEAN DEFAULT FALSE, tenant_id BIGINT, creator_id BIGINT, reject_reason VARCHAR(255), bill_code VARCHAR(255), status INT, type INT, purchase_id BIGINT, structure_id BIGINT, order_id BIGINT, move_id BIGINT);
+CREATE TABLE IF NOT EXISTS input (id BIGINT PRIMARY KEY, create_time BIGINT DEFAULT 0, update_time BIGINT DEFAULT 0, is_disabled BOOLEAN DEFAULT FALSE, is_published BOOLEAN DEFAULT FALSE, tenant_id BIGINT, creator_id BIGINT, reject_reason VARCHAR(255), bill_code VARCHAR(255), status INT, type INT, purchase_id BIGINT, structure_id BIGINT, move_id BIGINT);
 DELETE FROM input;
 DELETE FROM data_policy;
 DELETE FROM data_resource;

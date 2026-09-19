@@ -50,7 +50,6 @@
 | mes | `mes.orderDetail` | — | `order_detail` | **无** | — | T2 | 单据明细表 → 随主表加列（冗余 tenant_id 便于直接过滤，避免强制 JOIN） |
 | mes | `mes.order` | ✅ | `orders` | `customer_id`, `material_id`, `plan_id` | 1 | T1 | 已注册权限资源 → 本期必加 tenant_id/creator_id 并进 enforce 灰度 |
 | mes | `mes.pickingDetail` | — | `picking_detail` | `material_id` | — | T2 | 单据明细表 → 随主表加列（冗余 tenant_id 便于直接过滤，避免强制 JOIN） |
-| mes | `mes.picking` | ✅ | `picking` | `order_id`, `structure_id` | 1 | T1 | 已注册权限资源 → 本期必加 tenant_id/creator_id 并进 enforce 灰度 |
 | mes | `mes.planDetail` | — | `plan_detail` | `material_id` | — | T2 | 单据明细表 → 随主表加列（冗余 tenant_id 便于直接过滤，避免强制 JOIN） |
 | mes | `mes.plan` | ✅ | `plan` | `customer_id` | 1 | T1 | 已注册权限资源 → 本期必加 tenant_id/creator_id 并进 enforce 灰度 |
 | mes | `mes.routing` | ✅ | `routing` | `bom_id`, `material_id` | 1 | T1 | 已注册权限资源 → 本期必加 tenant_id/creator_id 并进 enforce 灰度 |
@@ -76,9 +75,9 @@
 | system | `system.unit` | — | `unit` | **无** | 2 | T4 | 未注册业务表 → 先只加列不拦截，按模块排期接入 |
 | system | `system.userTenant` | — | `user_tenant` | `tenant_id`, `user_id` | — | T3 | 共享域（平台/字典/权限元数据）→ 不加租户列 |
 | wms | `wms.inputDetail` | — | `input_detail` | `material_id` | — | T2 | 单据明细表 → 随主表加列（冗余 tenant_id 便于直接过滤，避免强制 JOIN） |
-| wms | `wms.input` | ✅ | `input` | `move_id`, `order_id`, `purchase_id`, `structure_id` | 1 | T1 | 已注册权限资源 → 本期必加 tenant_id/creator_id 并进 enforce 灰度 |
+| wms | `wms.input` | ✅ | `input` | `move_id`, `purchase_id`, `structure_id` | 1 | T1 | 已注册权限资源 → 本期必加 tenant_id/creator_id 并进 enforce 灰度 |
 | wms | `wms.inventory` | ✅ | `inventory` | `material_id`, `storage_id`, `structure_id` | — | T1 | 已注册权限资源 → 本期必加 tenant_id/creator_id 并进 enforce 灰度 |
 | wms | `wms.moveDetail` | — | `move_detail` | `inventory_id` | — | T2 | 单据明细表 → 随主表加列（冗余 tenant_id 便于直接过滤，避免强制 JOIN） |
 | wms | `wms.move` | ✅ | `move` | `storage_id` | 1 | T1 | 已注册权限资源 → 本期必加 tenant_id/creator_id 并进 enforce 灰度 |
 | wms | `wms.outputDetail` | — | `output_detail` | `inventory_id`, `material_id` | — | T2 | 单据明细表 → 随主表加列（冗余 tenant_id 便于直接过滤，避免强制 JOIN） |
-| wms | `wms.output` | ✅ | `output` | `move_id`, `picking_id`, `sale_id` | 1 | T1 | 已注册权限资源 → 本期必加 tenant_id/creator_id 并进 enforce 灰度 |
+| wms | `wms.output` | ✅ | `output` | `move_id`, `sale_id` | 1 | T1 | 已注册权限资源 → 本期必加 tenant_id/creator_id 并进 enforce 灰度 |

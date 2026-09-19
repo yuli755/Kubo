@@ -50,7 +50,7 @@ pnpm java:decl       # Java 声明级门禁：形参重名 / 字段重名（java
 ## 四、提交前跑什么
 
 ```bash
-pnpm check          # 全链：lint → 死代码（文件级/导出级）→ typecheck → test:coverage → 各契约门禁 → build → demo:check → size
+pnpm check          # 全链：lint → 死代码（文件级/导出级）→ typecheck → test:coverage → 各契约门禁（含 java:symbols / mapper:check）→ build → demo:check → size
 pnpm stack          # 当前技术栈一览（含"死重量"：零引用依赖、没人用的 public 资源）
 pnpm airpower:check  # 前端 airpower 不得回潮（剥注释后 0 引用才算过）
 pnpm airpower:backend -- --check  # 后端 airpower 归零门禁（代码/pom 依赖/父 POM/yml 配置键 四项都必须为 0）
@@ -59,9 +59,12 @@ pnpm pom:check       # 后端 pom 自持校验（B0 之后没有父 POM 兜底�
 pnpm deps:check      # pom 依赖 ↔ Java import 对账（查"该有的依赖在不在"：import 家族必须有依赖兜底 + yml 里的 JDBC 驱动）
 pnpm api:check       # 前后端端点契约对账（前端端点字面量 → 后端 @*Mapping；防"前端在 POST、后端没映射"的幻影端点）
 pnpm java:imports    # Java 导入可达性（没有 JDK 时的半个编译器：import 必须落地 / 自持层不得反依赖 airpower / 同名副本必须显式承认）
+pnpm java:symbols    # Java 类型引用落地（半个编译器·符号篇：new / instanceof / .class / 字段 / 返回类型 + 泛型实参里的项目类型
+                     #   必须能解析；防「整域删除时删了 import、留下使用处」——javac 会报找不到符号，沙箱没 JDK 时靠它）
 pnpm jpa:check       # JPA 归零门禁（足迹必须 0/0/0；pom 无 starter、yml 无 spring.jpa/ddl-auto、实体零 JPA 注解）
 pnpm sql:check       # SQL 分层门禁：禁止 .java 写 SQL，只能住 mapper XML（测试夹具住 src/test/resources/sql）
-pnpm mapper:check    # Mapper XML 命名空间门禁：namespace 必须落到存在的 Java 接口（防"整域删了、XML 留着"）
+pnpm mapper:check    # Mapper XML 门禁：namespace 必须落到存在的 Java 接口 + javaType/resultType 等类型引用必须落地
+                     #   （防"整域删了、XML 留着"与"association 指向已删域"）
 pnpm layer:check     # 分层门禁：依赖方向（core→framework→base→module）+ 层内职责（控制器不注入仓储、实体不依赖服务…）+ 跨域数据面（跨域只许调对方 Service）
 pnpm front:layer:check  # 前端分层门禁：utils/types → model → framework → view（组合根 main/App/router/routes）
                      #   反例测试：src/config/__tests__/layeringGate.spec.ts（夹具树跑真脚本，逐条断言"会红"）；

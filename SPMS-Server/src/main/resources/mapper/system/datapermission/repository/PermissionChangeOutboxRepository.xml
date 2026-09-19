@@ -13,7 +13,7 @@
 -->
 <mapper namespace="cn.hamm.spms.module.system.datapermission.repository.PermissionChangeOutboxRepository">
 
-    <select id="selectByIdForUpdate" flushCache="true" resultType="cn.hamm.spms.module.system.datapermission.repository.PermissionChangeOutboxEntity">
+    <select id="selectByIdForUpdate" flushCache="true" resultType="cn.hamm.spms.module.system.datapermission.entity.PermissionChangeOutboxEntity">
         select *
         from permission_change_outbox
         where id = #{id}

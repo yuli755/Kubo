@@ -198,18 +198,12 @@ class MapperReadFallbackTest {
         assertEquals(0, applicationContext.getBeanNamesForType(InputMapper.class).length);
         assertEquals(0, applicationContext.getBeanNamesForType(OutputMapper.class).length);
         assertEquals(0, applicationContext.getBeanNamesForType(MoveMapper.class).length);
-        assertEquals(0, applicationContext.getBeanNamesForType(OrderMapper.class).length);
-        assertEquals(0, applicationContext.getBeanNamesForType(PlanMapper.class).length);
-        assertEquals(0, applicationContext.getBeanNamesForType(PickingMapper.class).length);
         assertEquals(0, applicationContext.getBeanNamesForType(PurchaseMapper.class).length);
         assertEquals(0, applicationContext.getBeanNamesForType(SaleMapper.class).length);
         assertEquals(0, applicationContext.getBeanNamesForType(CustomerMapper.class).length);
         assertEquals(0, applicationContext.getBeanNamesForType(SupplierMapper.class).length);
         assertEquals(0, applicationContext.getBeanNamesForType(PurchasePriceMapper.class).length);
         assertEquals(0, applicationContext.getBeanNamesForType(SalePriceMapper.class).length);
-        assertEquals(0, applicationContext.getBeanNamesForType(BomMapper.class).length);
-        assertEquals(0, applicationContext.getBeanNamesForType(OperationMapper.class).length);
-        assertEquals(0, applicationContext.getBeanNamesForType(RoutingMapper.class).length);
         assertEquals(0, applicationContext.getBeanNamesForType(ContractMapper.class).length);
         assertEquals(0, applicationContext.getBeanNamesForType(StorageMapper.class).length);
         assertEquals(0, applicationContext.getBeanNamesForType(StructureMapper.class).length);

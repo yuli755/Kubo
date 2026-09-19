@@ -20,10 +20,21 @@
  * 会在启动期抛 `mapper already registered`（`MapperRegistry.addMapper`），属于"能在本地
  * 早发现就别留到部署"的一类，顺手一起查。
  *
+ * 还有第二类同源残留：**XML 里的类型引用指向已删的域**。
+ * 2026-09-19 在 WMS 页面排查里抓到两处：`InputMapper.xml` 的
+ * `javaType="cn.hamm.spms.module.mes.order.OrderEntity"` 与 `OutputMapper.xml` 的
+ * `…module.mes.picking.PickingEntity`。namespace 那一条判不到它们 —— namespace 是好的、
+ * XML 也是活的，死掉的只有 association 上的类型。MyBatis 解析 resultMap 时会 `Class.forName`，
+ * 所以这不是"文档失真"而是**启动/取数即错**。`pnpm java:symbols` 覆盖了 Java 侧的同族问题，
+ * 这里补 XML 侧。
+ *
  * ## 判定（都是"读文件"，不连库、不编译）
  *   ① 每份 XML 必须有 `namespace`，且它对应的 Java 接口文件必须存在 → 否则**失败**
  *   ② 同一个 namespace 不许出现在两份 XML 里 → 否则**失败**
- *   ③ 扫描面为空（0 份 XML）→ **失败**（防"路径写错导致门禁空转"，
+ *   ③ `javaType` / `resultType` / `parameterType` / `type` / `ofType` 的类型要么是 MyBatis 内建别名，
+ *      要么是**能在仓库里落地的全限定名**（`java.*`/`jakarta.*` 等 JDK 与三方前缀按包放行，
+ *      因为本仓没有它们的源码；`cn.hamm.spms.*` 一律严格校验）→ 否则**失败**
+ *   ④ 扫描面为空（0 份 XML / 0 处类型引用）→ **失败**（防"路径写错导致门禁空转"，
  *      这是本仓在 `migration:check` 上踩过的坑：0 个脚本 ⇒ 0 处错误）
  *
  * ## 用法
@@ -67,11 +78,42 @@ const rel = file => path.relative(ROOT, file).replaceAll('\\', '/')
 
 const xmlFiles = walk(MAPPER_DIR).filter(f => f.endsWith('.xml'))
 
+/** MyBatis 内建别名（`TypeAliasRegistry` 的默认注册）—— 这些不是全限定名，不参与落地判定 */
+const MYBATIS_ALIASES = new Set([
+  'string', 'byte', 'long', 'short', 'int', 'integer', 'double', 'float', 'boolean', 'boolean',
+  'date', 'decimal', 'bigdecimal', 'biginteger', 'object', 'map', 'hashmap', 'list', 'arraylist',
+  'collection', 'iterator', 'resultset', '_byte', '_long', '_short', '_int', '_integer', '_double',
+  '_float', '_boolean', '_date', '_decimal', '_biginteger', '_object',
+])
+
+/** 仓库外的前缀：JDK / Jakarta / 三方库，按包放行（仓库里没有它们的源码） */
+const OUTSIDE_PREFIXES = ['java.', 'javax.', 'jakarta.', 'org.', 'com.', 'net.', 'io.', 'lombok.']
+
+/** 类型属性：resultMap 的 type、association 的 javaType、select 的 resultType/parameterType… */
+const TYPE_ATTRIBUTES = ['javaType', 'resultType', 'parameterType', 'ofType', 'type']
+
+/** 扫描面下限：少于这个数说明正则/路径漂了（防空转，不是精确阈值）；反例夹具注入 1 */
+const MIN_TYPE_REFERENCES = Number(process.env.KUBO_MIN_TYPE_REFERENCES ?? 40)
+
+/** 仓库里能落地的全限定名（main + test 都算：Mapper XML 只引 main，但测试资源同族） */
+const repoTypes = new Set()
+for (const root of [JAVA_DIR, path.join(SERVER, 'src', 'test', 'java')]) {
+  for (const file of walk(root).filter(f => f.endsWith('.java'))) {
+    const source = fs.readFileSync(file, 'utf8')
+    const pkg = source.match(/^\s*package\s+([\w.]+)\s*;/m)?.[1]
+    if (pkg) {
+      repoTypes.add(`${pkg}.${path.basename(file, '.java')}`)
+    }
+  }
+}
+
 /** namespace → 出现它的 XML（用于重复注册判定） */
 const byNamespace = new Map()
 const dangling = []
 const noNamespace = []
 const emptyXml = []
+const unresolvedTypes = []
+let typeReferences = 0
 
 for (const file of xmlFiles) {
   const raw = fs.readFileSync(file, 'utf8')
@@ -91,6 +133,27 @@ for (const file of xmlFiles) {
   const javaFile = path.join(JAVA_DIR, `${namespace.replaceAll('.', '/')}.java`)
   if (!fs.existsSync(javaFile)) {
     dangling.push({ file: rel(file), namespace })
+  }
+
+  for (const attribute of TYPE_ATTRIBUTES) {
+    for (const match of raw.matchAll(new RegExp(`${attribute}="([^"]+)"`, 'g'))) {
+      const value = match[1].trim()
+      if (!value || MYBATIS_ALIASES.has(value.toLowerCase())) {
+        continue
+      }
+      typeReferences += 1
+      if (!value.includes('.')) {
+        // 短名不是别名：MyBatis 会当成类型去解析，必然失败
+        unresolvedTypes.push({ file: rel(file), attribute, value, reason: '既不是内建别名也不是全限定名' })
+        continue
+      }
+      if (OUTSIDE_PREFIXES.some(prefix => value.startsWith(prefix))) {
+        continue
+      }
+      if (!repoTypes.has(value)) {
+        unresolvedTypes.push({ file: rel(file), attribute, value, reason: '仓库里没有这个类型（整域删除后的残留？）' })
+      }
+    }
   }
 }
 
@@ -114,6 +177,12 @@ for (const item of duplicated) {
 for (const item of emptyXml) {
   problems.push(`${item}：一条语句都没有（空壳 XML）`)
 }
+for (const item of unresolvedTypes) {
+  problems.push(`${item.file}：${item.attribute}="${item.value}" → ${item.reason}`)
+}
+if (typeReferences < MIN_TYPE_REFERENCES) {
+  problems.push(`类型引用只扫到 ${typeReferences} 处（下限 ${MIN_TYPE_REFERENCES}）：判据疑似空转，先查 TYPE_ATTRIBUTES 与 MAPPER_DIR`)
+}
 
 const report = {
   mapperDir: rel(MAPPER_DIR),
@@ -123,6 +192,8 @@ const report = {
   duplicated,
   noNamespace,
   emptyXml,
+  unresolvedTypes,
+  typeReferences,
   problems,
 }
 
@@ -133,8 +204,9 @@ else {
   console.log('🔎 Mapper XML 命名空间门禁')
   console.log(`  扫描：${rel(MAPPER_DIR)} → ${xmlFiles.length} 份 XML / ${byNamespace.size} 个 namespace`)
   console.log(`  接口：${rel(JAVA_DIR)}（namespace 必须能落到这里的 .java）`)
+  console.log(`  类型：${typeReferences} 处 javaType/resultType/parameterType/type/ofType 引用`)
   if (problems.length === 0) {
-    console.log('✅ 全部落地：没有悬空 namespace、没有重复注册、没有空壳 XML')
+    console.log('✅ 全部落地：没有悬空 namespace、没有重复注册、没有空壳 XML、没有指向已删域的类型引用')
   }
   else {
     console.log(`\n❌ ${problems.length} 处问题：`)

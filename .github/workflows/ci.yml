@@ -98,6 +98,9 @@ jobs:
       - name: Java 导入可达性（自持层不能反向依赖 airpower / 同名副本要显式承认）
         run: pnpm java:imports
 
+      - name: Java 类型引用落地（符号篇：防整域删除后的悬空引用）
+        run: pnpm java:symbols
+
       # 去 JPA 是与退场同类的长跑：删除面大、单批收益不可见。这道棘轮把"还剩多少 JPA"
       # 变成可下降的数字（文件/引用/import），并且只许降 —— 新代码直接用 MyBatis-Plus。
       # 分层架构（用户 2026-09-18）：依赖方向 L0 core → L1 framework → L2 base → L3 module；

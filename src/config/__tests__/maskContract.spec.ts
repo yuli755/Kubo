@@ -15,9 +15,10 @@ import { describe, expect, it } from 'vitest'
  *    `my-mask` 永远返回 `null` = "该字段无需脱敏"，脱敏静默失效（fail-open）。
  * 3. **只有后端真的提供 export 端点的实体才允许开 `showExport`**。`BaseController`
  *    全局 `@Extends(exclude = {Curd.Export, Curd.QueryExport})`，十四个读侧换轨资源
- *    （material / inventory / input / output / move / order / plan / picking / purchase / sale /
- *    customer / supplier / purchasePrice / salePrice / bom / operation / routing / contract /
- *    storage / structure）
+ *    （material / contract / storage / structure / customer / supplier / purchase / purchasePrice /
+ *    sale / salePrice + wms input / inventory / output / move —— 与后端 `@DataResource(key)` 一一对应；
+ *    2026-09-19 更正：原注释里还列着 order / plan / picking / bom / operation / routing 六个 MES 资源，
+ *    它们已随 MES 整域退场删除，注释与代码一样得删干净）
  *    都已把 `Curd.Export` 加回来并覆写了 `export(QueryListRequest)`；导出走文件流不经过 Jackson，
  *    是脱敏的已知旁路，前端别在没加回来的实体上随手开。
  * 4. **模型里的敏感字段必须显式表态**：`@KTable({ desensitize })` 或 `mask-exempt: 理由`。

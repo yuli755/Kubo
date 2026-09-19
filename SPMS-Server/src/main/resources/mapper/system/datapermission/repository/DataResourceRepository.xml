@@ -13,7 +13,7 @@
 -->
 <mapper namespace="cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository">
 
-    <select id="selectByIdForUpdate" flushCache="true" resultType="cn.hamm.spms.module.system.datapermission.repository.DataResourceEntity">
+    <select id="selectByIdForUpdate" flushCache="true" resultType="cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity">
         select *
         from data_resource
         where id = #{id}

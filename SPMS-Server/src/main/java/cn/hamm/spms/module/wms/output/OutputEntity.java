@@ -77,18 +77,4 @@ public class OutputEntity extends AbstractBaseBillEntity<OutputEntity, OutputDet
      */
     @TableField("move_id")
     private Long moveId;
-
-    @Description("领料单")
-    @TableField(exist = false)
-    private PickingEntity picking;
-
-    /**
-     * 外键列 picking_id（MyBatis-Plus 侧的读写走这个标量字段）
-     *
-     * @apiNote 关系对象标了 {@code @TableField(exist = false)}（MyBatis-Plus 不把对象当列），
-     * 这个标量字段才是列：写路径由 {@code RelationMapping#syncForeignKeys} 从关系对象同步过来，
-     * 读路径由 {@code RelationHydrator} 按它批量回填关系对象。
-     */
-    @TableField("picking_id")
-    private Long pickingId;
 }

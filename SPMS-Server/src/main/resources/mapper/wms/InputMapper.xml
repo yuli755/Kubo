@@ -24,9 +24,6 @@
         <association property="structure" javaType="cn.hamm.spms.module.factory.structure.StructureEntity">
             <id column="structure_id" property="id"/>
         </association>
-        <association property="order" javaType="cn.hamm.spms.module.mes.order.OrderEntity">
-            <id column="order_id" property="id"/>
-        </association>
         <association property="move" javaType="cn.hamm.spms.module.wms.move.MoveEntity">
             <id column="move_id" property="id"/>
         </association>
@@ -46,7 +43,6 @@
         i.type,
         i.purchase_id,
         i.structure_id,
-        i.order_id,
         i.move_id
     </sql>
 

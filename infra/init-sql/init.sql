@@ -403,7 +403,6 @@ CREATE TABLE IF NOT EXISTS `output` (
     `type` int UNSIGNED default 1 comment '出库类型',
     `sale_id` bigint UNSIGNED DEFAULT 0,
     `move_id` bigint UNSIGNED DEFAULT 0,
-    `picking_id` bigint UNSIGNED DEFAULT 0,
     KEY `idx_output_tenant` (`tenant_id`),
     UNIQUE KEY `uk_output_tenant_bill_code` (`tenant_id`, `bill_code`),
     PRIMARY KEY (`id`)

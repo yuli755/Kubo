@@ -13,7 +13,7 @@
 -->
 <mapper namespace="cn.hamm.spms.module.system.datapermission.repository.DataPolicyRepository">
 
-    <select id="selectByIdForUpdate" flushCache="true" resultType="cn.hamm.spms.module.system.datapermission.repository.DataPolicyEntity">
+    <select id="selectByIdForUpdate" flushCache="true" resultType="cn.hamm.spms.module.system.datapermission.entity.DataPolicyEntity">
         select *
         from data_policy
         where id = #{id}

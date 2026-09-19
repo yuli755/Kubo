@@ -20,9 +20,6 @@
         <association property="move" javaType="cn.hamm.spms.module.wms.move.MoveEntity">
             <id column="move_id" property="id"/>
         </association>
-        <association property="picking" javaType="cn.hamm.spms.module.mes.picking.PickingEntity">
-            <id column="picking_id" property="id"/>
-        </association>
     </resultMap>
 
     <sql id="outputColumns">
@@ -38,8 +35,7 @@
         o.status,
         o.type,
         o.sale_id,
-        o.move_id,
-        o.picking_id
+        o.move_id
     </sql>
 
     <sql id="outputFilter">
