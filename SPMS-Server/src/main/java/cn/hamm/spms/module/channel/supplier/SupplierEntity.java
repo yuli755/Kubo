@@ -3,14 +3,15 @@ package cn.hamm.spms.module.channel.supplier;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.airpower.core.annotation.Meta;
-import cn.hamm.airpower.core.annotation.Phone;
 import cn.hamm.airpower.curd.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
+import cn.hamm.spms.framework.util.PhoneRules;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
@@ -51,7 +52,8 @@ public class SupplierEntity extends TenantAwareEntity<SupplierEntity> {
 
     @Description("联系电话")
     @Column(columnDefinition = "varchar(255) default '' comment '联系电话'")
-    @Phone(groups = {WhenAdd.class, WhenUpdate.class})
+    @Pattern(regexp = PhoneRules.OPTIONAL_PHONE, message = PhoneRules.INVALID_PHONE_MESSAGE,
+            groups = {WhenAdd.class, WhenUpdate.class})
     @Export
     private String phone;
 }

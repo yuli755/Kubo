@@ -1,7 +1,7 @@
 package cn.hamm.spms.common.interceptor;
 
 import cn.hamm.airpower.core.AccessTokenUtil;
-import cn.hamm.airpower.core.DictionaryUtil;
+import cn.hamm.spms.common.dictionary.EnumDictionaries;
 import cn.hamm.airpower.curd.interceptor.CurdRequestInterceptor;
 import cn.hamm.spms.common.tree.HierarchyClosure;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
@@ -170,7 +170,7 @@ public class RequestInterceptor extends CurdRequestInterceptor {
         AccessTokenUtil.VerifiedToken verifiedToken = super.getVerifiedToken(accessToken);
         Object tokenType = verifiedToken.getPayload(UserTokenType.TYPE);
         FORBIDDEN.whenNull(tokenType, "无效的令牌类型");
-        UserTokenType userTokenType = DictionaryUtil.getDictionary(UserTokenType.class, Integer.parseInt(tokenType.toString()));
+        UserTokenType userTokenType = EnumDictionaries.require(UserTokenType.class, Integer.parseInt(tokenType.toString()), UserTokenType::getKey, UserTokenType::getLabel);
         switch (userTokenType) {
             case PERSONAL:
                 PersonalTokenEntity personalToken = personalTokenService.getByToken(accessToken);

@@ -1,7 +1,8 @@
 package cn.hamm.spms.module.factory.storage;
 
-import cn.hamm.airpower.core.CollectionUtil;
-import cn.hamm.airpower.core.TreeUtil;
+import cn.hamm.spms.common.tree.TreeDeletionGuard;
+import cn.hamm.spms.framework.util.Trees;
+import cn.hamm.spms.common.export.EntityCsvExport;
 import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
 import cn.hamm.airpower.curd.model.query.QueryListRequest;
@@ -175,7 +176,7 @@ public class StorageService extends BaseService<StorageEntity, StorageRepository
         List<StorageEntity> rows = storageMapper.selectForExport(filter);
         List<StorageEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), StorageEntity.class);
+            InputStream stream = EntityCsvExport.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), StorageEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }
@@ -206,7 +207,7 @@ public class StorageService extends BaseService<StorageEntity, StorageRepository
 
     @Override
     protected void beforeDelete(@NotNull StorageEntity storage) {
-        TreeUtil.ensureNoChildrenBeforeDelete(storage.getId(), id -> filter(new StorageEntity().setParentId(id)));
+        TreeDeletionGuard.ensureNoChildrenBeforeDelete(storage.getId(), id -> filter(new StorageEntity().setParentId(id)));
         afterTreeChanged();
     }
 
@@ -241,7 +242,7 @@ public class StorageService extends BaseService<StorageEntity, StorageRepository
     protected @NotNull QueryListRequest<StorageEntity> beforeGetList(@NotNull QueryListRequest<StorageEntity> queryListRequest) {
         StorageEntity filter = queryListRequest.getFilter();
         if (Objects.isNull(filter.getParentId())) {
-            filter.setParentId(TreeUtil.ROOT_ID);
+            filter.setParentId(Trees.ROOT_ID);
         }
         queryListRequest.setFilter(filter);
         return queryListRequest;

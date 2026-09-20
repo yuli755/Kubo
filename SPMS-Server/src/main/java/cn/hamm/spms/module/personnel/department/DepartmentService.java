@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.personnel.department;
 
-import cn.hamm.airpower.core.TreeUtil;
+import cn.hamm.spms.common.tree.TreeDeletionGuard;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
@@ -58,7 +58,7 @@ public class DepartmentService extends BaseService<DepartmentEntity, DepartmentR
 
     @Override
     protected void beforeDelete(@NotNull DepartmentEntity department) {
-        TreeUtil.ensureNoChildrenBeforeDelete(department.getId(), (id) -> filter(new DepartmentEntity().setId(id)));
+        TreeDeletionGuard.ensureNoChildrenBeforeDelete(department.getId(), (id) -> filter(new DepartmentEntity().setId(id)));
         afterTreeChanged();
     }
 
@@ -78,7 +78,7 @@ public class DepartmentService extends BaseService<DepartmentEntity, DepartmentR
      * 树变了：打掉本进程的层级快照，并广播给其他节点
      *
      * <p>删除路径在 {@link #beforeDelete} 里失效时节点其实还在库里，重建出来的快照可能仍含该节点 ——
-     * 这是可接受的：那里先有 {@code TreeUtil.ensureNoChildrenBeforeDelete} 挡掉"有子节点的删除"，
+     * 这是可接受的：那里先有 {@code TreeDeletionGuard.ensureNoChildrenBeforeDelete} 挡掉"有子节点的删除"，
      * 所以最多是多带一个已不存在的叶子 ID，查不出数据，也不会把范围放宽到别的部门。
      * Redis 不可用时广播只记 WARN，各节点靠 TTL（默认 300 秒）自愈。</p>
      */

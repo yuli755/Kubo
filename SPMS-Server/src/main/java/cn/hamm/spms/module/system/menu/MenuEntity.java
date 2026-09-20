@@ -2,7 +2,7 @@ package cn.hamm.spms.module.system.menu;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Meta;
-import cn.hamm.airpower.core.interfaces.ITree;
+import cn.hamm.spms.framework.util.TreeNode;
 import cn.hamm.airpower.curd.annotation.Search;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
@@ -32,7 +32,7 @@ import java.util.List;
 @DynamicUpdate
 @Table(name = "menu")
 @Description("菜单")
-public class MenuEntity extends BaseEntity<MenuEntity> implements ITree<MenuEntity> {
+public class MenuEntity extends BaseEntity<MenuEntity> implements TreeNode<MenuEntity> {
     @Description("名称")
     @Search
     @Column(columnDefinition = "varchar(255) default '' comment '名称'")

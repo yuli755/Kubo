@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.asset.contract;
 
-import cn.hamm.airpower.core.CollectionUtil;
+import cn.hamm.spms.common.export.EntityCsvExport;
 import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
 import cn.hamm.airpower.curd.model.query.QueryListRequest;
@@ -171,7 +171,7 @@ public class ContractService extends BaseService<ContractEntity, ContractReposit
         List<ContractEntity> rows = contractMapper.selectForExport(filter);
         List<ContractEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), ContractEntity.class);
+            InputStream stream = EntityCsvExport.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), ContractEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

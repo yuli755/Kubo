@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.channel.supplier;
 
-import cn.hamm.airpower.core.CollectionUtil;
+import cn.hamm.spms.common.export.EntityCsvExport;
 import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
 import cn.hamm.airpower.curd.model.query.QueryListRequest;
@@ -159,7 +159,7 @@ public class SupplierService extends BaseService<SupplierEntity, SupplierReposit
         List<SupplierEntity> rows = supplierMapper.selectForExport(filter);
         List<SupplierEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), SupplierEntity.class);
+            InputStream stream = EntityCsvExport.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), SupplierEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

@@ -1,6 +1,5 @@
 package cn.hamm.spms.common.exception;
 
-import cn.hamm.airpower.core.interfaces.IDictionary;
 import cn.hamm.airpower.core.interfaces.IException;
 import cn.hamm.spms.common.AppConstant;
 import lombok.Getter;
@@ -23,7 +22,7 @@ import org.jetbrains.annotations.Contract;
  */
 @SuppressWarnings("AlibabaEnumConstantsMustHaveComment")
 @Getter
-public enum CustomError implements IException<CustomError>, IDictionary {
+public enum CustomError implements IException<CustomError> {
     USER_LOGIN_ACCOUNT_OR_PASSWORD_INVALID(1, "用户账号或密码错误"),
 
     LOGIN_ATTEMPT_TOO_MANY(2, "登录失败次数过多，请稍后再试"),
@@ -49,7 +48,6 @@ public enum CustomError implements IException<CustomError>, IDictionary {
      * @return {@code Key}
      */
     @Contract(pure = true)
-    @Override
     public int getKey() {
         return code;
     }
@@ -60,7 +58,6 @@ public enum CustomError implements IException<CustomError>, IDictionary {
      * @return 描述
      */
     @Contract(pure = true)
-    @Override
     public String getLabel() {
         return message;
     }

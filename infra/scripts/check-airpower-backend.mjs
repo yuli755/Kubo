@@ -4,8 +4,8 @@
  *
  * ## 为什么需要它
  * 前端 `@airpower/web` 退场之所以能"一次删净 → 成批修复"，靠的是 `vue-tsc` 能在十几秒内
- * 把**所有缺口**列成一张表。后端没有这个闭环（本仓的沙箱环境既没有 JDK 也没有 Maven 仓库），
- * 于是"缺什么"只能靠人记 —— 这正是当初边删边补最慢的原因。
+ * 把**所有缺口**列成一张表。后端完整编译需要 JDK 17 和可达的 Maven 仓库；
+ * 此脚本只盘点耦合，不代替编译（独立工具可另跑 `pnpm java:unit`）。
  *
  * 这个脚本就是后端版的"缺口清单生成器"：扫 Java / pom / yml，把 airpower 的用法按
  * **符号**（要自建什么）与**模块**（core / curd / api / redis / email / exception …）分类汇总。
@@ -16,6 +16,7 @@
  * ## 棘轮（`--check`）
  * 后端退场是长跑，途中不能"越删越多"。`--check` 与 BASELINE 比对：**只许降**。
  * 某一批真正删掉了若干符号后，把 BASELINE 改成新数字（这是有意的代码改动，会被 review）。
+ * 已退场的工具另外执行零回潮检查，不能用删掉别处引用来抵消重新引入旧工具。
  *
  * ## 用法
  * ```
@@ -27,6 +28,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { INDEPENDENT_DOMAIN_SOURCES } from './backend-independent-sources.mjs'
 
 const ROOT = process.env.KUBO_ROOT ?? path.resolve(import.meta.dirname, '..', '..')
 const SERVER = path.join(ROOT, 'SPMS-Server')
@@ -49,8 +51,30 @@ const SERVER = path.join(ROOT, 'SPMS-Server')
  *     **exception 模块整块归零**（55 → 0）。
  *   · core 285（+3）：新 Errors 引用 core 的 IException / IDictionary / ServiceException，
  *     这三样是 B2 的活（接口与异常运行时），错不在这一批。
+ * - 2026-09-20 B2a 工具层：168 / 49 / 568（新增接线测试含 1 处旧异常类型引用）。
+ *   8 个工具类 + ITree 的直接用法清零；6 个无依赖生产类通过真实 javac 17 / 32 项契约。
+ *   全量 Maven 接线仍待验收：沙箱 Maven 下载不可达，GitHub CI 因账户额度未启动。
+ *   下调基线只锁住当前足迹，不代表 B2 或整个后端退场已经完成。
+ * - 2026-09-20 B2b CSV/反射：168 / 47 / 556。
+ *   14 处 CollectionUtil + 3 处 ReflectUtil 移除；元数据适配点 3 处 + 接线测试 2 处注解引用如实保留。
+ *   9 个无依赖生产类 / 64 契约通过；全量源码另过 javac AST（不是完整类型检查）。
+ *   JPA 回退仍调用旧框架内部导出，完整 Maven 接线仍待验收，不能按直接引用清零就删依赖。
+ * - 2026-09-20 B2c 枚举/任务残留：162 / 46 / 546。
+ *   5 个普通业务枚举不再实现旧 IDictionary；TaskUtil 直接用法清零，清掉 3 个无用导入。
+ *   9 个工具 + 5 个实际业务枚举 + AppConstant 共 15 个生产源码真实编译，79 契约通过。
+ *   @Dictionary 校验枚举、状态接口、令牌算法、Json/异常运行时仍未迁，Maven 完整接线待验收。
+ * - 2026-09-20 B3a 电话约束/无用标记：161 / 44 / 544。
+ *   三个电话字段改标准 Pattern（其中 UserEntity 的 Phone 被通配导入隐藏）；错误/配置枚举移除 3 个无用字典标记。
+ *   UserEntity 通配导入展开为 4 个真实注解引用（+3），不把显式化的增量藏起来；本批净减 2 引用。
+ *   16 个生产源码 / 91 独立契约；完整 Jakarta Validation 与应用接线仍需 Maven 验收。
  */
-const BASELINE = { files: 174, symbols: 60, references: 603 }
+const BASELINE = { files: 161, symbols: 44, references: 544 }
+
+/** 已迁走的符号不能回潮（包括静态成员导入），与总量预算分开判断。 */
+const RETIRED_SYMBOLS = [
+  'CollectionUtil', 'ReflectUtil', 'DateTimeUtil', 'DictionaryUtil', 'FileUtil', 'NumberUtil', 'RandomUtil',
+  'StringUtil', 'TraceUtil', 'TreeUtil', 'TaskUtil', 'interfaces.ITree', 'annotation.Phone',
+].map(name => `cn.hamm.airpower.core.${name}`)
 
 
 /**
@@ -135,7 +159,7 @@ function walk(dir, files = []) {
 /** airpower 的顶层模块（`cn.hamm.airpower.<module>`）→ 人话说明，用于分组展示 */
 const MODULES = {
   api: 'HTTP 入口层：@Api 注解、ApiController 基类、ApiConfig',
-  core: '内核工具与元数据注解：Json / TreeUtil / CollectionUtil / @Description / @Meta / IDictionary …',
+  core: '内核工具与元数据注解：Json / AccessTokenUtil / @Description / @Meta / IDictionary …',
   curd: 'CRUD 引擎：Curd 端点、@Search / @Extends 元数据、分页请求响应、Permission、ExportHelper',
   redis: 'Redis 帮助类',
   cookie: 'Cookie 配置与帮助类',
@@ -158,6 +182,16 @@ const SYMBOL_RE = /cn\.hamm\.airpower\.[a-zA-Z0-9_.]*/g
 const symbolHits = new Map() // symbol → 次数
 const moduleHits = new Map() // module → 次数
 const fileHits = []
+const retiredUsages = []
+const frameworkUsages = []
+const independentUsages = []
+const independentFiles = new Set(INDEPENDENT_DOMAIN_SOURCES)
+const dictionaryFreeFiles = new Set([
+  'SPMS-Server/src/main/java/cn/hamm/spms/common/exception/Errors.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/common/exception/CustomError.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/system/config/enums/ConfigFlag.java',
+])
+const wildcardUsages = []
 
 const mentionOnly = []
 
@@ -173,9 +207,26 @@ for (const file of javaFiles) {
     mentionOnly.push(path.relative(ROOT, file).replaceAll('\\', '/'))
     continue
   }
-  fileHits.push({ file: path.relative(ROOT, file).replaceAll('\\', '/'), count: hits.length })
+  const relativeFile = path.relative(ROOT, file).replaceAll('\\', '/')
+  fileHits.push({ file: relativeFile, count: hits.length })
+  for (const [, target] of source.matchAll(/^\s*import\s+(?:static\s+)?(cn\.hamm\.airpower(?:\.[\w$]+)*\.\*)\s*;/gm)) {
+    wildcardUsages.push({ file: relativeFile, target })
+  }
+  if (independentFiles.has(relativeFile)) {
+    independentUsages.push(relativeFile)
+  }
+  if (relativeFile.startsWith('SPMS-Server/src/main/java/cn/hamm/spms/framework/')) {
+    frameworkUsages.push(relativeFile)
+  }
   for (const hit of hits) {
     const symbol = hit.replace(/\.$/, '')
+    if (RETIRED_SYMBOLS.some(retired => symbol === retired || symbol.startsWith(`${retired}.`))
+      || symbol === 'cn.hamm.airpower.core' || symbol === 'cn.hamm.airpower.core.interfaces'
+      || symbol === 'cn.hamm.airpower.core.annotation'
+      || (dictionaryFreeFiles.has(relativeFile) && (symbol === 'cn.hamm.airpower.core.interfaces.IDictionary'
+        || symbol.startsWith('cn.hamm.airpower.core.interfaces.IDictionary.')))) {
+      retiredUsages.push({ file: relativeFile, symbol })
+    }
     symbolHits.set(symbol, (symbolHits.get(symbol) ?? 0) + 1)
     const module = symbol.split('.')[3] ?? 'core'
     moduleHits.set(module, (moduleHits.get(module) ?? 0) + 1)
@@ -219,6 +270,13 @@ const report = {
   parentPom: parentAirpower,
   dependencies: [...new Set(pomDependencies)],
   configKeys: ymlHits,
+  retiredSymbols: RETIRED_SYMBOLS,
+  retiredUsages,
+  frameworkUsages,
+  independentSources: INDEPENDENT_DOMAIN_SOURCES,
+  independentUsages,
+  dictionaryFreeFiles: [...dictionaryFreeFiles],
+  wildcardUsages,
   modules,
   symbols,
   // 「要自建什么」的清单：按用量倒序，前几名就是最该先做的通用件
@@ -228,6 +286,18 @@ const report = {
 // ── 棘轮 ──
 if (process.argv.includes('--check')) {
   const grows = []
+  for (const { file, symbol } of retiredUsages) {
+    grows.push(`已退场符号回潮（不允许用总量下降抵消）：${file} → ${symbol}`)
+  }
+  for (const { file, target } of wildcardUsages) {
+    grows.push(`禁止 airpower 通配导入（不得隐藏未迁走的类型）：${file} → ${target}`)
+  }
+  for (const file of frameworkUsages) {
+    grows.push(`自持 framework 不得再依赖 airpower：${file}`)
+  }
+  for (const file of independentUsages) {
+    grows.push(`已独立编译的业务类型不得回潮 airpower：${file}`)
+  }
   if (report.totals.airpowerFiles > BASELINE.files) {
     grows.push(`触及 airpower 的文件 ${report.totals.airpowerFiles} > 基线 ${BASELINE.files}`)
   }
@@ -238,7 +308,7 @@ if (process.argv.includes('--check')) {
     grows.push(`引用次数 ${report.totals.references} > 基线 ${BASELINE.references}`)
   }
   if (grows.length) {
-    console.error('\n✗ 后端 airpower 足迹比基线更大：\n')
+    console.error('\n✗ 后端 airpower 退场门禁未通过：\n')
     for (const line of grows) {
       console.error(`  · ${line}`)
     }
@@ -248,8 +318,9 @@ if (process.argv.includes('--check')) {
   }
   console.log(
     `✓ 后端 airpower 棘轮通过：文件 ${report.totals.airpowerFiles}/${BASELINE.files} · `
-    + `符号 ${report.totals.symbols}/${BASELINE.symbols} · 引用 ${report.totals.references}/${BASELINE.references}（只许降）`,
+    + `符号 ${report.totals.symbols}/${BASELINE.symbols} · 引用 ${report.totals.references}/${BASELINE.references}（只许降；不代表退场完成）`,
   )
+  console.log('✓ 已退场符号零回潮 · 无 airpower 通配导入 · 自持 framework / 独立业务类型无 airpower 引用')
   process.exit(0)
 }
 

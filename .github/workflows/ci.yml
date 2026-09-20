@@ -172,6 +172,10 @@ jobs:
           java-version: 17
           cache: maven
 
+      # 无 Maven 依赖：全量源码 AST + 独立工具真实编译/契约；不能替代整仓类型检查与集成测试。
+      - name: Java 17 source parse and utility contracts
+        run: node ../infra/scripts/test-backend-utilities.mjs
+
       - name: Compile
         # 失败原因要用 ::error:: 显式写成 annotation：Actions 的日志正文放在 blob 存储上，
         # 某些网络环境取不到（本仓踩过一次：CI 红了但谁都读不到为什么红）。

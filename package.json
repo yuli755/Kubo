@@ -13,6 +13,7 @@
     "stack": "node scripts/frontend-stack.mjs",
     "deadcode:check": "node scripts/find-unused-frontend.mjs --check",
     "exports:check": "node scripts/find-unused-exports.mjs --check",
+    "java:unit": "node infra/scripts/test-backend-utilities.mjs",
     "java:check": "node scripts/java-syntax-check.mjs SPMS-Server/src/main/java SPMS-Server/src/test/java",
     "flyway:baseline": "node scripts/gen-flyway-baseline.mjs",
     "icons:gen": "node scripts/gen-pwa-icons.mjs",

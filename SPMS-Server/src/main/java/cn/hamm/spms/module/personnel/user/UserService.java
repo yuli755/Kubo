@@ -1,11 +1,10 @@
 package cn.hamm.spms.module.personnel.user;
 
+import cn.hamm.spms.framework.util.Trees;
 import cn.hamm.airpower.api.config.ApiConfig;
 import cn.hamm.spms.common.cookie.CookieHelper;
 import cn.hamm.airpower.core.AccessTokenUtil;
-import cn.hamm.airpower.core.DateTimeUtil;
-import cn.hamm.airpower.core.RandomUtil;
-import cn.hamm.airpower.core.TreeUtil;
+import cn.hamm.spms.framework.util.RandomValues;
 import cn.hamm.airpower.curd.base.CurdEntity;
 import cn.hamm.airpower.curd.config.AccessConfig;
 import cn.hamm.airpower.curd.model.query.Sort;
@@ -38,6 +37,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -62,7 +62,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
     /**
      * Code 缓存秒数
      */
-    private static final int CACHE_CODE_EXPIRE_SECOND = DateTimeUtil.SECOND_PER_MINUTE * 5;
+    private static final long CACHE_CODE_EXPIRE_SECOND = Duration.ofMinutes(5).getSeconds();
 
     /**
      * 缓存房间用户
@@ -141,7 +141,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
      * 生成服务端随机盐并就地散列
      */
     private void applyFreshPassword(@NotNull UserEntity entity) {
-        String salt = RandomUtil.randomString(PASSWORD_SALT_LENGTH);
+        String salt = RandomValues.randomString(PASSWORD_SALT_LENGTH);
         entity.setSalt(salt);
         entity.setPassword(PermissionUtil.encodePassword(entity.getPassword(), salt));
     }
@@ -167,7 +167,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
      * @return 验证码
      */
     private static @NotNull String getRandomValidateCode() {
-        return RandomUtil.randomNumbers(6);
+        return RandomValues.randomNumbers(6);
     }
 
     /**
@@ -210,7 +210,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
      * @param newPassword 新密码
      */
     private void resetPassword(@NotNull UserEntity user, String newPassword) {
-        String salt = RandomUtil.randomString(PASSWORD_SALT_LENGTH);
+        String salt = RandomValues.randomString(PASSWORD_SALT_LENGTH);
         user.setSalt(salt);
         user.setPassword(PermissionUtil.encodePassword(newPassword, salt));
         updateToDatabase(user);
@@ -225,7 +225,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
     public List<MenuEntity> getMenuListByUserId(long userId) {
         UserEntity user = get(userId);
         if (user.isRootUser()) {
-            return TreeUtil.buildTreeList(
+            return Trees.buildTreeList(
                     SystemServices.getMenuService().filter(new MenuEntity(), new Sort().setField("orderNo"))
             );
         }
@@ -239,7 +239,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
                     }
                 })
         );
-        return TreeUtil.buildTreeList(menuList.stream().peek(item -> {
+        return Trees.buildTreeList(menuList.stream().peek(item -> {
             item.excludeNotMeta();
             item.setIsPublished(null);
         }).toList());
@@ -285,7 +285,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
                 existUser.getPassword(),
                 "原密码输入错误，修改密码失败"
         );
-        String salt = RandomUtil.randomString(PASSWORD_SALT_LENGTH);
+        String salt = RandomValues.randomString(PASSWORD_SALT_LENGTH);
         existUser.setSalt(salt);
         existUser.setPassword(PermissionUtil.encodePassword(newPassword, salt));
         updateToDatabase(existUser);
@@ -359,7 +359,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
         String accessToken = createAccessToken(user.getId());
 
         // 存储 Cookies
-        String cookieString = RandomUtil.randomString();
+        String cookieString = RandomValues.randomString();
         saveCookie(user.getId(), cookieString);
         Cookie cookie = cookieHelper.getAuthorizeCookie(cookieString);
         // 认证 Cookie 必须 HttpOnly：其值（cookieString）经 Redis 映射到 userId，是 OAuth 授权流程
@@ -378,7 +378,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
      * @param cookie Cookie
      */
     public void saveCookie(Long userId, String cookie) {
-        redisHelper.set(getCookieCodeKey(cookie), userId, DateTimeUtil.SECOND_PER_DAY);
+        redisHelper.set(getCookieCodeKey(cookie), userId, Duration.ofDays(1).getSeconds());
     }
 
     /**
@@ -477,7 +477,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
      * @return 注册的用户
      */
     public UserEntity registerUserViaPhone(@NotNull String phone) {
-        return registerUserViaPhone(phone, RandomUtil.randomString());
+        return registerUserViaPhone(phone, RandomValues.randomString());
     }
 
     /**
@@ -489,7 +489,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
      */
     public UserEntity registerUserViaPhone(@NotNull String phone, String password) {
         String nickname = "用户" + phone.substring(phone.length() - 4);
-        String salt = RandomUtil.randomString(PASSWORD_SALT_LENGTH);
+        String salt = RandomValues.randomString(PASSWORD_SALT_LENGTH);
         UserEntity user = new UserEntity().setPassword(PermissionUtil.encodePassword(password, salt))
                 .setSalt(salt)
                 .setNickname(nickname)
@@ -505,7 +505,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
      * @return 注册的用户
      */
     public UserEntity registerUserViaEmail(@NotNull String email) {
-        return registerUserViaEmail(email, RandomUtil.randomString());
+        return registerUserViaEmail(email, RandomValues.randomString());
     }
 
     /**
@@ -518,7 +518,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
     public UserEntity registerUserViaEmail(@NotNull String email, String password) {
         // 昵称默认为邮箱 @ 前面的
         String nickname = email.split("@")[0];
-        String salt = RandomUtil.randomString(PASSWORD_SALT_LENGTH);
+        String salt = RandomValues.randomString(PASSWORD_SALT_LENGTH);
         UserEntity user = new UserEntity().setPassword(PermissionUtil.encodePassword(password, salt))
                 .setSalt(salt)
                 .setNickname(nickname);
@@ -575,7 +575,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
         FORBIDDEN_EXIST.whenNotNull(existUser, "邮箱已经存在，请勿重复添加用户");
         if (!StringUtils.hasLength(result.getPassword())) {
             // 创建时没有设置密码的话 随机一个密码（随后统一走服务端加盐散列）
-            result.setPassword(RandomUtil.randomString());
+            result.setPassword(RandomValues.randomString());
         }
         normalizeSubmittedPassword(result);
         return result;
@@ -629,6 +629,6 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
      * @param roomId 房间 ID
      */
     public void saveCurrentRoomId(long userId, long roomId) {
-        redisHelper.set(CACHE_ROOM_KEY + userId, roomId, DateTimeUtil.SECOND_PER_DAY * 30);
+        redisHelper.set(CACHE_ROOM_KEY + userId, roomId, Duration.ofDays(30).getSeconds());
     }
 }

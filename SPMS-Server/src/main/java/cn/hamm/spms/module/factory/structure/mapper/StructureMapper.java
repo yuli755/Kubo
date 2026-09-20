@@ -14,7 +14,7 @@ import java.util.Map;
  * <h1>生产单元读侧 Mapper</h1>
  *
  * <p>生产单元主表（{@code structure}）的列表 / 详情 / 总数 / 统计 / 导出走显式 SQL。生产单元是树形实体
- * （{@code ITree}），其树导航走 {@code getList}（JPA 路径）；{@code operationList} 是 {@code @ManyToMany}
+ * （{@code TreeNode}），其树导航走 {@code getList}（JPA 路径）；{@code operationList} 是 {@code @ManyToMany}
  * （无外键），resultMap 只投影主表列，工序由 {@code StructureService#getMapperDetail} 沿 JPA 关系补齐。
  * 权限条件由 MyBatis-Plus 运行时拦截器按 statement ID 注入。</p>
  *

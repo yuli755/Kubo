@@ -4,7 +4,7 @@ import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Dictionary;
 import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.airpower.core.annotation.Meta;
-import cn.hamm.airpower.core.interfaces.ITree;
+import cn.hamm.spms.framework.util.TreeNode;
 import cn.hamm.airpower.curd.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
@@ -36,7 +36,7 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.StructureC
 @DynamicUpdate
 @Table(name = "structure")
 @Description("生产单元")
-public class StructureEntity extends TenantAwareEntity<StructureEntity> implements ITree<StructureEntity> {
+public class StructureEntity extends TenantAwareEntity<StructureEntity> implements TreeNode<StructureEntity> {
     @Description("生产单元编码")
     @Column(columnDefinition = "varchar(255) default '' comment '生产单元编码'", unique = true)
     @AutoGenerateCode(StructureCode)

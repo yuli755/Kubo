@@ -1,22 +1,20 @@
 package cn.hamm.spms.module.system.coderule;
 
-import cn.hamm.airpower.core.DateTimeUtil;
-import cn.hamm.airpower.core.DictionaryUtil;
-import cn.hamm.airpower.core.ReflectUtil;
+import cn.hamm.spms.common.dictionary.EnumDictionaries;
+import cn.hamm.spms.framework.util.BeanFields;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.system.coderule.enums.CodeRuleField;
 import cn.hamm.spms.module.system.coderule.enums.CodeRuleParam;
 import cn.hamm.spms.module.system.coderule.enums.SerialNumberUpdate;
-import lombok.val;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Field;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -31,10 +29,6 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleParam.*;
  */
 @Service
 public class CodeRuleService extends BaseService<CodeRuleEntity, CodeRuleRepository> {
-    /**
-     * {@code Label}
-     */
-    public static final String STRING_LABEL = "label";
     /**
      * 年份位数
      */
@@ -57,10 +51,12 @@ public class CodeRuleService extends BaseService<CodeRuleEntity, CodeRuleReposit
         AtomicReference<String> code = new AtomicReference<>("");
         transactionHelper.run(() -> {
             CodeRuleEntity forUpdate = getForUpdate(codeRule.getId());
-            SerialNumberUpdate serialNumberUpdate = DictionaryUtil.getDictionary(SerialNumberUpdate.class, forUpdate.getSnType());
-            final int currentYear = DateTimeUtil.getCurrentYear();
-            final int currentMonth = DateTimeUtil.getCurrentMonth();
-            final int currentDay = DateTimeUtil.getCurrentDay();
+            SerialNumberUpdate serialNumberUpdate = EnumDictionaries.require(SerialNumberUpdate.class, forUpdate.getSnType(), SerialNumberUpdate::getKey, SerialNumberUpdate::getLabel);
+            // 一次取时，避免跨午夜时分别取到不同日期的年/月/日。时区仍沿用 JVM 默认值。
+            LocalDateTime now = LocalDateTime.now();
+            final int currentYear = now.getYear();
+            final int currentMonth = now.getMonthValue();
+            final int currentDay = now.getDayOfMonth();
             switch (serialNumberUpdate) {
                 case YEAR -> {
                     if (forUpdate.getCurrentYear() != currentYear) {
@@ -89,9 +85,8 @@ public class CodeRuleService extends BaseService<CodeRuleEntity, CodeRuleReposit
                 }
             }
             String template = forUpdate.getTemplate();
-            List<Map<String, Object>> mapList = DictionaryUtil.getDictionaryList(CodeRuleParam.class);
-            for (val map : mapList) {
-                String param = map.get(STRING_LABEL).toString();
+            for (CodeRuleParam ruleParam : CodeRuleParam.values()) {
+                String param = ruleParam.getLabel();
                 if (FULL_YEAR.getLabel().equals(param)) {
                     template = template.replaceAll(param, String.valueOf(currentYear));
                     continue;
@@ -110,7 +105,7 @@ public class CodeRuleService extends BaseService<CodeRuleEntity, CodeRuleReposit
                     continue;
                 }
                 if (HOUR.getLabel().equals(param)) {
-                    template = template.replaceAll(param, String.format(CODE_RULE_FORMATTER, DateTimeUtil.getCurrentHour()));
+                    template = template.replaceAll(param, String.format(CODE_RULE_FORMATTER, now.getHour()));
                 }
             }
             int serialNumber = forUpdate.getCurrentSn();
@@ -147,18 +142,18 @@ public class CodeRuleService extends BaseService<CodeRuleEntity, CodeRuleReposit
      * @param entity 实体
      */
     public <E extends BaseEntity<E>> void fillFieldAutoCode(@NotNull E entity) {
-        List<Field> fields = ReflectUtil.getFieldList(entity.getClass());
+        List<Field> fields = BeanFields.instanceFields(entity.getClass());
         for (Field field : fields) {
-            AutoGenerateCode autoGenerateCode = ReflectUtil.getAnnotation(AutoGenerateCode.class, field);
+            AutoGenerateCode autoGenerateCode = field.getAnnotation(AutoGenerateCode.class);
             if (Objects.isNull(autoGenerateCode)) {
                 continue;
             }
-            Object value = ReflectUtil.getFieldValue(entity, field);
+            Object value = BeanFields.read(entity, field);
             if (!Objects.isNull(value) && StringUtils.hasText(value.toString())) {
                 continue;
             }
             String code = createCode(autoGenerateCode.value());
-            ReflectUtil.setFieldValue(entity, field, code);
+            BeanFields.write(entity, field, code);
             break;
         }
     }

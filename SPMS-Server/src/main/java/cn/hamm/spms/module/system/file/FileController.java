@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.system.file;
 
 import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.DictionaryUtil;
+import cn.hamm.spms.common.dictionary.EnumDictionaries;
 import cn.hamm.airpower.core.Json;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.curd.permission.Permission;
@@ -35,7 +35,7 @@ public class FileController extends BaseController<FileEntity, FileService, File
     @Permission(authorize = false)
     public Json upload(@NotNull(message = "文件不能为空") @RequestParam("file") MultipartFile file, @RequestParam("category") Integer category) {
         category = Objects.requireNonNullElse(category, FileCategory.NORMAL.getKey());
-        FileCategory fileCategory = DictionaryUtil.getDictionary(FileCategory.class, category);
+        FileCategory fileCategory = EnumDictionaries.require(FileCategory.class, category, FileCategory::getKey, FileCategory::getLabel);
         // 该接口 authorize=false 允许匿名，登录用户上传时把属主落库（D-4）；
         // 匿名（无头/坏头）时 getCurrentUserId 校验失败，按无属主记录。
         Long creatorId = null;

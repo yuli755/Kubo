@@ -1,6 +1,5 @@
 package cn.hamm.spms.module.system.permission;
 
-import cn.hamm.airpower.core.TreeUtil;
 import cn.hamm.airpower.curd.permission.PermissionUtil;
 import cn.hamm.spms.Application;
 import cn.hamm.spms.base.BaseService;

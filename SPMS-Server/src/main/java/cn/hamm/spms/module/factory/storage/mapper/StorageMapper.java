@@ -14,7 +14,7 @@ import java.util.Map;
  * <h1>仓库读侧 Mapper</h1>
  *
  * <p>仓库主表（{@code storage}）的列表 / 详情 / 总数 / 统计 / 导出走显式 SQL。仓库是树形实体
- * （{@code ITree}），其树导航走 {@code getList}（JPA 路径，经 {@code beforeGetList}/{@code afterGetList}
+ * （{@code TreeNode}），其树导航走 {@code getList}（JPA 路径，经 {@code beforeGetList}/{@code afterGetList}
  * 递归补 {@code children}），不在本 Mapper 覆盖范围内；本 Mapper 只承载扁平的 page/detail/count/stat/export。
  * 权限条件由 MyBatis-Plus 运行时拦截器按 statement ID 注入。</p>
  *

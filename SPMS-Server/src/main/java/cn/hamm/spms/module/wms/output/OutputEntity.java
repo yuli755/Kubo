@@ -12,6 +12,7 @@ import cn.hamm.spms.module.wms.move.MoveEntity;
 import cn.hamm.spms.module.wms.output.detail.OutputDetailEntity;
 import cn.hamm.spms.module.wms.output.enums.OutputStatus;
 import cn.hamm.spms.module.wms.output.enums.OutputType;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.ManyToOne;
@@ -67,7 +68,11 @@ public class OutputEntity extends AbstractBaseBillEntity<OutputEntity, OutputDet
     @ManyToOne(fetch = EAGER)
     private MoveEntity move;
 
-    @Description("领料单")
-    @ManyToOne(fetch = EAGER)
-    private PickingEntity picking;
+    /**
+     * 领料模块已删除，不再引用不存在的 PickingEntity；存量库的历史外键仍保留。
+     * 不改 Flyway V1、不删除数据，也不把这个遗留字段重新暴露成可读写业务关系。
+     */
+    @JsonIgnore
+    @Column(name = "picking_id", insertable = false, updatable = false)
+    private Long legacyPickingId;
 }

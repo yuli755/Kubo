@@ -2,7 +2,7 @@ package cn.hamm.spms.module.personnel.department;
 
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Meta;
-import cn.hamm.airpower.core.interfaces.ITree;
+import cn.hamm.spms.framework.util.TreeNode;
 import cn.hamm.airpower.curd.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
@@ -34,7 +34,7 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.Department
 @DynamicUpdate
 @Table(name = "department")
 @Description("部门")
-public class DepartmentEntity extends TenantAwareEntity<DepartmentEntity> implements ITree<DepartmentEntity> {
+public class DepartmentEntity extends TenantAwareEntity<DepartmentEntity> implements TreeNode<DepartmentEntity> {
     @Description("部门编码")
     @Column(columnDefinition = "varchar(255) default '' comment 'code'", unique = true)
     @AutoGenerateCode(DepartmentCode)

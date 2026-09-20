@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.channel.sale;
 
-import cn.hamm.airpower.core.CollectionUtil;
-import cn.hamm.airpower.core.NumberUtil;
+import cn.hamm.spms.common.export.EntityCsvExport;
+import cn.hamm.spms.framework.util.DecimalMath;
 import cn.hamm.airpower.core.interfaces.IDictionary;
 import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
@@ -178,7 +178,7 @@ public class SaleService extends AbstractBaseBillService<SaleEntity, SaleReposit
         List<SaleEntity> rows = saleMapper.selectForExport(filter.getBillCode(), filter.getReason(), filter.getStatus());
         List<SaleEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), SaleEntity.class);
+            InputStream stream = EntityCsvExport.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), SaleEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }
@@ -231,7 +231,7 @@ public class SaleService extends AbstractBaseBillService<SaleEntity, SaleReposit
         // 计算总金额
         List<SaleDetailEntity> details = detailService.getAllByBillId(billId);
         double totalPrice = details.stream()
-                .mapToDouble(detail -> NumberUtil.multiply(
+                .mapToDouble(detail -> DecimalMath.multiply(
                         detail.getQuantity(), detail.getPrice())
                 )
                 .sum();

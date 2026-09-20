@@ -68,8 +68,6 @@ public class InputEntity extends AbstractBaseBillEntity<InputEntity, InputDetail
     @ManyToOne(fetch = EAGER)
     private StructureEntity structure;
 
-    @Description("生产订单")
-    @ManyToOne(fetch = EAGER)
     @Description("移库单")
     @ManyToOne(fetch = EAGER)
     private MoveEntity move;

@@ -1,17 +1,16 @@
 package cn.hamm.spms.module.system.file.enums;
 
-import cn.hamm.airpower.core.interfaces.IDictionary;
 import cn.hamm.spms.common.AppConstant;
-import lombok.Getter;
-import org.jetbrains.annotations.Contract;
 
 /**
  * <h1>文件分类</h1>
  *
+ * <p>这里只是应用自己的选项，不参与旧框架的字典校验或状态接口。
+ * 键值/标签及 getter 保持原样；不再为枚举数据依赖框架接口或注解处理器。</p>
+ *
  * @author Hamm.cn
  */
-@Getter
-public enum FileCategory implements IDictionary {
+public enum FileCategory {
     /**
      * 临时文件
      */
@@ -42,7 +41,6 @@ public enum FileCategory implements IDictionary {
     private final String[] extensions;
     private final Boolean isProtected;
 
-    @Contract(pure = true)
     FileCategory(int key, String label, String[] extensions) {
         this.key = key;
         this.label = label;
@@ -50,11 +48,30 @@ public enum FileCategory implements IDictionary {
         this.isProtected = false;
     }
 
-    @Contract(pure = true)
     FileCategory(int key, String label, String[] extensions, Boolean isProtected) {
         this.key = key;
         this.label = label;
         this.extensions = extensions;
         this.isProtected = isProtected;
+    }
+
+    /** 稳定的外部键值，不用 ordinal 代替。 */
+    public int getKey() {
+        return key;
+    }
+
+    /** 选项显示文案。 */
+    public String getLabel() {
+        return label;
+    }
+
+    /** 沿用既有上传白名单；此批不修改其内容与数组返回口径。 */
+    public String[] getExtensions() {
+        return extensions;
+    }
+
+    /** 是否为受保护的上传分类。 */
+    public Boolean getIsProtected() {
+        return isProtected;
     }
 }

@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.wms.move;
 
-import cn.hamm.airpower.core.CollectionUtil;
+import cn.hamm.spms.common.export.EntityCsvExport;
 import cn.hamm.airpower.core.interfaces.IDictionary;
 import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
@@ -179,7 +179,7 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
         List<MoveEntity> rows = moveMapper.selectForExport(filter.getBillCode(), filter.getStatus());
         List<MoveEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), MoveEntity.class);
+            InputStream stream = EntityCsvExport.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), MoveEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

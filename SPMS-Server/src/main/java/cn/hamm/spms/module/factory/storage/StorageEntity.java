@@ -3,7 +3,7 @@ package cn.hamm.spms.module.factory.storage;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.Export;
 import cn.hamm.airpower.core.annotation.Meta;
-import cn.hamm.airpower.core.interfaces.ITree;
+import cn.hamm.spms.framework.util.TreeNode;
 import cn.hamm.airpower.curd.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
@@ -36,7 +36,7 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.StorageCod
 @DynamicUpdate
 @Table(name = "storage")
 @Description("仓库")
-public class StorageEntity extends TenantAwareEntity<StorageEntity> implements ITree<StorageEntity> {
+public class StorageEntity extends TenantAwareEntity<StorageEntity> implements TreeNode<StorageEntity> {
     @Description("仓库编码")
     @Column(columnDefinition = "varchar(255) default '' comment '仓库编码'", unique = true)
     @AutoGenerateCode(StorageCode)

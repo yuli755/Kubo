@@ -1,6 +1,6 @@
 package cn.hamm.spms.common.cookie;
 
-import cn.hamm.airpower.core.DateTimeUtil;
+import java.time.Duration;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
@@ -50,7 +50,7 @@ public class CookieConfig {
     /**
      * Cookie 有效期
      */
-    private int cookieMaxAge = DateTimeUtil.SECOND_PER_DAY;
+    private int cookieMaxAge = Math.toIntExact(Duration.ofDays(1).getSeconds());
 
     /**
      * 使用 Https 方式的安全 Cookie

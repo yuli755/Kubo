@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.system.coderule;
 
 import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.DictionaryUtil;
+import cn.hamm.spms.framework.util.EnumValues;
 import cn.hamm.airpower.core.Json;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.curd.permission.Permission;
@@ -23,10 +23,10 @@ public class CodeRuleController extends BaseController<CodeRuleEntity, CodeRuleS
     @Permission(login = false)
     @PostMapping("getFieldList")
     public Json getFieldList() {
-        return Json.data(DictionaryUtil.getDictionaryList(CodeRuleField.class,
-                CodeRuleField::getKey,
-                CodeRuleField::getLabel,
-                CodeRuleField::getDefaultPrefix
+        return Json.data(EnumValues.options(CodeRuleField.class,
+                EnumValues.column("key", CodeRuleField::getKey),
+                EnumValues.column("label", CodeRuleField::getLabel),
+                EnumValues.column("defaultPrefix", CodeRuleField::getDefaultPrefix)
         ));
     }
 
@@ -34,11 +34,11 @@ public class CodeRuleController extends BaseController<CodeRuleEntity, CodeRuleS
     @Permission(login = false)
     @PostMapping("getParamList")
     public Json getParamList() {
-        return Json.data(DictionaryUtil.getDictionaryList(CodeRuleParam.class,
-                CodeRuleParam::getKey,
-                CodeRuleParam::getLabel,
-                CodeRuleParam::getDesc,
-                CodeRuleParam::getDemo
+        return Json.data(EnumValues.options(CodeRuleParam.class,
+                EnumValues.column("key", CodeRuleParam::getKey),
+                EnumValues.column("label", CodeRuleParam::getLabel),
+                EnumValues.column("desc", CodeRuleParam::getDesc),
+                EnumValues.column("demo", CodeRuleParam::getDemo)
         ));
     }
 
@@ -46,6 +46,8 @@ public class CodeRuleController extends BaseController<CodeRuleEntity, CodeRuleS
     @Permission(login = false)
     @PostMapping("getSerialNumberUpdate")
     public Json getSerialNumberUpdate() {
-        return Json.data(DictionaryUtil.getDictionaryList(SerialNumberUpdate.class));
+        return Json.data(EnumValues.options(SerialNumberUpdate.class,
+                EnumValues.column("key", SerialNumberUpdate::getKey),
+                EnumValues.column("label", SerialNumberUpdate::getLabel)));
     }
 }

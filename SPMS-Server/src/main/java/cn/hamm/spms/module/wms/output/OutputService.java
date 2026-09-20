@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.wms.output;
 
-import cn.hamm.airpower.core.CollectionUtil;
-import cn.hamm.airpower.core.DictionaryUtil;
+import cn.hamm.spms.common.export.EntityCsvExport;
+import cn.hamm.spms.common.dictionary.EnumDictionaries;
 import cn.hamm.airpower.core.interfaces.IDictionary;
 import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
@@ -173,7 +173,7 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
         List<OutputEntity> rows = outputMapper.selectForExport(filter.getBillCode(), filter.getStatus(), filter.getType());
         List<OutputEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), OutputEntity.class);
+            InputStream stream = EntityCsvExport.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), OutputEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }
@@ -215,7 +215,7 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
     @Override
     protected void afterBillFinished(long billId) {
         OutputEntity outputBill = get(billId);
-        OutputType outputType = DictionaryUtil.getDictionary(OutputType.class, outputBill.getType());
+        OutputType outputType = EnumDictionaries.require(OutputType.class, outputBill.getType(), OutputType::getKey, OutputType::getLabel);
         switch (outputType) {
             case SALE -> ChannelServices.getSaleService().setBillFinished(outputBill.getSale().getId());
             default -> {
@@ -243,7 +243,7 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
             Double outputDetailQuantity = outputDetail.getQuantity();
             inventoryService.reduceInventoryQuantity(inventory.getId(), outputDetailQuantity);
             // 获取出库单类型
-            OutputType outputType = DictionaryUtil.getDictionary(OutputType.class, bill.getType());
+            OutputType outputType = EnumDictionaries.require(OutputType.class, bill.getType(), OutputType::getKey, OutputType::getLabel);
             switch (outputType) {
                 case SALE -> ChannelServices.getSaleDetailService().updateDetailQuantity(
                         bill.getSale().getId(),

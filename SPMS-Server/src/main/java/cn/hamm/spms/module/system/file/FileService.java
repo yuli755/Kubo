@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.file;
 
-import cn.hamm.airpower.core.FileUtil;
+import cn.hamm.spms.framework.util.FilePaths;
 import cn.hamm.airpower.core.exception.ServiceException;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.common.AppConfig;
@@ -45,12 +45,12 @@ public class FileService extends BaseService<FileEntity, FileRepository> {
         FORBIDDEN_UPLOAD_MAX_SIZE.when(multipartFile.getSize() > appConfig.getUploadMaxSize());
         String originalFilename = multipartFile.getOriginalFilename();
         PARAM_INVALID.whenNull(originalFilename, "文件名不能为空");
-        String extension = FileUtil.getExtension(originalFilename);
+        String extension = FilePaths.getExtension(originalFilename);
         PARAM_INVALID.whenEmpty(extension, "文件类型不能为空");
         PARAM_INVALID.when(!Arrays.stream(fileCategory.getExtensions()).toList().contains(extension), "文件类型不允许上传");
 
         // 存储的相对路径目录
-        String relativeDirectory = appConfig.getUploadDirectory() + fileCategory.name().toLowerCase() + "/" + FileUtil.getTodayDirectory();
+        String relativeDirectory = appConfig.getUploadDirectory() + fileCategory.name().toLowerCase() + "/" + FilePaths.getTodayDirectory();
 
         try {
             // 获取文件的MD5
@@ -77,7 +77,7 @@ public class FileService extends BaseService<FileEntity, FileRepository> {
             // 生产配置本来就是 `upload-platform: local`（application-production.yml）。
             // 将来要上对象存储，用 S3 协议客户端（MinIO/OSS 都兼容）重开一个分支，
             // 而不是把云厂商 SDK 再引回来。
-            FileUtil.saveFile(absoluteDirectory + relativeDirectory, fileName, multipartFile.getBytes());
+            FilePaths.saveFile(absoluteDirectory + relativeDirectory, fileName, multipartFile.getBytes());
 
             file = new FileEntity().setExtension(extension)
                     .setSize(multipartFile.getSize())

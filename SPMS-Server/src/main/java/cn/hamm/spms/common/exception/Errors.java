@@ -10,13 +10,12 @@ package cn.hamm.spms.common.exception;
  * 换个 import 就能把 airpower-exception 模块整块摘掉，风险最低。
  *
  * 仍依赖 airpower-core 的两样东西（B2 一批接管）：
- *   · {@link cn.hamm.airpower.core.interfaces.IException} / {@code IDictionary} —— 接口
+ *   · {@link cn.hamm.airpower.core.interfaces.IException} —— 异常接口（无用的字典标记已移除）
  *   · {@link cn.hamm.airpower.core.exception.ServiceException} —— {@code show()} 抛出的异常类型
  * 也就是说：这一批搬的是"错误码字典"，不是"异常运行时"。
  */
 
 import cn.hamm.airpower.core.exception.ServiceException;
-import cn.hamm.airpower.core.interfaces.IDictionary;
 import cn.hamm.airpower.core.interfaces.IException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -32,7 +31,7 @@ import org.jetbrains.annotations.NotNull;
 @SuppressWarnings("AlibabaEnumConstantsMustHaveComment")
 @Getter
 @AllArgsConstructor
-public enum Errors implements IException<ServiceException>, IDictionary {
+public enum Errors implements IException<ServiceException> {
     CONTINUE(201, "请继续"),
 
     UPGRADE_CLIENT_NECESSARY(301, "请更新客户端"),
@@ -116,13 +115,11 @@ public enum Errors implements IException<ServiceException>, IDictionary {
     }
 
     @Contract(pure = true)
-    @Override
     public int getKey() {
         return code;
     }
 
     @Contract(pure = true)
-    @Override
     public String getLabel() {
         return message;
     }

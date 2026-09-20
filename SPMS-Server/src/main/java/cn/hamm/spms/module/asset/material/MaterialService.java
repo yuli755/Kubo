@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.asset.material;
 
-import cn.hamm.airpower.core.CollectionUtil;
+import cn.hamm.spms.common.export.EntityCsvExport;
 import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
 import cn.hamm.airpower.curd.model.query.QueryListRequest;
@@ -171,9 +171,9 @@ public class MaterialService extends BaseService<MaterialEntity, MaterialReposit
         List<MaterialEntity> rows = materialMapper.selectForExport(filter).stream()
                 .map(this::hydrateRelations).toList();
         List<MaterialEntity> masked = ExportColumnMasker.maskForExport(rows);
-        // 遮蔽已在请求线程完成；异步线程只做“已遮蔽字节 → 文件落盘”，不再依赖权限上下文。
+        // 遮蔽已在请求线程完成；异步线程只编码已遮蔽的行并落盘，不再读取权限上下文。
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), MaterialEntity.class);
+            InputStream stream = EntityCsvExport.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), MaterialEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }

@@ -1,5 +1,6 @@
 package cn.hamm.spms.common;
 
+import cn.hamm.spms.framework.util.CsvText;
 import org.springframework.beans.BeanUtils;
 
 import java.lang.reflect.Field;
@@ -12,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * <h1>CSV 公式注入防护（CWE-1236）</h1>
  *
- * <p>导出走 {@code CollectionUtil.toCsvInputStream(entities, Class)}（框架静态反射取字段值拼 CSV），
+ * <p>JPA 回退仍走框架 CSV；Mapper 导出已改为 {@code EntityCsvExport}。两条路径共用 {@link CsvText}，
  * 文本字段（客户名/物料名/备注等，用户可写）若以 {@code =}{@code +}{@code -}{@code @}{@code \t}{@code \r}
  * 开头，用户用 Excel/WPS 打开导出的 CSV 时会被解释为<b>公式/外部链接执行</b>。本工具在导出前把这类
  * 单元格前缀单引号 {@code '}（Excel 的「按文本处理」标记），堵住公式执行。</p>
@@ -27,15 +28,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * 原实体可能仍在本事务持久化上下文里，直接 {@code field.set(entity, …)} 会把 {@code '} 写进库。</p>
  *
  * <h2>幂等性</h2>
- * <p>导出每次从 {@code selectForExport} 取新鲜实体，天然不重复转义；若对同一列表二次调用会双前缀
- * （{@code '}→{@code ''}），调用方不要复用已转义的列表。</p>
+ * <p>已前缀单引号的文本不再命中危险前缀，因此重复清洗不会增加第二个单引号。
+ * 编码器仍在最终单元格处防护，覆盖字典标签、格式回退等并非 String 字段的文本来源。</p>
  *
  * @author Hamm.cn
  */
 public final class CsvFormulaSanitizer {
-
-    /** 危险首字符：Excel/WPS 会当作公式/外部链接/命令的前缀 */
-    private static final char[] FORMULA_TRIGGERS = {'=', '+', '-', '@', '\t', '\r'};
 
     /** 每个类「所有 String 字段」的缓存（含继承层次），避免重复反射 */
     private static final Map<Class<?>, List<Field>> STRING_FIELDS_CACHE = new ConcurrentHashMap<>();
@@ -73,16 +71,7 @@ public final class CsvFormulaSanitizer {
      * @return 转义后的值（无需转义时返回原引用）
      */
     static String sanitizeValue(String value) {
-        if (value == null || value.isEmpty()) {
-            return value;
-        }
-        char first = value.charAt(0);
-        for (char trigger : FORMULA_TRIGGERS) {
-            if (first == trigger) {
-                return "'" + value;
-            }
-        }
-        return value;
+        return CsvText.protectFormula(value);
     }
 
     private static <E> E sanitizeOne(E entity) {

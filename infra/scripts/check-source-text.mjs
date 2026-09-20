@@ -236,7 +236,7 @@ const JDK_TYPES = new Map([
   'List', 'ArrayList', 'LinkedList', 'Set', 'HashSet', 'LinkedHashSet', 'TreeSet', 'EnumSet',
   'SortedSet', 'NavigableSet', 'Map', 'HashMap', 'LinkedHashMap', 'TreeMap', 'EnumMap',
   'SortedMap', 'NavigableMap', 'Collections', 'Arrays', 'Optional', 'OptionalInt', 'OptionalLong',
-  'Iterator', 'Iterable', 'Objects', 'Random', 'UUID', 'Base64', 'Scanner', 'Formatter',
+  'Iterator', 'Objects', 'Random', 'UUID', 'Base64', 'Scanner', 'Formatter',
   'Locale', 'Date', 'Calendar', 'Properties', 'Stack', 'Queue', 'Deque', 'ArrayDeque',
   'PriorityQueue', 'Comparator', 'BitSet', 'ServiceLoader', 'IllegalFormatConversionException',
 ].map(name => [name, 'java.util']))
@@ -256,6 +256,9 @@ for (const name of ['AtomicBoolean', 'AtomicInteger', 'AtomicLong', 'AtomicRefer
 for (const name of ['LocalDate', 'LocalDateTime', 'LocalTime', 'ZoneId', 'ZoneOffset', 'ZonedDateTime', 'Duration', 'Instant', 'Year', 'YearMonth', 'Month', 'DateTimeFormatter']) {
   JDK_TYPES.set(name, 'java.time')
 }
+// Iterable 属于 java.lang，无需 import；DateTimeFormatter 实际位于 java.time.format。
+JDK_TYPES.set('DateTimeFormatter', 'java.time.format')
+
 for (const name of ['File', 'IOException', 'UncheckedIOException', 'Serializable', 'FileNotFoundException', 'BufferedReader', 'InputStream', 'OutputStream', 'ByteArrayOutputStream', 'PrintWriter', 'Closeable', 'Reader', 'Writer']) {
   JDK_TYPES.set(name, 'java.io')
 }
@@ -367,9 +370,12 @@ function javaImportFindings(file, text) {
     }
     const star = /^[ \t]*import[ \t]+(?:static[ \t]+)?([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\.[ \t]*\*[ \t]*;/.exec(line)
     if (star) {
-      // 通配 import 能把同名类型带进来（jakarta 也有个 Predicate），判不了就不报：
-      // 门禁宁可漏一条，也不能让全仓 410 个编译通过的文件替我证明它咬错了人
-      hasStarImport = true
+      // 非静态通配 import 仍保守处理（jakarta 也有 Predicate）。
+      // static Enum.* 只引入枚举成员，不能让缺少 java.util.List 的整份文件逃过检查。
+      // 如确需同名的静态嵌套类型，显式 import 那个类型，不用通配写法掩盖归属。
+      if (!/^[ \t]*import[ \t]+static[ \t]+/.test(line)) {
+        hasStarImport = true
+      }
       return ''
     }
     const one = /^[ \t]*import[ \t]+(?:static[ \t]+)?([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)[ \t]*;/.exec(line)
@@ -496,6 +502,26 @@ function selfCheck() {
     {
       name: 'javadoc 与日志串里出现 List/Set（注释不算使用，不该报）',
       java: 'package p;\n\n/** @return 一个 List，别学 Set */\nclass A {\n  void a() { log.info("Set/List 都在串里 Map"); }\n}\n',
+      expect: null,
+    },
+    {
+      name: 'java.lang.Iterable 不需要 import（真实 javac 17 已验证）',
+      java: 'class A { Iterable<String> values; }\n',
+      expect: null,
+    },
+    {
+      name: '静态枚举通配不能掩盖缺少 List import（B2a CodeRuleService 漏项）',
+      java: 'package p;\nimport static p.CodeRuleParam.*;\nclass A { List<String> fields; }\n',
+      expect: 'java-jdk-import',
+    },
+    {
+      name: '静态方法通配不能掩盖缺少 Map import',
+      java: 'package p;\nimport static java.util.Objects.*;\nclass A { Map<String, String> values; }\n',
+      expect: 'java-jdk-import',
+    },
+    {
+      name: '静态枚举通配加显式 List import（合法）',
+      java: 'package p;\nimport static p.CodeRuleParam.*;\nimport java.util.List;\nclass A { List<String> fields; }\n',
       expect: null,
     },
     {

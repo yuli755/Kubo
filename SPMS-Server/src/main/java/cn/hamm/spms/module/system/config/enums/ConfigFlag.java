@@ -1,6 +1,5 @@
 package cn.hamm.spms.module.system.config.enums;
 
-import cn.hamm.airpower.core.interfaces.IDictionary;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -8,13 +7,14 @@ import static cn.hamm.spms.module.system.config.enums.ConfigType.BOOLEAN;
 
 /**
  * <h1>系统配置</h1>
+ * <p>按枚举名与 getter 消费，不承担旧字典接口；ConfigType 仍由旧字段校验使用。</p>
  *
  * @author Hamm.cn
  */
 @SuppressWarnings("AlibabaEnumConstantsMustHaveComment")
 @Getter
 @AllArgsConstructor
-public enum ConfigFlag implements IDictionary {
+public enum ConfigFlag {
     AUTO_REGISTER_EMAIL_LOGIN(1, "邮箱自动注册", BOOLEAN, "1", "邮箱验证码登录时，如果未注册则自动注册后登陆"),
     AUTO_REGISTER_PHONE_LOGIN(2, "手机自动注册", BOOLEAN, "1", "手机验证码登录时，如果未注册则自动注册后登陆"),
     ORDER_AUTO_FINISH(11, "订单自动标记完成", BOOLEAN, "1", "完成数量超过计划数量时，订单将自动被标记为完成"),

@@ -1,8 +1,8 @@
 package cn.hamm.spms.module.system.menu;
 
+import cn.hamm.spms.framework.util.Trees;
 import cn.hamm.airpower.api.annotation.Api;
 import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.core.TreeUtil;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.curd.model.query.QueryListRequest;
 import cn.hamm.airpower.curd.model.query.Sort;
@@ -30,6 +30,6 @@ public class MenuController extends BaseController<MenuEntity, MenuService, Menu
                 new Sort().setField(MenuService.ORDER_FIELD_NAME)
         ));
         queryListRequest.setFilter(filter);
-        return Json.data(TreeUtil.buildTreeList(service.getList(queryListRequest)));
+        return Json.data(Trees.buildTreeList(service.getList(queryListRequest)));
     }
 }

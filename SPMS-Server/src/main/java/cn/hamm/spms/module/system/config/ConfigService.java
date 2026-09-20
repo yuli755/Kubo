@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.config;
 
-import cn.hamm.airpower.core.DictionaryUtil;
+import cn.hamm.spms.common.dictionary.EnumDictionaries;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
 import cn.hamm.spms.module.system.config.enums.ConfigType;
@@ -74,7 +74,7 @@ public class ConfigService extends BaseService<ConfigEntity, ConfigRepository> {
         for (ConfigFlag configFlag : ConfigFlag.values()) {
             if (configFlag.name().equals(key)) {
                 config.setIsSystem(true);
-                ConfigType type = DictionaryUtil.getDictionary(ConfigType.class, config.getType());
+                ConfigType type = EnumDictionaries.require(ConfigType.class, config.getType(), ConfigType::getKey, ConfigType::getLabel);
                 switch (type) {
                     case BOOLEAN:
                         config.setConfig(STRING_ONE.equals(config.getConfig()) ?

@@ -1,8 +1,8 @@
 package cn.hamm.spms.module.wms.inventory;
 
-import cn.hamm.airpower.core.CollectionUtil;
-import cn.hamm.airpower.core.DictionaryUtil;
-import cn.hamm.airpower.core.TreeUtil;
+import cn.hamm.spms.framework.util.Trees;
+import cn.hamm.spms.common.export.EntityCsvExport;
+import cn.hamm.spms.common.dictionary.EnumDictionaries;
 import cn.hamm.airpower.curd.base.CurdEntity;
 import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
@@ -194,28 +194,28 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
         List<InventoryEntity> rows = inventoryMapper.selectForExport(type, storageIds, structureIds);
         List<InventoryEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), InventoryEntity.class);
+            InputStream stream = EntityCsvExport.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), InventoryEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }
 
     private List<Long> storageIds(InventoryEntity filter, Integer type) {
-        if (type == null || DictionaryUtil.getDictionary(InventoryType.class, type) != InventoryType.STORAGE
+        if (type == null || EnumDictionaries.require(InventoryType.class, type, InventoryType::getKey, InventoryType::getLabel) != InventoryType.STORAGE
                 || filter.getStorage() == null || filter.getStorage().getId() == null) {
             return List.of();
         }
-        Set<Long> ids = TreeUtil.getChildrenIdList(filter.getStorage().getId(),
+        Set<Long> ids = Trees.getChildrenIdList(filter.getStorage().getId(),
                 id -> storageService.filter(new StorageEntity().setParentId(id)));
         ids.add(filter.getStorage().getId());
         return List.copyOf(ids);
     }
 
     private List<Long> structureIds(InventoryEntity filter, Integer type) {
-        if (type == null || DictionaryUtil.getDictionary(InventoryType.class, type) != InventoryType.STRUCTURE
+        if (type == null || EnumDictionaries.require(InventoryType.class, type, InventoryType::getKey, InventoryType::getLabel) != InventoryType.STRUCTURE
                 || filter.getStructure() == null || filter.getStructure().getId() == null) {
             return List.of();
         }
-        Set<Long> ids = TreeUtil.getChildrenIdList(filter.getStructure().getId(),
+        Set<Long> ids = Trees.getChildrenIdList(filter.getStructure().getId(),
                 id -> structureService.filter(new StructureEntity().setParentId(id)));
         ids.add(filter.getStructure().getId());
         return List.copyOf(ids);
@@ -276,7 +276,7 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
     @Override
     protected InventoryEntity beforeCreatePredicate(@NotNull InventoryEntity inventory) {
         // 需要移除本身的查询条件
-        switch (DictionaryUtil.getDictionary(InventoryType.class, inventory.getType())) {
+        switch (EnumDictionaries.require(InventoryType.class, inventory.getType(), InventoryType::getKey, InventoryType::getLabel)) {
             case STORAGE -> inventory.setStorage(null);
             case STRUCTURE -> inventory.setStructure(null);
             default -> {
@@ -302,7 +302,7 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
         if (Objects.isNull(search.getType())) {
             return predicateList;
         }
-        switch (DictionaryUtil.getDictionary(InventoryType.class, search.getType())) {
+        switch (EnumDictionaries.require(InventoryType.class, search.getType(), InventoryType::getKey, InventoryType::getLabel)) {
             case STORAGE -> addStoragePredicate(root, search, predicateList);
             case STRUCTURE -> addStructurePredicate(root, search, predicateList);
             default -> {
@@ -323,7 +323,7 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
         if (Objects.isNull(structure)) {
             return;
         }
-        Set<Long> idList = TreeUtil.getChildrenIdList(structure.getId(), id -> structureService.filter(new StructureEntity().setParentId(id)));
+        Set<Long> idList = Trees.getChildrenIdList(structure.getId(), id -> structureService.filter(new StructureEntity().setParentId(id)));
         idList.add(structure.getId());
         Join<InventoryEntity, StructureEntity> join = root.join("structure");
         Predicate inPredicate = join.get(CurdEntity.STRING_ID).in(idList);
@@ -343,7 +343,7 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
         if (Objects.isNull(storage)) {
             return;
         }
-        Set<Long> idList = TreeUtil.getChildrenIdList(storage.getId(), id -> storageService.filter(new StorageEntity().setParentId(id)));
+        Set<Long> idList = Trees.getChildrenIdList(storage.getId(), id -> storageService.filter(new StorageEntity().setParentId(id)));
         idList.add(storage.getId());
         Join<InventoryEntity, StorageEntity> join = root.join("storage");
         Predicate inPredicate = join.get(CurdEntity.STRING_ID).in(idList);

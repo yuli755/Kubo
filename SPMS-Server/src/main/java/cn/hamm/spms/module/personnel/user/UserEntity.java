@@ -2,10 +2,14 @@ package cn.hamm.spms.module.personnel.user;
 
 import cn.hamm.spms.module.system.datapermission.annotation.SensitiveField;
 
-import cn.hamm.airpower.core.annotation.*;
+import cn.hamm.airpower.core.annotation.Description;
+import cn.hamm.airpower.core.annotation.Desensitize;
+import cn.hamm.airpower.core.annotation.Dictionary;
+import cn.hamm.airpower.core.annotation.Meta;
 import cn.hamm.airpower.core.enums.DesensitizeType;
 import cn.hamm.airpower.curd.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
+import cn.hamm.spms.framework.util.PhoneRules;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;
 import cn.hamm.spms.module.personnel.role.RoleEntity;
@@ -17,6 +21,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Null;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
@@ -86,7 +91,8 @@ public class UserEntity extends TenantAwareEntity<UserEntity> implements IUserAc
     @SensitiveField(resourceKey = "personnel.user")
     // 同 email：unique + default '' 会让第二个未填手机号的用户无法创建（A-3）
     @Column(columnDefinition = "varchar(255) comment '手机号'", unique = true)
-    @Phone(groups = {WhenResetMyPassword.class, WhenSendSms.class}, message = "手机格式不正确")
+    @Pattern(regexp = PhoneRules.OPTIONAL_PHONE,
+            groups = {WhenResetMyPassword.class, WhenSendSms.class}, message = "手机格式不正确")
     @Search
     private String phone;
 

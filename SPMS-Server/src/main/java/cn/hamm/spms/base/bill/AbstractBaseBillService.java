@@ -1,7 +1,6 @@
 package cn.hamm.spms.base.bill;
 
-import cn.hamm.airpower.core.ReflectUtil;
-import cn.hamm.airpower.core.TaskUtil;
+import cn.hamm.spms.common.metadata.LegacyEntityMetadata;
 import cn.hamm.airpower.core.interfaces.IDictionary;
 import cn.hamm.airpower.curd.base.CurdEntity;
 import cn.hamm.airpower.curd.helper.TransactionHelper;
@@ -53,7 +52,7 @@ public abstract class AbstractBaseBillService<
      * @return 配置标识
      */
     protected ConfigFlag getAutoAuditConfigFlag() {
-        log.info("获取自动审核配置, 无需自动审核 {}", ReflectUtil.getDescription(getFirstParameterizedTypeClass()));
+        log.info("获取自动审核配置, 无需自动审核 {}", LegacyEntityMetadata.description(getFirstParameterizedTypeClass()));
         return null;
     }
 
@@ -63,7 +62,7 @@ public abstract class AbstractBaseBillService<
      * @param billId 单据 ID
      */
     public final void setBillDetailsAllFinished(long billId) {
-        log.info("标记明细已全部完成 {}，单据ID:{}", ReflectUtil.getDescription(getFirstParameterizedTypeClass()), billId);
+        log.info("标记明细已全部完成 {}，单据ID:{}", LegacyEntityMetadata.description(getFirstParameterizedTypeClass()), billId);
         IDictionary status = getBillDetailsFinishStatus();
         FORBIDDEN.whenNull(status, "没有找到单据的所有明细完成状态");
         updateToDatabase(getEntityInstance(billId).setStatus(status.getKey()));
@@ -80,7 +79,7 @@ public abstract class AbstractBaseBillService<
      * @param billId 单据 ID
      */
     public final void setBillFinished(long billId) {
-        log.info("标记单据已完成 {}，单据ID:{}", ReflectUtil.getDescription(getFirstParameterizedTypeClass()), billId);
+        log.info("标记单据已完成 {}，单据ID:{}", LegacyEntityMetadata.description(getFirstParameterizedTypeClass()), billId);
         IDictionary status = getFinishedStatus();
         FORBIDDEN.whenNull(status, "标记完成失败，没有找到完成状态");
         beforeBillFinish(billId);
@@ -95,7 +94,7 @@ public abstract class AbstractBaseBillService<
      */
     protected void beforeBillFinish(long billId) {
         log.info("标记单据完成前 {}，单据ID:{}",
-                ReflectUtil.getDescription(getFirstParameterizedTypeClass()),
+                LegacyEntityMetadata.description(getFirstParameterizedTypeClass()),
                 billId
         );
     }
@@ -129,7 +128,7 @@ public abstract class AbstractBaseBillService<
         Double finishQuantity = sourceDetail.getQuantity();
         E bill = get(billId);
         FORBIDDEN.when(!canAddFinish(bill), "单据当前状态不允许录入完成数量（需先审核通过）");
-        log.info("添加明细数量 {}，单据ID:{}, 明细数量:{}", ReflectUtil.getDescription(getFirstParameterizedTypeClass()), billId, finishQuantity);
+        log.info("添加明细数量 {}，单据ID:{}, 明细数量:{}", LegacyEntityMetadata.description(getFirstParameterizedTypeClass()), billId, finishQuantity);
         transactionHelper.run(() -> {
             detailService.addFinishQuantity(detailId, finishQuantity);
 
@@ -156,7 +155,7 @@ public abstract class AbstractBaseBillService<
      * @param sourceDetail 提交明细
      */
     protected void afterDetailFinishAdded(long detailId, @NotNull D sourceDetail) {
-        log.info("添加完成数量成功后 {}，明细ID:{}", ReflectUtil.getDescription(getFirstParameterizedTypeClass()), detailId);
+        log.info("添加完成数量成功后 {}，明细ID:{}", LegacyEntityMetadata.description(getFirstParameterizedTypeClass()), detailId);
     }
 
     /**
@@ -168,7 +167,7 @@ public abstract class AbstractBaseBillService<
      */
     protected void afterBillFinished(long billId) {
         log.info("单据已完成 {}，单据ID:{}",
-                ReflectUtil.getDescription(getFirstParameterizedTypeClass()),
+                LegacyEntityMetadata.description(getFirstParameterizedTypeClass()),
                 billId
         );
     }
@@ -182,7 +181,7 @@ public abstract class AbstractBaseBillService<
      */
     protected void afterAllBillDetailFinished(long billId) {
         log.info("单据所有明细已完成 {}，单据ID:{}",
-                ReflectUtil.getDescription(getFirstParameterizedTypeClass()),
+                LegacyEntityMetadata.description(getFirstParameterizedTypeClass()),
                 billId
         );
     }
@@ -194,7 +193,7 @@ public abstract class AbstractBaseBillService<
      */
     protected void afterDetailSaved(long billId) {
         log.info("单据明细保存成功 {}，单据ID:{}",
-                ReflectUtil.getDescription(getFirstParameterizedTypeClass()),
+                LegacyEntityMetadata.description(getFirstParameterizedTypeClass()),
                 billId
         );
     }
@@ -214,7 +213,7 @@ public abstract class AbstractBaseBillService<
      */
     protected E afterBillGet(@NotNull E bill) {
         log.info("查询单据详情后 {}，单据ID:{} {}",
-                ReflectUtil.getDescription(getFirstParameterizedTypeClass()),
+                LegacyEntityMetadata.description(getFirstParameterizedTypeClass()),
                 bill.getId(),
                 bill.getBillCode()
         );
@@ -232,7 +231,12 @@ public abstract class AbstractBaseBillService<
                 audit(bill.getId());
             }
         }
-        TaskUtil.run(() -> afterBillAdd(bill.getId()));
+        // 旧 run 实际是同步执行并只捕获 Exception；不新建线程，也不把审核/保存异常吞进来。
+        try {
+            afterBillAdd(bill.getId());
+        } catch (Exception error) {
+            log.error(error.getMessage(), error);
+        }
     }
 
     /**
@@ -242,7 +246,7 @@ public abstract class AbstractBaseBillService<
      */
     protected void afterBillAdd(long billId) {
         log.info("单据添加后 {}，单据ID:{}",
-                ReflectUtil.getDescription(getFirstParameterizedTypeClass()),
+                LegacyEntityMetadata.description(getFirstParameterizedTypeClass()),
                 billId
         );
     }
@@ -261,7 +265,7 @@ public abstract class AbstractBaseBillService<
      */
     protected void afterBillUpdate(long billId, @NotNull E source) {
         log.info("单据修改后 {}，单据ID:{}",
-                ReflectUtil.getDescription(getFirstParameterizedTypeClass()),
+                LegacyEntityMetadata.description(getFirstParameterizedTypeClass()),
                 billId
         );
     }
@@ -337,7 +341,7 @@ public abstract class AbstractBaseBillService<
      */
     protected void afterBillAudited(long billId) {
         log.info("单据审核后 {}，单据ID:{}",
-                ReflectUtil.getDescription(getFirstParameterizedTypeClass()),
+                LegacyEntityMetadata.description(getFirstParameterizedTypeClass()),
                 billId
         );
     }

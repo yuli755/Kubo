@@ -7,6 +7,51 @@
 
 ---
 
+## 2026-09-20 最新更新：B3a 标准电话约束与显式依赖，仍待整体验收
+
+- 当前 **161 / 462 个 Java 文件、44 个符号、544 处引用**。airpower-curd 6.4.3 仍在。
+- 三个 Phone 字段改标准 Pattern，保留座机/手机/空串/分组/文案；UserEntity 的通配导入曾隐藏第三处使用。
+- 通配展开真实增加 3 引用，三枚举移除无用字典标记，不藏增量、不放宽预算；本批净减 2。
+- 16 个生产源码独立 Java 17 编译，91 项契约通过；`pnpm check` 55 文件 / 523 用例通过。
+  新增 17 项真实 Jakarta/错误/配置接线契约待 Maven 环境验证。将当前工作分支作为 CI 检查点，不合并或发布。
+- 详见 [B3a 记录](后端B3a·电话约束与通配清理.md)。
+
+## 2026-09-20 B2c 阶段记录（数量已被 B3a 更新）
+
+- 当前 **162 / 459 个 Java 文件、46 个符号、546 处引用**。airpower-curd 6.4.3 仍在。
+- 5 个业务枚举去掉不必要的 IDictionary 依赖和代码生成注解，15 个生产源码能真实独立编译；
+  仍被旧 Dictionary 约束的 20 个枚举、ConfigFlag 与单据状态/异常接口保留，未硬删校验。
+- TaskUtil 的两处直接调用改为同步 try/catch / 手工测试 JDK 执行器。没有改 JWT 算法、事务与 HTTP 错误协议。
+- 79 项 Java 独立契约通过；`pnpm check` 54 文件 / 508 用例通过。Maven 下载重试仍被 TLS 握手中断，
+  新增 6 项接线测试未执行。详见 [B2c 记录](后端B2c·普通枚举与任务残留清理.md)。
+
+## 2026-09-20 B2b 阶段记录（数量已被 B2c 更新）
+
+- 当前：**168 / 457 个 Java 文件、47 个符号、556 处引用**；airpower-curd 6.4.3 仍在。
+- 14 个 Mapper 导出的 CSV 组装与 3 处反射工具导入已替换。三个旧元数据注解在适配点显式保留；
+  JPA 回退仍运行 jar 内的旧导出，不等于所有 CSV 已脱离 AirPower。
+- 9 个自持工具类真实 Java 17 编译、64 项契约通过；全量源码另过 javac AST（不含类型检查）。
+  `pnpm check` 通过，53 文件 / 492 用例。完整 Maven 下载仍因 TLS 握手失败未进入编译。
+- 修复 B2a 的 List 漏导入、历史重复注解与悬空领料实体关联；没有改旧 Flyway 校验和或删库数据。
+- 详见 [后端B2b·CSV与反射退场](后端B2b·CSV与反射退场.md)。
+
+## 2026-09-20 B2a 阶段记录（数量已被 B2b 更新）
+
+- 当前实测：**168 / 450 个 Java 文件、49 个符号、568 处引用**，仍依赖 `airpower-curd:6.4.3`。
+- B2a 替换了日期、数字、随机值、文件、字符串、枚举查找、树处理；删掉无行为的定时任务占位类。
+  `ITree` 的直接用法也已迁走。未动 CRUD/JPA、权限规则、旧异常运行时和 Json 协议。
+- **不是简单搬包**：6 个 `framework/util` 生产类在没有第三方 classpath 的条件下，
+  通过真实 JDK 17 编译和 32 项契约。未知枚举/有子节点禁止删除仍经原错误边界发出。
+- **环境现状已变化**：JDK 17 已临时补齐；Maven 下载仍被 TLS 连接中断阻塞；
+  本会话基线 CI 因 GitHub 付款/额度限制未启动。完整应用编译与 8 项新增接线测试仍待验证。
+- `pnpm check` 通过（475 用例）；棘轮下调到 568，只说明引用下降，**不代表 B2 或后端退场完成**。
+- 本批细节、兼容差异、复现命令见 [后端B2a·工具层退场与验证](后端B2a·工具层退场与验证.md)。
+
+**下文 §一–四、§六–七是 2026-09-18 的历史盘点/决策记录，不应拿其中的数量或“没有 JDK”作为当前证据。**
+用户已明确继续后端清理，不再需要重复确认是否包含后端；每批整体验收要求仍不变。
+
+---
+
 ## 一、先对齐事实：`@airpower/web` 已经删干净了
 
 | 检查 | 结果 | 复现命令 |
@@ -67,7 +112,7 @@
 2. **验证成本高一个数量级**：前端一条 `pnpm check` 约 2 分钟；后端要 `mvn -q compile` + `mvn test` + 集成测试（H2/MySQL），
    单轮 5–15 分钟，且**必须能拉到 Maven 依赖**。
 
-### ⚠️ 本沙箱无法执行这项工作的硬约束（这是我没有直接动手的原因）
+### 2026-09-18 的环境阻塞（历史记录，最新状态见置顶更新）
 
 | 约束 | 实测 | 后果 |
 | --- | --- | --- |
@@ -103,7 +148,7 @@
 | --- | --- | --- | --- |
 | **B0** ✅ 2026-09-18 已做 | 摘掉 `cn.hamm:airpower` 父 POM，构建基线自持（Java 17 / UTF-8 / `spring-boot-dependencies` 3.4.4 BOM import / `springboot.version` / `airpower.version`） | —— | `pnpm pom:check` 离线闸门 ✅（无版本依赖在 BOM 家族白名单内、`${...}` 属性都有定义、无发版插件残留）；**待在有 JDK 的机器上补跑 `mvn -q compile && mvn test`**；`pnpm airpower:backend -- --check` 数字不变（只换版本管理，不动代码） |
 | **B1** ✅ 2026-09-18 已做 | `cn.hamm.spms.common.exception.Errors`（**整只枚举逐行搬来**：常量名 / code 数值 / 文案一字未改），49 个文件的静态导入改指向本包 —— **exception 模块归零（55 → 0）** | `Errors.*`（12 个常量 + 全量枚举为将来兜底） | ✅ `pnpm text:check` / `java:check` / `auth:check` / `perms:check` 全绿；棘轮 174/60/603；**code 与文案零变化**（前端 axios 按 code 分流，故本批只搬不改） |
-| **B2** | `framework.json`（`Json` 34 处）+ `framework.util`（`CollectionUtil`/`TreeUtil`/`DictionaryUtil`/`NumberUtil`/`ReflectUtil`/`DateTimeUtil`/`RandomUtil`/`TaskUtil`/`FileUtil`/`TraceUtil`/`AccessTokenUtil` ≈ 60 处） | core 工具类 | 单测覆盖（这些是纯函数，最容易先做） |
+| **B2（部分落地）** | B2a 工具；B2b CSV / 反射；B2c 普通枚举与任务直接调用。Json、异常运行时、令牌工具未迁，JPA 导出/CRUD 内部任务仍在旧 jar | 11 个旧工具 + ITree 直接用法清零；累计净减 57 引用 | 独立 Java 17 / 79 契约、459 源文件 AST 与 `pnpm check` 通过；**完整 Maven 接线待验收**，未标整批完成 |
 | **B3** | 元数据注解自建：`@Description`(79) `@Meta`(26) `@Dictionary`(13) `@ReadOnly`(12) `@Export`(12) `@ExposeAll`/`@Phone`/`@Desensitize` → `framework.metadata` | core 注解 ≈ 150 处 | 注解是**行为开关**（导出列、只读、脱敏），必须与 `ExportHelper`/`Permission` 的使用处一起切；`pnpm java:check` + 现有 `maskContract` 契约测试 |
 | **B4** | 查询模型：`QueryPageRequest`(40) `QueryListRequest`(32) `Page`(25) `Sort`(17) `QueryPageResponse`(14) → `framework.query` | curd 查询 ≈ 130 处 | 124 个端点的分页/排序/搜索回归；前端 `useTable` 的请求体形状不变（`pnpm test` 里的请求体契约用例是现成的验收） |
 | **B5** | `@Api`(33) + `ApiController` + `ApiConfig` + 请求日志/traceId → `framework.api` | api 41 处 + 配置键 3 处 | 路由与 traceId 行为对齐；`application.yml` 的 `airpower.api.*` 键改为自有前缀并同步 Dockerfile |

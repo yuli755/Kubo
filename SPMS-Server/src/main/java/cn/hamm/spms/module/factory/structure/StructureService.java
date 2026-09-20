@@ -1,7 +1,8 @@
 package cn.hamm.spms.module.factory.structure;
 
-import cn.hamm.airpower.core.CollectionUtil;
-import cn.hamm.airpower.core.TreeUtil;
+import cn.hamm.spms.common.tree.TreeDeletionGuard;
+import cn.hamm.spms.framework.util.Trees;
+import cn.hamm.spms.common.export.EntityCsvExport;
 import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
 import cn.hamm.airpower.curd.model.query.QueryListRequest;
@@ -169,7 +170,7 @@ public class StructureService extends BaseService<StructureEntity, StructureRepo
         List<StructureEntity> rows = structureMapper.selectForExport(filter);
         List<StructureEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), StructureEntity.class);
+            InputStream stream = EntityCsvExport.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), StructureEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }
@@ -200,14 +201,14 @@ public class StructureService extends BaseService<StructureEntity, StructureRepo
 
     @Override
     protected void beforeDelete(@NotNull StructureEntity structure) {
-        TreeUtil.ensureNoChildrenBeforeDelete(structure.getId(), id -> filter(new StructureEntity().setParentId(id)));
+        TreeDeletionGuard.ensureNoChildrenBeforeDelete(structure.getId(), id -> filter(new StructureEntity().setParentId(id)));
     }
 
     @Override
     protected @NotNull QueryListRequest<StructureEntity> beforeGetList(@NotNull QueryListRequest<StructureEntity> queryListRequest) {
         StructureEntity filter = queryListRequest.getFilter();
         if (Objects.isNull(filter.getParentId())) {
-            filter.setParentId(TreeUtil.ROOT_ID);
+            filter.setParentId(Trees.ROOT_ID);
         }
         queryListRequest.setFilter(filter);
         return queryListRequest;

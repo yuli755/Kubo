@@ -1,6 +1,6 @@
 package cn.hamm.spms.base.bill.detail;
 
-import cn.hamm.airpower.core.NumberUtil;
+import cn.hamm.spms.framework.util.DecimalMath;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.bill.AbstractBaseBillEntity;
 import cn.hamm.spms.base.bill.AbstractBaseBillService;
@@ -70,7 +70,7 @@ public class BaseBillDetailService<
     public final void addFinishQuantity(long detailId, double quantity) {
         updateWithLock(detailId, detail -> {
             FORBIDDEN.when(detail.getIsFinished(), "该明细已标记完成，无法再添加明细完成数量");
-            double finishQuantity = NumberUtil.add(detail.getFinishQuantity(), quantity);
+            double finishQuantity = DecimalMath.add(detail.getFinishQuantity(), quantity);
             FORBIDDEN.when(finishQuantity > detail.getQuantity(), String.format(
                     "完成数量不得超过单据数量：累计 %s，单据数量 %s", finishQuantity, detail.getQuantity()));
             detail.setFinishQuantity(finishQuantity).setIsFinished(finishQuantity >= detail.getQuantity());
@@ -107,12 +107,12 @@ public class BaseBillDetailService<
             }
 
             // 还需要完成的数量
-            double detailNeedQuantity = NumberUtil.subtract(detail.getQuantity(), detail.getFinishQuantity());
+            double detailNeedQuantity = DecimalMath.subtract(detail.getQuantity(), detail.getFinishQuantity());
             if (quantity < detailNeedQuantity) {
                 // 添加单据完成数量
                 detail.setFinishQuantity(quantity);
             } else {
-                quantity = NumberUtil.subtract(quantity, detailNeedQuantity);
+                quantity = DecimalMath.subtract(quantity, detailNeedQuantity);
                 detail.setFinishQuantity(detail.getQuantity()).setIsFinished(true);
             }
             updateToDatabase(detail);

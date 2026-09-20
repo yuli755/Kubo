@@ -1,8 +1,8 @@
 package cn.hamm.spms.module.wms.input;
 
-import cn.hamm.airpower.core.CollectionUtil;
-import cn.hamm.airpower.core.DictionaryUtil;
-import cn.hamm.airpower.core.ReflectUtil;
+import cn.hamm.spms.common.export.EntityCsvExport;
+import cn.hamm.spms.common.dictionary.EnumDictionaries;
+import cn.hamm.spms.common.metadata.LegacyEntityMetadata;
 import cn.hamm.airpower.core.interfaces.IDictionary;
 import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
@@ -183,7 +183,7 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
         List<InputEntity> rows = inputMapper.selectForExport(filter.getBillCode(), filter.getStatus(), filter.getType());
         List<InputEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), InputEntity.class);
+            InputStream stream = EntityCsvExport.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), InputEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }
@@ -241,9 +241,9 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
     @Override
     protected void afterBillFinished(long billId) {
         InputEntity inputBill = get(billId);
-        InputType inputType = DictionaryUtil.getDictionary(InputType.class, inputBill.getType());
+        InputType inputType = EnumDictionaries.require(InputType.class, inputBill.getType(), InputType::getKey, InputType::getLabel);
         log.info("入库单入库完成 {}，单据ID:{} {} 入库类型 {}",
-                ReflectUtil.getDescription(getFirstParameterizedTypeClass()),
+                LegacyEntityMetadata.description(getFirstParameterizedTypeClass()),
                 billId,
                 inputBill.getBillCode(),
                 inputType.getLabel()

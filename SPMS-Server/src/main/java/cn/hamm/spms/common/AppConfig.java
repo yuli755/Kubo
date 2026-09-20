@@ -1,12 +1,12 @@
 package cn.hamm.spms.common;
 
-import cn.hamm.airpower.core.FileUtil;
+import cn.hamm.spms.framework.util.FilePaths;
 import cn.hamm.spms.module.system.file.enums.FileUploadPlatform;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
-import static cn.hamm.airpower.core.FileUtil.FILE_SCALE;
+import static cn.hamm.spms.framework.util.FilePaths.FILE_SCALE;
 import static cn.hamm.spms.module.system.file.enums.FileUploadPlatform.LOCAL;
 
 /**
@@ -64,7 +64,7 @@ public class AppConfig {
      * @return 文件目录
      */
     public String getFileDirectory() {
-        return FileUtil.formatDirectory(fileDirectory);
+        return FilePaths.formatDirectory(fileDirectory);
     }
 
     /**
@@ -73,6 +73,6 @@ public class AppConfig {
      * @return 上传文件目录
      */
     public String getUploadDirectory() {
-        return FileUtil.formatDirectory(uploadDirectory);
+        return FilePaths.formatDirectory(uploadDirectory);
     }
 }

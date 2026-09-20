@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.channel.purchase;
 
-import cn.hamm.airpower.core.CollectionUtil;
-import cn.hamm.airpower.core.NumberUtil;
+import cn.hamm.spms.common.export.EntityCsvExport;
+import cn.hamm.spms.framework.util.DecimalMath;
 import cn.hamm.airpower.core.interfaces.IDictionary;
 import cn.hamm.airpower.curd.helper.ExportHelper;
 import cn.hamm.airpower.curd.model.query.Page;
@@ -180,7 +180,7 @@ public class PurchaseService extends AbstractBaseBillService<
         List<PurchaseEntity> rows = purchaseMapper.selectForExport(filter.getBillCode(), filter.getReason(), filter.getStatus());
         List<PurchaseEntity> masked = ExportColumnMasker.maskForExport(rows);
         return exportHelper.createExportTask(() -> {
-            InputStream stream = CollectionUtil.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), PurchaseEntity.class);
+            InputStream stream = EntityCsvExport.toCsvInputStream(CsvFormulaSanitizer.sanitize(masked), PurchaseEntity.class);
             return exportHelper.saveExportFileStream(stream);
         });
     }
@@ -255,7 +255,7 @@ public class PurchaseService extends AbstractBaseBillService<
     protected void afterDetailSaved(long purchaseId) {
         List<PurchaseDetailEntity> details = detailService.getAllByBillId(purchaseId);
         double totalPrice = details.stream()
-                .mapToDouble(detail -> NumberUtil.multiply(detail.getPrice(), detail.getQuantity()))
+                .mapToDouble(detail -> DecimalMath.multiply(detail.getPrice(), detail.getQuantity()))
                 .sum();
         updateToDatabase(getEntityInstance(purchaseId).setTotalPrice(totalPrice));
     }

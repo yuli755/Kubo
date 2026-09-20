@@ -4,7 +4,6 @@ import cn.hamm.airpower.api.annotation.Api;
 import cn.hamm.spms.common.cookie.CookieConfig;
 import cn.hamm.spms.common.cookie.CookieHelper;
 import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.core.StringUtil;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.core.annotation.ExposeAll;
 import cn.hamm.airpower.core.exception.ServiceException;
@@ -205,9 +204,9 @@ public class UserController extends BaseController<UserEntity, UserService, User
         String email = user.getEmail();
         String code = user.getCode();
         String newPassword = user.getPassword();
-        if (StringUtil.hasText(phone)) {
+        if (StringUtils.hasText(phone)) {
             service.resetPasswordViaPhone(phone, code, newPassword);
-        } else if (StringUtil.hasText(email)) {
+        } else if (StringUtils.hasText(email)) {
             service.resetPasswordViaEmail(email, code, newPassword);
         } else {
             PARAM_INVALID.show("请传入邮箱或手机号码");

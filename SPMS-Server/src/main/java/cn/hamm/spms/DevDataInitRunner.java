@@ -1,6 +1,6 @@
 package cn.hamm.spms;
 
-import cn.hamm.airpower.core.RandomUtil;
+import cn.hamm.spms.framework.util.RandomValues;
 import cn.hamm.airpower.curd.permission.PermissionUtil;
 import cn.hamm.spms.common.AppConfig;
 import cn.hamm.spms.common.Configs;
@@ -698,7 +698,7 @@ public class DevDataInitRunner implements CommandLineRunner {
         }
         DepartmentEntity department = departmentService.addAndGet(new DepartmentEntity().setCode("a1").setName("生产部"));
         departmentService.addAndGet(new DepartmentEntity().setName("材料部").setCode("aaa1").setParentId(department.getId()));
-        String salt = RandomUtil.randomString(UserService.PASSWORD_SALT_LENGTH);
+        String salt = RandomValues.randomString(UserService.PASSWORD_SALT_LENGTH);
         userService.add(new UserEntity()
                 .setNickname("凌小云")
                 .setPhone("17666666666")

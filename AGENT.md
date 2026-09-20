@@ -51,7 +51,8 @@
 pnpm check          # 全链：lint → 死代码（文件级/导出级）→ typecheck → test:coverage → 各契约门禁 → build → demo:check → size
 pnpm stack          # 当前技术栈一览（含"死重量"：零引用依赖、没人用的 public 资源）
 pnpm airpower:check  # airpower 不得回潮（剥注释后 0 引用才算过）
-pnpm airpower:backend -- --check  # 后端airpower足迹棘轮（只许降）
+pnpm airpower:backend -- --check  # 后端足迹棘轮 + 已退场工具零回潮（通过不等于清零）
+pnpm java:unit       # 需 JDK 17：真实编译工具/独立业务枚举、执行契约 + 全量源码 AST；不是 Maven 整仓类型检查
 pnpm stack:project   # 整个仓库的技术栈（前端+后端+部署+CI，读真文件，不靠人写）
 pnpm pom:check       # 后端 pom 自持校验（B0 之后没有父 POM 兜底，靠这道离线闸门）
 ```
@@ -63,6 +64,10 @@ pnpm pom:check       # 后端 pom 自持校验（B0 之后没有父 POM 兜底�
 | 文档 | 内容 |
 | --- | --- |
 | `SPMS-Server/docs/项目整体技术栈详细信息.md` | **整个项目**的技术栈（版本、架构、部署、CI、退场现状与存量决策项） |
+| `SPMS-Server/docs/后端B3a·电话约束与通配清理.md` | 标准电话校验、显式依赖与分支 CI 检查点；完整验收状态 |
+| `SPMS-Server/docs/后端B2c·普通枚举与任务残留清理.md` | 五个普通枚举、同步钩子与零回潮边界；独立编译范围扩展 |
+| `SPMS-Server/docs/后端B2b·CSV与反射退场.md` | Mapper CSV/反射替换、保留的注解边界与 Java 17 验证分层 |
+| `SPMS-Server/docs/后端B2a·工具层退场与验证.md` | 工具层替换、兼容差异、Java 17 独立测试与整体验收阻塞 |
 | `SPMS-Server/docs/后端airpower退场·可行性评估与分批建议.md` | 后端退场的分批（B0–B8）、每批口径、为什么必须先有编译环境 |
 | `SPMS-Server/docs/前端技术栈现状.md` | 现在装的是什么、和目标栈差在哪、怎么删（纯删 / 边删边补 / 先补才能删） |
 | `SPMS-Server/docs/前端F4·airpower 逐域迁移分批清单.md` | 逐域迁移的批次、每批验收口径、踩坑 |

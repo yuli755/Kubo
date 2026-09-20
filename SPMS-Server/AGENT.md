@@ -2,6 +2,33 @@
 
 本文档约定了 **Kubo Server** 项目的开发规范，供 AI 辅助开发（Cursor、GitHub Copilot、Claude Code 等）参考，保证生成的代码与项目现有风格一致。
 
+## 后端退场的当前边界（2026-09-20）
+
+- **前端清零不等于后端清零**：后端仍保留 `airpower-curd:6.4.3`，真实足迹用 `pnpm airpower:backend` 查询。
+- B2a 已迁走 8 个工具类和 `ITree` 的直接用法。新增工具在 `cn.hamm.spms.framework.util`，
+  **不得 import airpower**，也不要通过改包名/继承旧工具伪装自持。
+- 使用 `DecimalMath`（数量/价格）、`RandomValues`（盐/验证码/Cookie，SecureRandom）、
+  `FilePaths`（本地上传）、`EnumValues`（显式选项字段）、`Trees` + `TreeNode`（树处理）。
+  应用错误边界是 `common.dictionary.EnumDictionaries` / `common.tree.TreeDeletionGuard`。
+  日期/时长直接用 `java.time`；字符串判空直接用 Spring `StringUtils`。
+- B2b：Mapper CSV 统一经 `common.export.EntityCsvExport` → 自持 `CsvWriter` / `CsvText`。
+  `CollectionUtil` / `ReflectUtil` 的**直接引用**已清零，反射使用 `BeanFields`；
+  `common.metadata.LegacyEntityMetadata` 仍显式依赖三个旧注解，不得把它当成已完成的 B3。
+  CSV 字段范围、取数权限、请求线程脱敏、JPA 回退及 `fileCode → queryExport` 协议不得因换工具而改变。
+- B2c：UserTokenType、CodeRuleParam、FileCategory、FileUploadPlatform、PermissionType 已是普通 enum，
+  不实现旧接口，也不新造同名接口包装。构造器/getter 显式声明，键值、标签、上传白名单与保护标记不变。
+  独立源码清单 `infra/scripts/backend-independent-sources.mjs` 同时供 javac 与零回潮门禁使用。
+  项目里的 TaskUtil 直接用法已清零；创建后置钩子仍同步且仅捕获该钩子的 Exception。
+- B3a：Customer/Supplier/User 的电话字段改用 Jakarta `@Pattern` + `PhoneRules`，包括 User 原通配导入隐藏的第三处。
+  所有 AirPower 通配导入现已禁止。Errors/CustomError/ConfigFlag 移除无用字典标记，异常接口/配置类型仍保留。
+  不把“手机号”字段擅自收窄为只收手机：旧规则还允许座机；null/空串、分组与文案均需保持。
+- 仍被 `@Dictionary` 约束的 `IDictionary`、`IPermission`、`Json`、异常运行时和 CRUD 基类仍是旧框架契约，
+  不能看到工具替换就直接删依赖。以下涉及它们的示例仅描述**存量**，不是鼓励新增耦合。
+- 验证分层：`pnpm java:unit` 是 **JDK 17 真实编译 16 个生产源码（10 工具/规则 + 5 业务枚举 + 1 常量）/91 契约 + 全量源文件 AST**；
+  `pnpm java:check` 只是文本检查；整仓仍需 `./mvnw -B -s settings.xml compile` 和 `test`。
+  AST 也不是完整类型检查。B2a–B3a 接线测试尚未完整验收，最新状态见 `docs/后端B3a·电话约束与通配清理.md`。
+  本轮已修复 B2a 漏掉的 List import，并拦下历史重复注解；不能因静态门禁绿就宣称整仓 Java 可编译。
+
 ## 技术栈
 
 | 技术              | 版本              | 说明     |
@@ -12,7 +39,7 @@
 | JPA + Hibernate | Spring Data JPA | ORM框架  |
 | MySQL           | 8.x             | 数据库    |
 | Redis           | -               | 缓存     |
-| AirPower4J      | 6.x             | 核心基础框架 |
+| AirPower4J      | airpower-curd 6.4.3 | 待退场的存量 CRUD / API 契约，不得回潮 |
 | Lombok          | -               | 代码简化   |
 
 ## 项目整体结构
@@ -170,9 +197,10 @@ private Integer type;
 
 ### 7. 枚举使用
 
-- 使用 `@Dictionary` 注解声明字典
-- 枚举实现 `IDictionary` 接口
-- 字段类型使用 `Integer` 存储枚举值
+- 普通选项枚举只需稳定键值/getter，使用 `EnumValues` 查找和投影，**不要默认实现旧 IDictionary**。
+- 下方是尚未迁移的实体校验示例：旧 `@Dictionary` 的 value 仍要求 IDictionary，不能单删接口让校验失效。
+- 已迁走的五个普通枚举不再用于旧 `@Dictionary`。需要迁移字段校验时连同约束与行为测试一起做。
+- 持久化字段继续使用 Integer 键值，不用 ordinal。
 
 示例：
 
@@ -194,7 +222,8 @@ private Integer type;
 
 ### 9. 异常处理
 
-使用 AirPower 的 `Errors` 抛出业务异常：
+使用本项目 `cn.hamm.spms.common.exception.Errors` 抛出通用错误；业务码使用同包 `CustomError`。
+注意：它们目前仍借用旧异常运行时，不能宣称整个异常体系已自持：
 
 ```java
 Errors.FORBIDDEN_EDIT.when(subtract < 0, "库存数量不足");
@@ -215,7 +244,7 @@ private StorageService storageService;
 - 使用 4 空格缩进（不使用 Tab）
 - 大括号不换行，跟随语句
 - 每个方法之间保留一个空行
-- 导入包使用 * 方式，如 `import cn.hamm.airpower.*;`
+- 导入包不使用通配符，每个类单独导入；已退场的工具导入会被零回潮门禁拦截。
 
 > **注（2026-09-18）**：`cn.hamm.airpower` 是**待退场**的框架（前端对应的 `@airpower/web` 已删净）。
 > 后端退场分批方案见 `docs/后端airpower退场·可行性评估与分批建议.md`；
@@ -243,7 +272,7 @@ private StorageService storageService;
 - 添加 `comment` 描述字段用途
 - 使用 `bit(1)` 存储布尔类型，默认值 `0`
 
-## AirPower4J 框架使用规范
+## 存量 CRUD 契约与自持工具的使用边界
 
 ### 1. CURD 扩展
 
@@ -259,15 +288,17 @@ Service 中重写 `beforeGetPage`、`beforeCreatePredicate`、`addSearchPredicat
 
 ### 3. 字典转换
 
-使用 `DictionaryUtil.getDictionary(EnumClass, value)` 获取枚举实例。
+使用 `EnumDictionaries.require(EnumClass.class, value, EnumClass::getKey, EnumClass::getLabel)` 获取枚举实例。
+选项接口使用 `EnumValues.options`，显式声明 `key` / `label` / 附加字段；不要再用 lambda 反射猜字段名。
 
 ### 4. 树形结构
 
-使用 `TreeUtil.getChildrenIdList(id, supplier)` 获取所有子节点ID列表。
+使用 `Trees.getChildrenIdList(id, supplier)` 获取后代 ID（不含起点）；组树用 `Trees.buildTreeList`。
+节点实现自有 `TreeNode`，不要再引入 `ITree`。保留 `IPermission` 仅为旧权限扫描兼容。
 
 ### 5. 数字计算
 
-使用 `NumberUtil.add()`、`NumberUtil.subtract()` 进行精确计算，避免精度丢失。
+使用 `DecimalMath.add()`、`subtract()`、`multiply()` 做双操作数十进制运算，不复制无人使用的框架方法。
 
 ### 6. 更新锁
 
@@ -287,7 +318,7 @@ Service 中重写 `beforeGetPage`、`beforeCreatePredicate`、`addSearchPredicat
 
 ## 依赖新增原则
 
-- 优先使用 `AirPower4J` 已提供的能力
+- 新代码优先使用 JDK / Spring 与自持底座。未迁移的 CRUD 契约通过项目 `base` 层复用，禁止扩大 AirPower 足迹。
 - 不随意新增第三方依赖，确实需要时先评审
 - 新增依赖必须指定版本
 
