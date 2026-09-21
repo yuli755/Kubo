@@ -128,7 +128,9 @@ public abstract class AbstractBaseBillService<
         E bill = get(billId);
         FORBIDDEN.when(!canAddFinish(bill), "单据当前状态不允许录入完成数量（需先审核通过）");
         log.info("添加明细数量 {}，单据ID:{}, 明细数量:{}", EntityMetadata.description(getFirstParameterizedTypeClass()), billId, finishQuantity);
-        transactionHelper.run(() -> {
+
+        String lockKey = "lock:bill:detail:finish:" + detailId;
+        Runnable finishAction = () -> transactionHelper.run(() -> {
             detailService.addFinishQuantity(detailId, finishQuantity);
 
             // 明细添加成功后置方法
@@ -145,6 +147,12 @@ public abstract class AbstractBaseBillService<
             }
             setBillDetailsAllFinished(billId);
         });
+
+        if (redisHelper != null) {
+            redisHelper.runWithLock(lockKey, 5, finishAction);
+        } else {
+            finishAction.run();
+        }
     }
 
     /**

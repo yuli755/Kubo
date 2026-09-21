@@ -219,7 +219,8 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
         // 物料信息
         MaterialEntity material = from.getMaterial();
 
-        transactionHelper.run(() -> {
+        String lockKey = "lock:wms:inventory:storage:" + storage.getId() + ":material:" + material.getId();
+        Runnable moveAction = () -> transactionHelper.run(() -> {
             // 阶段 F-3：锁序约定——来源/目标两行一律按「行 ID 升序」取锁：目标行 ID 较小时
             // 先对其做 FOR UPDATE 预占，再锁来源行。交叉移库（A→B 与 B→A 并发）下两个事务
             // 各自先锁自己的来源行，会形成互等死锁窗口；全局统一按 ID 升序取锁即消除互等。
@@ -248,6 +249,12 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
                     .setType(InventoryType.STORAGE.getKey());
             inventoryService.add(to);
         });
+
+        if (redisHelper != null) {
+            redisHelper.runWithLock(lockKey, 5, moveAction);
+        } else {
+            moveAction.run();
+        }
     }
 
     @Override

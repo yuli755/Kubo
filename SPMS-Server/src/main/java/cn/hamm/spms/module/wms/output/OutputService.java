@@ -217,24 +217,35 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
         // 库存信息
         InventoryEntity inventory = inventoryService.get(outputDetail.getInventory().getId());
         FORBIDDEN.whenNotEquals(inventory.getMaterial().getId(), materialId, "物料信息不匹配");
-        transactionHelper.run(() -> {
-            Double outputDetailQuantity = outputDetail.getQuantity();
-            inventoryService.reduceInventoryQuantity(inventory.getId(), outputDetailQuantity);
-            // 获取出库单类型
-            OutputType outputType = EnumDictionaries.require(OutputType.class, bill.getType(), OutputType::getKey, OutputType::getLabel);
-            switch (outputType) {
-                case SALE -> ChannelServices.getSaleDetailService().updateDetailQuantity(
-                        bill.getSale().getId(),
-                        outputDetailQuantity,
-                        ChannelServices.getSaleService(),
-                        detail -> FORBIDDEN.whenNotEquals(
-                                detail.getMaterial().getId(),
-                                materialId,
-                                "物料信息不匹配"));
-                default -> {
+
+        // 库存细粒度分布式排他锁：防止并发扣减超卖与销售单明细状态竞态
+        String lockKey = "lock:wms:inventory:" + inventory.getId();
+        Runnable deductAction = () -> {
+            transactionHelper.run(() -> {
+                Double outputDetailQuantity = outputDetail.getQuantity();
+                inventoryService.reduceInventoryQuantity(inventory.getId(), outputDetailQuantity);
+                // 获取出库单类型
+                OutputType outputType = EnumDictionaries.require(OutputType.class, bill.getType(), OutputType::getKey, OutputType::getLabel);
+                switch (outputType) {
+                    case SALE -> ChannelServices.getSaleDetailService().updateDetailQuantity(
+                            bill.getSale().getId(),
+                            outputDetailQuantity,
+                            ChannelServices.getSaleService(),
+                            detail -> FORBIDDEN.whenNotEquals(
+                                    detail.getMaterial().getId(),
+                                    materialId,
+                                    "物料信息不匹配"));
+                    default -> {
+                    }
                 }
-            }
-        });
+            });
+        };
+
+        if (redisHelper != null) {
+            redisHelper.runWithLock(lockKey, 5, deductAction);
+        } else {
+            deductAction.run();
+        }
     }
 
     @Override
