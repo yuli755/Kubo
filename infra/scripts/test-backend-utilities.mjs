@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 真实 Java 17 编译 + 独立工具契约，不需要 Maven/Redis/数据库。
- * 编译 framework/util、已迁走的真实业务枚举/常量和同一份契约，并用 javac AST 解析全部源码。
+ * 编译 framework/util、framework/query、已迁走的真实业务枚举/常量和同一份契约，并用 javac AST 解析全部源码。
  * AST 只查语法及已知不可重复注解，不是依赖完整的类型检查；完整接线仍需 mvn compile/test。
  * 失败/缺少 JDK/零用例一律非零退出，不跳过，也不生成占位依赖来伪造编译通过。
  */
@@ -34,10 +34,12 @@ try {
   if (!/javac 17(?:\.|\s)/.test(compilerVersion) || !/version "17(?:\.|"|\s)/.test(runtimeVersion)) {
     throw new Error('请用 JAVA_HOME 指向完整 JDK 17（项目 pom 的构建基线），不是 JRE 或其他 Java 版本')
   }
-  const sourceDir = path.join(server, 'src/main/java/cn/hamm/spms/framework/util')
-  const sources = fs.readdirSync(sourceDir).filter(file => file.endsWith('.java')).sort().map(file => path.join(sourceDir, file))
+  const sources = ['util', 'query', 'error', 'security'].flatMap(directory => {
+    const sourceDir = path.join(server, 'src/main/java/cn/hamm/spms/framework', directory)
+    return fs.readdirSync(sourceDir).filter(file => file.endsWith('.java')).sort().map(file => path.join(sourceDir, file))
+  })
   if (sources.length === 0) {
-    throw new Error('framework/util 没有生产源码，拒绝空转')
+    throw new Error('JDK-only framework 子集没有生产源码，拒绝空转')
   }
   const utilityCount = sources.length
   sources.push(...INDEPENDENT_DOMAIN_SOURCES.map(file => path.join(root, file)))
@@ -52,7 +54,7 @@ try {
   // 显式隔离 classpath/sourcepath，不能碰巧借用调用者 CLASSPATH 或隐式编译旧框架来“通过”。
   run(javac, ['--release', '17', '-encoding', 'UTF-8', '-Xlint:all', '-Werror', '-proc:none',
     '-classpath', output, '-sourcepath', output, '-d', output, `@${argFile}`])
-  console.log(`✓ ${compilerVersion.trim()}：${productionCount} 个生产源码编译通过（${utilityCount} 个工具 + ${INDEPENDENT_DOMAIN_SOURCES.length} 个业务枚举/常量；无第三方 classpath）`)
+  console.log(`✓ ${compilerVersion.trim()}：${productionCount} 个生产源码编译通过（${utilityCount} 个底座源码 + ${INDEPENDENT_DOMAIN_SOURCES.length} 个应用错误码/枚举/常量；无第三方 classpath）`)
   const syntax = run(java, ['-Dfile.encoding=UTF-8', '-Xmx256m', '-cp', output, 'cn.hamm.spms.tools.JavaSourceCheck',
     path.join(server, 'src/main/java'), path.join(server, 'src/test/java')])
   console.log(syntax.trim())

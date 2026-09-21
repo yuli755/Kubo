@@ -1,8 +1,8 @@
 package cn.hamm.spms.module.system.permission;
 
-import cn.hamm.airpower.curd.permission.PermissionUtil;
 import cn.hamm.spms.Application;
 import cn.hamm.spms.base.BaseService;
+import cn.hamm.spms.common.security.PermissionScanner;
 import cn.hamm.spms.module.system.permission.enums.PermissionType;
 import cn.hamm.spms.module.system.datapermission.SystemPermissionIdentities;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +24,7 @@ import static cn.hamm.spms.common.exception.Errors.FORBIDDEN_DELETE;
 public class PermissionService extends BaseService<PermissionEntity, PermissionRepository> {
 
     public void loadPermission() {
-        List<PermissionEntity> permissions = PermissionUtil.scanPermission(Application.class.getPackageName(), PermissionEntity.class);
+        List<PermissionEntity> permissions = PermissionScanner.scanPermission(Application.class.getPackageName());
         for (var permission : permissions) {
             PermissionEntity exist = getPermissionByIdentity(permission.getIdentity());
             long existId;

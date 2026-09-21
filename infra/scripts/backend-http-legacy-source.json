@@ -1,0 +1,171 @@
+{
+  "repository": "AirPowerTeam/AirPower-Core",
+  "ref": "fe1691b2c978",
+  "version": "6.3.1",
+  "files": [
+    {
+      "path": "cn/hamm/airpower/core/AccessTokenUtil.java",
+      "sha256": "d898fbf0aec97f675dda4fd0bccf759307caf90bcd2299c46e78a6fcd7fc169e"
+    },
+    {
+      "path": "cn/hamm/airpower/core/AesUtil.java",
+      "sha256": "88785780eedc7c6f40ea684aded24d3ca49e1e30680f1a77eef879c9063da0af"
+    },
+    {
+      "path": "cn/hamm/airpower/core/CollectionUtil.java",
+      "sha256": "c31adc62da5df1b880a25a80aee8addc9885d4e84695a27815762b7a3d48634d"
+    },
+    {
+      "path": "cn/hamm/airpower/core/DateTimeUtil.java",
+      "sha256": "2fa7b7b4a4e3bd0b02ff9fb541192a3b149af5133a86f4bcbdd740e687fbcaab"
+    },
+    {
+      "path": "cn/hamm/airpower/core/DesensitizeUtil.java",
+      "sha256": "b1ee22011af6a8cbe309d4c547a8840ac98f903bb01f6d121329b342e8949087"
+    },
+    {
+      "path": "cn/hamm/airpower/core/DictionaryUtil.java",
+      "sha256": "5d3ec71a5af9c49a1f11131e226e8f04141f405325c541f8bddf5fb7b65e3849"
+    },
+    {
+      "path": "cn/hamm/airpower/core/FileUtil.java",
+      "sha256": "ee973d1668ba9b959809c628b38c5a8e6c8cad5cda75852a7633131483d6c45c"
+    },
+    {
+      "path": "cn/hamm/airpower/core/HostUtil.java",
+      "sha256": "33ee57473d1ab883d22134c7a10eb3c69829a2227a99f386c59697970a35ef70"
+    },
+    {
+      "path": "cn/hamm/airpower/core/HttpUtil.java",
+      "sha256": "1886377ffce2b89a5b65d2e7585b0c8d517b79e8e1fe98539d3121b911f089d6"
+    },
+    {
+      "path": "cn/hamm/airpower/core/Json.java",
+      "sha256": "e476be84419aea949f4726dc81a9954fa46a81591fe128b1570f94bb9a39fdeb"
+    },
+    {
+      "path": "cn/hamm/airpower/core/NumberUtil.java",
+      "sha256": "637d641c3c0c46c3b7a06e8f29dcfd1d11c747b40d28460f46fd99457cf4a84a"
+    },
+    {
+      "path": "cn/hamm/airpower/core/RandomUtil.java",
+      "sha256": "dfeaef02134fd30b9bd04386c8f48a97cf1b98234ccddde60c9f517077076f8a"
+    },
+    {
+      "path": "cn/hamm/airpower/core/ReflectUtil.java",
+      "sha256": "57e00751be3ac7fb514337fc3171bb2626587e5c4a83b2ecc5d29c3e51e06a7c"
+    },
+    {
+      "path": "cn/hamm/airpower/core/RootModel.java",
+      "sha256": "ac3fc88c1b6b9e14501b8519b8058445862ccf1f4b8115ee3ca592db3bd3ab57"
+    },
+    {
+      "path": "cn/hamm/airpower/core/RsaUtil.java",
+      "sha256": "fc08feb50134b8594f182e56b8915a34dc2b5a655975273d6ad24751c7a74c96"
+    },
+    {
+      "path": "cn/hamm/airpower/core/StringUtil.java",
+      "sha256": "783ee593891d7d52e1ecfedf53f0babffa382ac650cdc9925a31265b5db58bff"
+    },
+    {
+      "path": "cn/hamm/airpower/core/TaskUtil.java",
+      "sha256": "be2b10e1c009f4ffd6b6d53244512c69ec0005503023f7264cbc5b238ca73d34"
+    },
+    {
+      "path": "cn/hamm/airpower/core/TraceUtil.java",
+      "sha256": "591defa5f3402b434f8d7b6f66c59cd5281226ace0b000a8caea99817cd2e7dc"
+    },
+    {
+      "path": "cn/hamm/airpower/core/TreeUtil.java",
+      "sha256": "91aa7115374dbc7affc31199cb795b0d3284bd3de30d7db0332d692192b222bc"
+    },
+    {
+      "path": "cn/hamm/airpower/core/ValidateUtil.java",
+      "sha256": "ec5c84ffdb8afdcca6f251217f8e41b5a535b1ee52294ed8c09e88e02e44d987"
+    },
+    {
+      "path": "cn/hamm/airpower/core/annotation/Description.java",
+      "sha256": "32ee962b0ebcb67aa8dfb3d44b5963c5f01e44b49d798a9a7a34a8fe62a50758"
+    },
+    {
+      "path": "cn/hamm/airpower/core/annotation/Desensitize.java",
+      "sha256": "7cf7dcd3500de273e7f63db405fbef987e92adb8ebd2f7b03307ba9c9eac9973"
+    },
+    {
+      "path": "cn/hamm/airpower/core/annotation/DesensitizeIgnore.java",
+      "sha256": "e6e330657bc2721142b66b4438279e7a6a2a05a712f40a69494a7e208a834b73"
+    },
+    {
+      "path": "cn/hamm/airpower/core/annotation/Dictionary.java",
+      "sha256": "3fcb51d1aada8fa29596035fe4e5ac7f289c7759df6465b84dc280a57c195a14"
+    },
+    {
+      "path": "cn/hamm/airpower/core/annotation/Export.java",
+      "sha256": "b3294576a7fc33f2fa4e38117bed577c8583134b8e2d7a0c30ca33de0af739a9"
+    },
+    {
+      "path": "cn/hamm/airpower/core/annotation/ExposeAll.java",
+      "sha256": "6f029cb779fab55644a22dd509751e12c5775ea5c643c54cb6686082517b5d12"
+    },
+    {
+      "path": "cn/hamm/airpower/core/annotation/Meta.java",
+      "sha256": "d2bd196c3b75ff79d135685cc3f168bbe787dfc79a6160169e11c7405dd864cf"
+    },
+    {
+      "path": "cn/hamm/airpower/core/annotation/Phone.java",
+      "sha256": "1ea4ad14930d49f98c39ed0ef0c4232fbea16044e22c1b5c614b86b5878a2df5"
+    },
+    {
+      "path": "cn/hamm/airpower/core/annotation/ReadOnly.java",
+      "sha256": "741731f1b8ee187726d0e3f708dfbde81ab1b7e02ae101d8ef9bf0343372513d"
+    },
+    {
+      "path": "cn/hamm/airpower/core/constant/Constant.java",
+      "sha256": "53dcc331f16639fb61e8412ae64747470b6767a2f00ebfb5fb438968fbc97b0b"
+    },
+    {
+      "path": "cn/hamm/airpower/core/constant/HttpConstant.java",
+      "sha256": "805f4f6da85d1126490bfdeab32e56c08a85e1520ddaf2e6798bf6974f5f8b1d"
+    },
+    {
+      "path": "cn/hamm/airpower/core/constant/PatternConstant.java",
+      "sha256": "60f30afe77bff6f80f7abb9012df30a88d1f94a6cd23a4823af41fc5246c06ff"
+    },
+    {
+      "path": "cn/hamm/airpower/core/enums/DateTimeFormatter.java",
+      "sha256": "073ec3d86cd40e75aea54f9d694b9b530c5189ec546d149fc36a958d26cd3017"
+    },
+    {
+      "path": "cn/hamm/airpower/core/enums/DesensitizeType.java",
+      "sha256": "b7844b6188b820251af7a28b537e0434e12f53065efa65ade5ab1971d2870124"
+    },
+    {
+      "path": "cn/hamm/airpower/core/enums/HttpMethod.java",
+      "sha256": "5a3b4fc78869b5db83d763f40e11a4acf6986e1d5aa1066e8585a3fd29b96f9b"
+    },
+    {
+      "path": "cn/hamm/airpower/core/exception/ServiceException.java",
+      "sha256": "e7b6c53f5d688a6c3f5d0ae56f429c536aedf27c4fd23e7a27530b808f954087"
+    },
+    {
+      "path": "cn/hamm/airpower/core/interfaces/IDictionary.java",
+      "sha256": "decd582f35da5b07418c6c42248d1076a91057be3974fe8e81e916683f1f67f6"
+    },
+    {
+      "path": "cn/hamm/airpower/core/interfaces/IEntity.java",
+      "sha256": "39cd7afd3038ec253eb908d90d82cf15d5143cd5588deb8c3f9daf5b3dad346a"
+    },
+    {
+      "path": "cn/hamm/airpower/core/interfaces/IException.java",
+      "sha256": "0cf5b7a2297ba193aa86f3a138218aee4a0833458b5fca77ae44a9a91a4746d1"
+    },
+    {
+      "path": "cn/hamm/airpower/core/interfaces/IFunction.java",
+      "sha256": "1fb57a9ee8eaf829e24d405f979db3937dd03007af24364e9434a5cb61c8c748"
+    },
+    {
+      "path": "cn/hamm/airpower/core/interfaces/ITree.java",
+      "sha256": "81fad38496e897cf8a0e417a4fb052d00f7574af64d5bb648f66e7db745227cc"
+    }
+  ]
+}

@@ -1,10 +1,10 @@
 package cn.hamm.spms.common.errorreport;
 
-import cn.hamm.airpower.api.ApiController;
-import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.permission.Permission;
+import cn.hamm.spms.base.ApiController;
+import cn.hamm.spms.framework.web.annotation.Api;
+import cn.hamm.spms.framework.http.ApiResponse;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.Permission;
 import cn.hamm.spms.common.security.RateLimitHelper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -56,9 +56,9 @@ public class ErrorReportController extends ApiController {
     @Description("上报前端错误")
     @Permission(login = false)
     @PostMapping("")
-    public Json report(@RequestBody FrontendErrorReport report, HttpServletRequest request) {
+    public ApiResponse<Void> report(@RequestBody FrontendErrorReport report, HttpServletRequest request) {
         if (!rateLimitHelper.allowByIp(request, RATE_KEY_PREFIX, MAX_REPORTS_PER_MINUTE, RATE_WINDOW_SECONDS)) {
-            return Json.success("已限流");
+            return ApiResponse.success("已限流");
         }
         // 脱敏后落结构化日志（traceId 由 logback 自动附加）
         log.error("[frontend-error] source={} context={} time={} message={} stack={}",
@@ -67,7 +67,7 @@ public class ErrorReportController extends ApiController {
                 report.getTime(),
                 sanitize(report.getMessage()),
                 sanitize(report.getStack()));
-        return Json.success("上报成功");
+        return ApiResponse.success("上报成功");
     }
 
     /** 截断 + 去除 URL 中的 token 参数，避免堆栈/URL 把敏感信息泄进日志。 */

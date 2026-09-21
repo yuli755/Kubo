@@ -1,6 +1,6 @@
 package cn.hamm.spms.common.security;
 
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.common.redis.RedisHelper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

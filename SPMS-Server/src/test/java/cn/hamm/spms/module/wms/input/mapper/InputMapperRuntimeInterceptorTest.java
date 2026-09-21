@@ -86,9 +86,9 @@ class InputMapperRuntimeInterceptorTest {
     @DisplayName("入库 page 使用统一筛选和租户条件")
     void servicePageUsesMapperPermission() {
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
-            var request = new cn.hamm.airpower.curd.model.query.QueryPageRequest<InputEntity>();
+            var request = new cn.hamm.spms.framework.query.QueryPageRequest<InputEntity>();
             request.setFilter(new InputEntity().setType(1));
-            request.setPage(new cn.hamm.airpower.curd.model.query.Page().setPageNum(1).setPageSize(20));
+            request.setPage(new cn.hamm.spms.framework.query.Page().setPageNum(1).setPageSize(20));
 
             var page = inputService.getMapperPage(request);
             assertEquals(1, page.getTotal());

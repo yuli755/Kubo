@@ -1,7 +1,7 @@
 package cn.hamm.spms.common.security;
 
-import cn.hamm.airpower.core.exception.ServiceException;
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.framework.error.BusinessException;
+import cn.hamm.spms.common.redis.RedisHelper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -67,7 +67,7 @@ class LoginBruteForceGuardTest {
     void assertNotLockedRejectsWhenLocked() {
         given(redisHelper.hasKey("kubo:login:lock:a@b.com")).willReturn(true);
 
-        assertThrows(ServiceException.class, () -> guard.assertNotLocked("a@b.com", "1.2.3.4"));
+        assertThrows(BusinessException.class, () -> guard.assertNotLocked("a@b.com", "1.2.3.4"));
     }
 
     @Test

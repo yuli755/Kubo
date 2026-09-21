@@ -1,13 +1,12 @@
 package cn.hamm.spms.module.wms.move;
 
 import cn.hamm.spms.common.export.EntityCsvExport;
-import cn.hamm.airpower.core.interfaces.IDictionary;
-import cn.hamm.airpower.curd.helper.ExportHelper;
-import cn.hamm.airpower.curd.model.query.Page;
-import cn.hamm.airpower.curd.model.query.QueryListRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageResponse;
-import cn.hamm.airpower.curd.model.query.Sort;
+import cn.hamm.spms.framework.dictionary.IDictionary;
+import cn.hamm.spms.common.export.ExportHelper;
+import cn.hamm.spms.framework.query.QueryListRequest;
+import cn.hamm.spms.framework.query.QueryPageRequest;
+import cn.hamm.spms.framework.query.QueryPageResponse;
+import cn.hamm.spms.framework.query.ReadPage;
 import cn.hamm.spms.base.bill.AbstractBaseBillService;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
@@ -56,8 +55,6 @@ import static cn.hamm.spms.module.system.config.enums.ConfigFlag.MOVE_BILL_AUTO_
  */
 @Service
 public class MoveService extends AbstractBaseBillService<MoveEntity, MoveRepository, MoveDetailEntity, MoveDetailService, MoveDetailRepository> {
-    private static final int DEFAULT_READ_PAGE_SIZE = 20;
-    private static final int MAX_READ_PAGE_SIZE = 200;
 
     @Autowired(required = false)
     private MoveMapper moveMapper;
@@ -84,31 +81,12 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
             return getPage(normalized);
         }
         MoveEntity filter = normalized.getFilter() == null ? new MoveEntity() : normalized.getFilter();
-        Page requestedPage = normalized.getPage() == null ? new Page() : normalized.getPage();
-        int pageNum = requestedPage.getPageNum() == null ? 1 : requestedPage.getPageNum();
-        int pageSize = requestedPage.getPageSize() == null
-                ? DEFAULT_READ_PAGE_SIZE : requestedPage.getPageSize();
-        if (pageNum < 1 || pageSize < 1) {
-            throw new IllegalArgumentException("分页页码和分页大小必须为正数");
-        }
-        pageSize = Math.min(pageSize, MAX_READ_PAGE_SIZE);
-        long offset = ((long) pageNum - 1L) * pageSize;
-        if (offset > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("分页页码超出可查询范围");
-        }
+        ReadPage paging = mapperReadPage(normalized.getPage());
         moveReadShadowService.submit(filter);
         List<MoveEntity> rows = moveMapper.selectPageByPermission(filter.getBillCode(), filter.getStatus(),
-                (int) offset, pageSize);
+                paging.offset(), paging.pageSize());
         long total = moveMapper.countByPermission(filter.getBillCode(), filter.getStatus());
-        int totalAsInt = Math.toIntExact(total);
-        int pageCount = total == 0 ? 0 : Math.toIntExact((total + pageSize - 1L) / pageSize);
-        QueryPageResponse<MoveEntity> response = new QueryPageResponse<>();
-        response.setList(rows);
-        response.setTotal(totalAsInt);
-        response.setPageCount(pageCount);
-        response.setPage(new Page().setPageNum(pageNum).setPageSize(pageSize));
-        response.setSort(normalized.getSort() == null ? new Sort() : normalized.getSort());
-        return response;
+        return mapperPageResponse(paging, rows, total, normalized.getSort());
     }
 
     /**

@@ -1,10 +1,10 @@
 package cn.hamm.spms.module.personnel.role;
 
-import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.annotation.Extends;
-import cn.hamm.airpower.curd.base.Curd;
+import cn.hamm.spms.framework.web.annotation.Api;
+import cn.hamm.spms.framework.http.ApiResponse;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.base.annotation.Extends;
+import cn.hamm.spms.base.Curd;
 import cn.hamm.spms.base.BaseController;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.validation.annotation.Validated;
@@ -23,16 +23,16 @@ public class RoleController extends BaseController<RoleEntity, RoleService, Role
 
     @Description("授权菜单")
     @PostMapping("authorizeMenu")
-    public Json authorizeMenu(@RequestBody @Validated({WhenAuthorizePermission.class, WhenIdRequired.class}) RoleEntity role) {
+    public ApiResponse<Void> authorizeMenu(@RequestBody @Validated({WhenAuthorizePermission.class, WhenIdRequired.class}) RoleEntity role) {
         service.update(role);
-        return Json.success("授权菜单成功");
+        return ApiResponse.success("授权菜单成功");
     }
 
     @Description("授权权限")
     @PostMapping("authorizePermission")
-    public Json authorizePermission(@RequestBody @Validated({WhenAuthorizePermission.class, WhenIdRequired.class}) RoleEntity role) {
+    public ApiResponse<Void> authorizePermission(@RequestBody @Validated({WhenAuthorizePermission.class, WhenIdRequired.class}) RoleEntity role) {
         service.update(role);
-        return Json.success("授权菜单成功");
+        return ApiResponse.success("授权菜单成功");
     }
 
     @Override

@@ -1,8 +1,7 @@
 package cn.hamm.spms.module.system.permission;
 
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.annotation.Search;
-import cn.hamm.airpower.curd.permission.IPermission;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.Search;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.framework.util.TreeNode;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -33,7 +32,7 @@ import java.util.List;
 @Table(name = "permission")
 @Description("权限")
 @Schema(name = "PermissionEntity", description = "权限实体 - 权限树形结构管理")
-public class PermissionEntity extends BaseEntity<PermissionEntity> implements IPermission<PermissionEntity>, TreeNode<PermissionEntity> {
+public class PermissionEntity extends BaseEntity<PermissionEntity> implements TreeNode<PermissionEntity> {
     @Description("权限标识")
     @Column(columnDefinition = "varchar(255) default '' comment '权限标识'", unique = true)
     @Schema(description = "权限唯一标识，如 inventory:create", example = "inventory:create")

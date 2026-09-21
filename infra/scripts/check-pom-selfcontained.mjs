@@ -32,6 +32,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { pomDependencyDeclarations } from './backend-pom.mjs'
 
 const ROOT = process.env.KUBO_ROOT ?? path.resolve(import.meta.dirname, '..', '..')
 const POM = path.join(ROOT, 'SPMS-Server', 'pom.xml')
@@ -51,6 +52,9 @@ const BOOT_BOM_GROUPS = new Set([
   'org.flywaydb',
   'jakarta.validation',
 ])
+
+/** Boot 3.4.4 明确管理的精确坐标；不放宽成整个 com.fasterxml / org.projectlombok 家族。 */
+const BOOT_BOM_COORDINATES = new Set(['com.fasterxml.jackson.core:jackson-databind', 'org.projectlombok:lombok'])
 
 /**
  * 退场期间允许残留的 airpower 依赖（每删掉一个就把这里改小）。
@@ -81,18 +85,13 @@ const problems = []
 const notes = []
 
 // ────────────────────────────── 1. 依赖版本 ──────────────────────────────
-const dependencyBlocks = [...pom.matchAll(/<dependency>([\s\S]*?)<\/dependency>/g)].map(m => m[1])
-const versionlessDeps = []
-for (const block of dependencyBlocks) {
-  const groupId = block.match(/<groupId>([^<]+)<\/groupId>/)?.[1]?.trim()
-  const artifactId = block.match(/<artifactId>([^<]+)<\/artifactId>/)?.[1]?.trim()
-  const hasVersion = /<version>/.test(block)
-  if (!groupId || !artifactId || hasVersion)
-    continue
-  versionlessDeps.push({ groupId, artifactId })
-}
+const dependencyDeclarations = pomDependencyDeclarations(pom)
+const versionlessDeps = dependencyDeclarations
+  .filter(dependency => dependency.groupId && dependency.artifactId && dependency.version === null)
+  .map(({ groupId, artifactId }) => ({ groupId, artifactId }))
 
-const offendingDeps = versionlessDeps.filter(d => !BOOT_BOM_GROUPS.has(d.groupId))
+const offendingDeps = versionlessDeps.filter(d => !BOOT_BOM_GROUPS.has(d.groupId)
+  && !BOOT_BOM_COORDINATES.has(`${d.groupId}:${d.artifactId}`))
 for (const d of offendingDeps)
   problems.push(`依赖 ${d.groupId}:${d.artifactId} 没有写 <version>，且不在 Spring Boot BOM 白名单里 —— 父 POM 没了，没人替它定版本`)
 
@@ -122,15 +121,17 @@ for (const plugin of FORBIDDEN_BUILD_PLUGINS) {
 }
 
 // ────────────────────────────── 4. airpower 依赖 ──────────────────────────────
-const hammDeps = dependencyBlocks
-  .map(b => b.match(/<groupId>([^<]+)<\/groupId>/)?.[1]?.trim())
-  .filter(g => g === 'cn.hamm')
-const hammArtifacts = dependencyBlocks
-  .filter(b => b.includes('<groupId>cn.hamm</groupId>'))
-  .map(b => b.match(/<artifactId>([^<]+)<\/artifactId>/)?.[1]?.trim())
+const hammArtifacts = dependencyDeclarations
+  .filter(dependency => dependency.groupId === 'cn.hamm')
+  .map(dependency => dependency.artifactId)
 for (const artifact of hammArtifacts) {
   if (!AIRPOWER_DEPENDENCIES_STILL_ALLOWED.has(artifact))
     problems.push(`残留 airpower 依赖 ${artifact}：不在退场白名单内（要么删掉它，要么在这个脚本里显式承认）`)
+}
+
+for (const dependency of dependencyDeclarations.filter(item => !item.managed && item.groupId === 'cn.hamm' && item.artifactId === 'airpower-curd')) {
+  if (!dependency.exclusions.some(item => item.groupId === 'cn.hamm' && item.artifactId === 'airpower-cookie'))
+    problems.push('airpower-curd 必须排除已退场的传递依赖 cn.hamm:airpower-cookie；启动类已不再引用旧 Auto')
 }
 
 // ────────────────────────────── 报告 ──────────────────────────────

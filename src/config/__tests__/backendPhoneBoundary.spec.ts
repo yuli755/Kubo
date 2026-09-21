@@ -33,10 +33,11 @@ describe('b3a · 电话字段切标准约束不许改变验证边界', () => {
     expect(source).toContain('@SensitiveField(resourceKey = "personnel.user")')
   })
 
-  it.each(['Errors', 'CustomError'])('%s 只去字典标记，保留原异常接口及 getter', (name) => {
+  it.each(['Errors', 'CustomError'])('%s 使用项目异常契约，保留错误码读取 getter', (name) => {
     const source = code(`common/exception/${name}.java`)
     expect(source).not.toContain('IDictionary')
-    expect(source).toContain('implements IException<')
+    expect(source).toContain('implements ErrorCode')
+    expect(source).not.toContain('import cn.hamm.airpower')
     expect(source).toContain('int getKey()')
     expect(source).toContain('String getLabel()')
   })

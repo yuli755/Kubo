@@ -197,6 +197,16 @@ jobs:
           fi
           exit "$status"
 
+      # Compile 已解析正式依赖；再以隔离 classpath 验证存储/事件 JSON，缺包或校验和不符必须失败。
+      - name: JSON contracts with verified Jackson artifacts
+        run: node ../infra/scripts/test-backend-json.mjs
+
+      - name: Cookie contracts with verified Spring and Servlet artifacts
+        run: node ../infra/scripts/test-backend-cookie.mjs
+
+      - name: HTTP error contracts with verified Spring MVC and legacy boundary
+        run: node ../infra/scripts/test-backend-http.mjs
+
       - name: Unit & slice tests
         # 2026-09-06：这行 `continue-on-error: true` 被删掉了，因为 CI 里 145 个用例连续通过
         # （含 @SpringBootTest + H2 的缓存/事件/多租户隔离用例）。从这一刻起"后端测试红着也能合"不再成立。
@@ -263,6 +273,10 @@ jobs:
             echo "依赖树是空的 —— 红线无法判定（这不是"没问题"）"; exit 1
           fi
           tree=$(cat "$tree_file")
+          # Cookie 模块已在 POM 排除。必须核对真正解析的依赖树，不能只靠源码 grep 或 exclusion 声明。
+          if grep -Fq 'cn.hamm:airpower-cookie:' "$tree_file"; then
+            echo "::error::已退场的 airpower-cookie 仍出现在解析后的依赖树"; exit 1
+          fi
           echo "依赖树行数：$(wc -l < "$tree_file")（红线在此行数上判定）"
           if echo "$tree" | grep -Ei "kafka-clients|rocketmq-client|spring-boot-starter-artemis"; then
             echo "禁止引入上述 MQ 客户端"; exit 1

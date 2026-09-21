@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.personnel.user;
 
-import cn.hamm.airpower.curd.permission.PermissionUtil;
+import cn.hamm.spms.framework.security.PasswordHasher;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -47,7 +47,7 @@ class UserServicePasswordHashTest {
         assertEquals(UserService.PASSWORD_SALT_LENGTH, user.getSalt().length(),
                 "盐长必须与 PASSWORD_SALT_LENGTH 约定一致");
         // 登录比对口径：encodePassword(输入明文, 库中盐) == 库中散列
-        assertEquals(PermissionUtil.encodePassword("Zz#Kubo2026", user.getSalt()), user.getPassword(),
+        assertEquals(PasswordHasher.encode("Zz#Kubo2026", user.getSalt()), user.getPassword(),
                 "散列必须与登录侧同一算法，否则新账号登录必挂（A-1 的功能面后果）");
     }
 
@@ -64,7 +64,7 @@ class UserServicePasswordHashTest {
 
         assertNotEquals("Rotated#2026", submitted.getPassword());
         assertNotEquals("oldS", submitted.getSalt(), "客户端/旧盐必须作废，换服务端新盐");
-        assertEquals(PermissionUtil.encodePassword("Rotated#2026", submitted.getSalt()),
+        assertEquals(PasswordHasher.encode("Rotated#2026", submitted.getSalt()),
                 submitted.getPassword(), "轮换后的凭据必须与登录侧互验");
     }
 
@@ -72,7 +72,7 @@ class UserServicePasswordHashTest {
     @DisplayName("内部成对凭据（resetPassword/register/DevDataInit 形状）→ 原样透传不二次散列")
     void preHashedPairUntouched() {
         String salt = "ab12";
-        String hashed = PermissionUtil.encodePassword("Old#Pass1", salt);
+        String hashed = PasswordHasher.encode("Old#Pass1", salt);
         UserEntity user = new UserEntity();
         user.setPassword(hashed);
         user.setSalt(salt);
@@ -93,7 +93,7 @@ class UserServicePasswordHashTest {
         invokeNormalize(user);
 
         assertEquals(UserService.PASSWORD_SALT_LENGTH, user.getSalt().length());
-        assertEquals(PermissionUtil.encodePassword("Zz#Kubo2026", user.getSalt()), user.getPassword());
+        assertEquals(PasswordHasher.encode("Zz#Kubo2026", user.getSalt()), user.getPassword());
     }
 
     /** 归一缝是 private：全链 beforeUpdate/beforeAdd 需要 Spring 协作者，单测直连归一方法 */
@@ -116,12 +116,12 @@ class UserServicePasswordHashTest {
         String salt = "aLongLegacyShapedSalt32chars__";
         UserEntity user = new UserEntity();
         user.setSalt(salt);
-        user.setPassword(PermissionUtil.encodePassword("NewP@ss2026", salt));
+        user.setPassword(PasswordHasher.encode("NewP@ss2026", salt));
 
         service.beforeAppSaveToDatabase(user);
 
         assertEquals(salt, user.getSalt());
-        assertEquals(PermissionUtil.encodePassword("NewP@ss2026", salt), user.getPassword());
+        assertEquals(PasswordHasher.encode("NewP@ss2026", salt), user.getPassword());
     }
 
     @Test

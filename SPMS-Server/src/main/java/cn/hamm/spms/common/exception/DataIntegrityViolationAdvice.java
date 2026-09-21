@@ -1,7 +1,6 @@
 package cn.hamm.spms.common.exception;
 
-import cn.hamm.airpower.core.Json;
-import cn.hamm.spms.common.exception.Errors;
+import cn.hamm.spms.framework.http.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
@@ -13,6 +12,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.sql.SQLIntegrityConstraintViolationException;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,35 +54,35 @@ public class DataIntegrityViolationAdvice {
      * @return 语义化业务错误响应
      */
     @ExceptionHandler({DataIntegrityViolationException.class, SQLIntegrityConstraintViolationException.class})
-    public Json handle(Exception ex) {
+    public ApiResponse<Void> handle(Exception ex) {
         String message = rootMessage(ex);
         log.warn("数据库约束冲突：{}", message);
 
         Matcher duplicate = DUPLICATE_ENTRY.matcher(message);
         if (duplicate.find()) {
-            return Json.error(Errors.FORBIDDEN_EXIST,
+            return ApiResponse.error(Errors.FORBIDDEN_EXIST,
                     String.format("数据已存在（唯一约束冲突）：%s，请检查是否重复提交", duplicate.group(1)));
         }
         // 子表引用了不存在的父行：新增/更新侧的外键失败
         if (message.contains("Cannot add or update a child row")) {
-            return Json.error(Errors.FORBIDDEN, "关联数据不存在或已被删除，无法保存");
+            return ApiResponse.error(Errors.FORBIDDEN, "关联数据不存在或已被删除，无法保存");
         }
         // 父行被子表引用：这才是「数据正在使用中」的正当场景
         if (message.contains("Cannot delete or update a parent row")) {
-            return Json.error(Errors.FORBIDDEN_DELETE_USED, "删除失败：该数据正被其他数据引用，请先处理关联数据");
+            return ApiResponse.error(Errors.FORBIDDEN_DELETE_USED, "删除失败：该数据正被其他数据引用，请先处理关联数据");
         }
         Matcher tooLong = DATA_TOO_LONG.matcher(message);
         if (tooLong.find()) {
-            return Json.error(Errors.PARAM_INVALID, String.format("字段「%s」内容超出长度限制", tooLong.group(1)));
+            return ApiResponse.error(Errors.PARAM_INVALID, String.format("字段「%s」内容超出长度限制", tooLong.group(1)));
         }
         Matcher notNull = NOT_NULL.matcher(message);
         if (notNull.find()) {
-            return Json.error(Errors.PARAM_INVALID, String.format("字段「%s」为必填项，不能为空", notNull.group(1)));
+            return ApiResponse.error(Errors.PARAM_INVALID, String.format("字段「%s」为必填项，不能为空", notNull.group(1)));
         }
         // 兜底给通用文案，但绝不回退到「正在使用中」的误导性描述；完整堆栈只进日志。
         // 用 PARAM_INVALID 而非 DATABASE_ERROR（后者文案是「数据库服务连接失败」，
         // 约束冲突几乎总是提交内容问题，不是服务故障）。
-        return Json.error(Errors.PARAM_INVALID, "数据保存失败：提交内容与数据库约束冲突，请检查后重试");
+        return ApiResponse.error(Errors.PARAM_INVALID, "数据保存失败：提交内容与数据库约束冲突，请检查后重试");
     }
 
     /**
@@ -91,7 +93,8 @@ public class DataIntegrityViolationAdvice {
      */
     private static String rootMessage(Throwable ex) {
         StringBuilder sb = new StringBuilder();
-        for (Throwable current = ex; current != null && current != current.getCause(); current = current.getCause()) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable current = ex; current != null && seen.add(current); current = current.getCause()) {
             if (current.getMessage() != null) {
                 sb.append(current.getMessage()).append(' ');
             }

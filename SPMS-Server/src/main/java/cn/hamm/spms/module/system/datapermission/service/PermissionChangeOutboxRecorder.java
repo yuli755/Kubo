@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
-import cn.hamm.airpower.core.Json;
+import cn.hamm.spms.framework.json.JsonCodec;
+import cn.hamm.spms.framework.json.JsonCodecException;
 import cn.hamm.spms.module.system.datapermission.entity.PermissionChangeOutboxEntity;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionChangedEvent;
 import cn.hamm.spms.module.system.datapermission.repository.PermissionChangeOutboxRepository;
@@ -8,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+
+import static cn.hamm.spms.common.exception.Errors.SERVICE_ERROR;
 
 /**
  * <h1>权限变更 Outbox 记录器（P5 第一刀：只落库，不派发）</h1>
@@ -46,7 +49,7 @@ public class PermissionChangeOutboxRecorder {
                 .setAggregateType(aggregateTypeOf(event))
                 .setAggregateId(aggregateIdOf(event))
                 .setEventType(event.getEventType().name())
-                .setPayload(Json.toString(event))
+                .setPayload(encodePayload(event))
                 .setStatus(PermissionChangeOutboxStatus.PENDING.name())
                 .setRetryCount(0);
         try {
@@ -54,6 +57,17 @@ public class PermissionChangeOutboxRecorder {
         }
         catch (DataIntegrityViolationException ex) {
             log.debug("重复的权限变更事件（同 eventKey），幂等跳过: {}", ex.getMessage());
+        }
+    }
+
+    /** 编码失败仍通过已有 code=500 服务错误边界传播，不能写入空 payload 或继续广播。 */
+    private static String encodePayload(DataPermissionChangedEvent event) {
+        try {
+            return JsonCodec.write(event);
+        } catch (JsonCodecException error) {
+            log.error("权限变更事件序列化失败", error);
+            SERVICE_ERROR.show(error.getMessage());
+            throw new IllegalStateException("SERVICE_ERROR 必须抛出异常，禁止存储失败的事件", error);
         }
     }
 

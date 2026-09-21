@@ -1,10 +1,10 @@
 package cn.hamm.spms.module.wms.input;
 
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.Dictionary;
-import cn.hamm.airpower.core.annotation.Export;
-import cn.hamm.airpower.core.annotation.Meta;
-import cn.hamm.airpower.curd.annotation.Search;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.Dictionary;
+import cn.hamm.spms.framework.web.annotation.Export;
+import cn.hamm.spms.framework.web.annotation.Meta;
+import cn.hamm.spms.framework.web.annotation.Search;
 import cn.hamm.spms.base.bill.AbstractBaseBillEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.channel.purchase.PurchaseEntity;

@@ -3,13 +3,11 @@ package cn.hamm.spms.module.wms.inventory;
 import cn.hamm.spms.framework.util.Trees;
 import cn.hamm.spms.common.export.EntityCsvExport;
 import cn.hamm.spms.common.dictionary.EnumDictionaries;
-import cn.hamm.airpower.curd.base.CurdEntity;
-import cn.hamm.airpower.curd.helper.ExportHelper;
-import cn.hamm.airpower.curd.model.query.Page;
-import cn.hamm.airpower.curd.model.query.QueryListRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageResponse;
-import cn.hamm.airpower.curd.model.query.Sort;
+import cn.hamm.spms.common.export.ExportHelper;
+import cn.hamm.spms.framework.query.QueryListRequest;
+import cn.hamm.spms.framework.query.QueryPageRequest;
+import cn.hamm.spms.framework.query.QueryPageResponse;
+import cn.hamm.spms.framework.query.ReadPage;
 import cn.hamm.spms.common.exception.Errors;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
@@ -47,8 +45,6 @@ import java.util.Set;
  */
 @Service
 public class InventoryService extends BaseService<InventoryEntity, InventoryRepository> {
-    private static final int DEFAULT_READ_PAGE_SIZE = 20;
-    private static final int MAX_READ_PAGE_SIZE = 200;
 
     /**
      * mapper-read 关闭时 Bean 不存在，保持 JPA 回退可启动。
@@ -93,36 +89,16 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
             return getPage(normalized);
         }
         InventoryEntity filter = normalized.getFilter() == null ? new InventoryEntity() : normalized.getFilter();
-        Page requestedPage = normalized.getPage() == null ? new Page() : normalized.getPage();
-        int pageNum = requestedPage.getPageNum() == null ? 1 : requestedPage.getPageNum();
-        int pageSize = requestedPage.getPageSize() == null
-                ? DEFAULT_READ_PAGE_SIZE : requestedPage.getPageSize();
-        if (pageNum < 1 || pageSize < 1) {
-            throw new IllegalArgumentException("分页页码和分页大小必须为正数");
-        }
-        pageSize = Math.min(pageSize, MAX_READ_PAGE_SIZE);
-        long offsetValue = ((long) pageNum - 1L) * pageSize;
-        if (offsetValue > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("分页页码超出可查询范围");
-        }
+        ReadPage paging = mapperReadPage(normalized.getPage());
 
         Integer type = filter.getType();
         List<Long> storageIds = storageIds(filter, type);
         List<Long> structureIds = structureIds(filter, type);
         inventoryReadShadowService.submit(type, storageIds, structureIds);
         List<InventoryEntity> rows = inventoryMapper.selectPageByPermission(type, storageIds, structureIds,
-                (int) offsetValue, pageSize).stream().map(this::hydrateRelations).toList();
+                paging.offset(), paging.pageSize()).stream().map(this::hydrateRelations).toList();
         long total = inventoryMapper.countByPermission(type, storageIds, structureIds);
-        int totalAsInt = Math.toIntExact(total);
-        int pageCount = total == 0 ? 0 : Math.toIntExact((total + pageSize - 1L) / pageSize);
-        Sort sort = normalized.getSort() == null ? new Sort() : normalized.getSort();
-        QueryPageResponse<InventoryEntity> response = new QueryPageResponse<>();
-        response.setList(rows);
-        response.setTotal(totalAsInt);
-        response.setPageCount(pageCount);
-        response.setPage(new Page().setPageNum(pageNum).setPageSize(pageSize));
-        response.setSort(sort);
-        return response;
+        return mapperPageResponse(paging, rows, total, normalized.getSort());
     }
 
     /**
@@ -326,7 +302,7 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
         Set<Long> idList = Trees.getChildrenIdList(structure.getId(), id -> structureService.filter(new StructureEntity().setParentId(id)));
         idList.add(structure.getId());
         Join<InventoryEntity, StructureEntity> join = root.join("structure");
-        Predicate inPredicate = join.get(CurdEntity.STRING_ID).in(idList);
+        Predicate inPredicate = join.get(BaseEntity.STRING_ID).in(idList);
         predicateList.add(inPredicate);
         search.setStructure(null);
     }
@@ -346,7 +322,7 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
         Set<Long> idList = Trees.getChildrenIdList(storage.getId(), id -> storageService.filter(new StorageEntity().setParentId(id)));
         idList.add(storage.getId());
         Join<InventoryEntity, StorageEntity> join = root.join("storage");
-        Predicate inPredicate = join.get(CurdEntity.STRING_ID).in(idList);
+        Predicate inPredicate = join.get(BaseEntity.STRING_ID).in(idList);
         predicateList.add(inPredicate);
         search.setStorage(null);
     }

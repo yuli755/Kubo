@@ -1,9 +1,9 @@
 package cn.hamm.spms.module.system.config;
 
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.Dictionary;
-import cn.hamm.airpower.core.annotation.Meta;
-import cn.hamm.airpower.core.annotation.ReadOnly;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.Dictionary;
+import cn.hamm.spms.framework.web.annotation.Meta;
+import cn.hamm.spms.framework.web.annotation.ReadOnly;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.module.system.config.enums.ConfigType;
 import com.fasterxml.jackson.annotation.JsonProperty;

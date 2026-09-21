@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.factory.structure.mapper;
 
-import cn.hamm.airpower.curd.model.query.Page;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
+import cn.hamm.spms.framework.query.Page;
+import cn.hamm.spms.framework.query.QueryPageRequest;
 import cn.hamm.spms.module.factory.structure.StructureEntity;
 import cn.hamm.spms.module.factory.structure.StructureService;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;

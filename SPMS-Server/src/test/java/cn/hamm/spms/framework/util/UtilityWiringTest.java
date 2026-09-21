@@ -1,8 +1,16 @@
 package cn.hamm.spms.framework.util;
 
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.Export;
-import cn.hamm.airpower.core.exception.ServiceException;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.Export;
+import cn.hamm.spms.framework.error.BusinessException;
+import cn.hamm.spms.framework.query.Page;
+import cn.hamm.spms.framework.query.QueryPageResponse;
+import cn.hamm.spms.framework.query.Sort;
+import cn.hamm.spms.base.BaseService;
+import cn.hamm.spms.framework.json.JsonCodec;
+import cn.hamm.spms.framework.query.ReadPage;
+import cn.hamm.spms.module.system.menu.MenuRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.common.export.EntityCsvExport;
 import cn.hamm.spms.common.metadata.LegacyEntityMetadata;
@@ -15,6 +23,9 @@ import cn.hamm.spms.module.system.datapermission.service.DataPermissionAudit;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionRuntime;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
 import cn.hamm.spms.common.AppConfig;
+import cn.hamm.spms.module.system.datapermission.event.DataPermissionChangedEvent;
+import cn.hamm.spms.module.system.datapermission.repository.PermissionChangeOutboxRepository;
+import cn.hamm.spms.module.system.datapermission.service.PermissionChangeOutboxRecorder;
 import cn.hamm.spms.common.exception.CustomError;
 import cn.hamm.spms.common.exception.Errors;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
@@ -48,8 +59,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -78,7 +92,7 @@ class UtilityWiringTest {
 
     @Test
     void invalidDictionaryValuePreservesCodeMessageAndOptionData() {
-        ServiceException error = assertThrows(ServiceException.class, () -> EnumDictionaries.require(
+        BusinessException error = assertThrows(BusinessException.class, () -> EnumDictionaries.require(
                 SerialNumberUpdate.class, -999, SerialNumberUpdate::getKey, SerialNumberUpdate::getLabel));
         assertEquals(500, error.getCode());
         assertEquals("传入的值(SerialNumberUpdate=-999)不在字典可选范围内", error.getMessage());
@@ -95,7 +109,7 @@ class UtilityWiringTest {
                 FileCategory::getKey, FileCategory::getLabel));
         assertSame(UserTokenType.PERSONAL, EnumDictionaries.require(UserTokenType.class, 1,
                 UserTokenType::getKey, UserTokenType::getLabel));
-        ServiceException error = assertThrows(ServiceException.class, () -> EnumDictionaries.require(
+        BusinessException error = assertThrows(BusinessException.class, () -> EnumDictionaries.require(
                 UserTokenType.class, 999, UserTokenType::getKey, UserTokenType::getLabel));
         assertEquals(500, error.getCode());
         assertEquals("传入的值(UserTokenType=999)不在字典可选范围内", error.getMessage());
@@ -109,7 +123,7 @@ class UtilityWiringTest {
     void deletionGuardPreservesLegacyErrorAndNullableFinderContract() {
         assertDoesNotThrow(() -> TreeDeletionGuard.ensureNoChildrenBeforeDelete(1, ignored -> null));
         assertDoesNotThrow(() -> TreeDeletionGuard.ensureNoChildrenBeforeDelete(1, ignored -> List.of()));
-        ServiceException error = assertThrows(ServiceException.class,
+        BusinessException error = assertThrows(BusinessException.class,
                 () -> TreeDeletionGuard.ensureNoChildrenBeforeDelete(1, ignored -> List.of("child")));
         assertEquals(500, error.getCode());
         assertEquals("无法删除含有下级的数据，请先删除所有下级！", error.getMessage());
@@ -261,12 +275,12 @@ class UtilityWiringTest {
             assertEquals(error.getMessage(), error.getLabel());
             assertSame(error, error.get());
         }
-        ServiceException forbidden = assertThrows(ServiceException.class,
+        BusinessException forbidden = assertThrows(BusinessException.class,
                 () -> Errors.FORBIDDEN.show("拒绝测试", Map.of("reason", "test")));
         assertEquals(403, forbidden.getCode());
         assertEquals("拒绝测试", forbidden.getMessage());
         assertEquals(Map.of("reason", "test"), forbidden.getData());
-        ServiceException login = assertThrows(ServiceException.class,
+        BusinessException login = assertThrows(BusinessException.class,
                 () -> CustomError.USER_LOGIN_ACCOUNT_OR_PASSWORD_INVALID.show());
         assertEquals(200001, login.getCode());
         assertEquals("用户账号或密码错误", login.getMessage());
@@ -281,6 +295,92 @@ class UtilityWiringTest {
         for (ConfigFlag flag : ConfigFlag.values()) {
             assertSame(ConfigType.BOOLEAN, flag.getType());
             assertSame(flag, ConfigFlag.valueOf(flag.name()));
+        }
+    }
+
+    @Test
+    void outboxEncodingFailurePreservesServiceErrorAndDoesNotSave() {
+        PermissionChangeOutboxRepository repository = mock(PermissionChangeOutboxRepository.class);
+        DataPermissionChangedEvent event = new DataPermissionChangedEvent() {
+            @Override
+            public String getResourceKey() {
+                throw new IllegalStateException("payload getter failed");
+            }
+        }.setEventType(DataPermissionChangedEvent.EventType.POLICY_CHANGED).setPolicyId(7L);
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> new PermissionChangeOutboxRecorder(repository).record(event));
+        assertEquals(500, error.getCode());
+        org.junit.jupiter.api.Assertions.assertTrue(error.getMessage().startsWith("JSON 序列化失败，"));
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void mapperPagingPreservesLegacyDefaultAndPartialPageValues() {
+        PageProbe service = new PageProbe();
+        assertEquals(new ReadPage(1, 20), service.normalize(null));
+        assertEquals(new ReadPage(1, 20), service.normalize(new Page()));
+        assertEquals(new ReadPage(1, 5), service.normalize(new Page().setPageNum(null).setPageSize(5)));
+        assertEquals(new ReadPage(3, 20), service.normalize(new Page().setPageNum(3).setPageSize(null)));
+    }
+
+    @Test
+    void mapperPagingDoesNotMutateRequestOrCopyCallerRowsAndSort() {
+        PageProbe service = new PageProbe();
+        Page request = new Page().setPageNum(2).setPageSize(1000);
+        Sort sort = new Sort().setField("name").setDirection("asc");
+        List<MenuEntity> rows = new ArrayList<>();
+        QueryPageResponse<MenuEntity> response = service.respond(service.normalize(request), rows, 401L, sort);
+        assertEquals(1000, request.getPageSize());
+        assertEquals(200, response.getPage().getPageSize());
+        assertEquals(2, response.getPage().getPageNum());
+        assertEquals(401, response.getTotal());
+        assertEquals(3, response.getPageCount());
+        assertNotSame(request, response.getPage());
+        assertSame(rows, response.getList());
+        assertSame(sort, response.getSort());
+    }
+
+    @Test
+    void mapperPagingUsesFreshDefaultSortAndPreservesNullableRows() {
+        PageProbe service = new PageProbe();
+        var first = service.respond(ReadPage.from(null, null), null, 0, null);
+        var second = service.respond(ReadPage.from(null, null), List.of(), 0, null);
+        assertNull(first.getList());
+        assertNotSame(first.getSort(), second.getSort());
+        assertNull(first.getSort().getField());
+        assertNull(first.getSort().getDirection());
+    }
+
+    @Test
+    void mapperPagingWireShapeRemainsListTotalPageCountPageAndSort() {
+        var response = new PageProbe().respond(new ReadPage(2, 50), List.of(), 51,
+                new Sort().setField("id").setDirection("desc"));
+        JsonNode json = JsonCodec.read(JsonCodec.write(response), JsonNode.class);
+        assertEquals(0, json.get("list").size());
+        assertEquals(51, json.get("total").asInt());
+        assertEquals(2, json.get("pageCount").asInt());
+        assertEquals(2, json.get("page").get("pageNum").asInt());
+        assertEquals(50, json.get("page").get("pageSize").asInt());
+        assertEquals("id", json.get("sort").get("field").asText());
+        assertEquals("desc", json.get("sort").get("direction").asText());
+    }
+
+    @Test
+    void mapperPagingKeepsIntResponseOverflowAsAnError() {
+        PageProbe service = new PageProbe();
+        assertThrows(ArithmeticException.class,
+                () -> service.respond(new ReadPage(1, 200), List.of(), Integer.MAX_VALUE + 1L, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.normalize(new Page().setPageNum(Integer.MAX_VALUE).setPageSize(200)));
+    }
+
+    private static class PageProbe extends BaseService<MenuEntity, MenuRepository> {
+        ReadPage normalize(Page page) {
+            return mapperReadPage(page);
+        }
+
+        QueryPageResponse<MenuEntity> respond(ReadPage page, List<MenuEntity> rows, long total, Sort sort) {
+            return mapperPageResponse(page, rows, total, sort);
         }
     }
 

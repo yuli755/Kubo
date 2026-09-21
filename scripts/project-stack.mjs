@@ -27,6 +27,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { pomDependencyDeclarations } from '../infra/scripts/backend-pom.mjs'
 
 const ROOT = process.env.KUBO_ROOT ?? path.resolve(import.meta.dirname, '..')
 const SERVER = path.join(ROOT, 'SPMS-Server')
@@ -93,18 +94,13 @@ const parentArtifact = (() => {
   const m = pom.match(/<parent>[\s\S]*?<groupId>([^<]+)<\/groupId>\s*<artifactId>([^<]+)<\/artifactId>\s*<version>([^<]+)<\/version>/)
   return m ? `${m[1]}:${m[2]}:${m[3]}` : null
 })()
-const pomDeps = [...pom.matchAll(/<dependency>([\s\S]*?)<\/dependency>/g)].map((m) => {
-  const block = m[1]
-  const g = block.match(/<groupId>([^<]+)<\/groupId>/)?.[1]
-  const a = block.match(/<artifactId>([^<]+)<\/artifactId>/)?.[1]
-  // `<scope>import</scope>` 的 pom 依赖是**版本表**（BOM），不是运行时依赖，单列
-  const isBom = /<type>pom<\/type>/.test(block) && /<scope>import<\/scope>/.test(block)
-  const raw = block.match(/<version>([^<]+)<\/version>/)?.[1]
-  const v = raw === undefined ? '（由 BOM 管理）' : resolveVersion(raw)
-  return { groupId: g, artifactId: a, version: v, isBom }
-}).filter(d => d.artifactId)
-const pomBoms = pomDeps.filter(d => d.isBom)
-const pomRealDeps = pomDeps.filter(d => !d.isBom)
+const pomDeps = pomDependencyDeclarations(pom).map(dependency => ({
+  ...dependency,
+  version: dependency.version === null ? '（由 BOM 管理）' : resolveVersion(dependency.version),
+  isBom: dependency.type === 'pom' && dependency.scope === 'import',
+})).filter(dependency => dependency.artifactId)
+const pomBoms = pomDeps.filter(dependency => dependency.isBom)
+const pomRealDeps = pomDeps.filter(dependency => !dependency.managed)
 
 const javaFiles = (() => {
   const out = []
@@ -241,7 +237,15 @@ const airpowerBackend = (() => {
   try {
     const raw = execFileSync(process.execPath, [script, '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
     const data = JSON.parse(raw)
-    return { totals: data.totals, baseline: data.baseline, dependencies: data.dependencies, modules: data.modules }
+    return {
+      totals: data.totals,
+      baseline: data.baseline,
+      dependencies: data.dependencies,
+      exclusions: data.exclusions,
+      configKeys: data.configKeys,
+      parentPom: data.parentPom,
+      modules: data.modules,
+    }
   }
   catch {
     return null
@@ -315,6 +319,8 @@ if (airpowerBackend) {
   line()
   console.log(`  后端足迹：${t.airpowerFiles}/${t.javaFiles} 个 Java 文件 · ${t.symbols} 个符号 · ${t.references} 处引用（剥注释口径）`)
   console.log(`  依赖残留：${airpowerBackend.dependencies.join(' + ') || '（无）'}`)
+  console.log(`  传递排除（POM 声明）：${airpowerBackend.exclusions.map(item => `${item.from} → ${item.groupId}:${item.artifactId}`).join(', ') || '无'}`)
+  console.log(`  后端状态：${airpowerBackend.totals.references || airpowerBackend.dependencies.length || airpowerBackend.configKeys.length ? '未完成（棘轮通过不等于退场完成）' : '源码/声明归零，仍需完整依赖树与 Java 17 验收'}`)
   console.log(`  模块分布：${airpowerBackend.modules.map(m => `${m.module} ${m.count}`).join(' · ')}`)
   console.log('  下一步：`pnpm airpower:backend`（列出要自建什么）· 分批方案见 docs/后端airpower退场·可行性评估与分批建议.md')
 }

@@ -1,6 +1,6 @@
 package cn.hamm.spms.common.security;
 
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.common.redis.RedisHelper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

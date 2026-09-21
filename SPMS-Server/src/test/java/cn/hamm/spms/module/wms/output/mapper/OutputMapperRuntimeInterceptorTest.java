@@ -82,9 +82,9 @@ class OutputMapperRuntimeInterceptorTest {
     @DisplayName("出库 page 使用业务筛选和租户权限")
     void servicePageUsesMapperPermission() {
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
-            var request = new cn.hamm.airpower.curd.model.query.QueryPageRequest<OutputEntity>();
+            var request = new cn.hamm.spms.framework.query.QueryPageRequest<OutputEntity>();
             request.setFilter(new OutputEntity().setType(1));
-            request.setPage(new cn.hamm.airpower.curd.model.query.Page().setPageNum(1).setPageSize(20));
+            request.setPage(new cn.hamm.spms.framework.query.Page().setPageNum(1).setPageSize(20));
 
             var page = outputService.getMapperPage(request);
             assertEquals(1, page.getTotal());

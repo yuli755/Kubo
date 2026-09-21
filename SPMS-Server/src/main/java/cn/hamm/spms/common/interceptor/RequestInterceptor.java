@@ -1,8 +1,12 @@
 package cn.hamm.spms.common.interceptor;
 
-import cn.hamm.airpower.core.AccessTokenUtil;
+import cn.hamm.spms.common.config.ApiConfig;
+import cn.hamm.spms.common.security.AccessTokenUtil;
+import cn.hamm.spms.framework.util.Tracer;
+import org.slf4j.MDC;
 import cn.hamm.spms.common.dictionary.EnumDictionaries;
-import cn.hamm.airpower.curd.interceptor.CurdRequestInterceptor;
+import cn.hamm.spms.common.security.AccessTokenRevocationService;
+import cn.hamm.spms.common.security.PermissionScanner;
 import cn.hamm.spms.common.tree.HierarchyClosure;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.personnel.department.DepartmentEntity;
@@ -13,9 +17,10 @@ import cn.hamm.spms.module.personnel.user.UserService;
 import cn.hamm.spms.module.personnel.user.enums.UserTokenType;
 import cn.hamm.spms.module.personnel.user.token.PersonalTokenEntity;
 import cn.hamm.spms.module.personnel.user.token.PersonalTokenService;
-import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
+import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
+import cn.hamm.spms.module.system.datapermission.service.ExportBypassGuard;
 import cn.hamm.spms.module.system.datapermission.service.MaskedInputRegistry;
 import cn.hamm.spms.module.system.datapermission.service.SystemPermissionService;
 import cn.hamm.spms.module.system.datapermission.service.TenantContextResolver;
@@ -27,23 +32,39 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.HandlerInterceptor;
 
+import java.lang.reflect.Method;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
 import static cn.hamm.spms.common.exception.Errors.UNAUTHORIZED;
 
 /**
- * <h1>请求拦截器</h1>
+ * <h1>全局请求拦截器</h1>
+ *
+ * <p>自持核心拦截器，替代旧 {@code CurdRequestInterceptor}。
+ * 负责链路追踪 ID 注入、Token 验证、RBAC 权限校验与数据权限上下文建立与清理。</p>
  *
  * @author Hamm.cn
  */
 @Slf4j
 @Component
-public class RequestInterceptor extends CurdRequestInterceptor {
+public class RequestInterceptor implements HandlerInterceptor {
+    public static final String REQUEST_METHOD_KEY = "REQUEST_METHOD_KEY";
+    public static final String REQUEST_CONTROLLER_KEY = "REQUEST_CONTROLLER_KEY";
+
+    @Autowired(required = false)
+    protected ApiConfig apiConfig;
+
     @Autowired
     private PermissionService permissionService;
 
@@ -60,7 +81,7 @@ public class RequestInterceptor extends CurdRequestInterceptor {
     private TenantContextResolver tenantContextResolver;
 
     @Autowired
-    private cn.hamm.spms.module.system.datapermission.service.ExportBypassGuard exportBypassGuard;
+    private ExportBypassGuard exportBypassGuard;
 
     @Autowired
     private DataPermissionProperties dataPermissionProperties;
@@ -72,25 +93,83 @@ public class RequestInterceptor extends CurdRequestInterceptor {
     private cn.hamm.spms.module.factory.storage.StorageHierarchyIndex storageHierarchyIndex;
 
     @Autowired
-    private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+    private TransactionTemplate transactionTemplate;
 
     @Autowired
-    private cn.hamm.spms.common.security.AccessTokenRevocationService accessTokenRevocationService;
+    private AccessTokenRevocationService accessTokenRevocationService;
+
+    @Override
+    public boolean preHandle(
+            @NotNull HttpServletRequest request,
+            @NotNull HttpServletResponse response,
+            @NotNull Object handler
+    ) {
+        String traceId = request.getHeader("X-Trace-ID");
+        if (!StringUtils.hasText(traceId)) {
+            traceId = UUID.randomUUID().toString().replace("-", "");
+        }
+        Tracer.setTraceId(traceId);
+        try {
+            MDC.put("X-Trace-ID", traceId);
+        } catch (Throwable ignored) {
+        }
+        response.setHeader("X-Trace-ID", traceId);
+
+        if (!(handler instanceof HandlerMethod handlerMethod)) {
+            return true;
+        }
+
+        Class<?> clazz = handlerMethod.getBeanType();
+        Method method = handlerMethod.getMethod();
+
+        setShareData(REQUEST_METHOD_KEY, method);
+        setShareData(REQUEST_CONTROLLER_KEY, handlerMethod.getBean());
+
+        handleRequest(request, response, clazz, method);
+        return true;
+    }
+
+    protected final void setShareData(String key, Object value) {
+        RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+        if (requestAttributes != null) {
+            requestAttributes.setAttribute(key, value, RequestAttributes.SCOPE_REQUEST);
+        }
+    }
+
+    private void handleRequest(
+            @NotNull HttpServletRequest request,
+            @NotNull HttpServletResponse response,
+            Class<?> clazz,
+            Method method
+    ) {
+        PermissionScanner.AccessRequirement access = PermissionScanner.getAccessRequirement(clazz, method);
+        if (!access.login()) {
+            return;
+        }
+
+        String authorizeHeader = apiConfig != null ? apiConfig.getAuthorizeHeader() : "Authorization";
+        String accessToken = request.getHeader(authorizeHeader);
+        String accessTokenFromParam = request.getParameter(authorizeHeader);
+        if (StringUtils.hasText(accessTokenFromParam)) {
+            accessToken = accessTokenFromParam;
+        }
+        UNAUTHORIZED.whenEmpty(accessToken);
+
+        AccessTokenUtil.VerifiedToken verifiedToken = getVerifiedToken(accessToken);
+
+        if (access.authorize()) {
+            String permissionIdentity = PermissionScanner.getControllerIdentity(clazz) + "_" + method.getName();
+            checkUserPermission(verifiedToken, permissionIdentity, request);
+        }
+    }
 
     /**
-     * 加载启用用户并<b>在只读事务内</b>初始化权限上下文需要的懒集合。
-     *
-     * <p>airpower 的 service 查询在非事务下走独立会话，返回实体是游离态；
-     * 在事务外遍历 {@code roleList} 会抛 LazyInitializationException
-     * （真实环境表现为每个鉴权请求 500，单测因 mock 普通 Set 而测不出）。
-     * 这里用编程式事务（不给 UserService 引入 CGLIB 代理——它的 final
-     * 方法会在未注入字段的代理实例上执行）完成集合 hydrate。</p>
+     * 加载启用用户并在只读事务内初始化权限上下文需要的懒集合。
      */
     private UserEntity loadUserWithInitializedAssociations(long userId) {
         boolean includeFactory = dataPermissionProperties != null && dataPermissionProperties.isFactoryDimensionEnabled();
         return transactionTemplate.execute(status -> {
             UserEntity user = userService.getWithEnable(userId);
-            // JPA 加载后集合恒为空集而非 null；这里的判空与 ensurePermissionContext 的防御口径一致
             if (user.getRoleList() != null) {
                 user.getRoleList().size();
             }
@@ -109,13 +188,7 @@ public class RequestInterceptor extends CurdRequestInterceptor {
 
     /**
      * 验证指定的用户是否有指定权限标识的权限
-     *
-     * @param verifiedToken      合法令牌
-     * @param permissionIdentity 权限标识
-     * @param request            请求对象
-     * @apiNote 抛出异常则为拦截
      */
-    @Override
     public void checkUserPermission(
             AccessTokenUtil.@NotNull VerifiedToken verifiedToken,
             String permissionIdentity,
@@ -124,25 +197,13 @@ public class RequestInterceptor extends CurdRequestInterceptor {
         long userId = verifiedToken.getPayloadId();
         UserEntity existUser = loadUserWithInitializedAssociations(userId);
         ensurePermissionContext(existUser, request);
-        // 上下文已打开、鉴权还没过：preHandle 链路里抛异常时 Spring 不会回调本拦截器的
-        // afterCompletion，Context 会滞留在 Tomcat 线程上，下个复用该线程的请求直接继承
-        // 上一个请求的身份/租户/bypass 位（B-12 伪造 X-Tenant-Id 因残留上下文躲过校验即此因）。
-        // 因此本方法内后续任何抛出都必须先把上下文清掉再往上抛。
         try {
-            // 导出走文件流、不经过 Jackson，是列级脱敏的已知旁路：在这里统一收口
-            // （为什么放拦截器而不是各 controller：BaseController 全局排掉了 Curd.Export，
-            //  只有个别实体通过 @Extends 加回来，逐个加钩子必然漏；旁路漏一个就等于没做）
             exportBypassGuard.guard(request);
             if (existUser.isRootUser()) {
                 return;
             }
             PermissionEntity needPermission = permissionService.getPermissionByIdentity(permissionIdentity);
             FORBIDDEN.whenNull(needPermission, "权限不存在");
-            // 必须用库中登记的 identity 比对，不能直接拿框架传来的原始串：
-            // 框架按请求 URL 派生权限标识（实体名全小写，如 material_getPage），
-            // 而权限登记用实体类名（Material_getPage）。库里查得到是因为 MySQL 默认排序规则
-            // 不区分大小写；has() 是 Java 内存里的字符串 equals，区分大小写，直接比对必然全假——
-            // 表现就是所有非 root 用户 403「你无权访问」，root 因旁路从未暴露该缺陷。
             if (systemPermissionService.has(existUser, needPermission.getIdentity())) {
                 return;
             }
@@ -155,22 +216,23 @@ public class RequestInterceptor extends CurdRequestInterceptor {
         }
     }
 
-    @Override
     public AccessTokenUtil.VerifiedToken getVerifiedToken(String accessToken) {
-        // 框架按「Authorization 头 = 裸令牌」设计，但前端 axios 与 OpenAPI 契约（Bearer securityScheme）
-        // 都带 "Bearer " 前缀。在这里统一剥掉，两种写法都能验证；否则所有 Bearer 请求都会被判「身份令牌无效」。
         if (accessToken != null && accessToken.startsWith("Bearer ")) {
             accessToken = accessToken.substring(7).trim();
         }
-        // 登出吊销：签名有效但已被 /user/logout 拉黑的令牌在这里拦下（自包含令牌自身无状态，
-        // 不查名单的话注销只是"客户端不记事"，服务端仍认）。
         if (accessTokenRevocationService != null && accessTokenRevocationService.isRevoked(accessToken)) {
             UNAUTHORIZED.show("登录状态已失效，请重新登录");
         }
-        AccessTokenUtil.VerifiedToken verifiedToken = super.getVerifiedToken(accessToken);
+        String secret = apiConfig != null ? apiConfig.getAccessTokenSecret() : "AIRPOWER";
+        AccessTokenUtil.VerifiedToken verifiedToken = AccessTokenUtil.create().verify(accessToken, secret);
         Object tokenType = verifiedToken.getPayload(UserTokenType.TYPE);
         FORBIDDEN.whenNull(tokenType, "无效的令牌类型");
-        UserTokenType userTokenType = EnumDictionaries.require(UserTokenType.class, Integer.parseInt(tokenType.toString()), UserTokenType::getKey, UserTokenType::getLabel);
+        UserTokenType userTokenType = EnumDictionaries.require(
+                UserTokenType.class,
+                Integer.parseInt(tokenType.toString()),
+                UserTokenType::getKey,
+                UserTokenType::getLabel
+        );
         switch (userTokenType) {
             case PERSONAL:
                 PersonalTokenEntity personalToken = personalTokenService.getByToken(accessToken);
@@ -188,15 +250,8 @@ public class RequestInterceptor extends CurdRequestInterceptor {
 
     /**
      * 确保当前请求的数据权限上下文已设置
-     *
-     * @param user    已验证的用户
-     * @param request 请求对象
      */
     private void ensurePermissionContext(@NotNull UserEntity user, HttpServletRequest request) {
-        // 不做「线程上已有上下文就直接放行」的短路：拦截器是请求侧的权威来源，线程上残留的
-        // 可能是上个请求异常时没来得及清理的旧上下文（Spring 对 preHandle 自身抛异常的
-        // 拦截器不回调 afterCompletion）。让陈旧值冒充本请求的上下文，等于用别人的
-        // userId/租户/bypass 位跑本请求；按本请求用户无条件重建才安全。
         Set<String> roleCodes = Set.of();
         if (user.getRoleList() != null) {
             roleCodes = user.getRoleList().stream()
@@ -214,16 +269,12 @@ public class RequestInterceptor extends CurdRequestInterceptor {
                     .collect(Collectors.toSet());
         }
 
-        // DEPARTMENT 策略是否连带子部门，取决于开关：展开是**放宽**可见范围（配在父部门的策略会盖住整棵子树），
-        // 而现网既有策略大概都是按"只影响直属部门"配的 ⇒ 默认关，先影子比对再逐资源放开。
         Set<Long> departmentScopeIds = departmentIds;
         if (dataPermissionProperties != null && departmentHierarchyIndex != null
                 && dataPermissionProperties.getHierarchy().isDepartmentEnabled()) {
             HierarchyClosure.Closure closure = departmentHierarchyIndex.expandFrom(departmentIds);
             departmentScopeIds = closure.ids();
             if (closure.truncated()) {
-                // 只在脏数据（环）或树深得离谱时发生；此时可见范围会偏小（安全侧），但必须留下痕迹，
-                // 否则排错的人只会看到"某人莫名其妙少看了两个部门"
                 log.warn("部门层级闭包被深度上限截断，本次可见范围可能不完整：seeds={}", departmentIds);
             }
         }
@@ -236,9 +287,6 @@ public class RequestInterceptor extends CurdRequestInterceptor {
                     .collect(Collectors.toSet());
         }
 
-        // 工厂（FACTORY）维度（D13）：factoryIds 只在维度落地（factory-dimension-enabled）后才解析，
-        // 否则保持恒空 —— 默认关闭的代价必须是零（多一次懒加载查询也算代价，不只是「结果上等价」）。
-        // 工厂 = 仓库/工厂树顶层节点；hierarchy.factory-enabled 打开时再向下闭包到整棵子树（放宽，默认关）。
         Set<Long> factoryIds = Set.of();
         if (dataPermissionProperties != null && dataPermissionProperties.isFactoryDimensionEnabled()
                 && user.getFactoryList() != null) {
@@ -259,7 +307,6 @@ public class RequestInterceptor extends CurdRequestInterceptor {
                 user, cn.hamm.spms.module.system.datapermission.SystemPermissionIdentities.DATA_PERMISSION_BYPASS
         );
 
-        // 租户 ID 只信任服务端解析结果（user_tenant 关系），请求头仅作切换意图（决策 D1）
         Long tenantId = tenantContextResolver.resolve(user, request);
 
         PermissionContext context = new PermissionContext(
@@ -277,12 +324,18 @@ public class RequestInterceptor extends CurdRequestInterceptor {
     }
 
     @Override
-    public void afterCompletion(@NotNull HttpServletRequest request, @NotNull HttpServletResponse response, @NotNull Object handler, Exception ex) {
+    public void afterCompletion(
+            @NotNull HttpServletRequest request,
+            @NotNull HttpServletResponse response,
+            @NotNull Object handler,
+            Exception ex
+    ) {
         PermissionContextHolder.clear();
-        // 掩码登记是 ThreadLocal：线程池会复用线程，忘了清等于把上一个人的"这字段是掩码"
-        // 送给下一个人 —— 表现是别人的保存莫名其妙把价格改回了旧值
         MaskedInputRegistry.clear();
+        Tracer.clear();
+        try {
+            MDC.remove("X-Trace-ID");
+        } catch (Throwable ignored) {
+        }
     }
 }
-
-

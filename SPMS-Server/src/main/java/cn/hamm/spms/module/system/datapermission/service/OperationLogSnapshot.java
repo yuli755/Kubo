@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
-import cn.hamm.airpower.core.Json;
+import cn.hamm.spms.framework.json.JsonCodec;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -13,7 +13,7 @@ import java.util.Map;
  * <h1>操作审计快照的安全序列化</h1>
  *
  * <p>把实体在某个时点的<b>标量字段</b>快照成 JSON 文本，供 {@code operation_log} 的
- * {@code before_snapshot}/{@code after_snapshot} 使用。刻意不直接 {@code Json.toString(entity)}：</p>
+ * {@code before_snapshot}/{@code after_snapshot} 使用。刻意不直接 {@code JsonCodec.write(entity)}：</p>
  * <ol>
  *   <li>JPA 实体的 {@code @ManyToOne}/{@code @OneToMany}/{@code @ManyToMany} 关系一旦被序列化，
  *       会触发懒加载甚至循环引用，在审计线程上抛 {@code LazyInitializationException}；</li>
@@ -40,7 +40,7 @@ public final class OperationLogSnapshot {
             return null;
         }
         try {
-            return Json.toString(scalarFields(entity));
+            return JsonCodec.write(scalarFields(entity));
         }
         catch (RuntimeException ex) {
             return "{\"snapshot-error\":\"" + safeClassName(entity) + "\"}";
@@ -76,10 +76,6 @@ public final class OperationLogSnapshot {
         Map<String, Object> map = new LinkedHashMap<>();
         Class<?> current = entity.getClass();
         while (current != null && current != Object.class) {
-            // 越过 airpower 框架基类：它的内部字段（如 proxy 状态）不该进快照
-            if (current.getName().startsWith("cn.hamm.airpower.")) {
-                break;
-            }
             for (Field field : current.getDeclaredFields()) {
                 if (shouldSkip(field)) {
                     continue;

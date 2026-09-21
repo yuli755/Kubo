@@ -1,6 +1,6 @@
 package cn.hamm.spms.framework;
 
-import cn.hamm.airpower.curd.base.Curd;
+import cn.hamm.spms.base.Curd;
 import cn.hamm.spms.module.asset.contract.ContractController;
 import cn.hamm.spms.module.asset.contract.ContractService;
 import cn.hamm.spms.module.asset.contract.mapper.ContractMapper;

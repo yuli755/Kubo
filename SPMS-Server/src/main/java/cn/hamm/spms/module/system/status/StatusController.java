@@ -1,9 +1,9 @@
 package cn.hamm.spms.module.system.status;
 
-import cn.hamm.airpower.api.ApiController;
-import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.permission.Permission;
+import cn.hamm.spms.base.ApiController;
+import cn.hamm.spms.framework.web.annotation.Api;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.Permission;
 
 /**
  * <h1>Controller</h1>

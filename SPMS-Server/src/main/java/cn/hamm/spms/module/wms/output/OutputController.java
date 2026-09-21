@@ -1,13 +1,15 @@
 package cn.hamm.spms.module.wms.output;
 
-import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.annotation.Extends;
-import cn.hamm.airpower.curd.base.Curd;
-import cn.hamm.airpower.curd.model.query.QueryListRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
+import cn.hamm.spms.framework.web.annotation.Api;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.base.annotation.Extends;
+import cn.hamm.spms.base.Curd;
 import cn.hamm.spms.base.bill.BaseBillController;
+import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.framework.query.QueryListRequest;
+import cn.hamm.spms.framework.query.QueryPageRequest;
+import cn.hamm.spms.framework.query.QueryPageResponse;
+import cn.hamm.spms.framework.web.ApiResponse;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,8 +18,8 @@ import cn.hamm.spms.module.wms.output.detail.OutputDetailEntity;
 import cn.hamm.spms.module.wms.output.detail.OutputDetailRepository;
 import cn.hamm.spms.module.wms.output.detail.OutputDetailService;
 
-import static cn.hamm.airpower.curd.base.Curd.GetDetail;
-import static cn.hamm.airpower.curd.base.Curd.GetPage;
+import static cn.hamm.spms.base.Curd.GetDetail;
+import static cn.hamm.spms.base.Curd.GetPage;
 import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 
 /**
@@ -31,24 +33,24 @@ import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 public class OutputController extends BaseBillController<OutputEntity, OutputService, OutputRepository, OutputDetailEntity, OutputDetailService, OutputDetailRepository> {
     @Override
     @PostMapping("getPage")
-    public Json getPage(@RequestBody QueryPageRequest<OutputEntity> request) {
+    public ApiResponse<QueryPageResponse<OutputEntity>> getPage(@RequestBody QueryPageRequest<OutputEntity> request) {
         if (!service.isMapperReadEnabled()) {
             return super.getPage(request);
         }
         GetPage.checkApiAvailable(this);
-        return Json.data(service.getMapperPage(request));
+        return ApiResponse.data(service.getMapperPage(request));
     }
 
     @Override
     @PostMapping("getDetail")
-    public Json getDetail(@RequestBody @Validated(WhenIdRequired.class) @NotNull OutputEntity source) {
+    public ApiResponse<OutputEntity> getDetail(@RequestBody @Validated(WhenIdRequired.class) @NotNull OutputEntity source) {
         if (!service.isMapperReadEnabled()) {
             return super.getDetail(source);
         }
         GetDetail.checkApiAvailable(this);
         OutputEntity entity = service.getMapperDetail(source.getId());
         DATA_NOT_FOUND.whenNull(entity);
-        return Json.data(entity);
+        return ApiResponse.data(entity);
     }
 
     /**
@@ -59,9 +61,9 @@ public class OutputController extends BaseBillController<OutputEntity, OutputSer
      */
     @Description("查询出库单总数")
     @PostMapping("getCount")
-    public Json getCount(@RequestBody(required = false) QueryListRequest<OutputEntity> request) {
+    public ApiResponse<Long> getCount(@RequestBody(required = false) QueryListRequest<OutputEntity> request) {
         OutputEntity filter = request == null ? null : request.getFilter();
-        return Json.data(service.getMapperCount(filter));
+        return ApiResponse.success(service.getMapperCount(filter));
     }
 
     /**
@@ -72,9 +74,9 @@ public class OutputController extends BaseBillController<OutputEntity, OutputSer
      */
     @Description("查询出库单统计")
     @PostMapping("getStat")
-    public Json getStat(@RequestBody(required = false) QueryListRequest<OutputEntity> request) {
+    public ApiResponse<ReadStat> getStat(@RequestBody(required = false) QueryListRequest<OutputEntity> request) {
         OutputEntity filter = request == null ? null : request.getFilter();
-        return Json.data(service.getMapperStat(filter));
+        return ApiResponse.success(service.getMapperStat(filter));
     }
 
     /**
@@ -86,11 +88,11 @@ public class OutputController extends BaseBillController<OutputEntity, OutputSer
     @Override
     @Description("创建导出任务")
     @PostMapping("export")
-    public Json export(@RequestBody QueryListRequest<OutputEntity> request) {
+    public ApiResponse<String> export(@RequestBody QueryListRequest<OutputEntity> request) {
         if (!service.isMapperReadEnabled()) {
             return super.export(request);
         }
         Curd.Export.checkApiAvailable(this);
-        return Json.data(service.createMapperExportTask(request), "导出任务创建成功");
+        return ApiResponse.data(service.createMapperExportTask(request), "导出任务创建成功");
     }
 }

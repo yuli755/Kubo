@@ -12,13 +12,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  *
  * @author Hamm.cn
  */
-@SpringBootApplication(
-        // 2026-09-18 后端 airpower 退场第一批：Cookie 能力已由 cn.hamm.spms.common.cookie 自建接管
-        // （CookieHelper / CookieConfig 与原实现逐行一致，仅配置前缀改为 spms.cookie）。
-        // 这里必须排除 airpower 的 cookie 自动装配，否则它会 ComponentScan 出同名的
-        // cookieHelper / cookieConfig Bean —— Spring 默认禁止 Bean 覆盖，启动即冲突。
-        exclude = cn.hamm.airpower.cookie.Auto.class
-)
+@SpringBootApplication
 @EnableScheduling
 public class Application {
     /**

@@ -153,7 +153,7 @@ function checkFile(file) {
       continue
     if (balanceOf(trimmed, '(', ')').depth !== 0)
       continue
-    if (/^(?:add|addAndGet|return|throw)\b/.test(trimmed) && !/[;{},]$/.test(trimmed)) {
+    if (/^(?:add|addAndGet|return|throw)\b/.test(trimmed) && !/[;{},+]$/.test(trimmed)) {
       problems.push(`第 ${index + 1} 行语句可能缺少分号：${trimmed.slice(0, 80)}`)
     }
   }

@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.channel.purchaseprice;
 
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.Export;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.Export;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.channel.supplier.SupplierEntity;

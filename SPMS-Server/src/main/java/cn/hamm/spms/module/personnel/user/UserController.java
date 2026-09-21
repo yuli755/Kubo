@@ -1,16 +1,18 @@
 package cn.hamm.spms.module.personnel.user;
 
-import cn.hamm.airpower.api.annotation.Api;
+import cn.hamm.spms.framework.web.annotation.Api;
 import cn.hamm.spms.common.cookie.CookieConfig;
 import cn.hamm.spms.common.cookie.CookieHelper;
 import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.ExposeAll;
 import cn.hamm.airpower.core.exception.ServiceException;
-import cn.hamm.airpower.curd.annotation.Extends;
-import cn.hamm.airpower.curd.base.Curd;
-import cn.hamm.airpower.curd.permission.Permission;
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.ExposeAll;
+
+import cn.hamm.spms.framework.error.BusinessException;
+import cn.hamm.spms.base.annotation.Extends;
+import cn.hamm.spms.base.Curd;
+import cn.hamm.spms.framework.web.annotation.Permission;
+import cn.hamm.spms.common.redis.RedisHelper;
 import cn.hamm.spms.base.BaseController;
 import cn.hamm.spms.common.security.LoginBruteForceGuard;
 import cn.hamm.spms.module.personnel.user.enums.UserLoginType;
@@ -69,10 +71,10 @@ public class UserController extends BaseController<UserEntity, UserService, User
     private cn.hamm.spms.common.security.AccessTokenRevocationService accessTokenRevocationService;
 
     @Autowired
-    private cn.hamm.airpower.api.config.ApiConfig apiConfig;
+    private cn.hamm.spms.common.config.ApiConfig apiConfig;
 
     @Autowired
-    private cn.hamm.airpower.curd.config.AccessConfig accessConfig;
+    private cn.hamm.spms.common.config.AccessConfig accessConfig;
 
     @Autowired
     private TenantRepository tenantRepository;
@@ -322,7 +324,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
             // 登录成功：清零该账号与 IP 的失败计数
             loginBruteForceGuard.clear(account, clientIp);
             return Json.data(userService.loginWithCookieAndResponse(response, exist), "登录成功");
-        } catch (ServiceException exception) {
+        } catch (BusinessException | ServiceException exception) {
             // 登录失败（账号/密码/验证码错误、账号禁用等）：计数，达阈值即锁定
             loginBruteForceGuard.recordFailure(account, clientIp);
             throw exception;

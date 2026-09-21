@@ -17,8 +17,8 @@ import org.springframework.stereotype.Component;
  * <p>
  * <b>为什么能整块搬走</b>：airpower 自己的 api/curd/redis 三个模块都不使用 CookieHelper /
  * CookieConfig（参考实现里 grep 为 0），用它的是本仓的 {@code UserController} / {@code UserService}。
- * 搬走后 {@code cn.hamm.airpower.cookie.Auto} 已在 {@code Application} 里被排除 ——
- * 否则两边都会注册名为 {@code cookieHelper} 的 Bean，Spring 启动即冲突。
+ * 旧 Cookie 模块现已在 POM 的传递依赖处排除，不再靠启动类引用旧 Auto 来避让 Bean 冲突。
+ * 只有本包注册 cookieHelper / cookieConfig；属性仍绑定在 spms.cookie 下。
  * </p>
  *
  * @author Hamm.cn

@@ -82,9 +82,9 @@ class MoveMapperRuntimeInterceptorTest {
     @DisplayName("移库 page 使用业务筛选和租户权限")
     void servicePageUsesMapperPermission() {
         try (PermissionContextHolder.Scope ignored = PermissionContextHolder.open(context())) {
-            var request = new cn.hamm.airpower.curd.model.query.QueryPageRequest<MoveEntity>();
+            var request = new cn.hamm.spms.framework.query.QueryPageRequest<MoveEntity>();
             request.setFilter(new MoveEntity().setStatus(2));
-            request.setPage(new cn.hamm.airpower.curd.model.query.Page().setPageNum(1).setPageSize(20));
+            request.setPage(new cn.hamm.spms.framework.query.Page().setPageNum(1).setPageSize(20));
 
             var page = moveService.getMapperPage(request);
             assertEquals(1, page.getTotal());

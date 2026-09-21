@@ -1,8 +1,8 @@
 package cn.hamm.spms.module.wms.move.detail;
 
-import cn.hamm.airpower.core.annotation.Meta;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.ReadOnly;
+import cn.hamm.spms.framework.web.annotation.Meta;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.ReadOnly;
 import cn.hamm.spms.base.bill.detail.BaseBillDetailEntity;
 import cn.hamm.spms.module.wms.inventory.InventoryEntity;
 import jakarta.persistence.Column;

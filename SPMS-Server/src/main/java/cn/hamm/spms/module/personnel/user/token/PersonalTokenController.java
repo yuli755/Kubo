@@ -1,14 +1,14 @@
 package cn.hamm.spms.module.personnel.user.token;
 
-import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.annotation.Extends;
-import cn.hamm.airpower.curd.base.Curd;
-import cn.hamm.airpower.curd.model.query.QueryListRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
-import cn.hamm.airpower.curd.permission.Permission;
+import cn.hamm.spms.framework.web.annotation.Api;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.base.annotation.Extends;
+import cn.hamm.spms.base.Curd;
+import cn.hamm.spms.framework.query.QueryListRequest;
+import cn.hamm.spms.framework.query.QueryPageRequest;
+import cn.hamm.spms.framework.web.annotation.Permission;
 import cn.hamm.spms.base.BaseController;
+import cn.hamm.spms.framework.http.ApiResponse;
 import cn.hamm.spms.module.personnel.user.UserEntity;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.validation.annotation.Validated;
@@ -36,20 +36,20 @@ public class PersonalTokenController extends BaseController<PersonalTokenEntity,
     // 导致列表接口把可用凭据明文返回、可被 shoulder-surfing / 截图 / XSS 收割。
     // 去掉后 token 按 head6+尾2 脱敏；完整值仍只在 createMy 一次性返回，
     // 与前端「后续将不再显示令牌」的文案约定一致。
-    public Json getMyList() {
+    public ApiResponse<List<PersonalTokenEntity>> getMyList() {
         UserEntity user = new UserEntity().setId(getCurrentUserId());
         List<PersonalTokenEntity> list = service.filter(new PersonalTokenEntity().setUser(user));
-        return Json.data(list);
+        return ApiResponse.success(list);
     }
 
     @Description("禁用我的令牌")
     @Permission(authorize = false)
     @PostMapping("disableMy")
-    public Json disableMy(@RequestBody @Validated(WhenIdRequired.class) PersonalTokenEntity personalToken) {
+    public ApiResponse<Void> disableMy(@RequestBody @Validated(WhenIdRequired.class) PersonalTokenEntity personalToken) {
         PersonalTokenEntity exist = service.get(personalToken.getId());
         FORBIDDEN_EDIT.whenNotEquals(exist.getUser().getId(), getCurrentUserId(), "你没有权限禁用此令牌");
         service.disable(personalToken.getId());
-        return Json.success("禁用成功");
+        return ApiResponse.success("禁用成功");
     }
 
     @Override
@@ -102,29 +102,29 @@ public class PersonalTokenController extends BaseController<PersonalTokenEntity,
     @Description("启用我的令牌")
     @Permission(authorize = false)
     @PostMapping("enableMy")
-    public Json enableMy(@RequestBody @Validated(WhenIdRequired.class) PersonalTokenEntity personalToken) {
+    public ApiResponse<Void> enableMy(@RequestBody @Validated(WhenIdRequired.class) PersonalTokenEntity personalToken) {
         PersonalTokenEntity exist = service.get(personalToken.getId());
         FORBIDDEN_EDIT.whenNotEquals(exist.getUser().getId(), getCurrentUserId(), "你没有权限启用此令牌");
         service.enable(personalToken.getId());
-        return Json.success("启用成功");
+        return ApiResponse.success("启用成功");
     }
 
     @Description("删除我的令牌")
     @Permission(authorize = false)
     @PostMapping("deleteMy")
-    public Json deleteMy(@RequestBody @Validated(WhenIdRequired.class) PersonalTokenEntity personal) {
+    public ApiResponse<Void> deleteMy(@RequestBody @Validated(WhenIdRequired.class) PersonalTokenEntity personal) {
         PersonalTokenEntity exist = service.get(personal.getId());
         FORBIDDEN_EDIT.whenNotEquals(exist.getUser().getId(), getCurrentUserId(), "你没有权限删除此令牌");
         service.delete(personal.getId());
-        return Json.success("删除成功");
+        return ApiResponse.success("删除成功");
     }
 
     @Description("创建我的令牌")
     @Permission(authorize = false)
     @PostMapping("createMy")
-    public Json createMy(@RequestBody @Validated(WhenAdd.class) PersonalTokenEntity personal) {
+    public ApiResponse<String> createMy(@RequestBody @Validated(WhenAdd.class) PersonalTokenEntity personal) {
         PersonalTokenEntity personalToken = service.addAndGet(personal.setUser(new UserEntity().setId(getCurrentUserId())));
         String token = personalToken.getToken();
-        return Json.data(token, "创建成功");
+        return ApiResponse.success("创建成功", token);
     }
 }

@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.asset.contract.mapper;
 
-import cn.hamm.airpower.curd.model.query.Page;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
+import cn.hamm.spms.framework.query.Page;
+import cn.hamm.spms.framework.query.QueryPageRequest;
 import cn.hamm.spms.module.asset.contract.ContractEntity;
 import cn.hamm.spms.module.asset.contract.ContractService;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;

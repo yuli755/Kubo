@@ -1,14 +1,14 @@
 package cn.hamm.spms.module.system.datapermission.controller;
 
-import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.Api;
+import cn.hamm.spms.framework.web.annotation.Description;
 import cn.hamm.spms.base.BaseController;
 import cn.hamm.spms.module.system.datapermission.entity.DataResourceEntity;
 import cn.hamm.spms.module.system.datapermission.repository.DataResourceRepository;
 import cn.hamm.spms.module.system.datapermission.service.DataOwnershipMigrationService;
 import cn.hamm.spms.module.system.datapermission.service.DataResourceService;
 import cn.hamm.spms.module.system.datapermission.service.PermissionChangeOutboxAdminService;
-import cn.hamm.airpower.core.Json;
+import cn.hamm.spms.framework.http.ApiResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,8 +46,8 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @GetMapping("inert-policies")
     @Description("无人消费的列级策略盘点")
-    public Json getInertPolicies() {
-        return Json.data(service.inertPolicies());
+    public ApiResponse<?> getInertPolicies() {
+        return ApiResponse.data(service.inertPolicies());
     }
 
     /**
@@ -61,8 +61,8 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @GetMapping("row-policy-risks")
     @Description("行级策略永不命中盘点")
-    public Json getRowPolicyRisks() {
-        return Json.data(service.rowPolicyRisks());
+    public ApiResponse<?> getRowPolicyRisks() {
+        return ApiResponse.data(service.rowPolicyRisks());
     }
 
     /**
@@ -76,8 +76,8 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @GetMapping("policy-resource-risks")
     @Description("策略指向缺失/未启用资源盘点")
-    public Json getPolicyResourceRisks() {
-        return Json.data(service.policyResourceRisks());
+    public ApiResponse<?> getPolicyResourceRisks() {
+        return ApiResponse.data(service.policyResourceRisks());
     }
 
     /**
@@ -91,14 +91,14 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @GetMapping("dimension-binding-risks")
     @Description("维度可绑定性盘点")
-    public Json getDimensionBindingRisks() {
-        return Json.data(service.dimensionBindingRisks());
+    public ApiResponse<?> getDimensionBindingRisks() {
+        return ApiResponse.data(service.dimensionBindingRisks());
     }
 
     @GetMapping("export-gaps")
     @Description("导出明文授权缺口自查")
-    public Json getExportGaps() {
-        return Json.data(service.exportGaps());
+    public ApiResponse<?> getExportGaps() {
+        return ApiResponse.data(service.exportGaps());
     }
 
     /**
@@ -116,8 +116,8 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @GetMapping("runtime-status")
     @Description("灰度状态总览")
-    public Json getRuntimeStatus() {
-        return Json.data(service.runtimeStatus());
+    public ApiResponse<?> getRuntimeStatus() {
+        return ApiResponse.data(service.runtimeStatus());
     }
 
     /**
@@ -136,8 +136,8 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @GetMapping("enforce-readiness")
     @Description("逐资源放开前置检查")
-    public Json getEnforceReadiness(String resourceKey) {
-        return Json.data(resourceKey == null || resourceKey.isBlank()
+    public ApiResponse<?> getEnforceReadiness(String resourceKey) {
+        return ApiResponse.data(resourceKey == null || resourceKey.isBlank()
                 ? service.readinessAll()
                 : service.readiness(resourceKey));
     }
@@ -154,8 +154,8 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @GetMapping("deny-logs")
     @Description("数据权限拒绝事件")
-    public Json getDenyLogs(String resourceKey) {
-        return Json.data(service.denyLogs(resourceKey));
+    public ApiResponse<?> getDenyLogs(String resourceKey) {
+        return ApiResponse.data(service.denyLogs(resourceKey));
     }
 
     /**
@@ -170,8 +170,8 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @GetMapping("operation-logs")
     @Description("通用操作审计事件")
-    public Json getOperationLogs(String resourceKey) {
-        return Json.data(service.operationLogs(resourceKey));
+    public ApiResponse<?> getOperationLogs(String resourceKey) {
+        return ApiResponse.data(service.operationLogs(resourceKey));
     }
 
     @Autowired
@@ -189,9 +189,9 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @PostMapping("migrate-ownership")
     @Description("归属迁移（需 data-permission:ownership）")
-    public Json migrateOwnership(@RequestBody DataOwnershipMigrationService.OwnershipMigrateRequest request) {
+    public ApiResponse<Void> migrateOwnership(@RequestBody DataOwnershipMigrationService.OwnershipMigrateRequest request) {
         ownershipMigrationService.migrate(request);
-        return Json.success("归属已迁移");
+        return ApiResponse.success("归属已迁移");
     }
 
     @Autowired
@@ -208,8 +208,8 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @GetMapping("outbox-dead")
     @Description("死信事件列表（需 data-permission:outbox）")
-    public Json outboxDead() {
-        return Json.data(outboxAdminService.listDead());
+    public ApiResponse<?> outboxDead() {
+        return ApiResponse.data(outboxAdminService.listDead());
     }
 
     /**
@@ -220,9 +220,9 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @PostMapping("outbox-replay")
     @Description("重放单条死信（需 data-permission:outbox）")
-    public Json outboxReplay(@RequestBody PermissionChangeOutboxAdminService.OutboxReplayRequest request) {
+    public ApiResponse<Void> outboxReplay(@RequestBody PermissionChangeOutboxAdminService.OutboxReplayRequest request) {
         outboxAdminService.replay(request.eventKey());
-        return Json.success("死信已重放");
+        return ApiResponse.success("死信已重放");
     }
 
     /**
@@ -232,9 +232,9 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @PostMapping("outbox-replay-all")
     @Description("重放全部死信（需 data-permission:outbox）")
-    public Json outboxReplayAll() {
+    public ApiResponse<Void> outboxReplayAll() {
         int count = outboxAdminService.replayAllDead();
-        return Json.success("已重放 " + count + " 条死信");
+        return ApiResponse.success("已重放 " + count + " 条死信");
     }
 
     /**
@@ -245,8 +245,8 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @PostMapping("outbox-discard")
     @Description("丢弃单条死信（需 data-permission:outbox）")
-    public Json outboxDiscard(@RequestBody PermissionChangeOutboxAdminService.OutboxReplayRequest request) {
+    public ApiResponse<Void> outboxDiscard(@RequestBody PermissionChangeOutboxAdminService.OutboxReplayRequest request) {
         outboxAdminService.discard(request.eventKey());
-        return Json.success("死信已丢弃");
+        return ApiResponse.success("死信已丢弃");
     }
 }

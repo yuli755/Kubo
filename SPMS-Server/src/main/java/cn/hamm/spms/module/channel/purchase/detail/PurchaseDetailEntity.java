@@ -1,8 +1,8 @@
 package cn.hamm.spms.module.channel.purchase.detail;
 
-import cn.hamm.airpower.core.annotation.Meta;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.ReadOnly;
+import cn.hamm.spms.framework.web.annotation.Meta;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.ReadOnly;
 import cn.hamm.spms.base.bill.detail.BaseBillDetailEntity;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.channel.supplier.SupplierEntity;

@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.system.datapermission.event;
 
-import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.framework.json.JsonCodec;
+import cn.hamm.spms.common.redis.RedisHelper;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;
 import cn.hamm.spms.module.system.datapermission.service.JpaPermissionRuleProvider;
@@ -73,8 +73,7 @@ public class DataPermissionEventListener implements ApplicationRunner, MessageLi
     @Override
     public void onMessage(Message message, byte[] pattern) {
         try {
-            String json = new String(message.getBody());
-            DataPermissionChangedEvent event = Json.parse(json, DataPermissionChangedEvent.class);
+            DataPermissionChangedEvent event = JsonCodec.readUtf8(message.getBody(), DataPermissionChangedEvent.class);
             if (event != null) {
                 handleEvent(event);
             }

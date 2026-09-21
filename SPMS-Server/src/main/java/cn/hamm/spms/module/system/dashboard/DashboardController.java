@@ -1,10 +1,10 @@
 package cn.hamm.spms.module.system.dashboard;
 
-import cn.hamm.airpower.api.ApiController;
-import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.permission.Permission;
+import cn.hamm.spms.base.ApiController;
+import cn.hamm.spms.framework.web.annotation.Api;
+import cn.hamm.spms.framework.http.ApiResponse;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.Permission;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 
@@ -27,7 +27,7 @@ public class DashboardController extends ApiController {
     @GetMapping("overview")
     @Description("业务概况")
     @Permission(authorize = false)
-    public Json overview() {
-        return Json.data(dashboardService.overview());
+    public ApiResponse<DashboardService.DashboardOverview> overview() {
+        return ApiResponse.data(dashboardService.overview());
     }
 }

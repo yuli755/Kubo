@@ -1,20 +1,22 @@
 package cn.hamm.spms.module.channel.purchaseprice;
 
-import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.annotation.Extends;
-import cn.hamm.airpower.curd.base.Curd;
-import cn.hamm.airpower.curd.model.query.QueryListRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
+import cn.hamm.spms.framework.web.annotation.Api;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.base.annotation.Extends;
+import cn.hamm.spms.base.Curd;
 import cn.hamm.spms.base.BaseController;
+import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.framework.query.QueryListRequest;
+import cn.hamm.spms.framework.query.QueryPageRequest;
+import cn.hamm.spms.framework.query.QueryPageResponse;
+import cn.hamm.spms.framework.web.ApiResponse;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-import static cn.hamm.airpower.curd.base.Curd.GetDetail;
-import static cn.hamm.airpower.curd.base.Curd.GetPage;
+import static cn.hamm.spms.base.Curd.GetDetail;
+import static cn.hamm.spms.base.Curd.GetPage;
 import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 
 /**
@@ -40,12 +42,12 @@ public class PurchasePriceController extends BaseController<
      */
     @Override
     @PostMapping("getPage")
-    public Json getPage(@RequestBody QueryPageRequest<PurchasePriceEntity> request) {
+    public ApiResponse<QueryPageResponse<PurchasePriceEntity>> getPage(@RequestBody QueryPageRequest<PurchasePriceEntity> request) {
         if (!service.isMapperReadEnabled()) {
             return super.getPage(request);
         }
         GetPage.checkApiAvailable(this);
-        return Json.data(service.getMapperPage(request));
+        return ApiResponse.data(service.getMapperPage(request));
     }
 
     /**
@@ -56,14 +58,14 @@ public class PurchasePriceController extends BaseController<
      */
     @Override
     @PostMapping("getDetail")
-    public Json getDetail(@RequestBody @Validated(WhenIdRequired.class) @NotNull PurchasePriceEntity source) {
+    public ApiResponse<PurchasePriceEntity> getDetail(@RequestBody @Validated(WhenIdRequired.class) @NotNull PurchasePriceEntity source) {
         if (!service.isMapperReadEnabled()) {
             return super.getDetail(source);
         }
         GetDetail.checkApiAvailable(this);
         PurchasePriceEntity entity = service.getMapperDetail(source.getId());
         DATA_NOT_FOUND.whenNull(entity);
-        return Json.data(entity);
+        return ApiResponse.data(entity);
     }
 
     /**
@@ -74,9 +76,9 @@ public class PurchasePriceController extends BaseController<
      */
     @Description("查询采购价总数")
     @PostMapping("getCount")
-    public Json getCount(@RequestBody(required = false) QueryListRequest<PurchasePriceEntity> request) {
+    public ApiResponse<Long> getCount(@RequestBody(required = false) QueryListRequest<PurchasePriceEntity> request) {
         PurchasePriceEntity filter = request == null ? null : request.getFilter();
-        return Json.data(service.getMapperCount(filter));
+        return ApiResponse.success(service.getMapperCount(filter));
     }
 
     /**
@@ -87,9 +89,9 @@ public class PurchasePriceController extends BaseController<
      */
     @Description("查询采购价统计")
     @PostMapping("getStat")
-    public Json getStat(@RequestBody(required = false) QueryListRequest<PurchasePriceEntity> request) {
+    public ApiResponse<ReadStat> getStat(@RequestBody(required = false) QueryListRequest<PurchasePriceEntity> request) {
         PurchasePriceEntity filter = request == null ? null : request.getFilter();
-        return Json.data(service.getMapperStat(filter));
+        return ApiResponse.success(service.getMapperStat(filter));
     }
 
     /**
@@ -101,18 +103,18 @@ public class PurchasePriceController extends BaseController<
     @Override
     @Description("创建导出任务")
     @PostMapping("export")
-    public Json export(@RequestBody QueryListRequest<PurchasePriceEntity> request) {
+    public ApiResponse<String> export(@RequestBody QueryListRequest<PurchasePriceEntity> request) {
         if (!service.isMapperReadEnabled()) {
             return super.export(request);
         }
         Curd.Export.checkApiAvailable(this);
-        return Json.data(service.createMapperExportTask(request), "导出任务创建成功");
+        return ApiResponse.data(service.createMapperExportTask(request), "导出任务创建成功");
     }
 
     @Description("查询物料和供应商的价格")
     @PostMapping("getByMaterialAndSupplier")
-    public Json getByMaterialAndSupplier(@RequestBody @Validated(WhenGetByMaterialAndSupplier.class) PurchasePriceEntity purchasePrice) {
-        return Json.data(
+    public ApiResponse<PurchasePriceEntity> getByMaterialAndSupplier(@RequestBody @Validated(WhenGetByMaterialAndSupplier.class) PurchasePriceEntity purchasePrice) {
+        return ApiResponse.data(
                 service.getByMaterialAndSupplier(
                         purchasePrice.getMaterial(),
                         purchasePrice.getSupplier()

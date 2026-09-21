@@ -1,8 +1,8 @@
 package cn.hamm.spms.module.system.datapermission.controller;
 
-import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.Api;
+import cn.hamm.spms.framework.http.ApiResponse;
+import cn.hamm.spms.framework.web.annotation.Description;
 import cn.hamm.spms.base.BaseController;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
@@ -44,13 +44,13 @@ public class DataFieldPolicyController extends BaseController<DataFieldPolicyEnt
      */
     @GetMapping("by-resource-field-role")
     @Description("按资源/字段/角色获取脱敏策略")
-    public Json getByResourceFieldRole(
+    public ApiResponse<List<DataFieldPolicyEntity>> getByResourceFieldRole(
             @RequestParam String resourceKey,
             @RequestParam String fieldName,
             @RequestParam(required = false) String roleCode) {
         List<DataFieldPolicyEntity> policies = service.getPoliciesByResourceFieldRole(
                 resourceKey, fieldName, roleCode);
-        return Json.data(policies);
+        return ApiResponse.data(policies);
     }
 
     /**
@@ -74,9 +74,9 @@ public class DataFieldPolicyController extends BaseController<DataFieldPolicyEnt
      */
     @GetMapping("my-mask-map")
     @Description("按资源获取当前用户全部字段的脱敏策略")
-    public Json getMyMaskMap(@RequestParam String resourceKey) {
+    public ApiResponse<?> getMyMaskMap(@RequestParam String resourceKey) {
         PermissionContext context = PermissionContextHolder.current().orElse(null);
-        return Json.data(columnMaskingService.getEffectiveMaskPolicyMap(resourceKey, context));
+        return ApiResponse.data(columnMaskingService.getEffectiveMaskPolicyMap(resourceKey, context));
     }
 
     /**
@@ -91,12 +91,12 @@ public class DataFieldPolicyController extends BaseController<DataFieldPolicyEnt
      */
     @GetMapping("my-mask")
     @Description("按资源/字段获取当前用户生效的脱敏策略")
-    public Json getMyMask(
+    public ApiResponse<DataFieldPolicyEntity> getMyMask(
             @RequestParam String resourceKey,
             @RequestParam String fieldName) {
         PermissionContext context = PermissionContextHolder.current().orElse(null);
         DataFieldPolicyEntity policy = columnMaskingService.getEffectiveMaskPolicy(resourceKey, fieldName, context);
-        return Json.data(policy);
+        return ApiResponse.data(policy);
     }
 
     /**
@@ -115,8 +115,8 @@ public class DataFieldPolicyController extends BaseController<DataFieldPolicyEnt
      */
     @GetMapping("my-export-visibility")
     @Description("当前用户的导出可见性预览")
-    public Json getMyExportVisibility(@RequestParam String resourceKey) {
+    public ApiResponse<?> getMyExportVisibility(@RequestParam String resourceKey) {
         PermissionContext context = PermissionContextHolder.current().orElse(null);
-        return Json.data(exportBypassGuard.exportVisibility(resourceKey, context));
+        return ApiResponse.data(exportBypassGuard.exportVisibility(resourceKey, context));
     }
 }

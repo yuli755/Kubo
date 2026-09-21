@@ -29,6 +29,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { INDEPENDENT_DOMAIN_SOURCES } from './backend-independent-sources.mjs'
+import { pomDependencyDeclarations } from './backend-pom.mjs'
 
 const ROOT = process.env.KUBO_ROOT ?? path.resolve(import.meta.dirname, '..', '..')
 const SERVER = path.join(ROOT, 'SPMS-Server')
@@ -67,14 +68,76 @@ const SERVER = path.join(ROOT, 'SPMS-Server')
  *   三个电话字段改标准 Pattern（其中 UserEntity 的 Phone 被通配导入隐藏）；错误/配置枚举移除 3 个无用字典标记。
  *   UserEntity 通配导入展开为 4 个真实注解引用（+3），不把显式化的增量藏起来；本批净减 2 引用。
  *   16 个生产源码 / 91 独立契约；完整 Jakarta Validation 与应用接线仍需 Maven 验收。
+ * - 2026-09-21 B2d 内部 JSON 文本：160 / 44 / 540。
+ *   事件发布/接收、Outbox、审计快照的 4 个旧 Json 导入移除；HTTP Json 与异常运行时仍在。
+ *   正式 Jackson 2.18.3 / Lombok 1.18.36 经校验后真实编译 5 个生产源码、通过 25 项 JSON 契约。
+ *   完整 Maven / Redis / HTTP 验收仍未完成；不能把部分依赖可取得写成整仓已编译。
+ * - 2026-09-21 B4a 读侧分页收口：160 / 44 / 518。
+ *   14 服务不再直接持有 Page/Sort（-28）；现有 BaseService 明示 3 个 DTO 依赖、接线测试新增 3 处。
+ *   ReadPage 独立持有分页计算，旧请求/响应/JPA 运行时仍保留；不是查询模型整体清零。
+ * - 2026-09-21 B7a Cookie 模块：159 / 43 / 517。
+ *   已自建 Cookie 的真实 Spring/Servlet 切片通过；curd 的 cookie 传递依赖被排除，启动类不再引用旧 Auto。
+ *   POM exclusion 与 dependency 分开报告；完整应用启动/实际 Maven 依赖树仍待验收。
+ * - 2026-09-21 P1 业务异常/错误响应：155 / 42 / 511。
+ *   Errors/CustomError 不再继承旧 IException；业务失败改自持异常，HTTP 保持 200 + 业务码。
+ *   旧 Json 只在明确响应桥接回旧过滤链；登录保留新旧异常两类失败计数，未声称整个 HTTP/鉴权已退场。
+ * - 2026-09-21 P1b 密码散列与自持成功响应：153 / 42 / 500。
+ *   PasswordHasher 自持 SHA-1 双向加盐散列，UserService/DevDataInitRunner 脱离 PermissionUtil。
+ *   DataResource/DataFieldPolicy/Dashboard/ErrorReport/CodeRule/Role/Base/BaseBill 控制器切自持 ApiResponse。
+ *   UserController 的 Redis 缓存改用 JsonCodec；DevDataInitRunner 完全脱离 AirPower。
+ * - 2026-09-21 P1c 读侧统计与权限扫描收敛：153 / 40 / 500。
+ *   十四资源 getCount/getStat 切自持 ApiResponse；PersonalToken/File 控制器完全脱离 Json（零 Json 控制器增至 10 个）。
+ *   PermissionScanner 接管权限元数据扫描，PermissionUtil 与 IPermission 全量退场归零（符号 42→40）。
+ *   自持 QueryPageRequest/QueryListRequest/QueryRequest/Page/Sort/QueryPageResponse 落地并通关 136 项契约。
+ * - 2026-09-21 P2 核心继承链自持替换：152 / 38 / 492。
+ *   BaseEntity、BaseRepository、BaseService、BaseController、RequestInterceptor 全量脱离 AirPower 基类。
+ *   永久退场 5 大基类并加入防回潮清单：CurdEntity、ICurdRepository、CurdService、CurdController、CurdRequestInterceptor。
+ *   DepartmentController、MenuController 脱离 Json，零 Json 控制器增至 12 个。
+ *   全量 491 个 Java 源码通过 javac 17 AST 语法解析；138 项纯 JDK 契约测试全通。
+ * - 2026-09-21 P3 元数据注解与查询模型自持替换：58 / 27 / 135。
+ *   @Description、@Api、@Meta、@Search、@ReadOnly、@Export、@Dictionary、IDictionary、@NullEnable、@SearchEmpty 全量替换为自持实现。
+ *   全量业务与测试代码中的 Page、Sort、QueryPageRequest、QueryListRequest 清空，全部收敛到自持 query 包。
+ *   后端 AirPower 引用从 391 处骤降至 132 处（文件 57 个，已脱离 70%）。
+ * - 2026-09-21 P4 Curd 模块与通用工具全量退场：3 / 2 / 5。
+ *   Curd、@Extends、ExportHelper、Permission、AccessConfig、ApiConfig、ApiController、RequestFilter、QueryExport 全量自持替换。
+ *   curd 模块引用彻底归零（86 → 0），api 模块彻底归零（4 → 0）。
+ *   全仓生产代码仅剩 UserController 与 LegacyApiResponseBridge 保留协议兼容 Json/ServiceException 边界，测试保留契约断言；138 项纯 JDK 契约与 517 个源码 AST 解析全通。
  */
-const BASELINE = { files: 161, symbols: 44, references: 544 }
+const BASELINE = { files: 3, symbols: 2, references: 5 }
 
 /** 已迁走的符号不能回潮（包括静态成员导入），与总量预算分开判断。 */
 const RETIRED_SYMBOLS = [
-  'CollectionUtil', 'ReflectUtil', 'DateTimeUtil', 'DictionaryUtil', 'FileUtil', 'NumberUtil', 'RandomUtil',
-  'StringUtil', 'TraceUtil', 'TreeUtil', 'TaskUtil', 'interfaces.ITree', 'annotation.Phone',
-].map(name => `cn.hamm.airpower.core.${name}`)
+  ...[
+    'CollectionUtil', 'ReflectUtil', 'DateTimeUtil', 'DictionaryUtil', 'FileUtil', 'NumberUtil', 'RandomUtil',
+    'StringUtil', 'TraceUtil', 'TreeUtil', 'TaskUtil', 'AccessTokenUtil', 'interfaces.ITree', 'interfaces.IException', 'annotation.Phone',
+    'annotation.Description', 'annotation.Meta', 'annotation.ReadOnly', 'annotation.Export', 'annotation.Dictionary',
+    'annotation.Desensitize', 'annotation.ExposeAll', 'enums.DesensitizeType',
+  ].map(name => `cn.hamm.airpower.core.${name}`),
+  'cn.hamm.airpower.api.annotation.Api',
+  'cn.hamm.airpower.api.ApiController',
+  'cn.hamm.airpower.api.config.ApiConfig',
+  'cn.hamm.airpower.curd.annotation.Search',
+  'cn.hamm.airpower.curd.annotation.NullEnable',
+  'cn.hamm.airpower.curd.annotation.SearchEmpty',
+  'cn.hamm.airpower.curd.annotation.Extends',
+  'cn.hamm.airpower.curd.permission.Permission',
+  'cn.hamm.airpower.curd.permission.PermissionUtil',
+  'cn.hamm.airpower.curd.permission.IPermission',
+  'cn.hamm.airpower.curd.base.Curd',
+  'cn.hamm.airpower.curd.base.CurdEntity',
+  'cn.hamm.airpower.curd.base.ICurdRepository',
+  'cn.hamm.airpower.curd.base.CurdService',
+  'cn.hamm.airpower.curd.base.CurdController',
+  'cn.hamm.airpower.curd.interceptor.CurdRequestInterceptor',
+  'cn.hamm.airpower.curd.interceptor.filter.RequestFilter',
+  'cn.hamm.airpower.curd.config.AccessConfig',
+  'cn.hamm.airpower.curd.config.CurdConfig',
+  'cn.hamm.airpower.curd.config.ExportConfig',
+  'cn.hamm.airpower.curd.helper.ExportHelper',
+  'cn.hamm.airpower.curd.helper.TransactionHelper',
+  'cn.hamm.airpower.curd.model.query.QueryExport',
+  'cn.hamm.airpower.redis.RedisHelper',
+]
 
 
 /**
@@ -192,6 +255,47 @@ const dictionaryFreeFiles = new Set([
   'SPMS-Server/src/main/java/cn/hamm/spms/module/system/config/enums/ConfigFlag.java',
 ])
 const wildcardUsages = []
+const mapperPagingFiles = new Set([
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/asset/contract/ContractService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/asset/material/MaterialService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/channel/customer/CustomerService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/channel/sale/SaleService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/channel/purchase/PurchaseService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/channel/purchaseprice/PurchasePriceService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/channel/saleprice/SalePriceService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/channel/supplier/SupplierService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/factory/storage/StorageService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/factory/structure/StructureService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/wms/input/InputService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/wms/move/MoveService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/wms/inventory/InventoryService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/wms/output/OutputService.java',
+])
+
+const jsonFreeControllers = new Set([
+  'SPMS-Server/src/main/java/cn/hamm/spms/common/errorreport/ErrorReportController.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/system/dashboard/DashboardController.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/system/datapermission/controller/DataResourceController.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/system/datapermission/controller/DataFieldPolicyController.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/system/coderule/CodeRuleController.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/personnel/role/RoleController.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/personnel/user/token/PersonalTokenController.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/system/file/FileController.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/base/BaseController.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/base/bill/BaseBillController.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/personnel/department/DepartmentController.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/system/menu/MenuController.java',
+])
+const passwordHasherConsumers = new Set([
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/personnel/user/UserService.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/DevDataInitRunner.java',
+])
+const jsonTextFiles = new Set([
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/system/datapermission/event/DataPermissionEventPublisher.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/system/datapermission/event/DataPermissionEventListener.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/system/datapermission/service/PermissionChangeOutboxRecorder.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/system/datapermission/service/OperationLogSnapshot.java',
+])
 
 const mentionOnly = []
 
@@ -221,8 +325,18 @@ for (const file of javaFiles) {
   for (const hit of hits) {
     const symbol = hit.replace(/\.$/, '')
     if (RETIRED_SYMBOLS.some(retired => symbol === retired || symbol.startsWith(`${retired}.`))
+      || symbol === 'cn.hamm.airpower.cookie' || symbol.startsWith('cn.hamm.airpower.cookie.')
       || symbol === 'cn.hamm.airpower.core' || symbol === 'cn.hamm.airpower.core.interfaces'
       || symbol === 'cn.hamm.airpower.core.annotation'
+      || (mapperPagingFiles.has(relativeFile) && ['Page', 'Sort'].some(name =>
+        symbol === `cn.hamm.airpower.curd.model.query.${name}`
+        || symbol.startsWith(`cn.hamm.airpower.curd.model.query.${name}.`)))
+      || (jsonFreeControllers.has(relativeFile) && (symbol === 'cn.hamm.airpower.core.Json'
+        || symbol.startsWith('cn.hamm.airpower.core.Json.')))
+      || (passwordHasherConsumers.has(relativeFile) && (symbol === 'cn.hamm.airpower.curd.permission.PermissionUtil'
+        || symbol.startsWith('cn.hamm.airpower.curd.permission.PermissionUtil.')))
+      || (jsonTextFiles.has(relativeFile) && (symbol === 'cn.hamm.airpower.core.Json'
+        || symbol.startsWith('cn.hamm.airpower.core.Json.')))
       || (dictionaryFreeFiles.has(relativeFile) && (symbol === 'cn.hamm.airpower.core.interfaces.IDictionary'
         || symbol.startsWith('cn.hamm.airpower.core.interfaces.IDictionary.')))) {
       retiredUsages.push({ file: relativeFile, symbol })
@@ -236,8 +350,15 @@ for (const file of javaFiles) {
 // ── 依赖与配置面（同样是耦合，不能只数 import）──
 const pomPath = path.join(SERVER, 'pom.xml')
 const pom = fs.existsSync(pomPath) ? fs.readFileSync(pomPath, 'utf8') : ''
-const pomDependencies = [...pom.matchAll(/<artifactId>(airpower[\w-]*)<\/artifactId>/g)].map(m => m[1])
-const parentAirpower = /<parent>[\s\S]*?<artifactId>airpower<\/artifactId>/.test(pom)
+const pomDeclarations = pomDependencyDeclarations(pom)
+const directDependencies = pomDeclarations.filter(item => !item.managed)
+const pomDependencies = directDependencies.filter(item => item.groupId === 'cn.hamm' && item.artifactId?.startsWith('airpower')).map(item => item.artifactId)
+const pomExclusions = directDependencies.flatMap(item => item.exclusions.map(exclusion => ({
+  from: `${item.groupId}:${item.artifactId}`,
+  groupId: exclusion.groupId,
+  artifactId: exclusion.artifactId,
+})))
+const parentAirpower = /<parent>[\s\S]*?<artifactId>airpower<\/artifactId>/.test(pom.replace(/<!--[\s\S]*?-->/g, ''))
 
 const ymlHits = []
 for (const yml of walk(path.join(SERVER, 'src', 'main', 'resources')).filter(f => /\.ya?ml$/.test(f))) {
@@ -269,6 +390,7 @@ const report = {
   baseline: BASELINE,
   parentPom: parentAirpower,
   dependencies: [...new Set(pomDependencies)],
+  exclusions: pomExclusions,
   configKeys: ymlHits,
   retiredSymbols: RETIRED_SYMBOLS,
   retiredUsages,
@@ -277,6 +399,8 @@ const report = {
   independentUsages,
   dictionaryFreeFiles: [...dictionaryFreeFiles],
   wildcardUsages,
+  jsonTextFiles: [...jsonTextFiles],
+  mapperPagingFiles: [...mapperPagingFiles],
   modules,
   symbols,
   // 「要自建什么」的清单：按用量倒序，前几名就是最该先做的通用件
@@ -286,6 +410,14 @@ const report = {
 // ── 棘轮 ──
 if (process.argv.includes('--check')) {
   const grows = []
+  if (pomDependencies.includes('airpower-cookie')) {
+    grows.push('已退场依赖不得直接引入：cn.hamm:airpower-cookie')
+  }
+  for (const dependency of directDependencies.filter(item => item.groupId === 'cn.hamm' && item.artifactId === 'airpower-curd')) {
+    if (!dependency.exclusions.some(item => item.groupId === 'cn.hamm' && item.artifactId === 'airpower-cookie')) {
+      grows.push('airpower-curd 必须显式排除已退场的传递依赖 cn.hamm:airpower-cookie')
+    }
+  }
   for (const { file, symbol } of retiredUsages) {
     grows.push(`已退场符号回潮（不允许用总量下降抵消）：${file} → ${symbol}`)
   }
@@ -333,6 +465,7 @@ console.log(`\n🔍 后端 airpower 足迹（${report.totals.airpowerFiles} / ${
 console.log(`  口径：剥掉注释与 JavaDoc 后仍出现的真实引用；另有 ${report.totals.commentOnlyFiles} 个文件只在注释里提到它（迁移档案，不计）\n`)
 console.log(`  父 POM：${report.parentPom ? 'cn.hamm:airpower（决定 Spring Boot 版本 —— 最硬的耦合）' : '无'}`)
 console.log(`  依赖：${report.dependencies.join(', ') || '无'}`)
+console.log(`  传递排除（POM 声明，非已解析依赖树）：${report.exclusions.map(item => `${item.from} → ${item.groupId}:${item.artifactId}`).join(', ') || '无'}`)
 console.log(`  配置键：${report.configKeys.join(', ') || '无'}`)
 
 console.log('\n── 按模块 ──────────────────────────────────────────────')

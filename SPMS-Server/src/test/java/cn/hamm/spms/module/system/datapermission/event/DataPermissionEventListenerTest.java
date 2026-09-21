@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.datapermission.event;
 
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.common.redis.RedisHelper;
 import cn.hamm.spms.module.factory.storage.StorageHierarchyIndex;
 import cn.hamm.spms.module.personnel.department.DepartmentHierarchyIndex;
 import cn.hamm.spms.module.system.datapermission.service.DataFieldPolicyService;
@@ -132,6 +132,23 @@ class DataPermissionEventListenerTest {
         DataPermissionEventListener listener = newListener();
 
         assertDoesNotThrow(() -> listener.onMessage(message("this-is-not-json{{"), null));
+    }
+
+    @Test
+    @DisplayName("UTF-8 资源标识经真实消息解码后仍路由到对应缓存，未知字段不影响滚动升级")
+    void unicodeResourceKeySurvivesWireDecoding() {
+        newListener().onMessage(message("{\"eventType\":\"RESOURCE_CHANGED\",\"resourceKey\":\"工厂.仓库\",\"futureField\":true}"), null);
+        verify(ruleProvider).clearResourceCache("工厂.仓库");
+        verifyNoInteractions(dataFieldPolicyService, departmentHierarchyIndex, storageHierarchyIndex);
+    }
+
+    @Test
+    @DisplayName("JSON null 与未知事件枚举不触发任何缓存动作")
+    void nullAndUnknownEventDoNotInvalidateCaches() {
+        DataPermissionEventListener listener = newListener();
+        assertDoesNotThrow(() -> listener.onMessage(message("null"), null));
+        assertDoesNotThrow(() -> listener.onMessage(message("{\"eventType\":\"UNKNOWN_EVENT\"}"), null));
+        verifyNoInteractions(ruleProvider, dataFieldPolicyService, departmentHierarchyIndex, storageHierarchyIndex);
     }
 
     private DataPermissionEventListener newListener() {

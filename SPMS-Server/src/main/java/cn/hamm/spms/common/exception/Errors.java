@@ -1,37 +1,19 @@
 package cn.hamm.spms.common.exception;
 
-/*
- * 2026-09-18（后端 airpower 退场 B1 · 错误码层接管）：
- * 本文件从 {@code cn.hamm.airpower.exception.Errors}（airpower-exception 6.4.3）**逐行搬来**，
- * 常量名、code 数值、文案一字未改 —— 这些 code 是**前端契约**（axios 拦截器按 code 分流），
- * 所以"搬"必须等价，"改"要单独一批并同步前端。
- *
- * 为什么第一个动它：错误码是"被引用次数多、语义最简单"的一层（55 处、12 个常量），
- * 换个 import 就能把 airpower-exception 模块整块摘掉，风险最低。
- *
- * 仍依赖 airpower-core 的两样东西（B2 一批接管）：
- *   · {@link cn.hamm.airpower.core.interfaces.IException} —— 异常接口（无用的字典标记已移除）
- *   · {@link cn.hamm.airpower.core.exception.ServiceException} —— {@code show()} 抛出的异常类型
- * 也就是说：这一批搬的是"错误码字典"，不是"异常运行时"。
- */
+import cn.hamm.spms.framework.error.BusinessException;
+import cn.hamm.spms.framework.error.ErrorCode;
 
-import cn.hamm.airpower.core.exception.ServiceException;
-import cn.hamm.airpower.core.interfaces.IException;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import org.jetbrains.annotations.Contract;
-import org.jetbrains.annotations.NotNull;
+import java.util.function.Supplier;
 
 /**
- * <h1>系统错误代码字典</h1>
+ * <h1>项目系统错误码</h1>
+ *
+ * <p>常量名、数值、默认文案保持；抛错由自持 ErrorCode/BusinessException 实现。
+ * 不再实现旧 IException，不可修改枚举共享文案；按请求传入的消息只用于该次异常。</p>
  *
  * @author Hamm.cn
- * @apiNote 如需自定义业务异常，可自行创建一个新业务异常枚举类并实现 {@link IException} 接口即可。
  */
-@SuppressWarnings("AlibabaEnumConstantsMustHaveComment")
-@Getter
-@AllArgsConstructor
-public enum Errors implements IException<ServiceException> {
+public enum Errors implements ErrorCode, Supplier<BusinessException> {
     CONTINUE(201, "请继续"),
 
     UPGRADE_CLIENT_NECESSARY(301, "请更新客户端"),
@@ -100,38 +82,24 @@ public enum Errors implements IException<ServiceException> {
     ;
 
     private final int code;
-    private String message;
+    private final String message;
 
-    /**
-     * 设置错误信息
-     *
-     * @param message 错误信息
-     * @return 当前异常
-     */
-    @Contract(value = "_ -> this", mutates = "this")
-    public Errors setMessage(String message) {
+    Errors(int code, String message) {
+        this.code = code;
         this.message = message;
-        return this;
     }
 
-    @Contract(pure = true)
-    public int getKey() {
-        return code;
-    }
-
-    @Contract(pure = true)
-    public String getLabel() {
-        return message;
-    }
-
-    /**
-     * 获取一个服务异常
-     *
-     * @return 服务异常
-     */
-    @Contract(" -> new")
     @Override
-    public @NotNull ServiceException get() {
-        return new ServiceException();
-    }
+    public int getCode() { return code; }
+
+    @Override
+    public String getMessage() { return message; }
+
+    /** 保留既有按 key/label 读取的入口，不承担字典接口。 */
+    public int getKey() { return code; }
+    public String getLabel() { return message; }
+
+    /** 保留原 Supplier 的空异常工厂口径；实际 show 使用当前错误码和文案。 */
+    @Override
+    public BusinessException get() { return new BusinessException(); }
 }

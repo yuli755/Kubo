@@ -53,6 +53,7 @@ describe('后端 airpower · 总量棘轮之外的零回潮边界', () => {
     'TreeUtil',
     'TaskUtil',
     'interfaces.ITree',
+    'interfaces.IException',
     'annotation.Phone',
   ])('已退场 %s 即使只有一处、远低于总量上限也失败', (symbol) => {
     const result = check(`import cn.hamm.airpower.core.${symbol}; class Example {}`)
@@ -111,8 +112,93 @@ describe('后端 airpower · 总量棘轮之外的零回潮边界', () => {
     expect(result.output).toContain('已退场符号回潮')
   })
 
-  it('错误枚举保留的 IException 不误报为已迁走', () => {
-    expect(check('import cn.hamm.airpower.core.interfaces.IException; class Example {}', 'common/exception/Errors.java').status).toBe(0)
+  it('业务错误码不得恢复旧异常接口，即使总量低于预算', () => {
+    expect(check('import cn.hamm.airpower.core.interfaces.IException; class Example {}', 'common/exception/Errors.java').status).toBe(1)
+  })
+
+  it.each([
+    'common/errorreport/ErrorReportController.java',
+    'module/system/dashboard/DashboardController.java',
+    'module/system/datapermission/controller/DataResourceController.java',
+    'module/system/datapermission/controller/DataFieldPolicyController.java',
+    'module/system/coderule/CodeRuleController.java',
+    'module/personnel/role/RoleController.java',
+    'module/personnel/user/token/PersonalTokenController.java',
+    'module/system/file/FileController.java',
+    'base/BaseController.java',
+    'base/bill/BaseBillController.java',
+  ])('自持端点控制器 %s 不能恢复旧 Json 响应', (file) => {
+    const result = check('import cn.hamm.airpower.core.Json; class Example {}', file)
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('已退场符号回潮')
+  })
+
+  it.each([
+    'cn.hamm.airpower.curd.permission.PermissionUtil',
+    'cn.hamm.airpower.curd.permission.IPermission',
+  ])('已退场权限符号不得在任何文件回潮：%s', (symbol) => {
+    const result = check(`import ${symbol}; class Example {}`)
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('已退场符号回潮')
+  })
+
+  it.each([
+    'module/personnel/user/UserService.java',
+    'DevDataInitRunner.java',
+  ])('%s 已改用 PasswordHasher，不得恢复 PermissionUtil', (file) => {
+    const result = check('import cn.hamm.airpower.curd.permission.PermissionUtil; class Example {}', file)
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('已退场符号回潮')
+  })
+
+  it.each([
+    'module/system/datapermission/event/DataPermissionEventPublisher.java',
+    'module/system/datapermission/event/DataPermissionEventListener.java',
+    'module/system/datapermission/service/PermissionChangeOutboxRecorder.java',
+    'module/system/datapermission/service/OperationLogSnapshot.java',
+  ])('%s 不能恢复已迁走的 JSON 文本工具', (file) => {
+    const result = check('import cn.hamm.airpower.core.Json; class Example {}', file)
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('已退场符号回潮')
+  })
+
+  it.each([
+    'module/asset/contract/ContractService.java',
+    'module/asset/material/MaterialService.java',
+    'module/channel/customer/CustomerService.java',
+    'module/channel/sale/SaleService.java',
+    'module/channel/purchase/PurchaseService.java',
+    'module/channel/purchaseprice/PurchasePriceService.java',
+    'module/channel/saleprice/SalePriceService.java',
+    'module/channel/supplier/SupplierService.java',
+    'module/factory/storage/StorageService.java',
+    'module/factory/structure/StructureService.java',
+    'module/wms/input/InputService.java',
+    'module/wms/move/MoveService.java',
+    'module/wms/inventory/InventoryService.java',
+    'module/wms/output/OutputService.java',
+
+  ])('%s 不再直接依赖旧 Page/Sort，不能用总量下降抵消回潮', (file) => {
+    for (const name of ['Page', 'Sort']) {
+      const result = check(`import cn.hamm.airpower.curd.model.query.${name}; class Example {}`, file)
+      expect(result.status).toBe(1)
+      expect(result.output).toContain('已退场符号回潮')
+    }
+  })
+
+  it('旧分页 DTO 仍允许留在项目 base 适配边界，不能假装已整体退场', () => {
+    expect(check('import cn.hamm.airpower.curd.model.query.Page; class Example {}', 'base/BaseService.java').status).toBe(0)
+  })
+
+  it.each([
+    'import cn.hamm.airpower.cookie.CookieHelper; class Example {}',
+    'import cn.hamm.airpower.cookie.CookieConfig; class Example {}',
+    'class Example { Class<?> oldAuto = cn.hamm.airpower.cookie.Auto.class; }',
+    'class Example { String oldType = "cn.hamm.airpower.cookie.Auto"; }',
+  ])('整个旧 Cookie 模块不得回潮：%s', (source) => {
+    const result = check(source)
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('已退场符号回潮')
   })
 
   it('反射字符串是真耦合，不作为注释忽略', () => {

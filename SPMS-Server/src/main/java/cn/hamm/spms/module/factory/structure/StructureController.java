@@ -1,20 +1,22 @@
 package cn.hamm.spms.module.factory.structure;
 
-import cn.hamm.airpower.api.annotation.Api;
-import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.annotation.Extends;
-import cn.hamm.airpower.curd.base.Curd;
-import cn.hamm.airpower.curd.model.query.QueryListRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
+import cn.hamm.spms.framework.web.annotation.Api;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.base.annotation.Extends;
+import cn.hamm.spms.base.Curd;
 import cn.hamm.spms.base.BaseController;
+import cn.hamm.spms.base.mapper.ReadStat;
+import cn.hamm.spms.framework.query.QueryListRequest;
+import cn.hamm.spms.framework.query.QueryPageRequest;
+import cn.hamm.spms.framework.query.QueryPageResponse;
+import cn.hamm.spms.framework.web.ApiResponse;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-import static cn.hamm.airpower.curd.base.Curd.GetDetail;
-import static cn.hamm.airpower.curd.base.Curd.GetPage;
+import static cn.hamm.spms.base.Curd.GetDetail;
+import static cn.hamm.spms.base.Curd.GetPage;
 import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 
 /**
@@ -39,12 +41,12 @@ public class StructureController extends BaseController<StructureEntity, Structu
      */
     @Override
     @PostMapping("getPage")
-    public Json getPage(@RequestBody QueryPageRequest<StructureEntity> request) {
+    public ApiResponse<QueryPageResponse<StructureEntity>> getPage(@RequestBody QueryPageRequest<StructureEntity> request) {
         if (!service.isMapperReadEnabled()) {
             return super.getPage(request);
         }
         GetPage.checkApiAvailable(this);
-        return Json.data(service.getMapperPage(request));
+        return ApiResponse.data(service.getMapperPage(request));
     }
 
     /**
@@ -55,14 +57,14 @@ public class StructureController extends BaseController<StructureEntity, Structu
      */
     @Override
     @PostMapping("getDetail")
-    public Json getDetail(@RequestBody @Validated(WhenIdRequired.class) @NotNull StructureEntity source) {
+    public ApiResponse<StructureEntity> getDetail(@RequestBody @Validated(WhenIdRequired.class) @NotNull StructureEntity source) {
         if (!service.isMapperReadEnabled()) {
             return super.getDetail(source);
         }
         GetDetail.checkApiAvailable(this);
         StructureEntity entity = service.getMapperDetail(source.getId());
         DATA_NOT_FOUND.whenNull(entity);
-        return Json.data(entity);
+        return ApiResponse.data(entity);
     }
 
     /**
@@ -73,9 +75,9 @@ public class StructureController extends BaseController<StructureEntity, Structu
      */
     @Description("查询生产单元总数")
     @PostMapping("getCount")
-    public Json getCount(@RequestBody(required = false) QueryListRequest<StructureEntity> request) {
+    public ApiResponse<Long> getCount(@RequestBody(required = false) QueryListRequest<StructureEntity> request) {
         StructureEntity filter = request == null ? null : request.getFilter();
-        return Json.data(service.getMapperCount(filter));
+        return ApiResponse.success(service.getMapperCount(filter));
     }
 
     /**
@@ -86,9 +88,9 @@ public class StructureController extends BaseController<StructureEntity, Structu
      */
     @Description("查询生产单元统计")
     @PostMapping("getStat")
-    public Json getStat(@RequestBody(required = false) QueryListRequest<StructureEntity> request) {
+    public ApiResponse<ReadStat> getStat(@RequestBody(required = false) QueryListRequest<StructureEntity> request) {
         StructureEntity filter = request == null ? null : request.getFilter();
-        return Json.data(service.getMapperStat(filter));
+        return ApiResponse.success(service.getMapperStat(filter));
     }
 
     /**
@@ -100,11 +102,11 @@ public class StructureController extends BaseController<StructureEntity, Structu
     @Override
     @Description("创建导出任务")
     @PostMapping("export")
-    public Json export(@RequestBody QueryListRequest<StructureEntity> request) {
+    public ApiResponse<String> export(@RequestBody QueryListRequest<StructureEntity> request) {
         if (!service.isMapperReadEnabled()) {
             return super.export(request);
         }
         Curd.Export.checkApiAvailable(this);
-        return Json.data(service.createMapperExportTask(request), "导出任务创建成功");
+        return ApiResponse.data(service.createMapperExportTask(request), "导出任务创建成功");
     }
 }

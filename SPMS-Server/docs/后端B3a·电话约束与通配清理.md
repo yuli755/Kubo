@@ -3,6 +3,8 @@
 > **本地独立验证通过，完整 Maven 编译/运行时接线仍待验收。**
 > 本轮不是重写 JSON、异常处理器或鉴权；继续保留 airpower-curd 6.4.3 及其运行时。
 
+**后续状态**：内部 JSON 文本的 B2d 已继续推进，最新足迹与依赖子集验证见 [B2d 记录](后端B2d·内部JSON文本退场.md)。本页保留 B3a 的历史结果与 CI 阻塞证据。
+
 ## 本轮改动
 
 - CustomerEntity、SupplierEntity、UserEntity 的 `Phone` 改为 Jakarta `Pattern`，共用自持 `PhoneRules` 常量。
@@ -43,9 +45,11 @@
 - 新增 **17 项 Maven 接线契约未执行**：真实 Jakarta Validation 对三个实体各五项，加错误/配置契约各一项。
   这些测试才覆盖实际 null/group/message/约束类型；不能把 JDK 正则测试当成提供者接线通过。
 - 本地完整 Maven 重试依旧在 Wrapper 下载阶段 SSLHandshakeException / EOFException，**未进入项目编译**。
-- 现有 B2a–B3a 工作将保存为当前 `arena/01a0bf0c-kubo` 分支的 CI 检查点，再检验 Actions 是否能启动。
-  上一次基线 run 35515416860 因账户付款/额度问题没有执行步骤；本轮结果必须看实际 run，不能沿用旧结论。
-  不合并、不发布、不跳过 server compile/test，也不靠假依赖或下调验证标准制造成功。
+- B2a–B3a 代码检查点 **54d13b8** 已提交并推送到 `arena/01a0bf0c-kubo`，未合并/发布。
+- 新 CI：[run 35522617966](https://github.com/yuli755/Kubo/actions/runs/35522617966)。
+  Server/Web/MySQL 三个任务均为 `steps: []`，未执行 checkout、编译或测试；GitHub annotation 明确报告
+  **账户付款失败或 spending limit 需要提高**。这不是代码编译失败，也不是验证通过。
+  没有跳过 server compile/test 或放松门禁来绕过阻塞；旧基线 run 35515416860 不再作为本次检查点的证据。
 
 后端仍有 544 处源码引用。后续 Json/元数据主体/鉴权/CRUD 迁移需要完整依赖环境与接口回归，
 这些独立子集的绿灯不构成整仓验收。

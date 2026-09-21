@@ -1,12 +1,11 @@
 package cn.hamm.spms.module.channel.saleprice;
 
 import cn.hamm.spms.common.export.EntityCsvExport;
-import cn.hamm.airpower.curd.helper.ExportHelper;
-import cn.hamm.airpower.curd.model.query.Page;
-import cn.hamm.airpower.curd.model.query.QueryListRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageRequest;
-import cn.hamm.airpower.curd.model.query.QueryPageResponse;
-import cn.hamm.airpower.curd.model.query.Sort;
+import cn.hamm.spms.common.export.ExportHelper;
+import cn.hamm.spms.framework.query.QueryListRequest;
+import cn.hamm.spms.framework.query.QueryPageRequest;
+import cn.hamm.spms.framework.query.QueryPageResponse;
+import cn.hamm.spms.framework.query.ReadPage;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
@@ -41,8 +40,6 @@ import static cn.hamm.spms.common.exception.Errors.FORBIDDEN_EXIST;
  */
 @Service
 public class SalePriceService extends BaseService<SalePriceEntity, SalePriceRepository> {
-    private static final int DEFAULT_READ_PAGE_SIZE = 20;
-    private static final int MAX_READ_PAGE_SIZE = 200;
 
     /**
      * 读侧开关关闭时 Mapper Bean 根本不存在；这里必须是可选注入，才能保留 JPA 回滚路径。
@@ -75,33 +72,12 @@ public class SalePriceService extends BaseService<SalePriceEntity, SalePriceRepo
             return getPage(normalized);
         }
         SalePriceEntity filter = normalized.getFilter() == null ? new SalePriceEntity() : normalized.getFilter();
-        Page requestedPage = normalized.getPage() == null ? new Page() : normalized.getPage();
-        int pageNum = requestedPage.getPageNum() == null ? 1 : requestedPage.getPageNum();
-        int pageSize = requestedPage.getPageSize() == null
-                ? DEFAULT_READ_PAGE_SIZE : requestedPage.getPageSize();
-        if (pageNum < 1 || pageSize < 1) {
-            throw new IllegalArgumentException("分页页码和分页大小必须为正数");
-        }
-        pageSize = Math.min(pageSize, MAX_READ_PAGE_SIZE);
-        long offsetValue = ((long) pageNum - 1L) * pageSize;
-        if (offsetValue > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("分页页码超出可查询范围");
-        }
-        int offset = (int) offsetValue;
+        ReadPage paging = mapperReadPage(normalized.getPage());
         salePriceReadShadowService.submit(filter);
-        List<SalePriceEntity> list = salePriceMapper.selectPageByPermission(filter, offset, pageSize)
+        List<SalePriceEntity> list = salePriceMapper.selectPageByPermission(filter, paging.offset(), paging.pageSize())
                 .stream().map(this::hydrateRelations).toList();
         long total = salePriceMapper.countByPermission(filter);
-        int totalAsInt = Math.toIntExact(total);
-        int pageCount = total == 0 ? 0 : Math.toIntExact((total + pageSize - 1L) / pageSize);
-        Sort sort = normalized.getSort() == null ? new Sort() : normalized.getSort();
-        QueryPageResponse<SalePriceEntity> response = new QueryPageResponse<>();
-        response.setList(list);
-        response.setTotal(totalAsInt);
-        response.setPageCount(pageCount);
-        response.setPage(new Page().setPageNum(pageNum).setPageSize(pageSize));
-        response.setSort(sort);
-        return response;
+        return mapperPageResponse(paging, list, total, normalized.getSort());
     }
 
     /**

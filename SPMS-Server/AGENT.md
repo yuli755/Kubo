@@ -2,7 +2,7 @@
 
 本文档约定了 **Kubo Server** 项目的开发规范，供 AI 辅助开发（Cursor、GitHub Copilot、Claude Code 等）参考，保证生成的代码与项目现有风格一致。
 
-## 后端退场的当前边界（2026-09-20）
+## 后端退场的当前边界（2026-09-21）
 
 - **前端清零不等于后端清零**：后端仍保留 `airpower-curd:6.4.3`，真实足迹用 `pnpm airpower:backend` 查询。
 - B2a 已迁走 8 个工具类和 `ITree` 的直接用法。新增工具在 `cn.hamm.spms.framework.util`，
@@ -22,11 +22,31 @@
 - B3a：Customer/Supplier/User 的电话字段改用 Jakarta `@Pattern` + `PhoneRules`，包括 User 原通配导入隐藏的第三处。
   所有 AirPower 通配导入现已禁止。Errors/CustomError/ConfigFlag 移除无用字典标记，异常接口/配置类型仍保留。
   不把“手机号”字段擅自收窄为只收手机：旧规则还允许座机；null/空串、分组与文案均需保持。
-- 仍被 `@Dictionary` 约束的 `IDictionary`、`IPermission`、`Json`、异常运行时和 CRUD 基类仍是旧框架契约，
+- B2d：内部事件/Outbox/审计快照的 JSON 文本已使用 `framework.json.JsonCodec`，只依赖正式 Jackson。
+  HTTP 的 Json 响应封装、用户菜单/权限缓存仍未迁；不要把二者混成一次替换。
+  权限条件 DSL 的 PermissionRuleParser 继续严格校验，禁止改用这个兼容型存储 codec。
+- B4a：14 个 Mapper 读服务使用 `framework.query.ReadPage` 计算分页；旧 Page/Sort 的读入与响应组装
+  留在现有 BaseService 的 mapperReadPage/mapperPageResponse。不能把这两个 DTO 重新散回业务服务。
+  JPA 回退必须先于分页规范化；不得改变筛选参数、权限 Mapper、shadow 采样、关系补齐或 SQL 排序。
+- B7a：旧 airpower-cookie 通过 POM 的 curd exclusion 排除，Application 不再引用旧 Auto。
+  CookieHelper/CookieConfig 继续自持，14 项真实 Spring/Boot/Servlet 切片验证通过；不得恢复旧 Cookie 包或移除 exclusion。
+  POM exclusion 与实际依赖分开报告；声明级排除不等于完整应用/已解析依赖树验收。
+- 主干阶段 P1/P1b：密码加盐散列已自持为 `framework.security.PasswordHasher`，UserService 与 DevDataInitRunner
+  脱离 PermissionUtil；8 个控制器的成功响应已换至 `ApiResponse`，彻底清除了它们的旧 Json 导入。
+  Errors/CustomError 实现自持 ErrorCode，抛 BusinessException；
+Errors/CustomError 实现自持 ErrorCode，抛 BusinessException；
+  BusinessExceptionAdvice 与数据库约束 advice 返回 ApiResponse，仍是 HTTP 200 + 业务错误码。
+  LegacyApiResponseBridge 是**暂留兼容接点**：它先转换回旧 Json，确保旧字段白名单/脱敏/trace 链没有被绕过。
+  登录防爆破必须同时捕获 BusinessException 和旧 ServiceException，不能只换导入导致漏计失败。
+- 仍被 `@Dictionary` 约束的 `IDictionary`、`IPermission`、CRUD 成功响应的 HTTP `Json`、旧框架异常和 CRUD 基类仍是旧契约，
   不能看到工具替换就直接删依赖。以下涉及它们的示例仅描述**存量**，不是鼓励新增耦合。
-- 验证分层：`pnpm java:unit` 是 **JDK 17 真实编译 16 个生产源码（10 工具/规则 + 5 业务枚举 + 1 常量）/91 契约 + 全量源文件 AST**；
+- 验证分层：`pnpm java:unit` 是 **JDK 17 真实编译 22 个生产源码（含自持错误码、密码散列与异常）/129 契约 + 全量源文件 AST**；
   `pnpm java:check` 只是文本检查；整仓仍需 `./mvnw -B -s settings.xml compile` 和 `test`。
-  AST 也不是完整类型检查。B2a–B3a 接线测试尚未完整验收，最新状态见 `docs/后端B3a·电话约束与通配清理.md`。
+  `pnpm java:json` 另用正式 Jackson/Lombok 编译 5 个真实生产源码并跑 25 项 JSON 契约；依赖从 Maven 缓存或
+  KUBO_JSON_JARS 离线目录读取，必须通过校验和，不能用 stub 代替。AST/两个子集仍不是完整类型检查。
+  `pnpm java:cookie` 使用核验过的 Spring/Boot/Servlet 依赖真实启动 Cookie 切片；最新边界见
+  `docs/后端主干迁移·P1b密码散列与自持成功响应.md`，旧查询 DTO、整仓 Maven/HTTP/Redis 接线仍未完整验收。
+  `pnpm java:http` 用真实 Spring MVC 验证错误响应与旧桥；默认核验正式 core JAR，显式源码参考模式另行标明，不能冒充整仓验收。
   本轮已修复 B2a 漏掉的 List import，并拦下历史重复注解；不能因静态门禁绿就宣称整仓 Java 可编译。
 
 ## 技术栈
@@ -34,8 +54,8 @@
 | 技术              | 版本              | 说明     |
 |-----------------|-----------------|--------|
 | Java            | 17              | 开发语言   |
-| Spring Boot     | 3.x             | 应用框架   |
-| Maven           | 3.9+            | 依赖管理   |
+| Spring Boot     | 3.4.4           | 应用框架   |
+| Maven Wrapper   | 3.8.3           | wrapper 固定版本，仍需可达依赖仓库 |
 | JPA + Hibernate | Spring Data JPA | ORM框架  |
 | MySQL           | 8.x             | 数据库    |
 | Redis           | -               | 缓存     |
@@ -223,7 +243,7 @@ private Integer type;
 ### 9. 异常处理
 
 使用本项目 `cn.hamm.spms.common.exception.Errors` 抛出通用错误；业务码使用同包 `CustomError`。
-注意：它们目前仍借用旧异常运行时，不能宣称整个异常体系已自持：
+它们现在抛出自持 BusinessException；新错误 advice 已接线，但旧框架仍可抛旧异常，过渡响应桥尚未删除：
 
 ```java
 Errors.FORBIDDEN_EDIT.when(subtract < 0, "库存数量不足");

@@ -1,6 +1,6 @@
 package cn.hamm.spms.framework;
 
-import cn.hamm.airpower.curd.model.query.QueryListRequest;
+import cn.hamm.spms.framework.query.QueryListRequest;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.module.asset.contract.ContractController;
 import cn.hamm.spms.module.asset.contract.ContractService;

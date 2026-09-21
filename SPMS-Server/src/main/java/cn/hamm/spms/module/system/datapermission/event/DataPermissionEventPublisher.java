@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.system.datapermission.event;
 
-import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.framework.json.JsonCodec;
+import cn.hamm.spms.common.redis.RedisHelper;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.PermissionChangeOutboxRecorder;
 import lombok.RequiredArgsConstructor;
@@ -80,7 +80,7 @@ public class DataPermissionEventPublisher {
         // 这里不吞异常 —— 落不下 outbox 宁可让调用方看见，也不静默变成「变更发生但持久化记录丢失」。
         outboxRecorder.record(event);
         try {
-            String json = Json.toString(event);
+            String json = JsonCodec.write(event);
             redisHelper.publish(CHANNEL, json);
             log.debug("发布数据权限变更事件: type={}, resourceKey={}", event.getEventType(), event.getResourceKey());
         } catch (Exception e) {

@@ -1,14 +1,13 @@
 package cn.hamm.spms.module.personnel.user;
 
 import cn.hamm.spms.framework.util.Trees;
-import cn.hamm.airpower.api.config.ApiConfig;
+import cn.hamm.spms.common.config.ApiConfig;
 import cn.hamm.spms.common.cookie.CookieHelper;
-import cn.hamm.airpower.core.AccessTokenUtil;
+import cn.hamm.spms.common.security.AccessTokenUtil;
 import cn.hamm.spms.framework.util.RandomValues;
-import cn.hamm.airpower.curd.base.CurdEntity;
-import cn.hamm.airpower.curd.config.AccessConfig;
-import cn.hamm.airpower.curd.model.query.Sort;
-import cn.hamm.airpower.curd.permission.PermissionUtil;
+import cn.hamm.spms.common.config.AccessConfig;
+import cn.hamm.spms.framework.query.Sort;
+import cn.hamm.spms.framework.security.PasswordHasher;
 import cn.hamm.spms.common.email.EmailHelper;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.common.AppConfig;
@@ -143,7 +142,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
     private void applyFreshPassword(@NotNull UserEntity entity) {
         String salt = RandomValues.randomString(PASSWORD_SALT_LENGTH);
         entity.setSalt(salt);
-        entity.setPassword(PermissionUtil.encodePassword(entity.getPassword(), salt));
+        entity.setPassword(PasswordHasher.encode(entity.getPassword(), salt));
     }
 
     /**
@@ -212,7 +211,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
     private void resetPassword(@NotNull UserEntity user, String newPassword) {
         String salt = RandomValues.randomString(PASSWORD_SALT_LENGTH);
         user.setSalt(salt);
-        user.setPassword(PermissionUtil.encodePassword(newPassword, salt));
+        user.setPassword(PasswordHasher.encode(newPassword, salt));
         updateToDatabase(user);
     }
 
@@ -281,13 +280,13 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
 
         // 判断原始密码
         PARAM_INVALID.whenNotEqualsIgnoreCase(
-                PermissionUtil.encodePassword(oldPassword, existUser.getSalt()),
+                PasswordHasher.encode(oldPassword, existUser.getSalt()),
                 existUser.getPassword(),
                 "原密码输入错误，修改密码失败"
         );
         String salt = RandomValues.randomString(PASSWORD_SALT_LENGTH);
         existUser.setSalt(salt);
-        existUser.setPassword(PermissionUtil.encodePassword(newPassword, salt));
+        existUser.setPassword(PasswordHasher.encode(newPassword, salt));
         updateToDatabase(existUser);
     }
 
@@ -421,7 +420,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
         UserEntity existUser = repository.getByEmail(email);
         USER_LOGIN_ACCOUNT_OR_PASSWORD_INVALID.whenNull(existUser);
         // 将用户传入的密码加密与数据库存储匹配
-        String encodePassword = PermissionUtil.encodePassword(password, existUser.getSalt());
+        String encodePassword = PasswordHasher.encode(password, existUser.getSalt());
         USER_LOGIN_ACCOUNT_OR_PASSWORD_INVALID.whenNotEqualsIgnoreCase(encodePassword, existUser.getPassword());
         return existUser;
     }
@@ -490,7 +489,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
     public UserEntity registerUserViaPhone(@NotNull String phone, String password) {
         String nickname = "用户" + phone.substring(phone.length() - 4);
         String salt = RandomValues.randomString(PASSWORD_SALT_LENGTH);
-        UserEntity user = new UserEntity().setPassword(PermissionUtil.encodePassword(password, salt))
+        UserEntity user = new UserEntity().setPassword(PasswordHasher.encode(password, salt))
                 .setSalt(salt)
                 .setNickname(nickname)
                 .setPhone(phone);
@@ -519,7 +518,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
         // 昵称默认为邮箱 @ 前面的
         String nickname = email.split("@")[0];
         String salt = RandomValues.randomString(PASSWORD_SALT_LENGTH);
-        UserEntity user = new UserEntity().setPassword(PermissionUtil.encodePassword(password, salt))
+        UserEntity user = new UserEntity().setPassword(PasswordHasher.encode(password, salt))
                 .setSalt(salt)
                 .setNickname(nickname);
         long id = add(user);
@@ -603,7 +602,7 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
         Set<Long> departmentIdList = PersonnelServices.getDepartmentService().getListByParentId(departmentId);
         departmentIdList.add(departmentId);
         Join<UserEntity, DepartmentEntity> departmentJoin = root.join("departmentList");
-        Predicate inPredicate = departmentJoin.get(CurdEntity.STRING_ID).in(departmentIdList);
+        Predicate inPredicate = departmentJoin.get(BaseEntity.STRING_ID).in(departmentIdList);
         predicateList.add(inPredicate);
         return predicateList;
     }

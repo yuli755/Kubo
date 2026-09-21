@@ -154,6 +154,11 @@ public final class UtilityContracts {
         cases.addAll(ExportContracts.cases());
         cases.addAll(DomainEnumContracts.cases());
         cases.addAll(PhoneContracts.cases());
+        cases.addAll(PagingContracts.cases());
+        cases.addAll(QueryModelContracts.cases());
+        cases.addAll(ErrorContracts.cases());
+        cases.addAll(PasswordContracts.cases());
+        cases.addAll(CoreActionContracts.cases());
         return List.copyOf(cases);
     }
 

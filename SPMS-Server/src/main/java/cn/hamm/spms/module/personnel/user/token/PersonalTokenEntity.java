@@ -1,9 +1,9 @@
 package cn.hamm.spms.module.personnel.user.token;
 
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.core.annotation.Desensitize;
-import cn.hamm.airpower.core.enums.DesensitizeType;
-import cn.hamm.airpower.curd.annotation.Search;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.Desensitize;
+import cn.hamm.spms.framework.web.annotation.DesensitizeType;
+import cn.hamm.spms.framework.web.annotation.Search;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.module.personnel.user.UserEntity;
 import jakarta.persistence.Column;

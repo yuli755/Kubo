@@ -65,7 +65,7 @@
     <!--
       依赖版本表：只 import Spring Boot 官方 BOM。
       所以本工程里所有 org.springframework.boot / org.springframework / io.micrometer /
-      com.h2database / org.flywaydb 的依赖都不写版本号；其余一律显式写版本
+      com.h2database / org.flywaydb 与 jackson-databind、lombok 的版本由 BOM 管理；其余显式写版本
       （mybatis-plus、springdoc、airpower-curd）。
     -->
     <dependencyManagement>
@@ -85,6 +85,25 @@
             <groupId>cn.hamm</groupId>
             <artifactId>airpower-curd</artifactId>
             <version>${airpower.version}</version>
+            <!-- Cookie 已由项目自建组件接管；旧模块无 API/CRUD 调用方，禁止再传递装入旧 Auto。 -->
+            <exclusions>
+                <exclusion>
+                    <groupId>cn.hamm</groupId>
+                    <artifactId>airpower-cookie</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- 内部 JSON 文本编解码由项目直接持有；版本由 Boot 3.4.4 导入的 Jackson BOM 管理。
+             不再把这项依赖的存在寄托在待退场的 airpower-core 上，也不改 HTTP ObjectMapper。 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <!-- 本项目自己的 @Data/@Slf4j 需要编译期处理器；不依赖旧框架的 provided 依赖传递。 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
         </dependency>
 
         <!--

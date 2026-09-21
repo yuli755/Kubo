@@ -1,6 +1,6 @@
 package cn.hamm.spms;
 
-import cn.hamm.airpower.redis.RedisHelper;
+import cn.hamm.spms.common.redis.RedisHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.Disabled;

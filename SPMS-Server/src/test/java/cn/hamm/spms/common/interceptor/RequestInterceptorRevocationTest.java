@@ -1,6 +1,6 @@
 package cn.hamm.spms.common.interceptor;
 
-import cn.hamm.airpower.core.exception.ServiceException;
+import cn.hamm.spms.framework.error.BusinessException;
 import cn.hamm.spms.common.security.AccessTokenRevocationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,7 +45,7 @@ class RequestInterceptorRevocationTest {
     void revokedTokenRejectedBeforeSignatureCheck() {
         given(accessTokenRevocationService.isRevoked("tok-1")).willReturn(true);
 
-        ServiceException e = assertThrows(ServiceException.class,
+        BusinessException e = assertThrows(BusinessException.class,
                 () -> interceptor.getVerifiedToken("tok-1"));
         assertTrue(e.getMessage().contains("登录状态已失效"),
                 "必须报『登录状态已失效』而不是笼统的令牌无效，实际: " + e.getMessage());
@@ -58,7 +58,7 @@ class RequestInterceptorRevocationTest {
 
         // 严格桩只认 isRevoked("tok-1")：若拦截器拿 "Bearer tok-1" 去查名单，
         // 这里既不会命中桩（返回 false 走验签），也会因"桩从未被消费"而红。
-        assertThrows(ServiceException.class,
+        assertThrows(BusinessException.class,
                 () -> interceptor.getVerifiedToken("Bearer tok-1"));
 
         verify(accessTokenRevocationService).isRevoked("tok-1");

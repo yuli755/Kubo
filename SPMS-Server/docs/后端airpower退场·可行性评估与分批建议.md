@@ -7,13 +7,61 @@
 
 ---
 
-## 2026-09-20 最新更新：B3a 标准电话约束与显式依赖，仍待整体验收
+## 2026-09-21 最新更新：P1b 密码散列自持与成功响应接入，耦合破 500
+
+- 密码加盐散列落地 `framework.security.PasswordHasher`，UserService、DevDataInitRunner 与密码单测
+  完全脱离 PermissionUtil；**DevDataInitRunner 与密码单测 AirPower 引用清零**。
+- DataResource、DataFieldPolicy、Dashboard、ErrorReport、CodeRule、Role、Base、BaseBill 8 个控制器
+  端点切至自持 `ApiResponse`，彻底清除这 8 个文件的旧 `Json` 导入。
+- 当前 **153 / 480 文件、42 符号、500 引用**。JDK 独立测试达 129 项；`pnpm check` 606 项用例全部通过。
+- 详见 [主干 P1b 执行记录](后端主干迁移·P1b密码散列与自持成功响应.md)。
+
+## 2026-09-21 P1 阶段记录（数量已被 P1b 更新）
+
+- 不再把外围工具减量当成核心替换：先接管请求/响应/异常/权限契约，再替换 Controller/Service/Entity/Repository 继承链，
+  然后整仓编译和登录/权限/库存/导出回归，最后删除依赖/配置。不同时迁 ORM。
+- P1 本批落实错误响应与业务异常：项目 ErrorCode/BusinessException/ApiResponse 不引用旧框架；
+  Errors/CustomError 退出 IException，数据库错误处理器改自持返回契约，登录保留新旧失败计数。
+- 显式 HTTP 桥仍把 ApiResponse 接回旧 Json，防止跳过字段过滤/脱敏/trace。桥和旧成功响应不可假称已删除。
+- 当前 **155 / 478 文件、42 符号、511 引用**。真实 MVC 21 项通过；旧 core 为固定源码校验编译参考，未冒充发布 JAR/整仓验收。
+- 详见 [主干 P1 执行记录](后端主干迁移·P1错误契约接管.md)。
+
+## 2026-09-21 B7a 阶段记录（数量已被 P1 更新）
+
+- 当前工作区实测 **159 / 470 文件、43 符号、517 引用**；当前 Flyway 为 V1–V10，共 10 个 SQL。
+  用户引用的 171/534、593 引用、26 迁移不是此工作区快照；不按旧数字或棘轮通过宣称完成。
+- 已自建 Cookie 经过真实 Spring/Boot/Servlet 切片的 14 项验证，然后在 curd 依赖上排除旧 Cookie 模块、
+  删除旧 Auto 启动引用；源码 cookie 模块归零。实际 Maven 依赖树/全应用启动仍待验收。
+- 新的声明解析器区分 dependency、dependencyManagement、exclusion，`stack:project` 显示真实排除项与“后端未完成”。
+- `pnpm check` 58 文件 / 584 用例通过；JDK 107、Jackson 25、Cookie 14 契约分别通过。
+  详见 [B7a 记录](后端B7a·Cookie传递模块退场.md)。
+
+## 2026-09-21 B4a 阶段记录（数量已被 B7a 更新）
+
+- 当前 **160 / 468 文件、44 符号、518 引用**。14 服务移除 Page/Sort 的直接导入，现有 BaseService 保留明确 DTO 边界。
+- 原 14 份分页计算归并到 JDK-only ReadPage；服务文件净删 331 行（未扣共享代码与测试），
+  默认值、200 上限、int 偏移/总数、页数计算不变；筛选、shadow、权限 Mapper、关系补齐、JPA 回退保留。
+- 17 个 JDK 生产源码 / 107 契约通过，正式 Jackson 子集 25 契约通过；`pnpm check` 57 文件 / 566 用例通过。
+  本轮新增 5 项真实 DTO 接线测试未执行，完整 Maven 重试仍在下载阶段 TLS 握手失败。
+- 不是把查询模型整体改包名或退场；详见 [B4a 记录](后端B4a·读侧分页收口.md)。
+
+## 2026-09-21 B2d 阶段记录（数量已被 B4a 更新）
+
+- 当前 **160 / 466 文件、44 符号、540 引用**；四处内部 Json 文本调用已迁，自持 JsonCodec 不含 HTTP 封装。
+- 新取得正式 Jackson 2.18.3/Lombok 1.18.36，字节经 Maven Central 发布校验和核对，依赖不进入 Git。
+  真实编译 5 个生产源码（含真实 DTO 与审计快照）并执行 25 项协议契约，不生成框架/注解处理器 stub。
+- 原 JDK-only 的 91 项契约与 `pnpm check` 536 用例通过。旧 HTTP Json、用户缓存和异常运行时仍保留。
+- **部分依赖可取得不等于 Maven 全链路打通**：当前全应用编译/Redis/HTTP 接线仍待验收。
+  详见 [B2d 内部 JSON 文本退场](后端B2d·内部JSON文本退场.md)。
+
+## 2026-09-20 B3a 阶段记录（数量已被 B2d 更新）
 
 - 当前 **161 / 462 个 Java 文件、44 个符号、544 处引用**。airpower-curd 6.4.3 仍在。
 - 三个 Phone 字段改标准 Pattern，保留座机/手机/空串/分组/文案；UserEntity 的通配导入曾隐藏第三处使用。
 - 通配展开真实增加 3 引用，三枚举移除无用字典标记，不藏增量、不放宽预算；本批净减 2。
 - 16 个生产源码独立 Java 17 编译，91 项契约通过；`pnpm check` 55 文件 / 523 用例通过。
-  新增 17 项真实 Jakarta/错误/配置接线契约待 Maven 环境验证。将当前工作分支作为 CI 检查点，不合并或发布。
+  新增 17 项真实 Jakarta/错误/配置接线契约待 Maven 环境验证。代码检查点 54d13b8 已推送；
+  CI run 35522617966 仍因账户付款/额度限制未启动任何构建步骤，没有合并或发布。
 - 详见 [B3a 记录](后端B3a·电话约束与通配清理.md)。
 
 ## 2026-09-20 B2c 阶段记录（数量已被 B3a 更新）
@@ -148,7 +196,7 @@
 | --- | --- | --- | --- |
 | **B0** ✅ 2026-09-18 已做 | 摘掉 `cn.hamm:airpower` 父 POM，构建基线自持（Java 17 / UTF-8 / `spring-boot-dependencies` 3.4.4 BOM import / `springboot.version` / `airpower.version`） | —— | `pnpm pom:check` 离线闸门 ✅（无版本依赖在 BOM 家族白名单内、`${...}` 属性都有定义、无发版插件残留）；**待在有 JDK 的机器上补跑 `mvn -q compile && mvn test`**；`pnpm airpower:backend -- --check` 数字不变（只换版本管理，不动代码） |
 | **B1** ✅ 2026-09-18 已做 | `cn.hamm.spms.common.exception.Errors`（**整只枚举逐行搬来**：常量名 / code 数值 / 文案一字未改），49 个文件的静态导入改指向本包 —— **exception 模块归零（55 → 0）** | `Errors.*`（12 个常量 + 全量枚举为将来兜底） | ✅ `pnpm text:check` / `java:check` / `auth:check` / `perms:check` 全绿；棘轮 174/60/603；**code 与文案零变化**（前端 axios 按 code 分流，故本批只搬不改） |
-| **B2（部分落地）** | B2a 工具；B2b CSV / 反射；B2c 普通枚举与任务直接调用。Json、异常运行时、令牌工具未迁，JPA 导出/CRUD 内部任务仍在旧 jar | 11 个旧工具 + ITree 直接用法清零；累计净减 57 引用 | 独立 Java 17 / 79 契约、459 源文件 AST 与 `pnpm check` 通过；**完整 Maven 接线待验收**，未标整批完成 |
+| **B2（部分落地）** | B2a 工具；B2b CSV / 反射；B2c 普通枚举与任务直接调用。B2d 已迁内部 Json 文本；HTTP Json、异常运行时、令牌工具未迁，JPA 导出/CRUD 内部任务仍在旧 jar | 11 个旧工具 + ITree 直接用法清零；累计净减 57 引用 | 独立 Java 17 / 79 契约、459 源文件 AST 与 `pnpm check` 通过；**完整 Maven 接线待验收**，未标整批完成 |
 | **B3** | 元数据注解自建：`@Description`(79) `@Meta`(26) `@Dictionary`(13) `@ReadOnly`(12) `@Export`(12) `@ExposeAll`/`@Phone`/`@Desensitize` → `framework.metadata` | core 注解 ≈ 150 处 | 注解是**行为开关**（导出列、只读、脱敏），必须与 `ExportHelper`/`Permission` 的使用处一起切；`pnpm java:check` + 现有 `maskContract` 契约测试 |
 | **B4** | 查询模型：`QueryPageRequest`(40) `QueryListRequest`(32) `Page`(25) `Sort`(17) `QueryPageResponse`(14) → `framework.query` | curd 查询 ≈ 130 处 | 124 个端点的分页/排序/搜索回归；前端 `useTable` 的请求体形状不变（`pnpm test` 里的请求体契约用例是现成的验收） |
 | **B5** | `@Api`(33) + `ApiController` + `ApiConfig` + 请求日志/traceId → `framework.api` | api 41 处 + 配置键 3 处 | 路由与 traceId 行为对齐；`application.yml` 的 `airpower.api.*` 键改为自有前缀并同步 Dockerfile |

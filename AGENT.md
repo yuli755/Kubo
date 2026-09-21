@@ -53,6 +53,9 @@ pnpm stack          # 当前技术栈一览（含"死重量"：零引用依赖�
 pnpm airpower:check  # airpower 不得回潮（剥注释后 0 引用才算过）
 pnpm airpower:backend -- --check  # 后端足迹棘轮 + 已退场工具零回潮（通过不等于清零）
 pnpm java:unit       # 需 JDK 17：真实编译工具/独立业务枚举、执行契约 + 全量源码 AST；不是 Maven 整仓类型检查
+pnpm java:json       # 需 JDK 17 与已核验 Jackson/Lombok：内部 JSON 协议子集，不是整仓集成测试
+pnpm java:cookie     # 需 JDK 17 与已核验 Spring/Servlet：真实 Cookie 配置绑定切片，不是全应用启动
+pnpm java:http       # JDK 17 + 核验依赖：真实 MVC 错误契约/旧桥；源码参考与正式 JAR 模式严格区分
 pnpm stack:project   # 整个仓库的技术栈（前端+后端+部署+CI，读真文件，不靠人写）
 pnpm pom:check       # 后端 pom 自持校验（B0 之后没有父 POM 兜底，靠这道离线闸门）
 ```
@@ -64,6 +67,11 @@ pnpm pom:check       # 后端 pom 自持校验（B0 之后没有父 POM 兜底�
 | 文档 | 内容 |
 | --- | --- |
 | `SPMS-Server/docs/项目整体技术栈详细信息.md` | **整个项目**的技术栈（版本、架构、部署、CI、退场现状与存量决策项） |
+| `SPMS-Server/docs/后端主干迁移·P1b密码散列与自持成功响应.md` | 密码散列自持、8 控制器切 ApiResponse、DevDataInitRunner 清零 |
+| `SPMS-Server/docs/后端主干迁移·P1错误契约接管.md` | 用户确认的执行顺序、业务异常/错误响应自持、暂留 HTTP 桥与真实 MVC 验证 |
+| `SPMS-Server/docs/后端B7a·Cookie传递模块退场.md` | Cookie 传递排除、真实 Spring/Servlet 验证、剩余退场边界 |
+| `SPMS-Server/docs/后端B4a·读侧分页收口.md` | 14 个读服务分页去重、纯 Java 算法与保留的 DTO 边界 |
+| `SPMS-Server/docs/后端B2d·内部JSON文本退场.md` | 实际 Jackson/Lombok 协议验证、内部文本与 HTTP 封装边界 |
 | `SPMS-Server/docs/后端B3a·电话约束与通配清理.md` | 标准电话校验、显式依赖与分支 CI 检查点；完整验收状态 |
 | `SPMS-Server/docs/后端B2c·普通枚举与任务残留清理.md` | 五个普通枚举、同步钩子与零回潮边界；独立编译范围扩展 |
 | `SPMS-Server/docs/后端B2b·CSV与反射退场.md` | Mapper CSV/反射替换、保留的注解边界与 Java 17 验证分层 |

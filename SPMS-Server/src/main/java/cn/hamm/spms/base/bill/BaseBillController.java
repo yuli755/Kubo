@@ -1,10 +1,10 @@
 package cn.hamm.spms.base.bill;
 
-import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.core.annotation.Description;
-import cn.hamm.airpower.curd.annotation.Extends;
-import cn.hamm.airpower.curd.base.Curd;
-import cn.hamm.airpower.curd.permission.Permission;
+import cn.hamm.spms.framework.http.ApiResponse;
+import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.base.annotation.Extends;
+import cn.hamm.spms.base.Curd;
+import cn.hamm.spms.framework.web.annotation.Permission;
 import cn.hamm.spms.base.BaseController;
 import cn.hamm.spms.base.bill.detail.BaseBillDetailEntity;
 import cn.hamm.spms.base.bill.detail.BaseBillDetailRepository;
@@ -44,23 +44,23 @@ public class BaseBillController<
 
     @Description("审核")
     @PostMapping("audit")
-    public Json audit(@RequestBody @Validated(WhenIdRequired.class) E bill) {
+    public ApiResponse<Void> audit(@RequestBody @Validated(WhenIdRequired.class) E bill) {
         service.audit(bill.getId());
-        return Json.success("审核成功");
+        return ApiResponse.success("审核成功");
     }
 
     @Description("驳回")
     @PostMapping("reject")
-    public Json reject(@RequestBody @Validated(WhenReject.class) E bill) {
+    public ApiResponse<Void> reject(@RequestBody @Validated(WhenReject.class) E bill) {
         service.reject(bill.getId(), bill.getRejectReason());
-        return Json.success("驳回成功");
+        return ApiResponse.success("驳回成功");
     }
 
     @Description("添加明细的完成数量")
     @PostMapping("addFinish")
-    public Json addFinish(@RequestBody @Validated(WhenAddFinish.class) D detail) {
+    public ApiResponse<Void> addFinish(@RequestBody @Validated(WhenAddFinish.class) D detail) {
         service.addDetailFinishQuantity(detail);
-        return Json.success("添加完成数量成功");
+        return ApiResponse.success("添加完成数量成功");
     }
 
     @Contract("_, _ -> param1")

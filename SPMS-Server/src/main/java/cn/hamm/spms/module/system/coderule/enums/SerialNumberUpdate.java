@@ -1,6 +1,6 @@
 package cn.hamm.spms.module.system.coderule.enums;
 
-import cn.hamm.airpower.core.interfaces.IDictionary;
+import cn.hamm.spms.framework.dictionary.IDictionary;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 

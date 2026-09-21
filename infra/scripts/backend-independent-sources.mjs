@@ -4,7 +4,10 @@
  * @Dictionary 约束的枚举不在此列；不生成/复制旧接口来凑出一个可编译的假环境。
  */
 export const INDEPENDENT_DOMAIN_SOURCES = Object.freeze([
+  'SPMS-Server/src/main/java/cn/hamm/spms/base/CurdAction.java',
   'SPMS-Server/src/main/java/cn/hamm/spms/common/AppConstant.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/common/exception/Errors.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/common/exception/CustomError.java',
   'SPMS-Server/src/main/java/cn/hamm/spms/module/personnel/user/enums/UserTokenType.java',
   'SPMS-Server/src/main/java/cn/hamm/spms/module/system/coderule/enums/CodeRuleParam.java',
   'SPMS-Server/src/main/java/cn/hamm/spms/module/system/file/enums/FileCategory.java',

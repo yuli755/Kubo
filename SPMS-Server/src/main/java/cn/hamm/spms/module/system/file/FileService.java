@@ -1,7 +1,7 @@
 package cn.hamm.spms.module.system.file;
 
 import cn.hamm.spms.framework.util.FilePaths;
-import cn.hamm.airpower.core.exception.ServiceException;
+import cn.hamm.spms.framework.error.BusinessException;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.common.AppConfig;
 import cn.hamm.spms.module.system.file.enums.FileCategory;
@@ -90,7 +90,7 @@ public class FileService extends BaseService<FileEntity, FileRepository> {
             return addAndGet(file);
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            throw new ServiceException("上传文件失败，" + e.getMessage());
+            throw new BusinessException("上传文件失败，" + e.getMessage());
         }
     }
 }
