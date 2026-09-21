@@ -1,12 +1,16 @@
 DOWNLOAD="/home/app.tgz"
 DIR="/home/server/"
-JAR="server-3.0.0.jar"
+JAR="server-4.0.0.jar"
 CHECK_URL="http://127.0.0.1:8080"
 MAX=100
 SECOND=2
 PROFILE='production'
 
-cd $DIR && rm -rf ./* && tar zxvf $DOWNLOAD -C ./ && rm -f $DOWNLOAD
+cd "$DIR" && rm -rf ./* && tar zxvf "$DOWNLOAD" -C ./ && rm -f "$DOWNLOAD"
+DETECTED_JAR=$(ls server-*.jar 2>/dev/null | head -n 1)
+if [ -n "$DETECTED_JAR" ]; then
+  JAR="$DETECTED_JAR"
+fi
 is_running() { ps -p "$1" &>/dev/null; }
 # 停止旧进程
 pids=$(jps | awk -v jar="$JAR" '$2==jar {print $1}')
