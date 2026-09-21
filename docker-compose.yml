@@ -105,11 +105,13 @@ services:
           memory: 512M
 
   # ===========================================
-  # RabbitMQ 3.12 (Quorum Queues)
+  # RabbitMQ 3.12 (Quorum Queues - 扩展预留)
   # ===========================================
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
     container_name: kubo-rabbitmq
+    profiles:
+      - extended
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: kubo
@@ -141,11 +143,13 @@ services:
           memory: 1G
 
   # ===========================================
-  # Nacos 2.3 (配置中心 + 注册中心)
+  # Nacos 2.3 (配置中心 + 注册中心 - 扩展预留)
   # ===========================================
   nacos:
     image: nacos/nacos-server:v2.3.2
     container_name: kubo-nacos
+    profiles:
+      - extended
     restart: unless-stopped
     environment:
       MODE: standalone
@@ -400,11 +404,13 @@ services:
           memory: 128M
 
   # ===========================================
-  # SkyWalking (APM 链路追踪)
+  # SkyWalking (APM 链路追踪 - 扩展配置)
   # ===========================================
   skywalking-oap:
     image: apache/skywalking-oap-server:9.7.0
     container_name: kubo-skywalking-oap
+    profiles:
+      - extended
     restart: unless-stopped
     environment:
       SW_STORAGE: elasticsearch7
@@ -438,6 +444,8 @@ services:
   skywalking-ui:
     image: apache/skywalking-ui:9.7.0
     container_name: kubo-skywalking-ui
+    profiles:
+      - extended
     restart: unless-stopped
     environment:
       SW_OAP_ADDRESS: skywalking-oap:12800
@@ -463,11 +471,13 @@ services:
           memory: 256M
 
   # ===========================================
-  # Elasticsearch (SkyWalking 存储 + 日志)
+  # Elasticsearch (SkyWalking 存储 + 日志 - 扩展配置)
   # ===========================================
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: kubo-elasticsearch
+    profiles:
+      - extended
     restart: unless-stopped
     environment:
       - discovery.type=single-node
