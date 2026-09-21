@@ -58,7 +58,7 @@ public class DepartmentService extends BaseService<DepartmentEntity, DepartmentR
 
     @Override
     protected void beforeDelete(@NotNull DepartmentEntity department) {
-        TreeDeletionGuard.ensureNoChildrenBeforeDelete(department.getId(), (id) -> filter(new DepartmentEntity().setId(id)));
+        TreeDeletionGuard.ensureNoChildrenBeforeDelete(department.getId(), (id) -> filter(new DepartmentEntity().setParentId(id)));
         afterTreeChanged();
     }
 
