@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration;
  */
 @Data
 @Configuration
-@ConfigurationProperties("airpower.curd.access")
+@ConfigurationProperties(prefix = "spms.access")
 public class AccessConfig {
     /**
      * 身份令牌有效期（秒），默认 86400（1 天）

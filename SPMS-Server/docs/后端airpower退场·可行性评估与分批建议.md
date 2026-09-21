@@ -7,14 +7,19 @@
 
 ---
 
-## 2026-09-21 最新更新：P1b 密码散列自持与成功响应接入，耦合破 500
+## 2026-09-22 终态更新：P5 协议边界完全解耦与 POM 物理依赖拔除，AirPower 彻底归零（0/0/0）
 
-- 密码加盐散列落地 `framework.security.PasswordHasher`，UserService、DevDataInitRunner 与密码单测
-  完全脱离 PermissionUtil；**DevDataInitRunner 与密码单测 AirPower 引用清零**。
-- DataResource、DataFieldPolicy、Dashboard、ErrorReport、CodeRule、Role、Base、BaseBill 8 个控制器
-  端点切至自持 `ApiResponse`，彻底清除这 8 个文件的旧 `Json` 导入。
-- 当前 **153 / 480 文件、42 符号、500 引用**。JDK 独立测试达 129 项；`pnpm check` 606 项用例全部通过。
-- 详见 [主干 P1b 执行记录](后端主干迁移·P1b密码散列与自持成功响应.md)。
+- **后端足迹归零**：0/521 个 Java 文件 · 0 个符号 · 0 处引用（剥注释口径）。
+- **物理依赖拔除**：`pom.xml` 中已彻底移除 `cn.hamm:airpower-curd` 及 `airpower.version` 属性，全面由 Spring Boot 3.4.4 BOM 托管原生 Starter。
+- **全栈协议与工具自持**：
+  - 核心基类体系：`BaseController`、`BaseService`、`BaseEntity`、`BaseRepository`、`RequestInterceptor` 全部自持；
+  - 核心工具链：自持 `RedisHelper`（带分布式互斥锁）、`AccessTokenUtil`、`PasswordHasher`、`JsonCodec`、`CsvFormulaSanitizer`；
+  - 异常与元数据：自持 `ErrorCode`、`BusinessException`、`ApiResponse`、`ApiResponseAdvice`、`@Description`、`@ReadOnly`；
+  - 统一配置前缀：已全部收敛至 `spms.api.*`。
+- **验证通过**：`pnpm airpower:backend --check` 0/0/0 门禁锁死，`pnpm check` 18 项门禁全绿，纯 JDK 17（17.0.8）编译与 138 项底座契约测试全过。
+- 详见 [主干 P5 执行记录](后端主干迁移·P5协议边界解耦与POM物理依赖拔除.md)。
+
+## 2026-09-21 历史记录：P1b 密码散列自持与成功响应接入，耦合破 500
 
 ## 2026-09-21 P1 阶段记录（数量已被 P1b 更新）
 
