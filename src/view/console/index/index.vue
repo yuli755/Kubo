@@ -52,14 +52,9 @@ const modules = ref<IDashboardModule[]>([
     title: 'WMS仓储管理',
     actions: [
       { name: '库存信息概览', desc: '实时查看仓库各个单位的存储情况', path: '/console/wms/inventory/list' },
-      { name: '多种入库方式', desc: '关联生产、采购以及其他方式的入库，来源一目了然', path: '/console/wms/input/list' },
-      { name: '库存盘点和移动', desc: '随时盘点库存、移动存储的物料', path: '/console/wms/move/list' },
-      { name: '多种出库方式', desc: '关联销售、生产领料等其他方式的出库', path: '/console/wms/output/list' },
-    ],
-  },
-  {
-    title: 'MES生产管理',
-    actions: [
+      { name: '多种入库方式', desc: '支持采购入库、移位调拨及其他入库，流向清晰可溯', path: '/console/wms/input/list' },
+      { name: '库存移动调拨', desc: '随时在库内、跨库区调拨存储的物料', path: '/console/wms/move/list' },
+      { name: '多种出库方式', desc: '支持销售出库、调拨出库等作业，闭环库存扣减', path: '/console/wms/output/list' },
     ],
   },
   {
