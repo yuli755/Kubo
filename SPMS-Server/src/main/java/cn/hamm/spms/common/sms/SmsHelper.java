@@ -4,6 +4,7 @@ import cn.hamm.spms.framework.error.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -25,13 +26,25 @@ public class SmsHelper {
     private final SmsProvider activeProvider;
 
     @Autowired
-    public SmsHelper(List<SmsProvider> providers) {
-        if (providers != null && !providers.isEmpty()) {
-            this.activeProvider = providers.get(0);
-        } else {
-            this.activeProvider = new LoggingSmsProvider();
+    public SmsHelper(List<SmsProvider> providers,
+                     @Value("${spms.sms.provider:log}") String targetProvider) {
+        SmsProvider selected = null;
+        if (providers != null) {
+            for (SmsProvider provider : providers) {
+                if (provider.getName().equalsIgnoreCase(targetProvider)) {
+                    selected = provider;
+                    break;
+                }
+            }
+            if (selected == null && !providers.isEmpty()) {
+                selected = providers.get(0);
+            }
         }
-        log.info("SmsHelper 初始化就绪，当前激活的短信提供商为 [{}]", activeProvider.getName());
+        if (selected == null) {
+            selected = new LoggingSmsProvider();
+        }
+        this.activeProvider = selected;
+        log.info("SmsHelper 初始化就绪，当前激活的短信提供商为 [{}]（配置期望: {}）", activeProvider.getName(), targetProvider);
     }
 
     /**
