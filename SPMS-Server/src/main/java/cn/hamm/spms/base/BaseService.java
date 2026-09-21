@@ -9,7 +9,7 @@ import cn.hamm.spms.common.redis.RedisHelper;
 import cn.hamm.spms.common.transaction.TransactionHelper;
 import cn.hamm.spms.framework.query.QueryExport;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
-import cn.hamm.spms.common.exception.BusinessException;
+import cn.hamm.spms.framework.error.BusinessException;
 import cn.hamm.spms.framework.query.Page;
 import cn.hamm.spms.framework.query.QueryListRequest;
 import cn.hamm.spms.framework.query.QueryPageRequest;
