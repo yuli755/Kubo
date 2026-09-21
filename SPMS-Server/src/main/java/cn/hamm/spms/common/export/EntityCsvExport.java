@@ -1,6 +1,6 @@
 package cn.hamm.spms.common.export;
 
-import cn.hamm.spms.common.metadata.LegacyEntityMetadata;
+import cn.hamm.spms.common.metadata.EntityMetadata;
 import cn.hamm.spms.framework.util.CsvWriter;
 
 import java.io.InputStream;
@@ -20,6 +20,6 @@ public final class EntityCsvExport {
 
     /** 注解只在一批导出开始时解析一次，不在逐行编码时重复扫描。 */
     public static <T> InputStream toCsvInputStream(List<T> rows, Class<T> type) {
-        return CsvWriter.toInputStream(rows, LegacyEntityMetadata.exportColumns(type));
+        return CsvWriter.toInputStream(rows, EntityMetadata.exportColumns(type));
     }
 }

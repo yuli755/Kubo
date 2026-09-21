@@ -2,7 +2,7 @@ package cn.hamm.spms.module.wms.input;
 
 import cn.hamm.spms.common.export.EntityCsvExport;
 import cn.hamm.spms.common.dictionary.EnumDictionaries;
-import cn.hamm.spms.common.metadata.LegacyEntityMetadata;
+import cn.hamm.spms.common.metadata.EntityMetadata;
 import cn.hamm.spms.framework.dictionary.IDictionary;
 import cn.hamm.spms.common.export.ExportHelper;
 import cn.hamm.spms.framework.query.QueryListRequest;
@@ -220,7 +220,7 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
         InputEntity inputBill = get(billId);
         InputType inputType = EnumDictionaries.require(InputType.class, inputBill.getType(), InputType::getKey, InputType::getLabel);
         log.info("入库单入库完成 {}，单据ID:{} {} 入库类型 {}",
-                LegacyEntityMetadata.description(getFirstParameterizedTypeClass()),
+                EntityMetadata.description(getFirstParameterizedTypeClass()),
                 billId,
                 inputBill.getBillCode(),
                 inputType.getLabel()
