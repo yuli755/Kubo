@@ -2,6 +2,7 @@ package cn.hamm.spms.module.channel.purchase;
 
 import cn.hamm.spms.framework.web.annotation.Description;
 import cn.hamm.spms.framework.web.annotation.Dictionary;
+import cn.hamm.spms.framework.web.annotation.Export;
 import cn.hamm.spms.framework.web.annotation.Meta;
 import cn.hamm.spms.framework.web.annotation.ReadOnly;
 import cn.hamm.spms.framework.web.annotation.Search;
@@ -41,6 +42,7 @@ public class PurchaseEntity extends AbstractBaseBillEntity<PurchaseEntity, Purch
     @AutoGenerateCode(PurchaseBillCode)
     @Search
     @Meta
+    @Export
     private String billCode;
 
     @Description("采购事由")
@@ -48,20 +50,24 @@ public class PurchaseEntity extends AbstractBaseBillEntity<PurchaseEntity, Purch
     @Column(columnDefinition = "varchar(255) default '' comment '采购事由'")
     @Length(max = 80, message = "采购事由最多允许输入{max}个字符")
     @Search
+    @Export
     private String reason;
 
     @Description("总金额")
     @ReadOnly
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '总金额'")
+    @Export(Export.Type.NUMBER)
     private Double totalPrice;
 
     @Description("实际金额")
     @ReadOnly
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '实际金额'")
+    @Export(Export.Type.NUMBER)
     private Double totalRealPrice;
 
     @Description("采购状态")
     @Column(columnDefinition = "int UNSIGNED default 1 comment '采购状态'")
     @Dictionary(value = PurchaseStatus.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer status;
 }

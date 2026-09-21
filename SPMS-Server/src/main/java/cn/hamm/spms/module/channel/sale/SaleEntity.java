@@ -2,6 +2,7 @@ package cn.hamm.spms.module.channel.sale;
 
 import cn.hamm.spms.framework.web.annotation.Description;
 import cn.hamm.spms.framework.web.annotation.Dictionary;
+import cn.hamm.spms.framework.web.annotation.Export;
 import cn.hamm.spms.framework.web.annotation.Meta;
 import cn.hamm.spms.framework.web.annotation.ReadOnly;
 import cn.hamm.spms.framework.web.annotation.Search;
@@ -26,7 +27,7 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.SaleBillCo
 import static jakarta.persistence.FetchType.EAGER;
 
 /**
- * <h1>采购单实体</h1>
+ * <h1>销售单实体</h1>
  *
  * @author Hamm.cn
  */
@@ -44,22 +45,26 @@ public class SaleEntity extends AbstractBaseBillEntity<SaleEntity, SaleDetailEnt
     @AutoGenerateCode(SaleBillCode)
     @Search
     @Meta
+    @Export
     private String billCode;
 
     @Description("销售说明")
     @Column(columnDefinition = "varchar(255) default '' comment '销售说明'")
-    @Length(max = 80, message = "采购事由仅支持输入{min}个{max}个字符")
+    @Length(max = 80, message = "销售说明仅支持输入{min}个{max}个字符")
     @Search
+    @Export
     private String reason;
 
     @Description("总金额")
     @ReadOnly
     @Column(columnDefinition = "double(20, 6) UNSIGNED default 0 comment '总金额'")
+    @Export(Export.Type.NUMBER)
     private Double totalPrice;
 
     @Description("销售状态")
     @Column(columnDefinition = "int UNSIGNED default 1 comment '销售状态'")
     @Dictionary(value = SaleStatus.class, groups = {WhenAdd.class, WhenUpdate.class})
+    @Export(Export.Type.DICTIONARY)
     private Integer status;
 
     @Description("客户信息")

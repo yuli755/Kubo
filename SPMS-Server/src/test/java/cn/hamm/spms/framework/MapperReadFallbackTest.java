@@ -82,8 +82,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 @ActiveProfiles("test")
 @SpringBootTest(properties = {
         "spring.cache.type=none",
-        "airpower.redis.enabled=false",
-        "airpower.mqtt.enabled=false",
         "kubo.data-permission.mode=off",
         "kubo.data-permission.mapper-read.enabled=false"
 }, webEnvironment = SpringBootTest.WebEnvironment.MOCK)

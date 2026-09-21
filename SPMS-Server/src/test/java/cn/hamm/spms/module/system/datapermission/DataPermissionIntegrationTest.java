@@ -41,8 +41,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest(
         properties = {
                 "spring.cache.type=none",
-                "airpower.redis.enabled=false",
-                "airpower.mqtt.enabled=false",
                 // 必须显式声明档位：application.yml 出厂是 mode: off（回滚档），本类原先继承它，
                 // 于是「无 UPDATE 策略应被拦」那条断言其实是**假绿** —— 它绿是因为守卫当年不看 mode，
                 // 而不是因为策略真的缺。现在守卫认 mode 了，本类就得站在它想测的那一档上。
