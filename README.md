@@ -26,10 +26,9 @@
 | 目录 | 说明 |
 | --- | --- |
 | `/`（根） | 前端 **kubo-web**（Vue 3 + Vite + Pinia + Element Plus + TanStack Query） |
-| `SPMS-Server/` | 后端 **SPMS-Server**（Spring Boot 3 + JPA/MyBatis + airpower 框架）。前端 `@airpower/web` 已于 2026-09-18 退场（0 引用，`pnpm airpower:check`）；**后端 `cn.hamm:airpower` 仍在**（**183/439** 个 Java 文件；第一批已摘 `airpower-email`/`airpower-cookie`，见 `SPMS-Server/docs/项目整体技术栈详细信息.md`），退场评估见 `SPMS-Server/docs/后端airpower退场·可行性评估与分批建议.md`，足迹棘轮 `pnpm airpower:backend -- --check` |
-
+| `SPMS-Server/` | 后端 **SPMS-Server**（Spring Boot 3.4.4 + Spring Data JPA + MyBatis-Plus 3.5.9，已彻底完成全自持现代架构重构，AirPower 依赖 0 残留，构建由官方 Spring Boot BOM 自持管理）。全仓 19 道门禁守护，足迹棘轮 `pnpm airpower:backend -- --check` |
 | `SPMS-Server/docs/` | 后端/全栈文档（见 [文档索引](./SPMS-Server/docs/README.md)） |
-| `src/framework/` | 新底座框架层（元数据/实体/HTTP/脱敏策略等），业务只从 `@/framework` 取能力 |
+| `src/framework/` | 自持底座框架层（元数据/实体/HTTP/脱敏策略等），业务只从 `@/framework` 取能力 |
 
 ## 快速开始
 

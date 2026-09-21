@@ -51,7 +51,7 @@
 pnpm check          # 全链：lint → 死代码（文件级/导出级）→ typecheck → test:coverage → 各契约门禁 → build → demo:check → size
 pnpm stack          # 当前技术栈一览（含"死重量"：零引用依赖、没人用的 public 资源）
 pnpm airpower:check  # airpower 不得回潮（剥注释后 0 引用才算过）
-pnpm airpower:backend -- --check  # 后端足迹棘轮 + 已退场工具零回潮（通过不等于清零）
+pnpm airpower:backend -- --check  # 后端足迹棘轮零回潮门禁（已实现 0/0/0 清零锁死）
 pnpm java:unit       # 需 JDK 17：真实编译工具/独立业务枚举、执行契约 + 全量源码 AST；不是 Maven 整仓类型检查
 pnpm java:json       # 需 JDK 17 与已核验 Jackson/Lombok：内部 JSON 协议子集，不是整仓集成测试
 pnpm java:cookie     # 需 JDK 17 与已核验 Spring/Servlet：真实 Cookie 配置绑定切片，不是全应用启动

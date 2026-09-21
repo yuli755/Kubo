@@ -65,14 +65,16 @@ pnpm dev                      # 启动开发服务器（默认 3000，/api 代�
 
 ---
 
-## 📋 表结构怎么建（重要：本地 / 生产不一致）
+## 📋 表结构怎么建（重要：本地 / 生产）
 
-| 环境 | `spring.jpa.hibernate.ddl-auto` | 建表方式 |
+| 环境 | `spring.jpa.hibernate.ddl-auto` | 建表与迁移方式 |
 | --- | --- | --- |
-| `application-local.yml` | `update` | JPA/Hibernate 自动建业务表（开发用） |
-| `application.yml` / `application-production.yml` | `validate` | **不建表、只校验**，必须**先执行迁移脚本** |
+| `application-local.yml` | `update` | JPA/Hibernate 自动建业务表，Flyway 增量补充迁移脚本（开发用） |
+| `application.yml` / `application-production.yml` | `validate` | **不自动改表、校验结构**；由 Flyway 自动执行 `db/migration/` 下版本化迁移脚本（V1~V10） |
 
-**生产（validate）上线前**，先落一次合并迁移脚本（幂等、可重复执行）：
+**生产上线或离线导入**：
+Flyway 会在应用启动时自动执行 `SPMS-Server/src/main/resources/db/migration/` 下的 V1~V10 脚本；
+若需在部署前手动预刷库，可直接执行合并迁移脚本：
 
 ```bash
 mysql -u root -p kubo < SPMS-Server/docs/database/migration/20260909_data_permission_migrations_consolidated.sql
