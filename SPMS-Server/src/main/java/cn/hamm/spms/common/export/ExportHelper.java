@@ -5,11 +5,14 @@ import cn.hamm.spms.common.redis.RedisHelper;
 import cn.hamm.spms.framework.error.BusinessException;
 import cn.hamm.spms.framework.util.FilePaths;
 import cn.hamm.spms.framework.util.RandomValues;
+import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
+import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -22,6 +25,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -32,6 +36,8 @@ import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
  * <h1>导出文件帮助类</h1>
  *
  * <p>自持异步导出任务管理与文件落盘，替代旧 {@code cn.hamm.airpower.curd.helper.ExportHelper}。</p>
+ * <p>具备 ThreadLocal 数据权限上下文（{@link PermissionContextHolder}）与 MDC 日志追踪链路向异步线程池的自动穿透能力，
+ * 保证导出文件在异步组装落盘时严格遵守列级数据脱敏与审计策略。</p>
  *
  * @author Hamm.cn
  */
@@ -74,7 +80,7 @@ public class ExportHelper {
     }
 
     /**
-     * 创建异步导出任务
+     * 创建异步导出任务（具备数据权限与日志追踪上下文穿透）
      *
      * @param supplier 异步执行导出并返回文件路径的回调
      * @return 任务编码 fileCode
@@ -87,13 +93,27 @@ public class ExportHelper {
             return createExportTask(supplier);
         }
         redisHelper.set(fileCacheKey, "");
+
+        // 捕获请求线程的数据权限上下文与 MDC 链路追踪上下文，向异步线程池穿透
+        final PermissionContext capturedContext = PermissionContextHolder.current().orElse(null);
+        final Map<String, String> capturedMdc = MDC.getCopyOfContextMap();
+
         CompletableFuture.runAsync(() -> {
-            try {
-                String result = supplier.get();
-                redisHelper.set(fileCacheKey, result != null ? result : "");
-            } catch (Exception e) {
-                log.error("执行导出任务失败", e);
-                redisHelper.set(fileCacheKey, "ERROR: " + e.getMessage());
+            if (capturedMdc != null) {
+                MDC.setContextMap(capturedMdc);
+            }
+            try (PermissionContextHolder.Scope ignored = (capturedContext != null
+                    ? PermissionContextHolder.open(capturedContext)
+                    : () -> {})) {
+                try {
+                    String result = supplier.get();
+                    redisHelper.set(fileCacheKey, result != null ? result : "");
+                } catch (Exception e) {
+                    log.error("执行导出任务失败", e);
+                    redisHelper.set(fileCacheKey, "ERROR: " + e.getMessage());
+                }
+            } finally {
+                MDC.clear();
             }
         });
         return fileCode;

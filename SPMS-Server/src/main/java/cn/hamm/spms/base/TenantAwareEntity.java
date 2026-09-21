@@ -1,6 +1,7 @@
 package cn.hamm.spms.base;
 
 import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.ReadOnly;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContext;
 import cn.hamm.spms.module.system.datapermission.context.PermissionContextHolder;
 import jakarta.persistence.Column;
@@ -33,10 +34,12 @@ import lombok.Getter;
 @Description("带归属的业务实体")
 public class TenantAwareEntity<E extends TenantAwareEntity<E>> extends BaseEntity<E> {
 
+    @ReadOnly
     @Description("租户 ID")
     @Column(name = "tenant_id")
     private Long tenantId;
 
+    @ReadOnly
     @Description("创建人 ID（数据归属人，用于 USER 主体策略）")
     @Column(name = "creator_id")
     private Long creatorId;

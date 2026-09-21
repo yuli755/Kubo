@@ -4,6 +4,7 @@ import cn.hamm.spms.framework.web.annotation.Description;
 import cn.hamm.spms.framework.web.annotation.NullEnable;
 import cn.hamm.spms.framework.web.annotation.Search;
 import cn.hamm.spms.framework.web.annotation.SearchEmpty;
+import cn.hamm.spms.common.export.EntityCsvExport;
 import cn.hamm.spms.common.export.ExportHelper;
 import cn.hamm.spms.common.redis.RedisHelper;
 import cn.hamm.spms.common.transaction.TransactionHelper;
@@ -39,6 +40,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
 import java.beans.PropertyDescriptor;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
@@ -601,12 +603,15 @@ public class BaseService<
     }
 
     /**
-     * 创建导出任务
+     * 创建导出任务（走查询 -> afterExportQuery 列级脱敏与转义 -> CSV 格式化 -> 异步文件落盘）
      */
     public String createExportTask(QueryPageRequest<E> queryPageRequest) {
         if (exportHelper != null) {
             return exportHelper.createExportTask(() -> {
-                return "export_task_" + System.currentTimeMillis();
+                List<E> list = getList(queryPageRequest);
+                list = afterExportQuery(list);
+                InputStream stream = EntityCsvExport.toCsvInputStream(list, getEntityClass());
+                return exportHelper.saveExportFileStream(stream);
             });
         }
         return "export_task_" + System.currentTimeMillis();
@@ -673,6 +678,14 @@ public class BaseService<
     protected E beforeAdd(@NotNull E entity) {
         SensitiveWriteProtection.rejectMaskedOnAdd(entity);
         enforceDataPermission(DataPermissionAction.CREATE);
+        if (entity instanceof TenantAwareEntity<?> owned) {
+            PermissionContext context = PermissionContextHolder.current().orElse(null);
+            if (context != null && !context.bypassDataPermission()) {
+                // 服务端强制归属锁定：阻止任何来自客户端伪造的跨租户/跨用户归属注入
+                owned.setTenantId(context.tenantId());
+                owned.setCreatorId(context.userId());
+            }
+        }
         return entity;
     }
 
