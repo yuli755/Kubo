@@ -10,7 +10,7 @@ import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.framework.query.QueryListRequest;
 import cn.hamm.spms.framework.query.QueryPageRequest;
 import cn.hamm.spms.framework.query.QueryPageResponse;
-import cn.hamm.spms.framework.web.ApiResponse;
+import cn.hamm.spms.framework.http.ApiResponse;
 import cn.hamm.spms.module.asset.contract.participant.ParticipantEntity;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.validation.annotation.Validated;

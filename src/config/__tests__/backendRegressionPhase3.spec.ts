@@ -38,10 +38,10 @@ describe('p3 · 后端业务核心能力全量回归', () => {
       expect(guard).toContain('clear(@Nullable String account, @Nullable String ip)')
     })
 
-    it('用户控制器登录：先验锁定，成功清理计数，失败统计双类异常（自持与旧异常）', () => {
+    it('用户控制器登录：先验锁定，成功清理计数，失败统计自持业务异常', () => {
       const userCtrl = code('module/personnel/user/UserController.java')
       expect(userCtrl).toContain('loginBruteForceGuard.assertNotLocked(account, clientIp);')
-      expect(userCtrl).toMatch(/catch\s*\(BusinessException\s*\|\s*ServiceException exception\)\s*\{\s*loginBruteForceGuard\.recordFailure\(account, clientIp\);\s*throw exception;/)
+      expect(userCtrl).toMatch(/catch\s*\(BusinessException exception\)\s*\{\s*loginBruteForceGuard\.recordFailure\(account, clientIp\);\s*throw exception;/)
       expect(userCtrl).toContain('loginBruteForceGuard.clear(account, clientIp);')
     })
 

@@ -14,7 +14,7 @@ import org.springframework.http.HttpHeaders;
  */
 @Data
 @Configuration
-@ConfigurationProperties("airpower.api")
+@ConfigurationProperties("spms.api")
 public class ApiConfig {
     public static boolean isServerRunning = true;
     private Boolean requestLog = true;

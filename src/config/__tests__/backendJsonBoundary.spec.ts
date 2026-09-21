@@ -64,11 +64,11 @@ describe('b2d · 内部 JSON 文本退场边界', () => {
     expect(parser).not.toContain('JsonCodec')
   })
 
-  it('hTTP 封装与用户菜单缓存没有借本批偷偷改协议', () => {
+  it('hTTP 封装与用户菜单缓存已全量切换至自持 ApiResponse 与 JsonCodec', () => {
     const controller = code('module/personnel/user/UserController.java')
-    expect(controller).toContain('import cn.hamm.airpower.core.Json;')
-    expect(controller).toContain('Json.data(')
-    expect(controller).toContain('Json.parseList(')
+    expect(controller).not.toContain('cn.hamm.airpower')
+    expect(controller).toContain('ApiResponse<List<MenuEntity>> getMyMenuList()')
+    expect(controller).toContain('JsonCodec.read(object.toString(), MenuEntity[].class)')
   })
 
   it('缺少正式依赖时不运行 Java、不空转通过', () => {

@@ -40,18 +40,18 @@ describe('p1 · 业务异常与旧 HTTP 链的切换边界', () => {
     expect(source).toContain('ApiResponse.failure(failure)')
   })
 
-  it('过渡桥必须实际注册且先执行，保留旧 Json 的字段过滤/trace 接点', () => {
-    const source = code('common/compat/LegacyApiResponseBridge.java')
+  it('全局响应增强实际注册且先执行，为自持 ApiResponse 注入全链路追踪标识', () => {
+    const source = code('framework/http/ApiResponseAdvice.java')
     expect(source).toContain('@ControllerAdvice')
     expect(source).toContain('@Order(Ordered.HIGHEST_PRECEDENCE)')
     expect(source).toContain('ApiResponse.class.isAssignableFrom(returnType.getParameterType())')
     expect(source).toContain('AbstractJackson2HttpMessageConverter.class.isAssignableFrom(converterType)')
-    expect(source).toContain('Json.show(result.getCode(), result.getMessage(), result.getData()).setTraceId(result.getTraceId())')
+    expect(source).toContain('result.withTraceId(Tracer.getTraceId())')
   })
 
-  it('防爆破同时统计新旧两类业务失败，并重抛原异常', () => {
+  it('防爆破统计业务失败，并重抛自持 BusinessException', () => {
     const source = code('module/personnel/user/UserController.java')
-    expect(source).toMatch(/catch\s*\(BusinessException\s*\|\s*ServiceException exception\)\s*\{\s*loginBruteForceGuard\.recordFailure\(account, clientIp\);\s*throw exception;/)
+    expect(source).toMatch(/catch\s*\(BusinessException exception\)\s*\{\s*loginBruteForceGuard\.recordFailure\(account, clientIp\);\s*throw exception;/)
     expect(source).toContain('loginBruteForceGuard.clear(account, clientIp)')
   })
 

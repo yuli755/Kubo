@@ -30,12 +30,28 @@ public final class ApiResponse<T> {
         return new ApiResponse<>(code, message, data, null);
     }
 
+    public static ApiResponse<Void> success() {
+        return of(200, "操作成功", null);
+    }
+
     public static ApiResponse<Void> success(String message) {
         return of(200, message, null);
     }
 
+    public static <T> ApiResponse<T> success(String message, T data) {
+        return of(200, message, data);
+    }
+
+    public static <T> ApiResponse<T> success(T data) {
+        return of(200, "操作成功", data);
+    }
+
     public static <T> ApiResponse<T> data(T data) {
         return of(200, "获取成功", data);
+    }
+
+    public static <T> ApiResponse<T> data(T data, String message) {
+        return of(200, message, data);
     }
 
     public static <T> ApiResponse<T> error(ErrorCode error, String message, T data) {

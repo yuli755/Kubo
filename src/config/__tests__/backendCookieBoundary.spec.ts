@@ -101,7 +101,8 @@ describe('b7a · 旧 Cookie 模块不能再靠排除 Auto 留在依赖图里', (
     expect(report.backend.migrations).toBe(migrations.length)
     expect(report.backend.dependencies.some((item: { artifactId: string }) => item.artifactId === 'airpower-cookie')).toBe(false)
     expect(report.airpowerBackend.dependencies).not.toContain('airpower-cookie')
-    expect(report.airpowerBackend.exclusions).toContainEqual({ from: 'cn.hamm:airpower-curd', groupId: 'cn.hamm', artifactId: 'airpower-cookie' })
+    expect(report.airpowerBackend.dependencies).not.toContain('airpower-curd')
+    expect(report.airpowerBackend.exclusions).toEqual([])
   })
 
   it('cI 必须继续用非空真实依赖树拦截旧 Cookie，不能用声明代替解析', () => {

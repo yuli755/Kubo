@@ -38,7 +38,7 @@ public class AccessTokenSecretGuard implements ApplicationRunner {
     /** HS256 建议最小密钥长度（字符，≥ 256 位熵） */
     private static final int MIN_SECRET_LENGTH = 32;
 
-    @Value("${airpower.api.access-token-secret:}")
+    @Value("${spms.api.access-token-secret:${airpower.api.access-token-secret:}}")
     private String accessTokenSecret;
 
     /**

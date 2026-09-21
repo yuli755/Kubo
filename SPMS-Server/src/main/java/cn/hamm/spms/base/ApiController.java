@@ -22,10 +22,10 @@ public class ApiController {
     @Autowired(required = false)
     protected HttpServletRequest request;
 
-    @Value("${airpower.api.access-token-secret:1234567890}")
+    @Value("${spms.api.access-token-secret:${airpower.api.access-token-secret:1234567890}}")
     protected String accessTokenSecret;
 
-    @Value("${airpower.api.authorize-header:Authorization}")
+    @Value("${spms.api.authorize-header:${airpower.api.authorize-header:Authorization}}")
     protected String authorizeHeader;
 
     /**

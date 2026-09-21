@@ -36,8 +36,8 @@ describe('后端 airpower · 总量棘轮之外的零回潮边界', () => {
     expect(check('package cn.hamm.spms.framework.util; class Example {}', 'framework/util/Example.java').status).toBe(0)
   })
 
-  it('尚未迁走的存量符号仍由总量棘轮控制', () => {
-    expect(check('import cn.hamm.airpower.core.Json; class Example {}').status).toBe(0)
+  it('全量 AirPower 符号归零，任何新增 AirPower 引用均被棘轮拦截', () => {
+    expect(check('import cn.hamm.airpower.core.Json; class Example {}').status).toBe(1)
   })
 
   it.each([
@@ -74,9 +74,9 @@ describe('后端 airpower · 总量棘轮之外的零回潮边界', () => {
     expect(result.output).toContain('已独立编译的业务类型不得回潮')
   })
 
-  it('仍受旧注解校验的 ConfigType 不会被错误地当成已迁走', () => {
+  it('已全量退场的 IDictionary 即使在业务枚举中也失败', () => {
     const result = check('import cn.hamm.airpower.core.interfaces.IDictionary; class Example {}', 'module/system/config/enums/ConfigType.java')
-    expect(result.status).toBe(0)
+    expect(result.status).toBe(1)
   })
 
   it('静态成员导入不能绕过退场符号检查', () => {
@@ -186,8 +186,8 @@ describe('后端 airpower · 总量棘轮之外的零回潮边界', () => {
     }
   })
 
-  it('旧分页 DTO 仍允许留在项目 base 适配边界，不能假装已整体退场', () => {
-    expect(check('import cn.hamm.airpower.curd.model.query.Page; class Example {}', 'base/BaseService.java').status).toBe(0)
+  it('旧分页 DTO 在任何位置均被零回潮门禁拦截', () => {
+    expect(check('import cn.hamm.airpower.curd.model.query.Page; class Example {}', 'base/BaseService.java').status).toBe(1)
   })
 
   it.each([

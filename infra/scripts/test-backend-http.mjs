@@ -26,9 +26,8 @@ function run(command, args) {
 let output
 try {
   const pom = fs.readFileSync(path.join(root, 'SPMS-Server/pom.xml'), 'utf8').replace(/<!--[\s\S]*?-->/g, '')
-  if (pom.match(/<springboot\.version>([^<]+)<\/springboot\.version>/)?.[1]?.trim() !== '3.4.4'
-    || pom.match(/<airpower\.version>([^<]+)<\/airpower\.version>/)?.[1]?.trim() !== '6.4.3')
-    throw new Error('BOM/旧框架基线已变更，请更新 HTTP 兼容契约和依赖核验')
+  if (pom.match(/<springboot\.version>([^<]+)<\/springboot\.version>/)?.[1]?.trim() !== '3.4.4')
+    throw new Error('Spring Boot BOM 基线已变更，请更新 HTTP 契约和依赖核验')
   output = fs.mkdtempSync(path.join(os.tmpdir(), 'kubo-http-contracts-'))
   fs.mkdirSync(path.join(output, 'deps'))
   const jars = HTTP_TEST_ARTIFACTS.map((artifact) => {
@@ -102,9 +101,9 @@ try {
   }
   const production = [
     'framework/error/BusinessException.java', 'framework/error/ErrorCode.java', 'framework/http/ApiResponse.java',
+    'framework/http/ApiResponseAdvice.java', 'framework/util/Tracer.java',
     'common/AppConstant.java', 'common/exception/Errors.java', 'common/exception/CustomError.java',
     'common/exception/BusinessExceptionAdvice.java', 'common/exception/DataIntegrityViolationAdvice.java',
-    'common/compat/LegacyApiResponseBridge.java',
   ].map(file => path.join(root, 'SPMS-Server/src/main/java/cn/hamm/spms', file))
   const test = path.join(root, 'SPMS-Server/src/test/java/cn/hamm/spms/framework/http/HttpErrorContracts.java')
   const classes = path.join(output, 'classes')
@@ -112,7 +111,7 @@ try {
   run(binary('javac'), ['--release', '17', '-encoding', 'UTF-8', '-Xlint:all', '-Werror', '-proc:none',
     '-classpath', [legacyClasspath, deps].join(path.delimiter), '-sourcepath', classes,
     '-d', classes, argFile('project.txt', [...production, test])])
-  console.log(`✓ ${compiler.trim()}：9 个项目生产源码真实编译（Spring MVC + 明示旧响应桥）`)
+  console.log(`✓ ${compiler.trim()}：10 个项目生产源码真实编译（Spring MVC + 自持响应增强）`)
   const classpath = [classes, legacyClasspath, deps].join(path.delimiter)
   for (const encoding of ['UTF-8', 'US-ASCII']) {
     const result = run(binary('java'), [`-Dfile.encoding=${encoding}`, '-cp', classpath, 'cn.hamm.spms.framework.http.HttpErrorContracts'])

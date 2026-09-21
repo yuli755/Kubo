@@ -3,8 +3,8 @@ package cn.hamm.spms.module.personnel.user;
 import cn.hamm.spms.framework.web.annotation.Api;
 import cn.hamm.spms.common.cookie.CookieConfig;
 import cn.hamm.spms.common.cookie.CookieHelper;
-import cn.hamm.airpower.core.Json;
-import cn.hamm.airpower.core.exception.ServiceException;
+import cn.hamm.spms.framework.http.ApiResponse;
+import cn.hamm.spms.framework.json.JsonCodec;
 import cn.hamm.spms.framework.web.annotation.Description;
 import cn.hamm.spms.framework.web.annotation.ExposeAll;
 
@@ -89,8 +89,8 @@ public class UserController extends BaseController<UserEntity, UserService, User
     @Permission(authorize = false)
     @PostMapping("getMyInfo")
     @ExposeAll(UserEntity.class)
-    public Json getMyInfo() {
-        return Json.data(service.get(getCurrentUserId()));
+    public ApiResponse<UserEntity> getMyInfo() {
+        return ApiResponse.data(service.get(getCurrentUserId()));
     }
 
     /**
@@ -102,7 +102,7 @@ public class UserController extends BaseController<UserEntity, UserService, User
     @Description("获取我的租户")
     @Permission(authorize = false)
     @PostMapping("getMyTenantList")
-    public Json getMyTenantList() {
+    public ApiResponse<List<TenantOption>> getMyTenantList() {
         long userId = getCurrentUserId();
         UserEntity user = service.get(userId);
         Long defaultTenantId = userTenantService.defaultTenantId(userId);
@@ -124,49 +124,51 @@ public class UserController extends BaseController<UserEntity, UserService, User
                         .setName(tenant.getName())
                         .setIsDefault(Objects.equals(defaultTenantId, tenant.getId())))
                 .toList();
-        return Json.data(options, "获取成功");
+        return ApiResponse.data(options, "获取成功");
     }
 
     @Description("修改我的信息")
     @Permission(authorize = false)
     @PostMapping("updateMyInfo")
-    public Json updateMyInfo(@RequestBody @Validated(WhenUpdateMyInfo.class) UserEntity user) {
+    public ApiResponse<Void> updateMyInfo(@RequestBody @Validated(WhenUpdateMyInfo.class) UserEntity user) {
         user.setId(getCurrentUserId());
         user.setPhone(null).setEmail(null).setRealName(null).setIdCard(null);
         service.update(user);
-        return Json.success("资料修改成功");
+        return ApiResponse.success("资料修改成功");
     }
 
     @Description("获取我的菜单")
     @Permission(authorize = false)
     @PostMapping("getMyMenuList")
     @ExposeAll(MenuEntity.class)
-    public Json getMyMenuList() {
+    public ApiResponse<List<MenuEntity>> getMyMenuList() {
         String userMenuCacheKey = getUserMenuCacheKey(getCurrentUserId());
         Object object = redisHelper.get(userMenuCacheKey);
         if (Objects.nonNull(object)) {
-            return Json.data(Json.parseList(object.toString(), MenuEntity[].class), "获取成功");
+            MenuEntity[] cached = JsonCodec.read(object.toString(), MenuEntity[].class);
+            return ApiResponse.data(Arrays.asList(cached), "获取成功");
         }
         List<MenuEntity> menuListByUserId = service.getMenuListByUserId(getCurrentUserId());
-        redisHelper.set(userMenuCacheKey, Json.toString(menuListByUserId));
-        return Json.data(menuListByUserId, "获取成功");
+        redisHelper.set(userMenuCacheKey, JsonCodec.write(menuListByUserId));
+        return ApiResponse.data(menuListByUserId, "获取成功");
     }
 
     @Description("获取我的权限")
     @Permission(authorize = false)
     @PostMapping("getMyPermissionList")
-    public Json getMyPermissionList() {
+    public ApiResponse<List<String>> getMyPermissionList() {
         String userPermissionCacheKey = getUserPermissionCacheKey(getCurrentUserId());
         Object object = redisHelper.get(userPermissionCacheKey);
         if (Objects.nonNull(object)) {
-            return Json.data(Json.parseList(object.toString(), String[].class), "获取成功");
+            String[] cached = JsonCodec.read(object.toString(), String[].class);
+            return ApiResponse.data(Arrays.asList(cached), "获取成功");
         }
         List<PermissionEntity> permissionList = service.getPermissionListByUserId(getCurrentUserId());
         List<String> permissions = permissionList.stream()
                 .map(PermissionEntity::getIdentity)
                 .collect(Collectors.toList());
-        redisHelper.set(userPermissionCacheKey, Json.toString(permissions));
-        return Json.data(permissions, "获取成功");
+        redisHelper.set(userPermissionCacheKey, JsonCodec.write(permissions));
+        return ApiResponse.data(permissions, "获取成功");
     }
 
     /**
@@ -193,15 +195,15 @@ public class UserController extends BaseController<UserEntity, UserService, User
     @Description("修改我的密码")
     @Permission(authorize = false)
     @PostMapping("updateMyPassword")
-    public Json updateMyPassword(@RequestBody @Validated(WhenUpdateMyPassword.class) UserEntity user) {
+    public ApiResponse<Void> updateMyPassword(@RequestBody @Validated(WhenUpdateMyPassword.class) UserEntity user) {
         service.modifyPassword(getCurrentUserId(), user.getOldPassword(), user.getPassword());
-        return Json.success("密码修改成功");
+        return ApiResponse.success("密码修改成功");
     }
 
     @Description("返回密码")
     @Permission(login = false)
     @PostMapping("resetMyPassword")
-    public Json resetMyPassword(@RequestBody @Validated(WhenResetMyPassword.class) UserEntity user) {
+    public ApiResponse<Void> resetMyPassword(@RequestBody @Validated(WhenResetMyPassword.class) UserEntity user) {
         String phone = user.getPhone();
         String email = user.getEmail();
         String code = user.getCode();
@@ -213,22 +215,22 @@ public class UserController extends BaseController<UserEntity, UserService, User
         } else {
             PARAM_INVALID.show("请传入邮箱或手机号码");
         }
-        return Json.success("密码重置成功");
+        return ApiResponse.success("密码重置成功");
     }
 
     @Description("账号密码登录")
     @Permission(login = false)
     @PostMapping("login")
-    public Json login(@RequestBody @Validated(WhenLogin.class) UserEntity user,
-                      HttpServletResponse httpServletResponse,
-                      HttpServletRequest httpServletRequest) {
+    public ApiResponse<String> login(@RequestBody @Validated(WhenLogin.class) UserEntity user,
+                                     HttpServletResponse httpServletResponse,
+                                     HttpServletRequest httpServletRequest) {
         return handleLoginRequest(UserLoginType.VIA_ACCOUNT_PASSWORD, user, httpServletResponse, httpServletRequest);
     }
 
     @Description("退出登录")
     @Permission(login = false)
     @PostMapping("logout")
-    public Json logout(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) {
+    public ApiResponse<Void> logout(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) {
         // 使服务端会话失效：只清浏览器 Cookie 不够，Redis 里的 cookie→userId 映射必须一并删除，
         // 否则被窃取的 cookie 值在 TTL（1 天）内仍能通过 getUserIdByCookie 冒充该用户。
         Cookie[] cookies = httpServletRequest.getCookies();
@@ -260,41 +262,41 @@ public class UserController extends BaseController<UserEntity, UserService, User
         if (StringUtils.hasText(rawToken)) {
             accessTokenRevocationService.revoke(rawToken, accessConfig.getAuthorizeExpireSecond());
         }
-        return Json.success("退出登录成功");
+        return ApiResponse.success("退出登录成功");
     }
 
     @Description("邮箱验证码登录")
     @Permission(login = false)
     @PostMapping("loginViaEmail")
-    public Json loginViaEmail(@RequestBody @Validated(WhenLoginViaEmail.class) UserEntity user,
-                              HttpServletResponse httpServletResponse,
-                              HttpServletRequest httpServletRequest) {
+    public ApiResponse<String> loginViaEmail(@RequestBody @Validated(WhenLoginViaEmail.class) UserEntity user,
+                                             HttpServletResponse httpServletResponse,
+                                             HttpServletRequest httpServletRequest) {
         return handleLoginRequest(UserLoginType.VIA_EMAIL_CODE, user, httpServletResponse, httpServletRequest);
     }
 
     @Description("手机验证码登录")
     @Permission(login = false)
     @PostMapping("loginViaPhone")
-    public Json loginViaPhone(@RequestBody @Validated(WhenLoginViaPhone.class) UserEntity user,
-                              HttpServletResponse httpServletResponse,
-                              HttpServletRequest httpServletRequest) {
+    public ApiResponse<String> loginViaPhone(@RequestBody @Validated(WhenLoginViaPhone.class) UserEntity user,
+                                             HttpServletResponse httpServletResponse,
+                                             HttpServletRequest httpServletRequest) {
         return handleLoginRequest(UserLoginType.VIA_PHONE_CODE, user, httpServletResponse, httpServletRequest);
     }
 
     @Description("发送邮件")
     @Permission(login = false)
     @PostMapping("sendEmail")
-    public Json sendEmail(@RequestBody @Validated(WhenSendEmail.class) UserEntity user) throws MessagingException {
+    public ApiResponse<Void> sendEmail(@RequestBody @Validated(WhenSendEmail.class) UserEntity user) throws MessagingException {
         service.sendEmailCode(user.getEmail());
-        return Json.success("发送成功");
+        return ApiResponse.success("发送成功");
     }
 
     @Description("发送短信")
     @Permission(login = false)
     @PostMapping("sendSms")
-    public Json sendSms(@RequestBody @Validated(WhenSendSms.class) UserEntity user) {
+    public ApiResponse<Void> sendSms(@RequestBody @Validated(WhenSendSms.class) UserEntity user) {
         service.sendSmsCode(user.getPhone());
-        return Json.success("发送成功");
+        return ApiResponse.success("发送成功");
     }
 
     /**
@@ -306,8 +308,8 @@ public class UserController extends BaseController<UserEntity, UserService, User
      * @param request       请求（用于解析客户端 IP，防爆破计数维度）
      * @return JsonData
      */
-    private Json handleLoginRequest(@NotNull UserLoginType userLoginType, UserEntity user,
-                                    HttpServletResponse response, HttpServletRequest request) {
+    private ApiResponse<String> handleLoginRequest(@NotNull UserLoginType userLoginType, UserEntity user,
+                                                   HttpServletResponse response, HttpServletRequest request) {
         String account = resolveLoginAccount(userLoginType, user);
         String clientIp = loginBruteForceGuard.resolveClientIp(request);
         // 锁定检查须在失败计数之外：锁定期直接拒绝，不计入「失败次数」（否则锁定永续）
@@ -323,8 +325,8 @@ public class UserController extends BaseController<UserEntity, UserService, User
             redisHelper.delete(getUserMenuCacheKey(exist.getId()));
             // 登录成功：清零该账号与 IP 的失败计数
             loginBruteForceGuard.clear(account, clientIp);
-            return Json.data(userService.loginWithCookieAndResponse(response, exist), "登录成功");
-        } catch (BusinessException | ServiceException exception) {
+            return ApiResponse.data(userService.loginWithCookieAndResponse(response, exist), "登录成功");
+        } catch (BusinessException exception) {
             // 登录失败（账号/密码/验证码错误、账号禁用等）：计数，达阈值即锁定
             loginBruteForceGuard.recordFailure(account, clientIp);
             throw exception;

@@ -102,16 +102,20 @@ const SERVER = path.join(ROOT, 'SPMS-Server')
  *   Curd、@Extends、ExportHelper、Permission、AccessConfig、ApiConfig、ApiController、RequestFilter、QueryExport 全量自持替换。
  *   curd 模块引用彻底归零（86 → 0），api 模块彻底归零（4 → 0）。
  *   全仓生产代码仅剩 UserController 与 LegacyApiResponseBridge 保留协议兼容 Json/ServiceException 边界，测试保留契约断言；138 项纯 JDK 契约与 517 个源码 AST 解析全通。
+ * - 2026-09-21 P5 协议边界完全解耦与 AirPower 引用彻底归零：0 / 0 / 0。
+ *   UserController 响应与缓存全量切至自持 ApiResponse 与 JsonCodec；下线 LegacyApiResponseBridge 桥接器，改用自持 ApiResponseAdvice。
+ *   core.Json 与 core.exception.ServiceException 正式退场加入防回潮清单。
+ *   Java 源码中 AirPower 引用实现 0 文件 / 0 符号 / 0 引用（100% 纯净脱离）。
  */
-const BASELINE = { files: 3, symbols: 2, references: 5 }
+const BASELINE = { files: 0, symbols: 0, references: 0 }
 
 /** 已迁走的符号不能回潮（包括静态成员导入），与总量预算分开判断。 */
 const RETIRED_SYMBOLS = [
   ...[
     'CollectionUtil', 'ReflectUtil', 'DateTimeUtil', 'DictionaryUtil', 'FileUtil', 'NumberUtil', 'RandomUtil',
-    'StringUtil', 'TraceUtil', 'TreeUtil', 'TaskUtil', 'AccessTokenUtil', 'interfaces.ITree', 'interfaces.IException', 'annotation.Phone',
+    'StringUtil', 'TraceUtil', 'TreeUtil', 'TaskUtil', 'AccessTokenUtil', 'Json', 'interfaces.ITree', 'interfaces.IException', 'annotation.Phone',
     'annotation.Description', 'annotation.Meta', 'annotation.ReadOnly', 'annotation.Export', 'annotation.Dictionary',
-    'annotation.Desensitize', 'annotation.ExposeAll', 'enums.DesensitizeType',
+    'annotation.Desensitize', 'annotation.ExposeAll', 'enums.DesensitizeType', 'exception.ServiceException',
   ].map(name => `cn.hamm.airpower.core.${name}`),
   'cn.hamm.airpower.api.annotation.Api',
   'cn.hamm.airpower.api.ApiController',
@@ -285,6 +289,7 @@ const jsonFreeControllers = new Set([
   'SPMS-Server/src/main/java/cn/hamm/spms/base/bill/BaseBillController.java',
   'SPMS-Server/src/main/java/cn/hamm/spms/module/personnel/department/DepartmentController.java',
   'SPMS-Server/src/main/java/cn/hamm/spms/module/system/menu/MenuController.java',
+  'SPMS-Server/src/main/java/cn/hamm/spms/module/personnel/user/UserController.java',
 ])
 const passwordHasherConsumers = new Set([
   'SPMS-Server/src/main/java/cn/hamm/spms/module/personnel/user/UserService.java',

@@ -46,12 +46,6 @@
           现在写在这里。改成新版本 = 只动这一行（不再受第三方父 POM 牵制）。
         -->
         <springboot.version>3.4.4</springboot.version>
-        <!--
-          airpower-curd 的版本（退场期间唯一还需要的 airpower 依赖）。原来由父 POM 定义，
-          现在自持：**它只影响 airpower-curd 本身**，不再连带决定 Spring Boot / 插件 / 编码。
-          B8 删掉 airpower-curd 时，这行和 `airpower.version` 一起消失。
-        -->
-        <airpower.version>6.4.3</airpower.version>
 
         <!--
           P2 读链路换轨的地基版本（§19.33）。两个 artifact 必须**同版本**：3.5.9 起 JSqlParser 被拆成
@@ -66,7 +60,7 @@
       依赖版本表：只 import Spring Boot 官方 BOM。
       所以本工程里所有 org.springframework.boot / org.springframework / io.micrometer /
       com.h2database / org.flywaydb 与 jackson-databind、lombok 的版本由 BOM 管理；其余显式写版本
-      （mybatis-plus、springdoc、airpower-curd）。
+      （mybatis-plus、springdoc）。
     -->
     <dependencyManagement>
         <dependencies>
@@ -81,17 +75,22 @@
     </dependencyManagement>
 
     <dependencies>
+        <!-- Spring Boot 核心原生 Starter（由 spring-boot-dependencies BOM 管理版本，无私有框架依赖） -->
         <dependency>
-            <groupId>cn.hamm</groupId>
-            <artifactId>airpower-curd</artifactId>
-            <version>${airpower.version}</version>
-            <!-- Cookie 已由项目自建组件接管；旧模块无 API/CRUD 调用方，禁止再传递装入旧 Auto。 -->
-            <exclusions>
-                <exclusion>
-                    <groupId>cn.hamm</groupId>
-                    <artifactId>airpower-cookie</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
         <!-- 内部 JSON 文本编解码由项目直接持有；版本由 Boot 3.4.4 导入的 Jackson BOM 管理。
              不再把这项依赖的存在寄托在待退场的 airpower-core 上，也不改 HTTP ObjectMapper。 -->

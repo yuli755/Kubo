@@ -1,7 +1,6 @@
-package cn.hamm.spms.common.compat;
+package cn.hamm.spms.framework.http;
 
-import cn.hamm.airpower.core.Json;
-import cn.hamm.spms.framework.http.ApiResponse;
+import cn.hamm.spms.framework.util.Tracer;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -14,17 +13,15 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 
 /**
- * <h1>旧响应过滤链退场前的显式适配点</h1>
+ * <h1>全局 HTTP 响应增强</h1>
  *
- * <p>旧响应拦截器仅对 Json 执行 RootModel 白名单/脱敏/trace 处理。
- * 因此必须在它之前把新契约转换为旧对象，不能直接返回新 POJO 静默绕过字段保护。
- * 本类明确保留这一处旧依赖；接管过滤链并验收后再删除，不属于独立 framework。</p>
+ * <p>自持响应体处理器，统一为 {@link ApiResponse} 注入当前请求的链路追踪标识（Trace ID）。</p>
  *
  * @author Hamm.cn
  */
 @ControllerAdvice
 @Order(Ordered.HIGHEST_PRECEDENCE)
-public class LegacyApiResponseBridge implements ResponseBodyAdvice<Object> {
+public class ApiResponseAdvice implements ResponseBodyAdvice<Object> {
     @Override
     public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
         return ApiResponse.class.isAssignableFrom(returnType.getParameterType())
@@ -36,7 +33,9 @@ public class LegacyApiResponseBridge implements ResponseBodyAdvice<Object> {
                                   Class<? extends HttpMessageConverter<?>> converterType,
                                   ServerHttpRequest request, ServerHttpResponse response) {
         if (body instanceof ApiResponse<?> result) {
-            return Json.show(result.getCode(), result.getMessage(), result.getData()).setTraceId(result.getTraceId());
+            if (result.getTraceId() == null && Tracer.getTraceId() != null) {
+                return result.withTraceId(Tracer.getTraceId());
+            }
         }
         return body;
     }

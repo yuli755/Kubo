@@ -9,7 +9,7 @@ import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.framework.query.QueryListRequest;
 import cn.hamm.spms.framework.query.QueryPageRequest;
 import cn.hamm.spms.framework.query.QueryPageResponse;
-import cn.hamm.spms.framework.web.ApiResponse;
+import cn.hamm.spms.framework.http.ApiResponse;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
