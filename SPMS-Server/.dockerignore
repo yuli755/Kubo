@@ -1,0 +1,20 @@
+# Git & IDE
+.git
+.gitignore
+.idea
+*.iml
+*.ipr
+*.iws
+
+# Maven Artifacts & Target
+target/
+*.jar
+*.war
+*.ear
+
+# Logs & Temp
+*.log
+logs/
+temp/
+tmp/
+.DS_Store

@@ -34,6 +34,7 @@
     "ddl:check": "node infra/scripts/check-ddl-entity-drift.mjs",
     "migration:check": "node infra/scripts/check-migration-dialect.mjs",
     "monitoring:check": "node infra/scripts/check-monitoring-config.mjs",
+    "canary:check": "node infra/scripts/check-canary-readiness.mjs",
     "drill:check": "node infra/scripts/check-backup-drill.mjs",
     "perms:report": "node infra/scripts/check-permission-codes.mjs --verbose",
     "check": "pnpm lint:ci && pnpm airpower:check && pnpm airpower:backend -- --check && pnpm pom:check && pnpm deadcode:check && pnpm exports:check && pnpm typecheck && pnpm test:coverage && pnpm perms:check && pnpm auth:check && pnpm text:check && pnpm ddl:check && pnpm migration:check && pnpm monitoring:check && pnpm drill:check && pnpm build && pnpm demo:check && pnpm size",

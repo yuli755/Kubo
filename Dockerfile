@@ -1,39 +1,45 @@
-# 构建阶段
+# =============================================================================
+# 阶段 1：静态编译构建
+# =============================================================================
 FROM node:20-alpine AS build
 
-# 设置工作目录
 WORKDIR /app
 
-# 启用 corepack：pnpm 版本由 package.json 的 "packageManager": "pnpm@9.0.0" 锁定，
-# 与 CI（pnpm/action-setup@v4）保持一致。
+# 启用 corepack：由 package.json 的 "packageManager": "pnpm@9.0.0" 锁定
 RUN corepack enable
 
-# 依赖清单：pnpm-lock.yaml 必须与 package.json 一起复制，frozen-lockfile 才能生效。
-# 历史这里用 yarn（且仓库无 yarn.lock），导致：① 依赖解析与 CI 不一致；
-# ② pnpm.overrides（axios 1.20.0 漏洞锁定）对 yarn 不生效 —— 镜像可能打出带漏洞的 axios。
+# 仅复制依赖元数据，利用分层缓存
 COPY package.json pnpm-lock.yaml ./
 
-# 安装依赖（国内构建环境可取消下一行注释换 npmmirror 源）
-# RUN pnpm config set registry https://registry.npmmirror.com
+# 冻结模式安装依赖（依赖锁定防漂移）
 RUN pnpm install --frozen-lockfile
 
-# 复制源代码
+# 复制前端源代码
 COPY . .
 
-# 构建生产版本（等价于 vite build --mode production）
+# 生产环境打包构建
 RUN pnpm build
 
-# 生产阶段
+# =============================================================================
+# 阶段 2：轻量生产静态交付（Nginx Alpine 基础镜像仅 ~25MB）
+# =============================================================================
 FROM nginx:alpine
 
-# 复制构建产物到nginx目录
+# 清理默认静态网页
+RUN rm -rf /usr/share/nginx/html/*
+
+# 从构建阶段复制打包产物
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# 复制nginx配置
+# 覆盖 Nginx 生产反向代理配置
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# 暴露端口
+# 暴露 HTTP 服务端口
 EXPOSE 80
 
-# 启动nginx
+# 容器探针健康检查
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD wget -q --spider http://127.0.0.1/ || exit 1
+
+# 启动 Nginx
 CMD ["nginx", "-g", "daemon off;"]
