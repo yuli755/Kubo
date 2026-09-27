@@ -2,12 +2,12 @@
 import type { IDialogActionProps } from '@/framework'
 import type { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
 import type { PurchaseEntity } from '@/model/channel/purchase/PurchaseEntity'
-import { ElAlert, ElDescriptions, ElDescriptionsItem, ElTag } from 'element-plus'
+import { ElAlert, ElButton, ElDescriptions, ElDescriptionsItem, ElTag } from 'element-plus'
 import { computed, ref } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import { Permissions } from '@/config/permissions'
-import { getCellText, getEnumLabel, getTableConfig } from '@/framework'
+import { FeedbackUtil, getCellText, getEnumLabel, getTableConfig } from '@/framework'
 import { KPurchaseService } from '@/hook/channel/usePurchase'
 import { useDetail } from '@/hook/kubo/useDetail'
 import { PurchaseDetailEntity as PurchaseDetail } from '@/model/channel/purchase/PurchaseDetailEntity'
@@ -92,6 +92,38 @@ function canFinish(): boolean {
 
 const finishing = ref<PurchaseDetailEntity | null>(null)
 
+const hasPendingDetails = computed(() => {
+  return (bill.value?.details ?? []).some((d) => {
+    const waiting = Math.max(0, Number(d.quantity ?? 0) - Number(d.finishQuantity ?? 0))
+    return waiting > 0
+  })
+})
+
+async function finishAllDetails() {
+  const pending = (bill.value?.details ?? []).filter((d) => {
+    const waiting = Math.max(0, Number(d.quantity ?? 0) - Number(d.finishQuantity ?? 0))
+    return waiting > 0 && d.id
+  })
+  if (!pending.length) {
+    FeedbackUtil.toastWarning('没有待到货的采购明细')
+    return
+  }
+  await FeedbackUtil.confirmWarning(
+    `是否确认将剩余 ${pending.length} 项明细全部登记到货？系统将按待采购数量全额结清。`,
+    '一键全部到货',
+  )
+  for (const d of pending) {
+    const waiting = Math.max(0, Number(d.quantity ?? 0) - Number(d.finishQuantity ?? 0))
+    await new KPurchaseService().addDetailFinishQuantity({
+      id: d.id,
+      quantity: waiting,
+      billId: d.billId,
+    } as never)
+  }
+  FeedbackUtil.toastSuccess('整单采购物资已全部登记到货')
+  await detail.reload()
+}
+
 function openFinish(row: PurchaseDetailEntity) {
   finishing.value = row
 }
@@ -171,6 +203,15 @@ function close() {
           v-if="canFinish()"
           class="purchase-detail__table-tip"
         >
+          <ElButton
+            v-if="hasPendingDetails"
+            size="small"
+            type="success"
+            plain
+            @click="finishAllDetails"
+          >
+            一键全部到货
+          </ElButton>
           <ElTag
             effect="plain"
             size="small"

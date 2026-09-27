@@ -122,13 +122,17 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       expect(listSource).toContain('wms.inventory')
     })
 
-    it('生产配置真实落地第一批次灰度放量 (wms.inventory) 且通过门禁', () => {
+    it('生产配置真实落地灰度放量白名单 (wms.inventory, purchase, sale) 与 Outbox 调度且通过门禁', () => {
       const prodYml = readFileSync(
         join(ROOT, 'SPMS-Server/src/main/resources/application-production.yml'),
         'utf8',
       )
       expect(prodYml).toContain('enforce-resources:')
       expect(prodYml).toContain('- wms.inventory')
+      expect(prodYml).toContain('- channel.purchase')
+      expect(prodYml).toContain('- channel.sale')
+      expect(prodYml).toContain('outbox:')
+      expect(prodYml).toContain('enabled: true')
 
       const inventorySource = readFileSync(
         join(ROOT, 'src/view/console/wms/inventory/list.vue'),
@@ -139,7 +143,7 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       expect(inventorySource).toContain('onScanLocate')
     })
 
-    it('购销核心单据具备一键「再来一单」快速克隆功能，大幅精简重复录单流程', () => {
+    it('购销核心单据具备一键「再来一单」与「一键全部到货」，大幅精简全流程操作', () => {
       const purchaseListSource = readFileSync(
         join(ROOT, 'src/view/console/channel/purchase/list.vue'),
         'utf8',
@@ -147,6 +151,13 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       expect(purchaseListSource).toContain('再来一单')
       expect(purchaseListSource).toContain('onCloneBill')
       expect(purchaseListSource).toContain('initial-bill')
+
+      const purchaseDetailSource = readFileSync(
+        join(ROOT, 'src/view/console/channel/purchase/component/detail.vue'),
+        'utf8',
+      )
+      expect(purchaseDetailSource).toContain('finishAllDetails')
+      expect(purchaseDetailSource).toContain('一键全部到货')
 
       const saleListSource = readFileSync(
         join(ROOT, 'src/view/console/channel/sale/list.vue'),

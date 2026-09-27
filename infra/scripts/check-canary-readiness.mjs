@@ -115,7 +115,16 @@ function checkCanaryConfig() {
     passes.push(`写侧行级守卫状态正常：${rowWriteEnabled ? '已启用' : '未启用（安全默认）'}`)
   }
 
-  // 6. 输出结果
+  // 6. 权限变更 Outbox 派发状态检查
+  const outboxEnabled = prodDp.outbox?.enabled ?? baseDp.outbox?.enabled ?? false
+  if (outboxEnabled) {
+    passes.push(`权限变更 Outbox 派发调度已激活（轮询间隔: ${prodDp.outbox?.['poll-ms'] || baseDp.outbox?.['poll-ms'] || 5000}ms，Redis 广播同步）`)
+  }
+  else {
+    passes.push('权限变更 Outbox 派发器：未启用（单机/开发模式默认）')
+  }
+
+  // 7. 输出结果
   if (VERBOSE) {
     for (const p of passes) {
       console.log(`  ✓ ${p}`)

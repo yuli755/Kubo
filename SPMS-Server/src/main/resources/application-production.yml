@@ -73,7 +73,7 @@ springdoc:
     enabled: false # 生产环境建议关闭 UI
   show-actuator: false
 
-# 生产以白名单逐步推进数据权限放量：第一批次首推仓储库存（wms.inventory）
+# 生产以白名单逐步推进数据权限放量：第一批次仓储库存（wms.inventory）+ 第二批次购销核心单据
 kubo:
   security:
     # C-1（阶段D）：生产绝不放行弱默认 JWT 密钥；未注入
@@ -85,3 +85,8 @@ kubo:
     shadow-diff-log: true
     enforce-resources:
       - wms.inventory
+      - channel.purchase
+      - channel.sale
+    outbox:
+      enabled: true
+      poll-ms: 5000
