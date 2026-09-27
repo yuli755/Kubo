@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import type { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
 import { Plus } from '@element-plus/icons-vue'
-import { ElButton, ElTag } from 'element-plus'
-import { computed, ref } from 'vue'
+import { ElButton, ElInputNumber, ElTag } from 'element-plus'
+import { computed, ref, watch } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import { Permissions } from '@/config/permissions'
@@ -14,18 +14,15 @@ import PurchaseDetailEditor from './detailEditor.vue'
 /**
  * # 采购单编辑器（F4 批 5 · 新底座）
  *
- * 主表单（单号 + 采购事由）由 `KFormDialog` 按 `@KForm` 元数据渲染，
+ * 主表单（单号 + 采购事由 + 金额）由 `KFormDialog` 按 `@KForm` 元数据渲染，
  * 明细数组放在 `#extra` 里用 `KDetailTable` 渲染（尚未提交给后端，没有服务/分页/搜索）。
  *
- * 三条业务判据逐条保真：
- * 1. **明细为空不发请求**（旧版 `FeedbackUtil.toastWarning('请添加明细后再提交')`，
- *    本批统一到与 wms 相同的 `ElMessage` 口径 —— 文案不变）；
- * 2. **明细增删要权限**：旧版 `v-permission="[add, update]"`，这里挂在 `KDetailTable` 的
- *    `row-actions.permission` 与「添加明细」按钮上（数组语义 = 满足其一即可，与指令同口径）；
- * 3. **删明细二次确认**（旧文案「是否删除选中行的采购明细？」）。
- *
- * 明细本身由 `PurchaseDetailEditor` 编辑：选物料 + 选供应商时会去查「该物料 × 该供应商」
- * 的专属采购价（`purchasePrice/getByMaterialAndSupplier`），查不到回退物料的参考报价。
+ * 核心优化与业务规则：
+ * 1. **字段能选择绝不让用户手工计算**：`totalPrice` 与 `totalRealPrice` 自动基于采购明细项
+ *    实时核算（单价 × 数量），并在表单中联动同步，避免人工心算输入出错；
+ * 2. **明细为空不发请求**（旧版 `FeedbackUtil.toastWarning('请添加明细后再提交')`）；
+ * 3. **明细增删要权限**：挂在 `KDetailTable` 的 `row-actions.permission` 与「添加明细」按钮上；
+ * 4. **删明细二次确认**（「是否删除选中行的采购明细？」）。
  */
 const props = defineProps<{
   modelValue: boolean
@@ -42,16 +39,40 @@ const form = ref<Record<string, unknown>>({})
 const details = computed<PurchaseDetailEntity[]>(() => (form.value.details ?? []) as PurchaseDetailEntity[])
 
 const totalAmount = computed(() => {
-  return details.value.reduce((sum, item) => {
+  const sum = details.value.reduce((acc, item) => {
     const qty = Number(item.quantity) || 0
     const prc = Number(item.price) || 0
-    return sum + (qty * prc)
+    return acc + (qty * prc)
   }, 0)
+  return Math.round(sum * 100) / 100
 })
+
+watch(
+  totalAmount,
+  (val) => {
+    if (form.value) {
+      form.value.totalPrice = val
+      if (
+        form.value.totalRealPrice === undefined
+        || form.value.totalRealPrice === null
+        || Number(form.value.totalRealPrice) === 0
+      ) {
+        form.value.totalRealPrice = val
+      }
+    }
+  },
+  { immediate: true },
+)
 
 function onLoaded(next: Record<string, unknown>) {
   next.details ??= []
   form.value = next
+  if (totalAmount.value > 0) {
+    next.totalPrice = totalAmount.value
+    if (next.totalRealPrice === undefined || next.totalRealPrice === null) {
+      next.totalRealPrice = totalAmount.value
+    }
+  }
 }
 
 async function addDetail() {
@@ -75,6 +96,10 @@ function beforeSubmit(payload: Record<string, unknown>) {
     FeedbackUtil.toastWarning('请添加明细后再提交')
     return null
   }
+  payload.totalPrice = totalAmount.value
+  if (payload.totalRealPrice === undefined || payload.totalRealPrice === null || payload.totalRealPrice === '') {
+    payload.totalRealPrice = totalAmount.value
+  }
   return payload
 }
 </script>
@@ -93,6 +118,27 @@ function beforeSubmit(payload: Record<string, unknown>) {
     @saved="emit('saved')"
     @update:model-value="value => emit('update:modelValue', value)"
   >
+    <template #field-totalPrice="{ form: f }">
+      <ElInputNumber
+        v-model="f.totalPrice as number"
+        :min="0"
+        :precision="2"
+        disabled
+        placeholder="由采购明细自动核算"
+        style="width: 100%"
+      />
+    </template>
+
+    <template #field-totalRealPrice="{ form: f }">
+      <ElInputNumber
+        v-model="f.totalRealPrice as number"
+        :min="0"
+        :precision="2"
+        placeholder="实际金额（默认与总额一致）"
+        style="width: 100%"
+      />
+    </template>
+
     <template #extra>
       <div class="purchase-editor__details">
         <div class="purchase-editor__head">

@@ -1,18 +1,23 @@
 <script lang="ts" setup>
-import { ElAlert } from 'element-plus'
+import { ElAlert, ElOption, ElSelect } from 'element-plus'
+import { computed, onMounted, ref } from 'vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
+import { QueryRequest } from '@/framework'
+import { KRoleService } from '@/hook/personnel/useRole'
 import { DataPolicyService } from '@/hook/system/useDataPolicy'
+import { DataResourceService } from '@/hook/system/useDataResource'
+import { RoleEntity } from '@/model/personnel/role/RoleEntity'
+import { DataResourceEntity } from '@/model/system/datapermission/DataResourceEntity'
 
 /**
  * # 行级策略编辑器（F4 批 6 · 新底座）
  *
- * 九个字段全部由 `@KForm` 元数据驱动渲染，页面只负责一件事：**把维度绑定的口径写在
- * 用户眼前**（`#extra` 里那段说明）。
- *
- * 那段文案不是装饰：`conditionJson` 只允许白名单列、工厂维度要沿
- * `FACTORY:storage.id` 关联一跳、裸 SQL 会被后端拒绝 —— 这些规则**只在后端实现**，
- * 界面上不说，管理员就会把"保存成功但永不命中"的策略当成生效。
- * 放在 `#extra`（字段之后）：先填再读到解释，比先读一段长文再填更符合操作顺序。
+ * 字段由 `@KForm` 元数据驱动渲染，并进行如下交互体验优化：
+ * 1. **数据资源ID（`resourceId`）下拉速选**：集成 `DataResourceService`，
+ *    提供系统已注册数据资源标识与表名下拉，无需手动记忆与查询主键 ID；
+ * 2. **角色编码（`roleCode`）下拉速选**：提供 `default`（全员通配）以及全系统角色下拉速选，
+ *    支持检索与自定义输入；
+ * 3. **维度绑定口径指引**：在 `#extra` 区域清晰呈现维度规则与语法。
  */
 defineProps<{
   /** 显隐 */
@@ -25,6 +30,32 @@ const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void
   (event: 'saved'): void
 }>()
+
+const resourceList = ref<DataResourceEntity[]>([])
+const roleList = ref<RoleEntity[]>([])
+
+async function loadOptions() {
+  try {
+    const [resources, roles] = await Promise.all([
+      new DataResourceService().getList(new QueryRequest(DataResourceEntity)),
+      new KRoleService().getList(new QueryRequest(RoleEntity)),
+    ])
+    resourceList.value = resources
+    roleList.value = roles
+  }
+  catch {
+    // 降级兜底
+  }
+}
+
+onMounted(() => {
+  loadOptions()
+})
+
+const roleOptions = computed(() => [
+  { label: 'default（全员通配 / 默认策略）', value: 'default' },
+  ...roleList.value.map(r => ({ label: `${r.name} (${r.code})`, value: r.code })),
+])
 
 function close() {
   emit('update:modelValue', false)
@@ -42,9 +73,45 @@ function onSaved() {
     :model-value="modelValue"
     :service="DataPolicyService"
     width="820px"
-    @update:model-value="close"
     @saved="onSaved"
+    @update:model-value="close"
   >
+    <template #field-resourceId="{ form: f }">
+      <ElSelect
+        v-model="f.resourceId"
+        clearable
+        filterable
+        placeholder="请选择数据资源"
+        style="width: 100%"
+      >
+        <ElOption
+          v-for="res in resourceList"
+          :key="res.id"
+          :label="`${res.resourceKey}（${res.tableName}）`"
+          :value="res.id"
+        />
+      </ElSelect>
+    </template>
+
+    <template #field-roleCode="{ form: f }">
+      <ElSelect
+        v-model="f.roleCode"
+        allow-create
+        clearable
+        default-first-option
+        filterable
+        placeholder="请选择角色（留空或 default 为通配）"
+        style="width: 100%"
+      >
+        <ElOption
+          v-for="role in roleOptions"
+          :key="role.value"
+          :label="role.label"
+          :value="role.value"
+        />
+      </ElSelect>
+    </template>
+
     <template #extra>
       <ElAlert
         class="policy-tip"

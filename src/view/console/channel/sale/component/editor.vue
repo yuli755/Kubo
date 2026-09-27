@@ -2,8 +2,8 @@
 import type { CustomerEntity } from '@/model/channel/customer/CustomerEntity'
 import type { SaleDetailEntity } from '@/model/channel/sale/SaleDetailEntity'
 import { Plus } from '@element-plus/icons-vue'
-import { ElButton, ElInput, ElTag } from 'element-plus'
-import { computed, ref } from 'vue'
+import { ElButton, ElInput, ElInputNumber, ElTag } from 'element-plus'
+import { computed, ref, watch } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import KSelector from '@/component/framework/KSelector.vue'
@@ -17,17 +17,15 @@ import SaleDetailEditor from './detailEditor.vue'
 /**
  * # 销售单编辑器（F4 批 5 · 新底座）
  *
- * 与采购单编辑器同构（主表单元数据渲染 + 明细 `KDetailTable`），差别只有两处：
+ * 与采购单编辑器同构（主表单元数据渲染 + 明细 `KDetailTable`），核心体验优化点：
  *
- * 1. **客户是单据主表字段**：旧版用 `ASelect + CustomerSelector` 选客户，这里用
+ * 1. **客户智能选择器**：旧版用 `ASelect + CustomerSelector` 选客户，这里用
  *    `KSelector + KCustomerService` 写进 `#field-customerId` 插槽，选中时同时回填
- *    `customer`（嵌套对象）与 `customerId`（后端关联用）—— 提交前再兜一次同步，
- *    保证两个字段永远一致（旧版 `afterGetDetail` 里手工补 customerId 就是为这件事）；
- * 2. **明细继承单据客户**：新建明细时把表单上的客户塞进明细，明细编辑器据此查
+ *    `customer`（嵌套对象）与 `customerId`（后端关联用）—— 提交前再兜一次同步；
+ * 2. **总金额明细自动核算**：`totalPrice` 字段基于销售明细自动汇总（单价 × 数量），
+ *    只读展示，彻底杜绝人工口算或漏算输入错误；
+ * 3. **明细继承单据客户**：新建明细时把表单上的客户塞进明细，明细编辑器据此查
  *    「该物料 × 该客户」的专属销售价。
- *
- * 顺手修掉的两处旧文案：分组标题「采购单」→「销售单」、删明细确认「采购明细」→「销售明细」
- * （旧页面复制采购单改的，一直没改回来）。
  */
 const props = defineProps<{
   modelValue: boolean
@@ -45,18 +43,32 @@ const details = computed<SaleDetailEntity[]>(() => (form.value.details ?? []) as
 const customerPicking = ref(false)
 
 const totalAmount = computed(() => {
-  return details.value.reduce((sum, item) => {
+  const sum = details.value.reduce((acc, item) => {
     const qty = Number(item.quantity) || 0
     const prc = Number(item.price) || 0
-    return sum + (qty * prc)
+    return acc + (qty * prc)
   }, 0)
+  return Math.round(sum * 100) / 100
 })
+
+watch(
+  totalAmount,
+  (val) => {
+    if (form.value) {
+      form.value.totalPrice = val
+    }
+  },
+  { immediate: true },
+)
 
 const customerName = computed(() => (form.value.customer as CustomerEntity | undefined)?.name ?? '')
 
 function onLoaded(next: Record<string, unknown>) {
   next.details ??= []
   form.value = next
+  if (totalAmount.value > 0) {
+    next.totalPrice = totalAmount.value
+  }
 }
 
 function onCustomerPicked(rows: unknown[]) {
@@ -101,6 +113,7 @@ function beforeSubmit(payload: Record<string, unknown>) {
     // 两个字段一起提交：后端按 customerId 关联，列表/详情列读嵌套的 customer
     payload.customerId = customer.id
   }
+  payload.totalPrice = totalAmount.value
   return payload
 }
 </script>
@@ -130,6 +143,17 @@ function beforeSubmit(payload: Record<string, unknown>) {
           选择
         </ElButton>
       </div>
+    </template>
+
+    <template #field-totalPrice="{ form: f }">
+      <ElInputNumber
+        v-model="f.totalPrice as number"
+        :min="0"
+        :precision="2"
+        disabled
+        placeholder="由销售明细自动核算"
+        style="width: 100%"
+      />
     </template>
 
     <template #extra>

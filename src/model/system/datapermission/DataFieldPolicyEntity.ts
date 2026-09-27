@@ -58,6 +58,9 @@ export class DataFieldPolicyEntity extends BaseEntity {
   @KTable({
     width: 110,
   })
+  @KForm({
+    placeholder: '留空或 default 表示通配全部角色',
+  })
   @KField({
     label: '角色编码（default 为通配）',
   })
@@ -92,6 +95,9 @@ export class DataFieldPolicyEntity extends BaseEntity {
   @KTable({
     width: 120,
   })
+  @KForm({
+    placeholder: '脱敏表达式（例如自定义掩码规则）',
+  })
   @KField({
     label: '遮蔽表达式',
   })
@@ -99,6 +105,10 @@ export class DataFieldPolicyEntity extends BaseEntity {
 
   @KTable({
     width: 90,
+  })
+  @KForm({
+    switch: true,
+    defaultValue: false,
   })
   @KField({
     // 挂布尔字典：key 就是 true/false，AFormField 会渲染成下拉并提交真布尔
@@ -111,6 +121,10 @@ export class DataFieldPolicyEntity extends BaseEntity {
   @KTable({
     width: 90,
   })
+  @KForm({
+    number: true,
+    defaultValue: 0,
+  })
   @KField({
     label: '优先级',
   })
@@ -118,6 +132,10 @@ export class DataFieldPolicyEntity extends BaseEntity {
 
   @KTable({
     width: 90,
+  })
+  @KForm({
+    switch: true,
+    defaultValue: true,
   })
   @KField({
     // 挂布尔字典：key 就是 true/false，AFormField 会渲染成下拉并提交真布尔

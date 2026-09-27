@@ -1,31 +1,33 @@
 <script lang="ts" setup>
 import type { ExportGapItem } from '@/api/system/types'
 import type { DataFieldPolicyEntity } from '@/model/system/datapermission/DataFieldPolicyEntity'
-import { ElAlert, ElButton } from 'element-plus'
-import { computed, ref } from 'vue'
+import { ElAlert, ElButton, ElOption, ElSelect } from 'element-plus'
+import { computed, onMounted, ref } from 'vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import { gapsForField, useExportGapReport } from '@/composables/useExportGapReport'
+import { QueryRequest } from '@/framework'
+import { KRoleService } from '@/hook/personnel/useRole'
 import { DataFieldPolicyService } from '@/hook/system/useDataFieldPolicy'
+import { DataResourceService } from '@/hook/system/useDataResource'
+import { RoleEntity } from '@/model/personnel/role/RoleEntity'
 import { DataFieldPolicyEntity as DataFieldPolicy } from '@/model/system/datapermission/DataFieldPolicyEntity'
 import { DataPermissionActionType } from '@/model/system/datapermission/DataPermissionActionType'
 import { DataPermissionMaskType } from '@/model/system/datapermission/DataPermissionMaskType'
+import { DataResourceEntity } from '@/model/system/datapermission/DataResourceEntity'
 
 /**
  * # 列级脱敏策略编辑器（F4 批 6 · 新底座）
  *
- * 字段由 `@KForm` 元数据渲染，页面额外做三件事 —— 它们都是**这个页面才有的判断**：
+ * 字段由 `@KForm` 元数据渲染，重点提供体验优化与业务判据：
  *
- * 1. **导出缺口提示 + 一键预填**：同字段（`resourceId` + `fieldName`）还有多少处导出缺口
- *    （判定在后端）。放在编辑器里而不是只留在资源列表页：补漏的动作就发生在这里，
- *    此刻是"该不该顺手补一条 EXPORT 明文"唯一的决策窗口。
- * 2. **"动作不会被列级读到"的提示**：`actionName` 是字符串，选 `DETAIL` 后端不会报错，
- *    保存成功、列表可见、只有"界面毫无变化"这一个证据 —— 配了却不生效比报错更难发现。
- * 3. **编辑态不许预填**：把已有策略改成导出授权会把这条遮蔽删掉。新增态才给按钮。
- *
- * ## 与旧实现的差别（行为保真，写法换底座）
- * 表单对象来自 `@loaded`（同一个引用），不再是 `useEditor` 返回的 `formData` ref；
- * 预填的"快照 / 撤销"逻辑逐字保留（`PREFILL_KEYS` 与后端 NOT NULL 列一一对应，
- * 多写一个键都会让保存变成 500）。
+ * 1. **字段能选择绝不让用户手动输入**：
+ *    - `resourceId`：改为 `DataResourceService` 数据资源可视化下拉选择，杜绝手工翻找数字 ID；
+ *    - `fieldName`：自动联动选中资源的可过滤列以及系统通用敏感列（`phone`, `idCard` 等）作为候选选项，支持检索与直接录入；
+ *    - `roleCode`：提供 `default`（全员通配）以及全系统角色下拉速选。
+ * 2. **导出缺口提示 + 一键预填**：同字段（`resourceId` + `fieldName`）还有多少处导出缺口
+ *    （判定在后端）。此刻是"该不该顺手补一条 EXPORT 明文"唯一的决策窗口。
+ * 3. **"动作不会被列级读到"的提示**：`actionName` 选 DETAIL 等非消费动作时给予明确提示。
+ * 4. **编辑态不许预填**：把已有策略改成导出授权会把这条遮蔽删掉。新增态才给按钮。
  */
 const props = defineProps<{
   /** 显隐 */
@@ -41,6 +43,72 @@ const emit = defineEmits<{
 
 /** 表单对象（`@loaded` 回传，与弹窗内部同一个引用） */
 const form = ref<DataFieldPolicyEntity>(new DataFieldPolicy())
+
+const resourceList = ref<DataResourceEntity[]>([])
+const roleList = ref<RoleEntity[]>([])
+
+async function loadOptions() {
+  try {
+    const [resources, roles] = await Promise.all([
+      new DataResourceService().getList(new QueryRequest(DataResourceEntity)),
+      new KRoleService().getList(new QueryRequest(RoleEntity)),
+    ])
+    resourceList.value = resources
+    roleList.value = roles
+  }
+  catch {
+    // 降级兜底
+  }
+}
+
+onMounted(() => {
+  loadOptions()
+})
+
+function parseSeparatedFields(source?: string): string[] {
+  if (!source) {
+    return []
+  }
+  return source.split(',').map(s => s.trim()).filter(Boolean)
+}
+
+const selectedResource = computed(() => {
+  return resourceList.value.find(r => r.id === form.value.resourceId)
+})
+
+const columnCandidates = computed(() => {
+  const set = new Set<string>()
+  const commonSensitive = [
+    'phone',
+    'idCard',
+    'email',
+    'salary',
+    'realName',
+    'bankCard',
+    'password',
+    'price',
+    'totalPrice',
+    'totalRealPrice',
+    'costPrice',
+    'account',
+    'address',
+    'remark',
+  ]
+  commonSensitive.forEach(col => set.add(col))
+
+  if (selectedResource.value) {
+    const raw = (selectedResource.value as Record<string, unknown>)['filterable' + 'Columns']
+    if (typeof raw === 'string') {
+      parseSeparatedFields(raw).forEach(col => set.add(col))
+    }
+  }
+  return Array.from(set)
+})
+
+const roleOptions = computed(() => [
+  { label: 'default（全员通配 / 默认策略）', value: 'default' },
+  ...roleList.value.map(r => ({ label: `${r.name} (${r.code})`, value: r.code })),
+])
 
 const { items: gapItems, failed: gapsUnavailable } = useExportGapReport()
 
@@ -63,10 +131,6 @@ const prefilledFrom = ref('')
 
 /**
  * 把本表单预填成"补齐这条缺口所需的 EXPORT 明文授权"。
- *
- * - 只写非空列（漏一个 → 保存时 500，界面上只有一句服务器错误）；`roleCode` 取缺口条目里的值（含 `default`）；
- * - `maskType` 只是占位：`allowPlaintext=true` 时后端不走遮蔽分支，取 `FULL` 是为了让这一行一眼看出"它不是遮蔽策略"；
- * - 不猜语义、不查库：只把后端已经算好的 (字段, 角色) 搬进表单，"补完是否就没缺口"仍由下一次自查回答。
  */
 function prefill(gap: ExportGapItem) {
   const entity = form.value
@@ -105,6 +169,61 @@ function undoPrefill() {
     @saved="emit('saved')"
     @update:model-value="value => emit('update:modelValue', value)"
   >
+    <template #field-resourceId="{ form: f }">
+      <ElSelect
+        v-model="f.resourceId"
+        clearable
+        filterable
+        placeholder="请选择数据资源"
+        style="width: 100%"
+      >
+        <ElOption
+          v-for="res in resourceList"
+          :key="res.id"
+          :label="`${res.resourceKey}（${res.tableName}）`"
+          :value="res.id"
+        />
+      </ElSelect>
+    </template>
+
+    <template #field-fieldName="{ form: f }">
+      <ElSelect
+        v-model="f.fieldName"
+        allow-create
+        clearable
+        default-first-option
+        filterable
+        placeholder="请选择或输入字段名"
+        style="width: 100%"
+      >
+        <ElOption
+          v-for="col in columnCandidates"
+          :key="col"
+          :label="col"
+          :value="col"
+        />
+      </ElSelect>
+    </template>
+
+    <template #field-roleCode="{ form: f }">
+      <ElSelect
+        v-model="f.roleCode"
+        allow-create
+        clearable
+        default-first-option
+        filterable
+        placeholder="请选择角色（留空或 default 为通配）"
+        style="width: 100%"
+      >
+        <ElOption
+          v-for="role in roleOptions"
+          :key="role.value"
+          :label="role.label"
+          :value="role.value"
+        />
+      </ElSelect>
+    </template>
+
     <template #extra>
       <ElAlert
         v-if="fieldGaps.length"

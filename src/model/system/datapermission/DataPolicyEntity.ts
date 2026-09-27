@@ -48,6 +48,9 @@ export class DataPolicyEntity extends BaseEntity {
   @KTable({
     width: 120,
   })
+  @KForm({
+    requiredString: true,
+  })
   @KField({
     dictionary: DataPermissionSubjectType,
     label: '主体类型',
@@ -57,6 +60,10 @@ export class DataPolicyEntity extends BaseEntity {
   @KTable({
     width: 110,
   })
+  @KForm({
+    number: true,
+    placeholder: '主体ID（对应用户/部门/仓库等实体ID）',
+  })
   @KField({
     label: '主体ID',
   })
@@ -65,6 +72,9 @@ export class DataPolicyEntity extends BaseEntity {
   @KTable({
     width: 110,
   })
+  @KForm({
+    placeholder: '留空或 default 表示通配全部角色',
+  })
   @KField({
     label: '角色编码',
   })
@@ -72,6 +82,9 @@ export class DataPolicyEntity extends BaseEntity {
 
   @KTable({
     width: 100,
+  })
+  @KForm({
+    requiredString: true,
   })
   @KField({
     dictionary: DataPermissionActionType,
@@ -86,6 +99,10 @@ export class DataPolicyEntity extends BaseEntity {
     width: 260,
     copy: true,
   })
+  @KForm({
+    textarea: true,
+    placeholder: '条件树 JSON 规则，留空为不过滤',
+  })
   @KField({
     label: '条件树JSON',
   })
@@ -94,6 +111,10 @@ export class DataPolicyEntity extends BaseEntity {
   @KTable({
     width: 90,
   })
+  @KForm({
+    number: true,
+    defaultValue: 0,
+  })
   @KField({
     label: '优先级',
   })
@@ -101,6 +122,10 @@ export class DataPolicyEntity extends BaseEntity {
 
   @KTable({
     width: 90,
+  })
+  @KForm({
+    switch: true,
+    defaultValue: true,
   })
   @KField({
     // 挂布尔字典：key 就是 true/false，AFormField 会渲染成下拉并提交真布尔
