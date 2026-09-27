@@ -17,8 +17,10 @@ import {
   ElForm,
   ElFormItem,
   ElInput,
+  ElOption,
   ElPagination,
   ElPopover,
+  ElSelect,
   ElTable,
   ElTableColumn,
   ElTooltip,
@@ -33,7 +35,7 @@ import {
   useSlots,
   watch,
 } from 'vue'
-import { getCellColor, getCellText, getColumnAlign, getDictionary, getSearchConfigList, getTableConfigList } from '@/framework'
+import { getCellColor, getCellText, getColumnAlign, getDictionary, getEnumItems, getSearchConfigList, getTableConfigList } from '@/framework'
 
 /**
  * # KTable —— 自研表格（替代 airpower `ATable`）
@@ -232,15 +234,15 @@ const isTree = computed(() => props.table.isTree.value)
 const searchDraft = ref<Record<string, unknown>>({})
 
 watch(
-  searchFields,
-  (fields) => {
+  [searchFields, () => props.table.filter.value],
+  ([fields, filter]) => {
     const draft: Record<string, unknown> = {}
     for (const field of fields) {
-      draft[field.key] = (props.table.filter.value as Record<string, unknown>)[field.key] ?? ''
+      draft[field.key] = (filter as Record<string, unknown>)[field.key] ?? (field.dictionary ? undefined : '')
     }
     searchDraft.value = draft
   },
-  { immediate: true },
+  { immediate: true, deep: true },
 )
 
 const hasSearch = computed(() => searchFields.value.length > 0)
@@ -256,7 +258,9 @@ function onSearch() {
 }
 
 function onResetSearch() {
-  searchDraft.value = Object.fromEntries(searchFields.value.map(field => [field.key, '']))
+  searchDraft.value = Object.fromEntries(
+    searchFields.value.map(field => [field.key, field.dictionary ? undefined : '']),
+  )
   props.table.reset()
 }
 
@@ -313,8 +317,32 @@ function clearSelection() {
   emit('selectionChanged', [])
 }
 
+const isAllSelected = computed(() => {
+  const current = props.table.list.value
+  if (!current.length || !selection.value.length) {
+    return false
+  }
+  const selectedIdSet = new Set(selection.value.map(s => s.id))
+  return current.every(row => selectedIdSet.has(row.id))
+})
+
+function toggleSelectAll() {
+  if (!tableRef.value) {
+    return
+  }
+  if (isAllSelected.value) {
+    clearSelection()
+  }
+  else {
+    for (const row of props.table.list.value) {
+      tableRef.value.toggleRowSelection(row as never, true)
+    }
+  }
+}
+
 defineExpose({
   clearSelection,
+  toggleSelectAll,
   tableRef,
 })
 
@@ -439,7 +467,23 @@ const emptyText = computed(() => {
           :label="field.label"
           class="k-table__search-item"
         >
+          <ElSelect
+            v-if="field.dictionary"
+            v-model="searchDraft[field.key] as string | number | undefined"
+            :placeholder="`请选择${field.label}`"
+            clearable
+            :style="{ width: field.width ? (typeof field.width === 'number' ? `${field.width}px` : field.width) : '150px' }"
+            @change="onSearch"
+          >
+            <ElOption
+              v-for="option in getEnumItems(field.dictionary)"
+              :key="String(option.key)"
+              :label="option.label"
+              :value="option.key"
+            />
+          </ElSelect>
           <ElInput
+            v-else
             :ref="el => { if (idx === 0) firstSearchInputRef = el as InstanceType<typeof ElInput> }"
             v-model="searchDraft[field.key] as string"
             :placeholder="idx === 0 ? `请输入${field.label} (按 / 聚焦)` : `请输入${field.label}`"
@@ -478,6 +522,24 @@ const emptyText = computed(() => {
         >
           新增
         </ElButton>
+        <template v-if="selectable && table.list.value.length > 0">
+          <ElButton
+            size="small"
+            plain
+            @click="toggleSelectAll"
+          >
+            {{ isAllSelected ? '取消全选' : '本页全选' }}
+          </ElButton>
+          <ElButton
+            v-if="selection.length > 0"
+            size="small"
+            plain
+            type="info"
+            @click="clearSelection"
+          >
+            清空已选 ({{ selection.length }})
+          </ElButton>
+        </template>
         <slot
           name="toolbar-left"
           :selection="selection"

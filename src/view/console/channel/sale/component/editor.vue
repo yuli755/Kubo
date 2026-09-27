@@ -1,17 +1,21 @@
 <script lang="ts" setup>
 import type { CustomerEntity } from '@/model/channel/customer/CustomerEntity'
 import type { SaleDetailEntity } from '@/model/channel/sale/SaleDetailEntity'
-import { Plus } from '@element-plus/icons-vue'
-import { ElButton, ElInput, ElInputNumber, ElTag } from 'element-plus'
+import { Plus, Search } from '@element-plus/icons-vue'
+import { ElButton, ElIcon, ElInput, ElInputNumber, ElTag } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import KSelector from '@/component/framework/KSelector.vue'
 import { Permissions } from '@/config/permissions'
 import { DialogUtil, FeedbackUtil } from '@/framework'
+import { KMaterialService } from '@/hook/asset/useMaterial'
 import { KCustomerService } from '@/hook/channel/useCustomer'
 import { KSaleService } from '@/hook/channel/useSale'
+import { KSalePriceService } from '@/hook/channel/useSalePrice'
+import { MaterialEntity } from '@/model/asset/material/MaterialEntity'
 import { SaleDetailEntity as SaleDetail } from '@/model/channel/sale/SaleDetailEntity'
+import { playScanSuccess, playScanWarning } from '@/utils/audioFeedback'
 import SaleDetailEditor from './detailEditor.vue'
 
 /**
@@ -24,7 +28,9 @@ import SaleDetailEditor from './detailEditor.vue'
  *    `customer`（嵌套对象）与 `customerId`（后端关联用）—— 提交前再兜一次同步；
  * 2. **总金额明细自动核算**：`totalPrice` 字段基于销售明细自动汇总（单价 × 数量），
  *    只读展示，彻底杜绝人工口算或漏算输入错误；
- * 3. **明细继承单据客户**：新建明细时把表单上的客户塞进明细，明细编辑器据此查
+ * 3. **扫码极速录入与批量选料**：支持扫码枪按条码回车直接录入或累加；支持多选批量加料；
+ * 4. **明细一键克隆**：明细表格增设「复制」动作，方便相同物料分拆或调配；
+ * 5. **明细继承单据客户**：新建明细时把表单上的客户塞进明细，明细编辑器据此查
  *    「该物料 × 该客户」的专属销售价。
  */
 const props = defineProps<{
@@ -41,6 +47,8 @@ const emit = defineEmits<{
 const form = ref<Record<string, unknown>>({})
 const details = computed<SaleDetailEntity[]>(() => (form.value.details ?? []) as SaleDetailEntity[])
 const customerPicking = ref(false)
+const scanBarcode = ref('')
+const batchPicking = ref(false)
 
 const totalAmount = computed(() => {
   const sum = details.value.reduce((acc, item) => {
@@ -92,6 +100,80 @@ async function addDetail() {
   if (confirmed) {
     details.value.push(confirmed)
   }
+}
+
+function onScanEnter() {
+  const code = scanBarcode.value.trim()
+  if (!code) {
+    playScanWarning()
+    return
+  }
+  const found = details.value.find(d => d.materialCode === code || d.material?.code === code)
+  if (found) {
+    found.quantity = (Number(found.quantity) || 0) + 1
+    playScanSuccess()
+    FeedbackUtil.toastSuccess(`销售物料 [${code}] 数量累加至 ${found.quantity}`)
+    scanBarcode.value = ''
+    return
+  }
+
+  const detail = new SaleDetail()
+  const customer = form.value.customer as CustomerEntity | undefined
+  if (customer?.id) {
+    detail.customer = customer
+  }
+  detail.material = Object.assign(new MaterialEntity(), {
+    code,
+    name: `物料 ${code}`,
+  })
+  detail.materialCode = code
+  detail.materialName = `物料 ${code}`
+  detail.quantity = 1
+  detail.price = 0
+  details.value.push(detail)
+  playScanSuccess()
+  FeedbackUtil.toastSuccess(`已快速录入销售物料 [${code}]，数量: 1`)
+  scanBarcode.value = ''
+}
+
+async function onBatchPicked(rows: unknown[]) {
+  batchPicking.value = false
+  const materials = rows as MaterialEntity[]
+  if (!materials?.length) {
+    return
+  }
+  const customer = form.value.customer as CustomerEntity | undefined
+  const salePriceService = new KSalePriceService()
+  for (const m of materials) {
+    const detail = new SaleDetail()
+    if (customer?.id) {
+      detail.customer = customer
+    }
+    detail.material = m
+    detail.materialId = m.id
+    detail.materialName = m.name
+    detail.materialCode = m.code
+    detail.quantity = 1
+    let price = m.salePrice ?? 0
+    if (customer?.id && m.id) {
+      const agreement = await salePriceService.getByMaterialAndCustomer(m.id, customer.id).catch(() => null)
+      if (agreement?.price) {
+        price = agreement.price
+      }
+    }
+    detail.price = price
+    details.value.push(detail)
+  }
+  playScanSuccess()
+  FeedbackUtil.toastSuccess(`已批量添加 ${materials.length} 条销售物料明细`)
+}
+
+function duplicateDetail(row: SaleDetailEntity) {
+  const clone = row.copy() as SaleDetailEntity
+  delete (clone as { id?: number }).id
+  details.value.push(clone)
+  playScanSuccess()
+  FeedbackUtil.toastSuccess(`已复制物料 [${row.materialName || row.material?.name || '明细'}]`)
 }
 
 async function removeDetail(row: SaleDetailEntity) {
@@ -179,28 +261,57 @@ function beforeSubmit(payload: Record<string, unknown>) {
               总金额: ¥{{ totalAmount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
             </ElTag>
           </div>
-          <ElButton
-            v-permission="[Permissions.Channel.Sale.add, Permissions.Channel.Sale.update]"
-            :icon="Plus"
-            size="small"
-            type="primary"
-            @click="addDetail"
-          >
-            添加明细
-          </ElButton>
+          <div class="sale-editor__head-actions">
+            <ElInput
+              v-model="scanBarcode"
+              placeholder="扫码枪扫入物料条码 (回车直接录入/累加)"
+              size="small"
+              clearable
+              class="scan-input"
+              @keyup.enter="onScanEnter"
+            >
+              <template #prefix>
+                <ElIcon><Search /></ElIcon>
+              </template>
+            </ElInput>
+            <ElButton
+              v-permission="[Permissions.Channel.Sale.add, Permissions.Channel.Sale.update]"
+              size="small"
+              plain
+              @click="batchPicking = true"
+            >
+              批量添加
+            </ElButton>
+            <ElButton
+              v-permission="[Permissions.Channel.Sale.add, Permissions.Channel.Sale.update]"
+              :icon="Plus"
+              size="small"
+              type="primary"
+              @click="addDetail"
+            >
+              添加明细
+            </ElButton>
+          </div>
         </div>
 
         <KDetailTable
           :entity="SaleDetail"
           :exclude="['createTime', 'updateTime']"
-          :row-actions="[{
-            label: '删除',
-            danger: true,
-            permission: [Permissions.Channel.Sale.add, Permissions.Channel.Sale.update],
-            handler: removeDetail,
-          }]"
+          :row-actions="[
+            {
+              label: '复制',
+              permission: [Permissions.Channel.Sale.add, Permissions.Channel.Sale.update],
+              handler: duplicateDetail,
+            },
+            {
+              label: '删除',
+              danger: true,
+              permission: [Permissions.Channel.Sale.add, Permissions.Channel.Sale.update],
+              handler: removeDetail,
+            },
+          ]"
           :rows="details"
-          empty-text="还没有明细，点「添加明细」选一条物料"
+          empty-text="还没有明细，支持扫码录入、批量挑选或手动新增"
         />
       </div>
     </template>
@@ -212,6 +323,14 @@ function beforeSubmit(payload: Record<string, unknown>) {
     :service="KCustomerService"
     title="选择销售客户"
     @confirm="onCustomerPicked"
+  />
+
+  <KSelector
+    v-model="batchPicking"
+    :service="KMaterialService"
+    multiple
+    title="批量挑选销售物料"
+    @confirm="onBatchPicked"
   />
 </template>
 
@@ -231,12 +350,23 @@ function beforeSubmit(payload: Record<string, unknown>) {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
+  gap: 12px;
 }
 
 .sale-editor__head-left {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.sale-editor__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scan-input {
+  width: 250px;
 }
 
 .sale-editor__title {

@@ -4,8 +4,10 @@ import { ElButton, ElFormItem, ElIcon, ElInput, ElMessage, ElTag } from 'element
 import { computed, ref } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
+import KSelector from '@/component/framework/KSelector.vue'
 import { Permissions } from '@/config/permissions'
 import { FeedbackUtil } from '@/framework'
+import { KMaterialService } from '@/hook/asset/useMaterial'
 import { KInputService } from '@/hook/wms/useInput'
 import { MaterialEntity } from '@/model/asset/material/MaterialEntity'
 import { InputDetailEntity } from '@/model/wms/input/InputDetailEntity'
@@ -112,6 +114,40 @@ function onScanEnter() {
   scanBarcode.value = ''
 }
 
+const batchPicking = ref(false)
+
+function onBatchPicked(rows: unknown[]) {
+  batchPicking.value = false
+  const materials = rows as MaterialEntity[]
+  if (!materials?.length) {
+    return
+  }
+  const storage = form.value.storage as InputDetailEntity['storage'] | undefined
+  for (const m of materials) {
+    const detail = new InputDetailEntity()
+    detail.material = m
+    detail.materialId = m.id
+    detail.materialName = m.name
+    detail.materialCode = m.code
+    detail.quantity = 1
+    if (storage?.id) {
+      detail.storage = storage
+      detail.storageId = storage.id
+    }
+    details.value.push(detail)
+  }
+  playScanSuccess()
+  FeedbackUtil.toastSuccess(`已批量添加 ${materials.length} 条入库物料明细`)
+}
+
+function duplicateDetail(row: InputDetailEntity) {
+  const clone = row.copy() as InputDetailEntity
+  delete (clone as { id?: number }).id
+  details.value.push(clone)
+  playScanSuccess()
+  FeedbackUtil.toastSuccess(`已复制入库明细 [${row.materialName || row.material?.name || '物料'}]`)
+}
+
 function onDetailConfirm(detail: InputDetailEntity) {
   details.value.push(detail)
   detailEditorVisible.value = false
@@ -193,6 +229,14 @@ function beforeSubmit(payload: Record<string, unknown>) {
             </ElInput>
             <ElButton
               v-permission="[Permissions.Wms.Input.add, Permissions.Wms.Input.update]"
+              size="small"
+              plain
+              @click="batchPicking = true"
+            >
+              批量添加
+            </ElButton>
+            <ElButton
+              v-permission="[Permissions.Wms.Input.add, Permissions.Wms.Input.update]"
               :icon="Plus"
               size="small"
               type="primary"
@@ -207,15 +251,22 @@ function beforeSubmit(payload: Record<string, unknown>) {
           :entity="InputDetailEntity"
           :exclude="['createTime', 'updateTime']"
           :row-actions="isDetailEditable
-            ? [{
-              label: '删除',
-              danger: true,
-              permission: [Permissions.Wms.Input.add, Permissions.Wms.Input.update],
-              handler: removeDetail,
-            }]
+            ? [
+              {
+                label: '复制',
+                permission: [Permissions.Wms.Input.add, Permissions.Wms.Input.update],
+                handler: duplicateDetail,
+              },
+              {
+                label: '删除',
+                danger: true,
+                permission: [Permissions.Wms.Input.add, Permissions.Wms.Input.update],
+                handler: removeDetail,
+              },
+            ]
             : []"
           :rows="details"
-          empty-text="还没有明细，点「添加明细」选一条物料"
+          empty-text="还没有明细，支持扫码录入、批量挑选或手动新增"
         />
       </div>
     </template>
@@ -225,6 +276,14 @@ function beforeSubmit(payload: Record<string, unknown>) {
     v-model="detailEditorVisible"
     :detail="editingDetail"
     @confirm="onDetailConfirm"
+  />
+
+  <KSelector
+    v-model="batchPicking"
+    :service="KMaterialService"
+    multiple
+    title="批量挑选入库物料"
+    @confirm="onBatchPicked"
   />
 </template>
 

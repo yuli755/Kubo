@@ -212,4 +212,76 @@ describe('智能选择器与零手动输入体验（Smart Selectors Everywhere�
       expect(codeRuleSource).toContain('yyyyMM')
     })
   })
+
+  describe('8. 表格智能枚举下拉与工具条批量选择（KTable Smart Search & Quick Select）', () => {
+    const kTableSource = readFileSync(
+      join(ROOT, 'src/component/framework/KTable.vue'),
+      'utf8',
+    )
+
+    it('表格搜索区对带有 dictionary 的枚举字段自动渲染 ElSelect 下拉直选', () => {
+      expect(kTableSource).toContain('field.dictionary')
+      expect(kTableSource).toContain('getEnumItems(field.dictionary)')
+      expect(kTableSource).toContain('@change="onSearch"')
+    })
+
+    it('表格工具条提供本页全选/取消全选与清空已选快捷操作', () => {
+      expect(kTableSource).toContain('isAllSelected')
+      expect(kTableSource).toContain('toggleSelectAll')
+      expect(kTableSource).toContain('清空已选')
+      expect(kTableSource).toContain('toggleRowSelection')
+    })
+  })
+
+  describe('9. 单据明细批量挑选、扫码录入与行级一键克隆（Batch Add, Scan & Clone）', () => {
+    const purchaseEditorSource = readFileSync(
+      join(ROOT, 'src/view/console/channel/purchase/component/editor.vue'),
+      'utf8',
+    )
+    const saleEditorSource = readFileSync(
+      join(ROOT, 'src/view/console/channel/sale/component/editor.vue'),
+      'utf8',
+    )
+    const inputEditorSource = readFileSync(
+      join(ROOT, 'src/view/console/wms/input/component/editor.vue'),
+      'utf8',
+    )
+    const outputEditorSource = readFileSync(
+      join(ROOT, 'src/view/console/wms/output/component/editor.vue'),
+      'utf8',
+    )
+    const moveEditorSource = readFileSync(
+      join(ROOT, 'src/view/console/wms/move/component/editor.vue'),
+      'utf8',
+    )
+
+    it('采购单编辑器支持扫码回车录入、批量挑选物料与明细复制', () => {
+      expect(purchaseEditorSource).toContain('onScanEnter')
+      expect(purchaseEditorSource).toContain('batchPicking')
+      expect(purchaseEditorSource).toContain('onBatchPicked')
+      expect(purchaseEditorSource).toContain('duplicateDetail')
+    })
+
+    it('销售单编辑器支持扫码回车录入、批量挑选物料与明细复制', () => {
+      expect(saleEditorSource).toContain('onScanEnter')
+      expect(saleEditorSource).toContain('batchPicking')
+      expect(saleEditorSource).toContain('onBatchPicked')
+      expect(saleEditorSource).toContain('duplicateDetail')
+    })
+
+    it('入库单与出库单编辑器支持批量挑选物料与明细复制', () => {
+      expect(inputEditorSource).toContain('batchPicking')
+      expect(inputEditorSource).toContain('onBatchPicked')
+      expect(inputEditorSource).toContain('duplicateDetail')
+
+      expect(outputEditorSource).toContain('batchPicking')
+      expect(outputEditorSource).toContain('onBatchPicked')
+      expect(outputEditorSource).toContain('duplicateDetail')
+    })
+
+    it('移库单编辑器明细支持一键复制，方便库位拆分', () => {
+      expect(moveEditorSource).toContain('duplicateDetail')
+      expect(moveEditorSource).toContain('label: \'复制\'')
+    })
+  })
 })

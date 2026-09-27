@@ -134,6 +134,14 @@ function onScanEnter() {
   scanBarcode.value = ''
 }
 
+function duplicateDetail(row: MoveDetailEntity) {
+  const clone = row.copy() as MoveDetailEntity
+  delete (clone as { id?: number }).id
+  details.value.push(clone)
+  playScanSuccess()
+  FeedbackUtil.toastSuccess(`已复制移库明细 [${row.materialName || row.inventory?.material?.name || '物料'}]`)
+}
+
 function removeDetail(row: MoveDetailEntity) {
   const index = details.value.indexOf(row)
   if (index >= 0) {
@@ -220,7 +228,10 @@ function beforeSubmit(payload: Record<string, unknown>) {
         <KDetailTable
           :entity="MoveDetailEntity"
           :exclude="['createTime']"
-          :row-actions="[{ label: '删除', danger: true, permission: [Permissions.Wms.Move.add, Permissions.Wms.Move.update], handler: removeDetail }]"
+          :row-actions="[
+            { label: '复制', permission: [Permissions.Wms.Move.add, Permissions.Wms.Move.update], handler: duplicateDetail },
+            { label: '删除', danger: true, permission: [Permissions.Wms.Move.add, Permissions.Wms.Move.update], handler: removeDetail },
+          ]"
           :rows="details"
           empty-text="还没有明细，点「添加明细」从库存里挑一条"
         />
