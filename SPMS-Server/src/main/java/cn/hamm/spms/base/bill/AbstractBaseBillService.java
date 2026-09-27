@@ -45,6 +45,9 @@ public abstract class AbstractBaseBillService<
     @Autowired
     protected TransactionHelper transactionHelper;
 
+    @Autowired(required = false)
+    protected cn.hamm.spms.common.notification.NotificationHelper notificationHelper;
+
     /**
      * 获取自动审核配置
      *
@@ -337,6 +340,15 @@ public abstract class AbstractBaseBillService<
             setReject(bill);
             bill.setRejectReason(rejectReason);
             updateToDatabase(bill);
+            if (notificationHelper != null) {
+                String billCode = bill.getBillCode();
+                String desc = EntityMetadata.description(getFirstParameterizedTypeClass());
+                notificationHelper.sendWarning("单据驳回通知",
+                        String.format("%s [%s] 审核已被驳回，原因: %s",
+                                desc != null ? desc : "单据",
+                                billCode != null ? billCode : String.valueOf(billId),
+                                rejectReason != null && !rejectReason.isBlank() ? rejectReason : "未说明原因"));
+            }
         });
     }
 

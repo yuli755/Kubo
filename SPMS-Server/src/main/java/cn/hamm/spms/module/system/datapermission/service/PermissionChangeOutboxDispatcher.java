@@ -1,12 +1,15 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
+import cn.hamm.spms.common.notification.NotificationHelper;
 import cn.hamm.spms.common.redis.RedisHelper;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.entity.PermissionChangeOutboxEntity;
+import cn.hamm.spms.module.system.datapermission.enums.PermissionChangeOutboxStatus;
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
 import cn.hamm.spms.module.system.datapermission.repository.PermissionChangeOutboxRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -39,6 +42,9 @@ public class PermissionChangeOutboxDispatcher {
     private final DataPermissionProperties properties;
     private final ObjectProvider<PermissionChangeOutboxRepository> repositoryProvider;
     private final ObjectProvider<RedisHelper> redisHelperProvider;
+
+    @Autowired(required = false)
+    private NotificationHelper notificationHelper;
 
     public PermissionChangeOutboxDispatcher(
             DataPermissionProperties properties,
@@ -103,6 +109,10 @@ public class PermissionChangeOutboxDispatcher {
             }
             if (failed.lastError() != null) {
                 row.setLastError(failed.lastError());
+            }
+            if (failed.status() == PermissionChangeOutboxStatus.DEAD.getKey() && notificationHelper != null) {
+                notificationHelper.sendError("权限变更Outbox死信告警",
+                        String.format("事件 [%s] 投递失败次数达到上限已转入死信队列，错误: %s", row.getEventKey(), ex.getMessage()));
             }
             log.warn("[data-permission][outbox] 投递失败 eventKey={} retry={} status={}: {}",
                     row.getEventKey(), row.getRetryCount(), row.getStatus(), ex.getMessage());

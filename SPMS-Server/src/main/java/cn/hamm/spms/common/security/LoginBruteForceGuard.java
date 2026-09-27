@@ -1,5 +1,6 @@
 package cn.hamm.spms.common.security;
 
+import cn.hamm.spms.common.notification.NotificationHelper;
 import cn.hamm.spms.common.redis.RedisHelper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.jetbrains.annotations.NotNull;
@@ -67,6 +68,9 @@ public class LoginBruteForceGuard {
     @Autowired
     private ClientIpResolver clientIpResolver;
 
+    @Autowired(required = false)
+    private NotificationHelper notificationHelper;
+
     /**
      * 从请求解析客户端真实 IP（阶段 F-1：收敛到 {@link ClientIpResolver}，
      * 仅当直连对端在 {@code kubo.security.trusted-proxies} 白名单内才采信
@@ -122,6 +126,10 @@ public class LoginBruteForceGuard {
         if (accountFail != null && accountFail >= MAX_FAIL_ATTEMPTS) {
             redisHelper.set(LOCK_KEY_PREFIX + account, "1", LOCK_SECONDS);
             redisHelper.delete(FAIL_KEY_PREFIX + account);
+            if (notificationHelper != null) {
+                notificationHelper.sendWarning("安全风控告警：账号防爆破锁定",
+                        String.format("账号 [%s] 密码连续错误达到 %d 次，已被锁定 %d 秒", account, MAX_FAIL_ATTEMPTS, LOCK_SECONDS));
+            }
         }
 
         if (StringUtils.hasText(ip)) {
@@ -132,6 +140,10 @@ public class LoginBruteForceGuard {
             if (ipFail != null && ipFail >= IP_MAX_FAIL_ATTEMPTS) {
                 redisHelper.set(IP_LOCK_KEY_PREFIX + ip, "1", LOCK_SECONDS);
                 redisHelper.delete(IP_FAIL_KEY_PREFIX + ip);
+                if (notificationHelper != null) {
+                    notificationHelper.sendWarning("安全风控告警：IP防爆破锁定",
+                            String.format("客户端 IP [%s] 请求失败达到 %d 次，已被锁定 %d 秒", ip, IP_MAX_FAIL_ATTEMPTS, LOCK_SECONDS));
+                }
             }
         }
     }
