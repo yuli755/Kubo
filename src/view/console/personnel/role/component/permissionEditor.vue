@@ -112,6 +112,14 @@ function clearAllSelection() {
   selected.value = []
 }
 
+function selectAllPermissions() {
+  const allRows = flatten(displayTreeList.value)
+  allRows.forEach((row) => {
+    tableRef.value?.toggleRowSelection(row, true)
+  })
+  selected.value = allRows
+}
+
 async function onSubmit() {
   const role = props.role
   if (!role) {
@@ -159,10 +167,17 @@ async function onSubmit() {
             已选定 {{ selected.length }} 项权限
           </ElTag>
           <ElButton
-            v-if="selected.length"
             size="small"
             link
             type="primary"
+            @click="selectAllPermissions"
+          >
+            全选当前
+          </ElButton>
+          <ElButton
+            v-if="selected.length"
+            size="small"
+            link
             @click="clearAllSelection"
           >
             清空已选

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { Plus, Search } from '@element-plus/icons-vue'
-import { ElButton, ElIcon, ElInput, ElMessage, ElTag } from 'element-plus'
+import { ElButton, ElIcon, ElInput, ElInputNumber, ElMessage, ElTag } from 'element-plus'
 import { computed, ref } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
@@ -234,7 +234,18 @@ function beforeSubmit(payload: Record<string, unknown>) {
           ]"
           :rows="details"
           empty-text="还没有明细，点「添加明细」从库存里挑一条"
-        />
+        >
+          <template #cell-quantity="{ row }">
+            <ElInputNumber
+              v-model="(row as MoveDetailEntity).quantity"
+              :min="1"
+              :max="Number((row as MoveDetailEntity).inventory?.quantity) || undefined"
+              size="small"
+              controls-position="right"
+              style="width: 100px"
+            />
+          </template>
+        </KDetailTable>
       </div>
     </template>
   </KFormDialog>

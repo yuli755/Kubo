@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { RoleEntity } from '@/model/personnel/role/RoleEntity'
 import { Search } from '@element-plus/icons-vue'
-import { ElInput, ElTag, ElTree } from 'element-plus'
+import { ElButton, ElInput, ElTag, ElTree } from 'element-plus'
 import { ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import { FeedbackUtil, QueryRequest } from '@/framework'
@@ -47,6 +47,29 @@ function checkedIds(): number[] {
 
 function onCheckChange() {
   checkedCount.value = treeRef.value?.getCheckedKeys()?.length ?? 0
+}
+
+function checkAllMenus() {
+  function collectKeys(nodes: MenuEntity[]): number[] {
+    const keys: number[] = []
+    for (const n of nodes) {
+      if (n.id) {
+        keys.push(n.id)
+      }
+      if (n.children?.length) {
+        keys.push(...collectKeys(n.children))
+      }
+    }
+    return keys
+  }
+  const allIds = collectKeys(treeList.value)
+  treeRef.value?.setCheckedKeys(allIds)
+  checkedCount.value = allIds.length
+}
+
+function clearAllMenus() {
+  treeRef.value?.setCheckedKeys([])
+  checkedCount.value = 0
 }
 
 function filterNode(value: string, data: Record<string, unknown>): boolean {
@@ -121,14 +144,32 @@ async function onSubmit() {
           size="default"
           class="k-menu-editor__search"
         />
-        <ElTag
-          size="small"
-          type="primary"
-          effect="plain"
-          round
-        >
-          已选 {{ checkedCount }} 项
-        </ElTag>
+        <div class="k-menu-editor__summary">
+          <ElTag
+            size="small"
+            type="primary"
+            effect="plain"
+            round
+          >
+            已选 {{ checkedCount }} 项
+          </ElTag>
+          <ElButton
+            size="small"
+            link
+            type="primary"
+            @click="checkAllMenus"
+          >
+            全选
+          </ElButton>
+          <ElButton
+            v-if="checkedCount > 0"
+            size="small"
+            link
+            @click="clearAllMenus"
+          >
+            清空
+          </ElButton>
+        </div>
       </div>
 
       <div class="k-menu-editor__tree-wrap">

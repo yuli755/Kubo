@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { Plus, Search } from '@element-plus/icons-vue'
-import { ElButton, ElIcon, ElInput, ElMessage, ElTag } from 'element-plus'
+import { ElButton, ElIcon, ElInput, ElInputNumber, ElMessage, ElTag } from 'element-plus'
 import { computed, ref } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
@@ -227,7 +227,19 @@ function beforeSubmit(payload: Record<string, unknown>) {
             : []"
           :rows="details"
           empty-text="还没有明细，支持扫码录入、批量挑选或手动新增"
-        />
+        >
+          <template #cell-quantity="{ row }">
+            <ElInputNumber
+              v-if="isDetailEditable"
+              v-model="(row as OutputDetailEntity).quantity"
+              :min="1"
+              size="small"
+              controls-position="right"
+              style="width: 100px"
+            />
+            <span v-else>{{ (row as OutputDetailEntity).quantity }}</span>
+          </template>
+        </KDetailTable>
       </div>
     </template>
   </KFormDialog>

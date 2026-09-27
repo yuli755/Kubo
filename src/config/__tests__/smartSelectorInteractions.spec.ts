@@ -283,5 +283,63 @@ describe('智能选择器与零手动输入体验（Smart Selectors Everywhere�
       expect(moveEditorSource).toContain('duplicateDetail')
       expect(moveEditorSource).toContain('label: \'复制\'')
     })
+
+    it('五大单据明细表格均支持行内数量/单价即时修改，彻底免除弹窗反复跳转', () => {
+      expect(purchaseEditorSource).toContain('#cell-quantity')
+      expect(purchaseEditorSource).toContain('#cell-price')
+
+      expect(saleEditorSource).toContain('#cell-quantity')
+      expect(saleEditorSource).toContain('#cell-price')
+
+      expect(inputEditorSource).toContain('#cell-quantity')
+      expect(outputEditorSource).toContain('#cell-quantity')
+      expect(moveEditorSource).toContain('#cell-quantity')
+    })
+  })
+
+  describe('10. 作业登记满额速填与角色/用户管理体验优化', () => {
+    const purchaseAddFinishSource = readFileSync(
+      join(ROOT, 'src/view/console/channel/purchase/component/addFinishEditor.vue'),
+      'utf8',
+    )
+    const moveDetailEditorSource = readFileSync(
+      join(ROOT, 'src/view/console/wms/move/component/detailEditor.vue'),
+      'utf8',
+    )
+    const permEditorSource = readFileSync(
+      join(ROOT, 'src/view/console/personnel/role/component/permissionEditor.vue'),
+      'utf8',
+    )
+    const menuEditorSource = readFileSync(
+      join(ROOT, 'src/view/console/personnel/role/component/menuEditor.vue'),
+      'utf8',
+    )
+    const userListSource = readFileSync(
+      join(ROOT, 'src/view/console/personnel/user/list.vue'),
+      'utf8',
+    )
+
+    it('采购作业与移库明细支持一键满额速填', () => {
+      expect(purchaseAddFinishSource).toContain('全部完成')
+      expect(purchaseAddFinishSource).toContain('quantity = waitingQuantity')
+
+      expect(moveDetailEditorSource).toContain('全部转移')
+      expect(moveDetailEditorSource).toContain('form.quantity = availableQuantity')
+    })
+
+    it('角色权限与菜单支持全选/清空一键速填', () => {
+      expect(permEditorSource).toContain('selectAllPermissions')
+      expect(permEditorSource).toContain('全选当前')
+
+      expect(menuEditorSource).toContain('checkAllMenus')
+      expect(menuEditorSource).toContain('clearAllMenus')
+      expect(menuEditorSource).toContain('全选')
+      expect(menuEditorSource).toContain('清空')
+    })
+
+    it('用户新增表单若在部门树聚焦时自动继承预选部门', () => {
+      expect(userListSource).toContain('selectedDept.value')
+      expect(userListSource).toContain('next.departmentList = [selectedDept.value]')
+    })
   })
 })

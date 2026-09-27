@@ -92,7 +92,12 @@ function openEdit(row: { id: number }) {
  */
 function onLoaded(next: Record<string, unknown>) {
   next.roleList ??= []
-  next.departmentList ??= []
+  if (!next.id && (!next.departmentList || (next.departmentList as unknown[]).length === 0) && selectedDept.value) {
+    next.departmentList = [selectedDept.value]
+  }
+  else {
+    next.departmentList ??= []
+  }
   form.value = next
 }
 

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
+import { ElButton, ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import { getFieldLabel, WebValidator } from '@/framework'
@@ -47,6 +47,7 @@ watch(
 
 const rules = computed(() => WebValidator.createRules(MoveDetailEntity as never) as unknown as Record<string, unknown[]>)
 
+const availableQuantity = computed(() => Number(form.value?.inventory?.quantity) || 0)
 const unitName = computed(() => form.value?.inventory?.material?.unit?.name ?? '')
 const materialName = computed(() => form.value?.inventory?.material?.name ?? '-')
 
@@ -84,24 +85,42 @@ function onConfirm() {
         :label="getFieldLabel(MoveDetailEntity, 'quantity')"
         prop="quantity"
       >
-        <ElInputNumber
-          v-model="form.quantity as number"
-          :min="0"
-          class="detail-editor__number"
-        />
-        <span class="detail-editor__unit">{{ unitName }}</span>
+        <div class="field-quick-row">
+          <ElInputNumber
+            v-model="form.quantity as number"
+            :min="0"
+            :max="availableQuantity > 0 ? availableQuantity : undefined"
+            class="detail-editor__number"
+          />
+          <span class="detail-editor__unit">{{ unitName }}</span>
+          <ElButton
+            v-if="availableQuantity > 0"
+            size="small"
+            type="primary"
+            plain
+            @click="form.quantity = availableQuantity"
+          >
+            全部转移（{{ availableQuantity }} {{ unitName }}）
+          </ElButton>
+        </div>
       </ElFormItem>
     </ElForm>
   </KDialog>
 </template>
 
 <style lang="scss" scoped>
+.field-quick-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .detail-editor__number {
   width: 180px;
 }
 
 .detail-editor__unit {
-  margin-left: 8px;
+  margin-left: 2px;
   color: var(--el-text-color-secondary);
 }
 </style>

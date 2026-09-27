@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
-import { ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
+import { ElButton, ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import { FeedbackUtil, getFieldLabel } from '@/framework'
@@ -113,24 +113,42 @@ async function onConfirm() {
         </ElInput>
       </ElFormItem>
       <ElFormItem :label="getFieldLabel(PurchaseDetail, 'quantity')">
-        <ElInputNumber
-          v-model="quantity"
-          :min="0"
-          class="purchase-finish-editor__number"
-        />
-        <span class="purchase-finish-editor__unit">{{ unitName }}</span>
+        <div class="field-quick-row">
+          <ElInputNumber
+            v-model="quantity"
+            :min="0"
+            :max="waitingQuantity > 0 ? waitingQuantity : undefined"
+            class="purchase-finish-editor__number"
+          />
+          <span class="purchase-finish-editor__unit">{{ unitName }}</span>
+          <ElButton
+            size="small"
+            type="primary"
+            plain
+            :disabled="waitingQuantity <= 0"
+            @click="quantity = waitingQuantity"
+          >
+            全部完成（{{ waitingQuantity }} {{ unitName }}）
+          </ElButton>
+        </div>
       </ElFormItem>
     </ElForm>
   </KDialog>
 </template>
 
 <style lang="scss" scoped>
+.field-quick-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .purchase-finish-editor__number {
   width: 180px;
 }
 
 .purchase-finish-editor__unit {
-  margin-left: 8px;
+  margin-left: 2px;
   color: var(--el-text-color-secondary);
 }
 </style>

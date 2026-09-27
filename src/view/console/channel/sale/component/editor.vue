@@ -312,7 +312,27 @@ function beforeSubmit(payload: Record<string, unknown>) {
           ]"
           :rows="details"
           empty-text="还没有明细，支持扫码录入、批量挑选或手动新增"
-        />
+        >
+          <template #cell-quantity="{ row }">
+            <ElInputNumber
+              v-model="(row as SaleDetailEntity).quantity"
+              :min="1"
+              size="small"
+              controls-position="right"
+              style="width: 100px"
+            />
+          </template>
+          <template #cell-price="{ row }">
+            <ElInputNumber
+              v-model="(row as SaleDetailEntity).price"
+              :min="0"
+              :precision="2"
+              size="small"
+              controls-position="right"
+              style="width: 110px"
+            />
+          </template>
+        </KDetailTable>
       </div>
     </template>
   </KFormDialog>
