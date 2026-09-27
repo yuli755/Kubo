@@ -275,4 +275,49 @@ describe('123 优化设计单元契约', () => {
       expect(totalAmount.toFixed(2)).toBe('805.00')
     })
   })
+
+  describe('feature 11 · WMS 库位热力拓扑图与储位状态契约', () => {
+    it('储位占用率色阶与状态分类契约准确', () => {
+      const getStatus = (occupancy: number) => {
+        if (occupancy === 0) {
+          return 'empty'
+        }
+        if (occupancy <= 20) {
+          return 'idle'
+        }
+        if (occupancy <= 60) {
+          return 'low'
+        }
+        if (occupancy <= 80) {
+          return 'normal'
+        }
+        return 'danger'
+      }
+
+      expect(getStatus(0)).toBe('empty')
+      expect(getStatus(15)).toBe('idle')
+      expect(getStatus(50)).toBe('low')
+      expect(getStatus(75)).toBe('normal')
+      expect(getStatus(92)).toBe('danger')
+    })
+
+    it('库区总监控指标动态聚合契约', () => {
+      const slots = [
+        { occupancy: 0 },
+        { occupancy: 15 },
+        { occupancy: 50 },
+        { occupancy: 85 },
+        { occupancy: 95 },
+      ]
+      const total = slots.length
+      const avgOccupancy = Math.round(slots.reduce((sum, s) => sum + s.occupancy, 0) / total)
+      const highCount = slots.filter(s => s.occupancy >= 80).length
+      const idleCount = slots.filter(s => s.occupancy <= 20).length
+
+      expect(total).toBe(5)
+      expect(avgOccupancy).toBe(49)
+      expect(highCount).toBe(2)
+      expect(idleCount).toBe(2)
+    })
+  })
 })

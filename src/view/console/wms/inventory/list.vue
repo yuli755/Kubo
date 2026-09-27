@@ -12,6 +12,7 @@ import { KStructureService } from '@/hook/factory/useStructure'
 import { useTable } from '@/hook/kubo/useTable'
 import { KInventoryService } from '@/hook/wms/useInventory'
 import { InventoryTypeEnum } from '@/model/wms/inventory/InventoryTypeEnum'
+import WarehouseHeatmap from './component/WarehouseHeatmap.vue'
 
 /**
  * # 库存查询（F4 批 4 · 新底座）
@@ -32,6 +33,7 @@ import { InventoryTypeEnum } from '@/model/wms/inventory/InventoryTypeEnum'
  */
 const inventoryType = ref(InventoryTypeEnum.STORAGE.key)
 const selectedNode = ref<StorageEntity | StructureEntity | null>(null)
+const viewMode = ref<'table' | 'heatmap'>('table')
 
 const table = useTable(KInventoryService, {
   queryKey: ['wms:inventory'],
@@ -170,28 +172,54 @@ function clearNodeFilter() {
       description="库存数量由出入库与移库驱动，这里只读；切换维度会同步切换左侧树与表格列"
       class="k-page__main"
     >
-      <div class="inventory-stats-bar">
-        <div class="stat-pill">
-          <span class="stat-label">在库物料 SKU：</span>
-          <span class="stat-val font-mono">{{ inventorySummary.totalSku }}</span>
-          <span class="stat-unit">种</span>
+      <div class="inventory-controls-row">
+        <div class="inventory-stats-bar">
+          <div class="stat-pill">
+            <span class="stat-label">在库物料 SKU：</span>
+            <span class="stat-val font-mono">{{ inventorySummary.totalSku }}</span>
+            <span class="stat-unit">种</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-label">总库存件数：</span>
+            <span class="stat-val font-mono">{{ inventorySummary.totalQty.toLocaleString() }}</span>
+            <span class="stat-unit">件</span>
+          </div>
+          <div
+            v-if="inventorySummary.lowStockCount > 0"
+            class="stat-pill is-warning"
+          >
+            <span class="stat-label">低库存预警（&lt; 10 件）：</span>
+            <span class="stat-val font-mono">{{ inventorySummary.lowStockCount }}</span>
+            <span class="stat-unit">项</span>
+          </div>
         </div>
-        <div class="stat-pill">
-          <span class="stat-label">总库存件数：</span>
-          <span class="stat-val font-mono">{{ inventorySummary.totalQty.toLocaleString() }}</span>
-          <span class="stat-unit">件</span>
-        </div>
+
         <div
-          v-if="inventorySummary.lowStockCount > 0"
-          class="stat-pill is-warning"
+          v-if="inventoryType === InventoryTypeEnum.STORAGE.key"
+          class="view-mode-toggle"
         >
-          <span class="stat-label">低库存预警（&lt; 10 件）：</span>
-          <span class="stat-val font-mono">{{ inventorySummary.lowStockCount }}</span>
-          <span class="stat-unit">项</span>
+          <ElRadioGroup
+            v-model="viewMode"
+            size="small"
+          >
+            <ElRadioButton value="table">
+              表格数据
+            </ElRadioButton>
+            <ElRadioButton value="heatmap">
+              库位热力图
+            </ElRadioButton>
+          </ElRadioGroup>
         </div>
       </div>
 
+      <WarehouseHeatmap
+        v-if="viewMode === 'heatmap' && inventoryType === InventoryTypeEnum.STORAGE.key"
+        :storage-id="selectedNode?.id"
+        :storage-name="selectedNode?.name || '全仓立体库位'"
+      />
+
       <KTable
+        v-else
         :exclude-columns="excludeColumns"
         :permissions="{ export: Permissions.Wms.Inventory.export }"
         :table="table"
@@ -267,11 +295,19 @@ function clearNodeFilter() {
   min-width: 0;
 }
 
+.inventory-controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .inventory-stats-bar {
   display: flex;
   gap: 16px;
   align-items: center;
-  margin-bottom: 12px;
   padding: 8px 14px;
   background: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color-lighter);
