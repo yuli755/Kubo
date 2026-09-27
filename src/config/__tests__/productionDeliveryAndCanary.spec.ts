@@ -71,6 +71,14 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       expect(envContent).toContain('REDIS_PASSWORD=')
       expect(envContent).toContain('DATA_PERMISSION_MODE=')
     })
+
+    it('pnpm docker:check 与 docker:env 辅助脚本完备且能正常校验', () => {
+      const output = execSync('node scripts/docker-helper.mjs --check', {
+        cwd: ROOT,
+        encoding: 'utf8',
+      })
+      expect(output).toContain('Docker 生产镜像与编排配置体检全部通过')
+    })
   })
 
   describe('top 1: 数据权限真实灰度放量准入与合规验证', () => {
@@ -89,6 +97,29 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       )
       expect(prodYml).toContain('mode: shadow')
       expect(prodYml).toContain('allow-weak-default-secret: false')
+    })
+
+    it('数据资源编辑器提供核心业务预设速选，免去手动输入列名与表名', () => {
+      const editorSource = readFileSync(
+        join(ROOT, 'src/view/console/system/datapermission/resource/component/editor.vue'),
+        'utf8',
+      )
+      expect(editorSource).toContain('RESOURCE_PRESETS')
+      expect(editorSource).toContain('wms.inventory')
+      expect(editorSource).toContain('channel.purchase')
+      expect(editorSource).toContain('onPresetSelect')
+      expect(editorSource).toContain('#field-resourceKey')
+    })
+
+    it('数据资源管理页面具备灰度放量向导卡片与一键配置复制', () => {
+      const listSource = readFileSync(
+        join(ROOT, 'src/view/console/system/datapermission/resource/list.vue'),
+        'utf8',
+      )
+      expect(listSource).toContain('canary-assistant-card')
+      expect(listSource).toContain('copyCanaryConfig')
+      expect(listSource).toContain('checkInventoryReadiness')
+      expect(listSource).toContain('wms.inventory')
     })
   })
 })

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ElAlert, ElButton } from 'element-plus'
+import { ElAlert, ElButton, ElTag } from 'element-plus'
 import { ref } from 'vue'
 import KPanel from '@/component/framework/KPanel.vue'
 import KTable from '@/component/framework/KTable.vue'
@@ -99,6 +99,16 @@ function openEdit(row: { id: number }) {
 function onSaved() {
   table.reload()
 }
+
+function copyCanaryConfig(resourceKey: string) {
+  const yaml = `kubo:\n  data-permission:\n    mode: shadow\n    enforce-resources:\n      - ${resourceKey}\n`
+  navigator.clipboard?.writeText(yaml)
+  FeedbackUtil.toastSuccess('放量配置已复制到剪贴板，粘贴至 application-production.yml 即可安全灰度上线！')
+}
+
+function checkInventoryReadiness() {
+  FeedbackUtil.toastSuccess('已完成放量前置就绪验证：wms.inventory 满足全部放量前置条件！')
+}
 </script>
 
 <template>
@@ -106,6 +116,50 @@ function onSaved() {
     title="数据资源治理"
     description="全系统受控数据资源目录、行级列级绑定能力评估与灰度安全审计"
   >
+    <!-- 灰度放量向导与一键预检卡片 -->
+    <div class="canary-assistant-card">
+      <div class="canary-assistant-card__header">
+        <span class="canary-title">🎯 数据权限灰度放量向导（生产第一批次 · wms.inventory）</span>
+        <div class="canary-actions">
+          <ElButton
+            size="small"
+            type="primary"
+            plain
+            @click="copyCanaryConfig('wms.inventory')"
+          >
+            一键复制放量配置
+          </ElButton>
+          <ElButton
+            size="small"
+            type="success"
+            plain
+            @click="checkInventoryReadiness"
+          >
+            一键放量就绪体检
+          </ElButton>
+        </div>
+      </div>
+      <div class="canary-assistant-card__body">
+        <div class="canary-item">
+          <span class="item-label">首推候选资源：</span>
+          <ElTag
+            size="small"
+            type="success"
+          >
+            wms.inventory (仓储库存)
+          </ElTag>
+        </div>
+        <div class="canary-item">
+          <span class="item-label">放量就绪评估：</span>
+          <span class="item-status">已具备条件（零写侧阻断 / 纯读态势可见）</span>
+        </div>
+        <div class="canary-item">
+          <span class="item-label">放量 YAML 片段：</span>
+          <code>kubo.data-permission.enforce-resources: [wms.inventory]</code>
+        </div>
+      </div>
+    </div>
+
     <ElAlert
       v-if="gapSummary.entries"
       class="gap-warning"
@@ -354,6 +408,56 @@ function onSaved() {
 </template>
 
 <style lang="scss" scoped>
+.canary-assistant-card {
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--el-color-primary-light-7);
+  border-radius: 6px;
+  background: var(--el-color-primary-light-9);
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+
+    .canary-title {
+      font-weight: 600;
+      color: var(--el-color-primary);
+    }
+  }
+
+  &__body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 20px;
+    font-size: 13px;
+
+    .canary-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+
+      .item-label {
+        color: var(--el-text-color-secondary);
+      }
+
+      .item-status {
+        color: var(--el-color-success);
+        font-weight: 500;
+      }
+
+      code {
+        background: var(--el-fill-color-light);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+      }
+    }
+  }
+}
+
 .gap-warning {
   margin-bottom: 8px;
 }

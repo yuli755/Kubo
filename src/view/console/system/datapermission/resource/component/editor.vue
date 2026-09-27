@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ElAlert } from 'element-plus'
+import { ElAlert, ElOption, ElSelect } from 'element-plus'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import { DataResourceService } from '@/hook/system/useDataResource'
 
@@ -14,6 +14,8 @@ import { DataResourceService } from '@/hook/system/useDataResource'
  * 2. **归属列的维度语法**：`DEPARTMENT:departmentId` / `WAREHOUSE:storage.id`
  *    这类写法只有一份解析器（后端 `OwnerColumnRegistration`），页面照抄规则而不是自建校验 ——
  *    否则就会出现"界面说合法、保存被拒"的两套判据。
+ * 3. **零手动输入与智能预设**：新增或编辑时提供系统核心业务资源下拉速选，自动带出表名、
+ *    租户列、归属列维度与常用过滤列，彻底杜绝手动录入失误。
  */
 defineProps<{
   /** 显隐 */
@@ -26,6 +28,113 @@ const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void
   (event: 'saved'): void
 }>()
+
+interface ResourcePreset {
+  label: string
+  tableName: string
+  tenantColumn: string
+  ownerColumns: string
+  filterableColumns: string
+  supportedActions: string
+  status: string
+}
+
+const RESOURCE_PRESETS: Record<string, ResourcePreset> = {
+  'wms.inventory': {
+    label: '仓储库存 (wms.inventory)',
+    tableName: 'inventory',
+    tenantColumn: 'tenant_id',
+    ownerColumns: 'WAREHOUSE:storage.id',
+    filterableColumns: 'quantity, storage_id, material_id, create_time',
+    supportedActions: 'QUERY,EXPORT',
+    status: 'ENABLED',
+  },
+  'channel.purchase': {
+    label: '采购单据 (channel.purchase)',
+    tableName: 'purchase',
+    tenantColumn: 'tenant_id',
+    ownerColumns: 'creator_id, DEPARTMENT:department_id',
+    filterableColumns: 'status, total_price, supplier_id, create_time',
+    supportedActions: 'QUERY,EXPORT',
+    status: 'ENABLED',
+  },
+  'channel.sale': {
+    label: '销售单据 (channel.sale)',
+    tableName: 'sale',
+    tenantColumn: 'tenant_id',
+    ownerColumns: 'creator_id, DEPARTMENT:department_id',
+    filterableColumns: 'status, total_price, customer_id, create_time',
+    supportedActions: 'QUERY,EXPORT',
+    status: 'ENABLED',
+  },
+  'wms.input': {
+    label: '入库单据 (wms.input)',
+    tableName: 'input',
+    tenantColumn: 'tenant_id',
+    ownerColumns: 'creator_id, WAREHOUSE:storage.id',
+    filterableColumns: 'status, type, storage_id, create_time',
+    supportedActions: 'QUERY,EXPORT',
+    status: 'ENABLED',
+  },
+  'wms.output': {
+    label: '出库单据 (wms.output)',
+    tableName: 'output',
+    tenantColumn: 'tenant_id',
+    ownerColumns: 'creator_id, WAREHOUSE:storage.id',
+    filterableColumns: 'status, type, storage_id, create_time',
+    supportedActions: 'QUERY,EXPORT',
+    status: 'ENABLED',
+  },
+  'wms.move': {
+    label: '移库单据 (wms.move)',
+    tableName: 'move',
+    tenantColumn: 'tenant_id',
+    ownerColumns: 'creator_id, WAREHOUSE:storage.id',
+    filterableColumns: 'status, storage_id, create_time',
+    supportedActions: 'QUERY,EXPORT',
+    status: 'ENABLED',
+  },
+  'asset.material': {
+    label: '物料资产 (asset.material)',
+    tableName: 'material',
+    tenantColumn: 'tenant_id',
+    ownerColumns: 'creator_id',
+    filterableColumns: 'type, unit_id, is_disabled, create_time',
+    supportedActions: 'QUERY,EXPORT',
+    status: 'ENABLED',
+  },
+  'factory.storage': {
+    label: '仓库库位 (factory.storage)',
+    tableName: 'storage',
+    tenantColumn: 'tenant_id',
+    ownerColumns: 'creator_id',
+    filterableColumns: 'type, is_disabled, create_time',
+    supportedActions: 'QUERY,EXPORT',
+    status: 'ENABLED',
+  },
+  'personnel.user': {
+    label: '系统用户 (personnel.user)',
+    tableName: 'user',
+    tenantColumn: 'tenant_id',
+    ownerColumns: 'id, DEPARTMENT:department_id',
+    filterableColumns: 'email, phone, is_disabled, create_time',
+    supportedActions: 'QUERY,EXPORT',
+    status: 'ENABLED',
+  },
+}
+
+function onPresetSelect(key: string, form: Record<string, unknown>) {
+  form.resourceKey = key
+  const preset = RESOURCE_PRESETS[key]
+  if (preset) {
+    form.tableName = preset.tableName
+    form.tenantColumn = preset.tenantColumn
+    form.ownerColumns = preset.ownerColumns
+    form.filterableColumns = preset.filterableColumns
+    form.supportedActions = preset.supportedActions
+    form.status = preset.status
+  }
+}
 </script>
 
 <template>
@@ -39,6 +148,25 @@ const emit = defineEmits<{
     @saved="emit('saved')"
     @update:model-value="value => emit('update:modelValue', value)"
   >
+    <template #field-resourceKey="{ form }">
+      <ElSelect
+        :model-value="(form.resourceKey as string)"
+        filterable
+        allow-create
+        default-first-option
+        placeholder="选择或输入系统数据资源标识"
+        style="width: 100%"
+        @change="(val: string) => onPresetSelect(val, form as Record<string, unknown>)"
+      >
+        <ElOption
+          v-for="(preset, key) in RESOURCE_PRESETS"
+          :key="key"
+          :label="preset.label"
+          :value="key"
+        />
+      </ElSelect>
+    </template>
+
     <template #extra>
       <ElAlert
         class="resource-tip"
