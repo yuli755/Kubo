@@ -106,6 +106,8 @@ function cancel(): void {
     append-to-body
     destroy-on-close
     @close="cancel"
+    @keydown.ctrl.enter="confirm"
+    @keydown.meta.enter="confirm"
   >
     <div
       class="k-dialog__body"

@@ -4,6 +4,7 @@ import type { StructureEntity } from '@/model/factory/structure/StructureEntity'
 import { RefreshLeft, Search } from '@element-plus/icons-vue'
 import { ElButton, ElInput, ElRadioButton, ElRadioGroup, ElTag, ElTree } from 'element-plus'
 import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import KPanel from '@/component/framework/KPanel.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { Permissions } from '@/config/permissions'
@@ -31,9 +32,19 @@ import WarehouseHeatmap from './component/WarehouseHeatmap.vue'
  * 切维度时会**重建整个筛选条件**（只留 `type`），否则从「按仓库」切到「按生产单元」时
  * 上一次的 `storage.id` 还在，表格会莫名其妙地空掉。
  */
+const route = useRoute()
 const inventoryType = ref(InventoryTypeEnum.STORAGE.key)
 const selectedNode = ref<StorageEntity | StructureEntity | null>(null)
-const viewMode = ref<'table' | 'heatmap'>('table')
+const viewMode = ref<'table' | 'heatmap'>(route.query.view === 'heatmap' ? 'heatmap' : 'table')
+
+watch(
+  () => route.query.view,
+  (view) => {
+    if (view === 'heatmap') {
+      viewMode.value = 'heatmap'
+    }
+  },
+)
 
 const table = useTable(KInventoryService, {
   queryKey: ['wms:inventory'],

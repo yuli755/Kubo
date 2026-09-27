@@ -465,6 +465,8 @@ function onCancel() {
       label-width="110px"
       :class="{ 'k-form-dialog--two-columns': columns === 2 }"
       @submit.prevent="onSubmit"
+      @keydown.ctrl.enter="onSubmit"
+      @keydown.meta.enter="onSubmit"
     >
       <!-- 树形实体（仓库/生产单元/部门/菜单）的「所属上级」：不在 @Form 里，
            由页面通过 `preset` 带进来，只读展示，避免用户以为可以在这里改父级 -->

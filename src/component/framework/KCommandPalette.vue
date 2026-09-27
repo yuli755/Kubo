@@ -3,6 +3,7 @@ import type { MenuItem } from '@/router/appRouter'
 import {
   DataAnalysis,
   Expand,
+  Grid,
   HomeFilled,
   Moon,
   Right,
@@ -81,6 +82,14 @@ const systemActions = computed<ICommandItem[]>(() => [
     path: '/console/index',
     icon: DataAnalysis,
     breadcrumb: '工作台 / 数据权限治理',
+  },
+  {
+    id: 'act:heatmap',
+    title: '库位热力态势',
+    category: '快捷操作',
+    path: '/console/wms/inventory/list?view=heatmap',
+    icon: Grid,
+    breadcrumb: '仓储管理 / 实时库存 / 库位态势',
   },
   {
     id: 'act:theme',

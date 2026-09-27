@@ -5,6 +5,7 @@ import {
   Box,
   Coordinate,
   Goods,
+  Grid,
   Management,
   OfficeBuilding,
   Right,
@@ -70,8 +71,9 @@ const workflowSteps = [
   { num: '01', name: '采购下单', path: '/console/channel/purchase/list', icon: markRaw(ShoppingCart) },
   { num: '02', name: '验收入库', path: '/console/wms/input/list', icon: markRaw(Van) },
   { num: '03', name: '实时库存', path: '/console/wms/inventory/list', icon: markRaw(Goods) },
-  { num: '04', name: '库内移位', path: '/console/wms/move/list', icon: markRaw(Coordinate) },
-  { num: '05', name: '出库核销', path: '/console/wms/output/list', icon: markRaw(Sell) },
+  { num: '04', name: '库位热力', path: '/console/wms/inventory/list?view=heatmap', icon: markRaw(Grid) },
+  { num: '05', name: '库内移位', path: '/console/wms/move/list', icon: markRaw(Coordinate) },
+  { num: '06', name: '出库核销', path: '/console/wms/output/list', icon: markRaw(Sell) },
 ]
 
 interface IDashboardAction {
@@ -142,6 +144,14 @@ const modules: IDashboardModule[] = [
         icon: markRaw(Goods),
         color: '#06b6d4',
         bg: '#ecfeff',
+      },
+      {
+        name: '库位热力态势',
+        desc: '2.5D立体货架立面、ECharts色阶矩阵与物料定位',
+        path: '/console/wms/inventory/list?view=heatmap',
+        icon: markRaw(Grid),
+        color: '#8b5cf6',
+        bg: '#f5f3ff',
       },
       {
         name: '验收入库作业',

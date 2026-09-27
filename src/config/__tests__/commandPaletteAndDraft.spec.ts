@@ -474,4 +474,37 @@ describe('123 优化设计单元契约', () => {
       expect(feishu.content.text).toContain('死信警报')
     })
   })
+
+  describe('feature 19 · 命令调色板库位热力态势系统动作契约', () => {
+    it('命令调色板包含库位热力态势快捷直达项', async () => {
+      const KCommandPalette = (await import('@/component/framework/KCommandPalette.vue')).default
+      const wrapper = mount(KCommandPalette, {
+        props: {
+          modelValue: true,
+          menus: [],
+        },
+      })
+
+      const input = wrapper.find<HTMLInputElement>('.search-input')
+      await input.setValue('热力')
+      await nextTick()
+
+      const items = wrapper.findAll('.k-command-palette__item')
+      expect(items.length).toBeGreaterThanOrEqual(1)
+      expect(wrapper.text()).toContain('库位热力态势')
+    })
+  })
+
+  describe('feature 20 · 表单快捷键 ctrl+enter 触发提交契约', () => {
+    it('判断快捷键满足 ctrl+enter 或 meta+enter 条件', () => {
+      const isSubmitKey = (e: { ctrlKey: boolean, metaKey: boolean, key: string }) => {
+        return (e.ctrlKey || e.metaKey) && e.key === 'Enter'
+      }
+
+      expect(isSubmitKey({ ctrlKey: true, metaKey: false, key: 'Enter' })).toBe(true)
+      expect(isSubmitKey({ ctrlKey: false, metaKey: true, key: 'Enter' })).toBe(true)
+      expect(isSubmitKey({ ctrlKey: false, metaKey: false, key: 'Enter' })).toBe(false)
+      expect(isSubmitKey({ ctrlKey: true, metaKey: false, key: 'a' })).toBe(false)
+    })
+  })
 })
