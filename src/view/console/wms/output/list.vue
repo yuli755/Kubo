@@ -2,6 +2,7 @@
 import type { OutputEntity } from '@/model/wms/output/OutputEntity'
 import { ref } from 'vue'
 import BillRejectDialog from '@/component/bill/BillRejectDialog.vue'
+import BillStatusFilter from '@/component/bill/BillStatusFilter.vue'
 import KPanel from '@/component/framework/KPanel.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { Permissions } from '@/config/permissions'
@@ -18,13 +19,32 @@ import OutputEditor from './component/editor.vue'
  * 与入库单列表同构：普通列表 + 审核/驳回两个状态机动作，判据来自实体的
  * `canAudit()` / `canReject()`。
  *
+ * 状态分段筛选（Status Segmented Filter）：
+ * 列表顶部引入全生命周期状态分段控制（全部 / 待审核 / 已驳回 / 出库中 / 已完成），
+ * 与表格检索双向联动，消除多级下拉与频繁表头过滤交互冗余。
+ *
  * 旧页面这里还有个**文案错误**：列表页 actions 用的权限码与文案是对得上的，
  * 但详情页把 `sale`（销售单）标成了「采购单」—— 已在 `OutputEntity` 的 K 侧元数据与
  * 详情页改正（见 `output/component/detail.vue` 的说明），列表侧不受影响。
  */
+const statusFilter = ref<number | null>(null)
+
 const table = useTable(KOutputService, {
   queryKey: ['wms:output'],
   export: true,
+  beforeSearch: (f) => {
+    const next = { ...f }
+    if (next.status !== undefined && next.status !== '') {
+      statusFilter.value = Number(next.status)
+    }
+    else if (statusFilter.value !== null && statusFilter.value !== undefined) {
+      next.status = statusFilter.value
+    }
+    else {
+      delete next.status
+    }
+    return next
+  },
 })
 
 const editorVisible = ref(false)
@@ -87,6 +107,12 @@ function onSaved() {
       title="出库单"
       description="销售出库 / 移动出库 / 普通出库：审核后逐条「作业」选择库存来源并登记出库数量"
     >
+      <BillStatusFilter
+        v-model="statusFilter"
+        :enum-class="OutputStatusEnum"
+        :table="table"
+      />
+
       <KTable
         :actions="[
           { label: '查看', permission: Permissions.Wms.Output.getDetail, handler: openDetail },
@@ -118,7 +144,6 @@ function onSaved() {
     <OutputDetail
       :id="detailId"
       v-model="detailVisible"
-      @saved="onSaved"
     />
 
     <BillRejectDialog

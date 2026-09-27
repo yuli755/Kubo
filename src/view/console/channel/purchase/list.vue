@@ -2,6 +2,7 @@
 import type { PurchaseEntity } from '@/model/channel/purchase/PurchaseEntity'
 import { ref } from 'vue'
 import BillRejectDialog from '@/component/bill/BillRejectDialog.vue'
+import BillStatusFilter from '@/component/bill/BillStatusFilter.vue'
 import KPanel from '@/component/framework/KPanel.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { Permissions } from '@/config/permissions'
@@ -15,12 +16,15 @@ import PurchaseEditor from './component/editor.vue'
 /**
  * # 采购单列表（F4 批 5 · 新底座）
  *
- * 单据列表与 wms 入库/出库同构，只多两处 channel 特有的口径：
+ * 采购单从创建到入库完整闭环：
+ * 1. 制单：填供应商、采购事由与采购明细（含单价/数量），生成草稿态（审核中）；
+ * 2. 审核/驳回：状态机动作（`AbstractBaseBillEntity.canAudit / canReject`）；
+ * 3. 驳回可修改：驳回态允许重新编辑后再次提交；
+ * 4. 作业：审核通过后（采购中）逐条「作业」登记实际到货（采购入库单）。
  *
- * - **审核 / 驳回用实体自己的状态机**：`canAudit()` / `canReject()` 来自
- *   `AbstractBaseBillEntity`，页面不重算状态；
- * - **只有「已驳回」的单据可编辑**：`disable-edit` 判据与旧页面完全一致
- *   （`status !== REJECTED` 时置灰），审核中/采购中的单据不许改。
+ * 状态分段筛选（Status Segmented Filter）：
+ * 列表顶部引入全生命周期状态分段控制（全部 / 待审核 / 已驳回 / 采购中 / 入库中 / 已完成），
+ * 与表格检索双向联动，极大缩短高频运营动线。
  *
  * 「采购单没有删除端点也没有启停语义」：后端 `PurchaseController` 上写着
  * `exclude = Curd.Delete`，`@Extends` 也没有加回 Enable/Disable ——
@@ -30,8 +34,23 @@ import PurchaseEditor from './component/editor.vue'
  * 「查看」保持命令式打开（`DialogUtil.show`）：`channel/purchase/component/openDetail.ts`
  * 这个跨域接缝也走同一个组件，wms 入库详情点「采购单号」时用的就是它。
  */
+const statusFilter = ref<number | null>(null)
+
 const table = useTable(KPurchaseService, {
   queryKey: ['channel:purchase'],
+  beforeSearch: (f) => {
+    const next = { ...f }
+    if (next.status !== undefined && next.status !== '') {
+      statusFilter.value = Number(next.status)
+    }
+    else if (statusFilter.value !== null && statusFilter.value !== undefined) {
+      next.status = statusFilter.value
+    }
+    else {
+      delete next.status
+    }
+    return next
+  },
 })
 
 const editorVisible = ref(false)
@@ -90,6 +109,12 @@ function onSaved() {
       title="采购单"
       description="采购申请 → 审核 → 逐条「作业」登记到货数量；审核中的单据不可编辑"
     >
+      <BillStatusFilter
+        v-model="statusFilter"
+        :enum-class="PurchaseStatusEnum"
+        :table="table"
+      />
+
       <KTable
         :actions="[
           { label: '查看', permission: Permissions.Channel.Purchase.getDetail, handler: openDetail },

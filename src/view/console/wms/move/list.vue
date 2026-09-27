@@ -2,6 +2,7 @@
 import type { MoveEntity } from '@/model/wms/move/MoveEntity'
 import { ref } from 'vue'
 import BillRejectDialog from '@/component/bill/BillRejectDialog.vue'
+import BillStatusFilter from '@/component/bill/BillStatusFilter.vue'
 import KPanel from '@/component/framework/KPanel.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { Permissions } from '@/config/permissions'
@@ -20,6 +21,10 @@ import MoveEditor from './component/editor.vue'
  * **判据仍然来自实体的状态机**（`canAudit()` / `canReject()` 由 `AbstractBaseBillEntity` 提供），
  * 组件不认识业务状态，只负责把 `disabled` 画出来。
  *
+ * 状态分段筛选（Status Segmented Filter）：
+ * 列表顶部引入全生命周期状态分段控制（全部 / 待审核 / 已驳回 / 移动中 / 已完成），
+ * 与表格检索双向联动，消除多级下拉与频繁表头过滤交互冗余。
+ *
  * 审核 / 驳回走 `KMoveService`（`AbstractBillService` 的 `audit`/`reject`），不再经
  * `api/wms` 的 typed client：同一件事两条链是死代码与口径漂移的温床（批 4 已删掉这两条链的
  * mutation hook 与 typed client）。
@@ -28,9 +33,24 @@ import MoveEditor from './component/editor.vue'
  * 这里**声明式**地挂在页面上（`:on-confirm` / `:on-cancel`），而不是 `DialogUtil.show` ——
  * 命令式弹窗依赖 main.ts 注入的全局应用上下文，页面里少一处全局依赖就少一处测试盲区。
  */
+const statusFilter = ref<number | null>(null)
+
 const table = useTable(KMoveService, {
   queryKey: ['wms:move'],
   export: true,
+  beforeSearch: (f) => {
+    const next = { ...f }
+    if (next.status !== undefined && next.status !== '') {
+      statusFilter.value = Number(next.status)
+    }
+    else if (statusFilter.value !== null && statusFilter.value !== undefined) {
+      next.status = statusFilter.value
+    }
+    else {
+      delete next.status
+    }
+    return next
+  },
 })
 
 const editorVisible = ref(false)
@@ -94,6 +114,12 @@ function onSaved() {
       title="移库单"
       description="仓库之间的库存移动：审核后逐条「作业」登记实际移动数量"
     >
+      <BillStatusFilter
+        v-model="statusFilter"
+        :enum-class="MoveStatusEnum"
+        :table="table"
+      />
+
       <KTable
         :actions="[
           { label: '查看', permission: Permissions.Wms.Move.getDetail, handler: openDetail },
@@ -125,7 +151,6 @@ function onSaved() {
     <MoveDetail
       :id="detailId"
       v-model="detailVisible"
-      @saved="onSaved"
     />
 
     <BillRejectDialog

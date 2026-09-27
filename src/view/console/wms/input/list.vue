@@ -2,6 +2,7 @@
 import type { InputEntity } from '@/model/wms/input/InputEntity'
 import { ref } from 'vue'
 import BillRejectDialog from '@/component/bill/BillRejectDialog.vue'
+import BillStatusFilter from '@/component/bill/BillStatusFilter.vue'
 import KPanel from '@/component/framework/KPanel.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { Permissions } from '@/config/permissions'
@@ -18,6 +19,10 @@ import InputEditor from './component/editor.vue'
  * 与批 3 的普通列表相同，只多两个状态机动作（审核 / 驳回）：
  * 判据来自实体的 `canAudit()` / `canReject()`（`AbstractBaseBillEntity`），组件不认识业务状态。
  *
+ * 状态分段筛选（Status Segmented Filter）：
+ * 列表顶部引入全生命周期状态分段控制（全部 / 待审核 / 已驳回 / 入库中 / 已完成），
+ * 与表格检索双向联动，消除多级下拉与频繁表头过滤交互冗余。
+ *
  * 三个与旧页面对齐的细节：
  * - **驳回复核两道**：先填原因（`BillRejectDialog`），再确认一次（旧页面就是这两步）；
  * - **只有「已驳回」的单据可编辑**：被驳回的单据要能改完再提交，审核中/入库中的不许改；
@@ -25,9 +30,24 @@ import InputEditor from './component/editor.vue'
  *   单据也没有启用/禁用语义 —— 用 `hide-delete` / `hide-enable` 显式关掉，
  *   否则「没传权限码 ≠ 不显示」（`v-permission` 未传值时是不拦截的），用户会看到点下去必然报错的按钮。
  */
+const statusFilter = ref<number | null>(null)
+
 const table = useTable(KInputService, {
   queryKey: ['wms:input'],
   export: true,
+  beforeSearch: (f) => {
+    const next = { ...f }
+    if (next.status !== undefined && next.status !== '') {
+      statusFilter.value = Number(next.status)
+    }
+    else if (statusFilter.value !== null && statusFilter.value !== undefined) {
+      next.status = statusFilter.value
+    }
+    else {
+      delete next.status
+    }
+    return next
+  },
 })
 
 const editorVisible = ref(false)
@@ -90,6 +110,12 @@ function onSaved() {
       title="入库单"
       description="采购入库 / 移动入库 / 普通入库：审核后逐条「作业」登记实际入库数量"
     >
+      <BillStatusFilter
+        v-model="statusFilter"
+        :enum-class="InputStatusEnum"
+        :table="table"
+      />
+
       <KTable
         :actions="[
           { label: '查看', permission: Permissions.Wms.Input.getDetail, handler: openDetail },
@@ -121,7 +147,6 @@ function onSaved() {
     <InputDetail
       :id="detailId"
       v-model="detailVisible"
-      @saved="onSaved"
     />
 
     <BillRejectDialog

@@ -2,6 +2,7 @@
 import type { SaleEntity } from '@/model/channel/sale/SaleEntity'
 import { ref } from 'vue'
 import BillRejectDialog from '@/component/bill/BillRejectDialog.vue'
+import BillStatusFilter from '@/component/bill/BillStatusFilter.vue'
 import KPanel from '@/component/framework/KPanel.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { Permissions } from '@/config/permissions'
@@ -18,12 +19,31 @@ import SaleEditor from './component/editor.vue'
  * 与采购单列表同构（状态机判据 + `hide-delete` / `hide-enable` + 命令式「查看」）；
  * 状态字典换成 `SaleStatusEnum`，文案换成「销售单」。
  *
+ * 状态分段筛选（Status Segmented Filter）：
+ * 列表顶部引入全生命周期状态分段控制（全部 / 待审核 / 已驳回 / 出库中 / 已完成），
+ * 与表格检索双向联动，极大缩短高频运营动线。
+ *
  * 迁移时把两处复制粘贴留下的旧文案修了：
  * - 编辑器分组标题「采购单」→「销售单」；
  * - 删明细确认「采购明细」→「销售明细」。
  */
+const statusFilter = ref<number | null>(null)
+
 const table = useTable(KSaleService, {
   queryKey: ['channel:sale'],
+  beforeSearch: (f) => {
+    const next = { ...f }
+    if (next.status !== undefined && next.status !== '') {
+      statusFilter.value = Number(next.status)
+    }
+    else if (statusFilter.value !== null && statusFilter.value !== undefined) {
+      next.status = statusFilter.value
+    }
+    else {
+      delete next.status
+    }
+    return next
+  },
 })
 
 const editorVisible = ref(false)
@@ -82,6 +102,12 @@ function onSaved() {
       title="销售单"
       description="销售出库来源单据：审核后由出库单逐条「作业」登记实际出库数量"
     >
+      <BillStatusFilter
+        v-model="statusFilter"
+        :enum-class="SaleStatusEnum"
+        :table="table"
+      />
+
       <KTable
         :actions="[
           { label: '查看', permission: Permissions.Channel.Sale.getDetail, handler: openDetail },
