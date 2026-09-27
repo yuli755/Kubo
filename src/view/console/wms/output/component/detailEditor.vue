@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
+import { ElButton, ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import KSelector from '@/component/framework/KSelector.vue'
@@ -81,12 +81,17 @@ function onConfirm() {
         label="出库物料"
         prop="material"
       >
-        <ElInput
-          :model-value="form.material?.name ?? ''"
-          placeholder="请选择出库物料..."
-          readonly
-          @click="materialPicking = true"
-        />
+        <div class="field-select-row">
+          <ElInput
+            :model-value="form.material?.name ?? ''"
+            placeholder="请选择出库物料..."
+            readonly
+            @click="materialPicking = true"
+          />
+          <ElButton @click="materialPicking = true">
+            选择
+          </ElButton>
+        </div>
       </ElFormItem>
       <ElFormItem
         :label="getFieldLabel(OutputDetailEntity, 'quantity')"
@@ -112,6 +117,12 @@ function onConfirm() {
 </template>
 
 <style lang="scss" scoped>
+.field-select-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
 .output-detail-editor__number {
   width: 180px;
 }

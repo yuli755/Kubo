@@ -1,8 +1,7 @@
 <script lang="ts" setup>
 import type { MaterialEntity } from '@/model/asset/material/MaterialEntity'
-import type { UnitEntity } from '@/model/system/unit/UnitEntity'
-import { ElAlert, ElButton, ElInput, ElMessage } from 'element-plus'
-import { onMounted, ref } from 'vue'
+import { ElAlert, ElButton, ElMessage, ElOption, ElSelect } from 'element-plus'
+import { computed, onMounted, ref } from 'vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import KPanel from '@/component/framework/KPanel.vue'
 import KSelector from '@/component/framework/KSelector.vue'
@@ -10,10 +9,11 @@ import KTable from '@/component/framework/KTable.vue'
 import { useExportVisibility } from '@/composables/useExportVisibility'
 import { useMaskPolicy } from '@/composables/useMaskPolicy'
 import { Permissions } from '@/config/permissions'
-import { formatMoney } from '@/framework'
+import { formatMoney, QueryRequest } from '@/framework'
 import { KMaterialService } from '@/hook/asset/useMaterial'
 import { useTable } from '@/hook/kubo/useTable'
 import { KUnitService } from '@/hook/system/useUnit'
+import { UnitEntity } from '@/model/system/unit/UnitEntity'
 
 /**
  * # 物料（F4 批 2 · 新底座）
@@ -25,7 +25,7 @@ import { KUnitService } from '@/hook/system/useUnit'
  * | 列表 | `useTanStackTable(MaterialService, { editView })` | `useTable(KMaterialService, { export: true })` |
  * | 编辑 | `editor.vue` + `useEditor` + `AFormField` 手写字段 | `KFormDialog` 按 `@Form` 元数据渲染（编辑器文件已删） |
  * | 金额列 | `AMoney` + `#purchasePrice` 插槽 | `#cell-purchasePrice` 插槽（同样的遮蔽判据，渲染走 `formatMoney`） |
- * | 计量单位 | `UnitSelector`（airpower `ASelector`） | `KSelector` + `KUnitService`（单位是系统域的实体，页面内嵌选择器即可，不必等系统域迁移） |
+ * | 计量单位 | `UnitSelector`（airpower `ASelector`） | `KSelector` + `KUnitService`（单位是系统域的实体，支持下拉直选与选择器双模） |
  * | 导出 | `ATable show-export`（内部弹窗轮询） | `export: true` + `ExportUtil`（建任务 → 轮询 → 下载） |
  *
  * **价格列必须过脱敏策略**：后端把 `purchasePrice` / `salePrice` 标成敏感字段，
@@ -35,48 +35,68 @@ import { KUnitService } from '@/hook/system/useUnit'
 const { blocked: exportBlockedFields } = useExportVisibility('asset.material')
 
 const materialPricePolicy = useMaskPolicy('asset.material', ['purchasePrice', 'salePrice'])
-onMounted(() => materialPricePolicy.load())
+
+const unitList = ref<UnitEntity[]>([])
+
+onMounted(async () => {
+  materialPricePolicy.load()
+  try {
+    unitList.value = await new KUnitService().getList(new QueryRequest(UnitEntity))
+  }
+  catch {
+    unitList.value = []
+  }
+})
 
 const table = useTable(KMaterialService, {
   queryKey: ['asset:material'],
   export: true,
-  /**
-   * 搜索框里填的是**单位名**，后端按 `filter.unit.name` 模糊匹配（`unit` 是关联对象）。
-   * 这个转换以前写在 `useTanStackTable` 的 `beforeSearch` 里，语义不变、位置更明确：
-   * 它是"这个页面特有的参数拼装"，所以留在页面声明、由 `useTable` 在提交前调用。
-   */
-  beforeSearch: (filter) => {
-    const unitName = filter.unitName
-    if (!unitName) {
-      return filter
-    }
-    return { ...filter, unitName: undefined, unit: { name: unitName } }
-  },
 })
 
-// ── 编辑弹窗（含计量单位选择器 + 价格脱敏守卫） ──
 const editorVisible = ref(false)
 const editingId = ref<number | null>(null)
 const unitPicking = ref(false)
 const form = ref<Record<string, unknown>>({})
+const unitLabel = ref('')
+
+const selectedUnitId = computed(() => {
+  const u = form.value.unit as UnitEntity | undefined
+  return u?.id ?? (form.value.unitId as number | undefined)
+})
+
+function onUnitDropdownChange(id: number | null) {
+  if (!id) {
+    form.value.unit = undefined
+    form.value.unitId = undefined
+    unitLabel.value = ''
+    return
+  }
+  const hit = unitList.value.find(u => u.id === id)
+  if (hit) {
+    pickUnit([hit])
+  }
+}
 
 function openCreate() {
   editingId.value = null
+  unitLabel.value = ''
   editorVisible.value = true
 }
 
 function openEdit(row: MaterialEntity) {
   editingId.value = row.id
+  unitLabel.value = ''
   editorVisible.value = true
 }
 
 function onLoaded(next: Record<string, unknown>) {
   form.value = next
+  const unit = next.unit as UnitEntity | undefined
+  unitLabel.value = unit ? `${unit.name}${unit.code ? `(${unit.code})` : ''}` : ''
 }
 
-const unitLabel = ref('')
-function pickUnit(rows: UnitEntity[]) {
-  const unit = rows[0]
+function pickUnit(rows: unknown[]) {
+  const unit = rows[0] as UnitEntity | undefined
   if (!unit)
     return
   form.value.unit = unit
@@ -162,16 +182,26 @@ function onSaved() {
       @loaded="onLoaded"
       @saved="onSaved"
     >
-      <!-- 计量单位：远程选择器（单位属于系统域，用 KSelector + KUnitService，不等系统域迁移） -->
+      <!-- 计量单位：下拉直接点选 + 弹窗完整筛选双模协同 -->
       <template #field-unit="{ field }">
         <div class="unit-field">
-          <ElInput
-            :model-value="unitLabel || (form.unit as { name?: string })?.name || ''"
+          <ElSelect
+            :model-value="selectedUnitId"
             :placeholder="`请选择${field.label}`"
-            readonly
-          />
+            clearable
+            filterable
+            style="flex: 1"
+            @change="onUnitDropdownChange"
+          >
+            <ElOption
+              v-for="u in unitList"
+              :key="u.id"
+              :label="`${u.name} (${u.code})`"
+              :value="u.id"
+            />
+          </ElSelect>
           <ElButton @click="unitPicking = true">
-            选择
+            高级选择
           </ElButton>
         </div>
       </template>

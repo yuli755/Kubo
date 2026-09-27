@@ -2,7 +2,7 @@
 import type { IDialogActionProps } from '@/framework'
 import type { MaterialEntity } from '@/model/asset/material/MaterialEntity'
 import type { SaleDetailEntity } from '@/model/channel/sale/SaleDetailEntity'
-import { ElForm, ElFormItem, ElInput, ElInputNumber, ElTag } from 'element-plus'
+import { ElButton, ElForm, ElFormItem, ElInput, ElInputNumber, ElTag } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import KSelector from '@/component/framework/KSelector.vue'
@@ -107,12 +107,17 @@ function onConfirm() {
       @submit.prevent
     >
       <ElFormItem label="销售物料">
-        <ElInput
-          :model-value="form.material?.name ?? ''"
-          placeholder="请选择销售物料..."
-          readonly
-          @click="materialPicking = true"
-        />
+        <div class="field-select-row">
+          <ElInput
+            :model-value="form.material?.name ?? ''"
+            placeholder="请选择销售物料..."
+            readonly
+            @click="materialPicking = true"
+          />
+          <ElButton @click="materialPicking = true">
+            选择
+          </ElButton>
+        </div>
       </ElFormItem>
       <ElFormItem label="销售客户">
         <ElInput
@@ -177,6 +182,12 @@ function onConfirm() {
 </template>
 
 <style lang="scss" scoped>
+.field-select-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
 .sale-detail-editor__number {
   width: 180px;
 }

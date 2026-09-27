@@ -3,7 +3,7 @@ import type { IDialogActionProps } from '@/framework'
 import type { MaterialEntity } from '@/model/asset/material/MaterialEntity'
 import type { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
 import type { SupplierEntity } from '@/model/channel/supplier/SupplierEntity'
-import { ElForm, ElFormItem, ElInput, ElInputNumber, ElTag } from 'element-plus'
+import { ElButton, ElForm, ElFormItem, ElInput, ElInputNumber, ElTag } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import KSelector from '@/component/framework/KSelector.vue'
@@ -128,23 +128,33 @@ function onConfirm() {
         label="采购物料"
         prop="material"
       >
-        <ElInput
-          :model-value="form.material?.name ?? ''"
-          placeholder="请选择采购物料..."
-          readonly
-          @click="materialPicking = true"
-        />
+        <div class="field-select-row">
+          <ElInput
+            :model-value="form.material?.name ?? ''"
+            placeholder="请选择采购物料..."
+            readonly
+            @click="materialPicking = true"
+          />
+          <ElButton @click="materialPicking = true">
+            选择
+          </ElButton>
+        </div>
       </ElFormItem>
       <ElFormItem
         label="供应商"
         prop="supplier"
       >
-        <ElInput
-          :model-value="(form.supplier as SupplierEntity | undefined)?.name ?? ''"
-          placeholder="请选择供应商..."
-          readonly
-          @click="supplierPicking = true"
-        />
+        <div class="field-select-row">
+          <ElInput
+            :model-value="(form.supplier as SupplierEntity | undefined)?.name ?? ''"
+            placeholder="请选择供应商..."
+            readonly
+            @click="supplierPicking = true"
+          />
+          <ElButton @click="supplierPicking = true">
+            选择
+          </ElButton>
+        </div>
       </ElFormItem>
       <ElFormItem
         :label="getFieldLabel(PurchaseDetail, 'price')"
@@ -211,6 +221,12 @@ function onConfirm() {
 </template>
 
 <style lang="scss" scoped>
+.field-select-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
 .purchase-detail-editor__number {
   width: 180px;
 }

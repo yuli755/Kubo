@@ -144,4 +144,72 @@ describe('智能选择器与零手动输入体验（Smart Selectors Everywhere�
       expect(inputDetailEditorSource).toContain('form.value.storageId = target.id')
     })
   })
+
+  describe('5. 入库与出库确认一键填入数量与选择按钮触发', () => {
+    const inputAddFinishSource = readFileSync(
+      join(ROOT, 'src/view/console/wms/input/component/addFinishEditor.vue'),
+      'utf8',
+    )
+    const outputAddFinishSource = readFileSync(
+      join(ROOT, 'src/view/console/wms/output/component/addFinishEditor.vue'),
+      'utf8',
+    )
+
+    it('确认入库弹窗支持一键全部入库与仓库选择按钮', () => {
+      expect(inputAddFinishSource).toContain('全部入库')
+      expect(inputAddFinishSource).toContain('quantity = waitingQuantity')
+      expect(inputAddFinishSource).toContain('field-select-row')
+      expect(inputAddFinishSource).toContain('@click="storagePicking = true"')
+    })
+
+    it('确认出库弹窗支持一键全部出库与库存来源选择按钮', () => {
+      expect(outputAddFinishSource).toContain('全部出库')
+      expect(outputAddFinishSource).toContain('quantity = maxAvailableQuantity')
+      expect(outputAddFinishSource).toContain('field-select-row')
+      expect(outputAddFinishSource).toContain('openInventoryPicker')
+    })
+  })
+
+  describe('6. 价格管理与物料管理智能预填及双模选择', () => {
+    const purchasePriceSource = readFileSync(
+      join(ROOT, 'src/view/console/channel/purchasePrice/list.vue'),
+      'utf8',
+    )
+    const salePriceSource = readFileSync(
+      join(ROOT, 'src/view/console/channel/salePrice/list.vue'),
+      'utf8',
+    )
+    const materialListSource = readFileSync(
+      join(ROOT, 'src/view/console/asset/material/list.vue'),
+      'utf8',
+    )
+
+    it('采购价与销售价选定物料时自动预填参考基准报价', () => {
+      expect(purchasePriceSource).toContain('material.purchasePrice')
+      expect(purchasePriceSource).toContain('form.value.price = material.purchasePrice')
+      expect(salePriceSource).toContain('material.salePrice')
+      expect(salePriceSource).toContain('form.value.price = material.salePrice')
+    })
+
+    it('物料编辑支持计量单位直接下拉点选与高级弹窗双模协同', () => {
+      expect(materialListSource).toContain('unitList')
+      expect(materialListSource).toContain('KUnitService')
+      expect(materialListSource).toContain('onUnitDropdownChange')
+      expect(materialListSource).toContain('高级选择')
+    })
+  })
+
+  describe('7. 编码规则常用模板一键速填', () => {
+    const codeRuleSource = readFileSync(
+      join(ROOT, 'src/view/console/system/coderule/list.vue'),
+      'utf8',
+    )
+
+    it('编码规则提供常用日期模板一键速填按钮', () => {
+      expect(codeRuleSource).toContain('TEMPLATE_PRESETS')
+      expect(codeRuleSource).toContain('applyPresetTemplate')
+      expect(codeRuleSource).toContain('yyyyMMdd')
+      expect(codeRuleSource).toContain('yyyyMM')
+    })
+  })
 })

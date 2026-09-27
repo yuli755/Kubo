@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { StorageEntity } from '@/model/factory/storage/StorageEntity'
-import { ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
+import { ElButton, ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import KSelector from '@/component/framework/KSelector.vue'
@@ -68,6 +68,13 @@ const waitingQuantity = computed(() =>
   Math.max(0, Number(props.detail?.quantity ?? 0) - Number(props.detail?.finishQuantity ?? 0)),
 )
 
+const storageLabel = computed(() => {
+  if (!storage.value?.name) {
+    return ''
+  }
+  return storage.value.code ? `${storage.value.name}(${storage.value.code})` : storage.value.name
+})
+
 function onStoragePicked(rows: unknown[]) {
   storage.value = rows[0] as StorageEntity | undefined
   storagePicking.value = false
@@ -125,12 +132,17 @@ async function onConfirm() {
         />
       </ElFormItem>
       <ElFormItem label="目标仓库">
-        <ElInput
-          :model-value="storage?.name ?? ''"
-          placeholder="请选择目标仓库..."
-          readonly
-          @click="storagePicking = true"
-        />
+        <div class="field-select-row">
+          <ElInput
+            :model-value="storageLabel"
+            placeholder="请选择目标仓库..."
+            readonly
+            @click="storagePicking = true"
+          />
+          <ElButton @click="storagePicking = true">
+            选择
+          </ElButton>
+        </div>
       </ElFormItem>
       <ElFormItem label="待入数量">
         <ElInput
@@ -143,12 +155,22 @@ async function onConfirm() {
         </ElInput>
       </ElFormItem>
       <ElFormItem :label="getFieldLabel(InputDetailEntity, 'quantity')">
-        <ElInputNumber
-          v-model="quantity"
-          :min="0"
-          class="add-finish-editor__number"
-        />
-        <span class="add-finish-editor__unit">{{ unitName }}</span>
+        <div class="quantity-input-row">
+          <ElInputNumber
+            v-model="quantity"
+            :min="0"
+            class="add-finish-editor__number"
+          />
+          <span class="add-finish-editor__unit">{{ unitName }}</span>
+          <ElButton
+            size="small"
+            type="primary"
+            link
+            @click="quantity = waitingQuantity"
+          >
+            全部入库（{{ waitingQuantity }}）
+          </ElButton>
+        </div>
       </ElFormItem>
     </ElForm>
   </KDialog>
@@ -164,12 +186,25 @@ async function onConfirm() {
 </template>
 
 <style lang="scss" scoped>
+.field-select-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.quantity-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .add-finish-editor__number {
   width: 180px;
 }
 
 .add-finish-editor__unit {
-  margin-left: 8px;
+  margin-left: 4px;
+  margin-right: 4px;
   color: var(--el-text-color-secondary);
 }
 </style>

@@ -56,6 +56,14 @@ const editingDetail = ref<MoveDetailEntity | null>(null)
 
 const details = computed<MoveDetailEntity[]>(() => (form.value.details ?? []) as MoveDetailEntity[])
 
+const storageLabel = computed(() => {
+  const s = form.value.storage as { name?: string, code?: string } | undefined
+  if (!s?.name) {
+    return ''
+  }
+  return s.code ? `${s.name}(${s.code})` : s.name
+})
+
 /** 表单初始化：明细数组补空（新增时 `KFormDialog` 只重置 `@Form` 字段） */
 function onLoaded(next: Record<string, unknown>) {
   next.details ??= []
@@ -157,12 +165,17 @@ function beforeSubmit(payload: Record<string, unknown>) {
     @update:model-value="value => emit('update:modelValue', value)"
   >
     <template #field-storage>
-      <ElInput
-        :model-value="(form.storage as { name?: string } | undefined)?.name ?? ''"
-        placeholder="请选择目标仓库..."
-        readonly
-        @click="storagePicking = true"
-      />
+      <div class="field-select-row">
+        <ElInput
+          :model-value="storageLabel"
+          placeholder="请选择目标仓库..."
+          readonly
+          @click="storagePicking = true"
+        />
+        <ElButton @click="storagePicking = true">
+          选择
+        </ElButton>
+      </div>
     </template>
 
     <template #extra>
@@ -239,6 +252,12 @@ function beforeSubmit(payload: Record<string, unknown>) {
 </template>
 
 <style lang="scss" scoped>
+.field-select-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
 .move-editor__details {
   margin-top: 4px;
 }

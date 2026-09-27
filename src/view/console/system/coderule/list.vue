@@ -3,7 +3,7 @@ import type { WebValidateRuleSet } from '@/framework'
 import type { CodeRuleEntity } from '@/model/system/coderule/CodeRuleEntity'
 import type { CodeRuleField } from '@/model/system/coderule/CodeRuleField'
 import type { CodeRuleParam } from '@/model/system/coderule/CodeRuleParam'
-import { ElFormItem, ElOption, ElSelect, ElTag } from 'element-plus'
+import { ElButton, ElFormItem, ElOption, ElSelect, ElTag } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import KPanel from '@/component/framework/KPanel.vue'
@@ -83,6 +83,17 @@ const extraRules = computed<WebValidateRuleSet>(() => ({
   prefix: [WebValidator.show('前缀只允许字母/数字').ifNotOnlyNumberAndLetter()],
   template: [WebValidator.show('前缀只允许字母/数字').ifNotOnlyNumberAndLetter()],
 }))
+
+const TEMPLATE_PRESETS = [
+  { label: '年月日 (yyyyMMdd)', template: 'yyyyMMdd' },
+  { label: '年月 (yyyyMM)', template: 'yyyyMM' },
+  { label: '年份 (yyyy)', template: 'yyyy' },
+  { label: '短年月日 (yyMMdd)', template: 'yyMMdd' },
+]
+
+function applyPresetTemplate(tpl: string) {
+  form.value.template = tpl
+}
 
 function fieldChanged(fieldId: number) {
   const matched = fieldList.value.find(item => item.key === fieldId)
@@ -178,6 +189,20 @@ function appendParam(param: CodeRuleParam) {
       </template>
 
       <template #extra="{ form: formData }">
+        <ElFormItem label="常用模板">
+          <div class="preset-templates">
+            <ElButton
+              v-for="item in TEMPLATE_PRESETS"
+              :key="item.template"
+              size="small"
+              type="primary"
+              plain
+              @click="applyPresetTemplate(item.template)"
+            >
+              {{ item.label }}
+            </ElButton>
+          </div>
+        </ElFormItem>
         <ElFormItem label="可选参数">
           <ElTag
             v-for="param in paramList"
@@ -207,6 +232,12 @@ function appendParam(param: CodeRuleParam) {
   flex-direction: column;
   gap: 16px;
   width: 100%;
+}
+
+.preset-templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .param-item {

@@ -82,6 +82,12 @@ function onMaterialPicked(rows: unknown[]) {
     return
   }
   form.value.material = material
+  if (
+    (form.value.price === undefined || form.value.price === null || Number(form.value.price) === 0)
+    && material.purchasePrice
+  ) {
+    form.value.price = material.purchasePrice
+  }
 }
 
 function onSupplierPicked(rows: unknown[]) {

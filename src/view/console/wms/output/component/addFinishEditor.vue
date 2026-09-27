@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { InventoryEntity } from '@/model/wms/inventory/InventoryEntity'
-import { ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
+import { ElButton, ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import { FeedbackUtil, getFieldLabel } from '@/framework'
@@ -62,6 +62,21 @@ watch(
 const materialName = computed(() => props.detail?.material?.name ?? '-')
 const unitName = computed(() => props.detail?.material?.unit?.name ?? '')
 const inventoryQuantity = computed(() => inventory.value?.quantity ?? 0)
+
+const inventoryStorageLabel = computed(() => {
+  const s = inventory.value?.storage as { name?: string, code?: string } | undefined
+  if (!s?.name) {
+    return ''
+  }
+  return s.code ? `${s.name}(${s.code})` : s.name
+})
+
+const maxAvailableQuantity = computed(() => {
+  if (!inventory.value) {
+    return waitingQuantity.value
+  }
+  return Math.min(Number(inventory.value.quantity ?? 0), waitingQuantity.value)
+})
 
 function openInventoryPicker() {
   // 按仓库维度挑库存，并带上物料：选择器会按物料过滤（见 inventory selector 的文件头说明）
@@ -135,12 +150,17 @@ async function onConfirm() {
         />
       </ElFormItem>
       <ElFormItem label="库存来源">
-        <ElInput
-          :model-value="inventory?.storage?.name ?? ''"
-          placeholder="请选择库存来源..."
-          readonly
-          @click="openInventoryPicker"
-        />
+        <div class="field-select-row">
+          <ElInput
+            :model-value="inventoryStorageLabel"
+            placeholder="请选择库存来源..."
+            readonly
+            @click="openInventoryPicker"
+          />
+          <ElButton @click="openInventoryPicker">
+            选择
+          </ElButton>
+        </div>
       </ElFormItem>
       <ElFormItem
         v-if="inventory"
@@ -166,12 +186,23 @@ async function onConfirm() {
         </ElInput>
       </ElFormItem>
       <ElFormItem :label="getFieldLabel(OutputDetailEntity, 'quantity')">
-        <ElInputNumber
-          v-model="quantity"
-          :min="0"
-          class="add-finish-editor__number"
-        />
-        <span class="add-finish-editor__unit">{{ unitName }}</span>
+        <div class="quantity-input-row">
+          <ElInputNumber
+            v-model="quantity"
+            :min="0"
+            class="add-finish-editor__number"
+          />
+          <span class="add-finish-editor__unit">{{ unitName }}</span>
+          <ElButton
+            v-if="maxAvailableQuantity > 0"
+            size="small"
+            type="primary"
+            link
+            @click="quantity = maxAvailableQuantity"
+          >
+            全部出库（{{ maxAvailableQuantity }}）
+          </ElButton>
+        </div>
       </ElFormItem>
     </ElForm>
   </KDialog>
@@ -185,12 +216,25 @@ async function onConfirm() {
 </template>
 
 <style lang="scss" scoped>
+.field-select-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.quantity-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .add-finish-editor__number {
   width: 180px;
 }
 
 .add-finish-editor__unit {
-  margin-left: 8px;
+  margin-left: 4px;
+  margin-right: 4px;
   color: var(--el-text-color-secondary);
 }
 </style>
