@@ -36,9 +36,20 @@ public class SmsHelper {
      * @param code  验证码（6 位数字，已存 Redis 供校验，有效期见 {@code UserService.CACHE_CODE_EXPIRE_SECOND}）
      */
     public void sendCode(String phone, String code) {
-        // 占位实现：未接入真实短信通道时仅打印到日志（验证码仍存 Redis，可人工查询）。
+        // 占位实现：未接入真实短信通道时仅打 DEBUG 日志（验证码仍存 Redis，人工排查时
+        // 从 Redis 取，不依赖日志级别——验证码进 INFO 日志等于把凭据写进日志采集链路）。
         // 接入真实服务商后，这里替换为调用 SDK 发送；失败应抛业务异常，让 sendSmsCode 的事务语义
         // 决定是否回滚（当前 sendSmsCode 无事务，验证码已落 Redis，发送失败不影响校验侧）。
-        log.info("短信验证码：{}（手机号 {}，未接入真实短信通道，仅日志）", code, phone);
+        log.debug("短信验证码占位（未接入真实短信通道，手机号 {}，验证码已存 Redis）", maskPhone(phone));
+    }
+
+    /**
+     * 手机号脱敏：保留前 3 后 4
+     */
+    private static String maskPhone(String phone) {
+        if (phone == null || phone.length() < 8) {
+            return "****";
+        }
+        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
     }
 }

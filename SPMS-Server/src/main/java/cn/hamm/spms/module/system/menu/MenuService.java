@@ -34,6 +34,11 @@ public class MenuService extends BaseService<MenuEntity, MenuRepository> {
 
     @SuppressWarnings("AlibabaMethodTooLong")
     public final void initMenu() {
+        // 幂等：菜单已存在则跳过。DevDataInitRunner 的 init.lock 按相对路径查找，
+        // 后端工作目录变化会使守卫失效；本方法此前无条件 add()，每次失效就整树重复一份。
+        if (!filter(new MenuEntity()).isEmpty()) {
+            return;
+        }
         MenuEntity firstMenu;
         MenuEntity secondMenu;
 

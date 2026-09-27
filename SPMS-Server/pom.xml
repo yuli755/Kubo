@@ -189,6 +189,17 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- Spring Boot 3 下 @RequestParam/@PathVariable 未写显式 name 时，
+                         参数名绑定完全依赖编译期参数名元数据；airpower parent 未配置
+                         -parameters，缺失时运行时 IllegalArgumentException → 500
+                         （GUI-2：/dataResource/deny-logs 实锤）。 -->
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
                 <configuration>

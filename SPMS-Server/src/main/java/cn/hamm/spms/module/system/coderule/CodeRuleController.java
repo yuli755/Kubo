@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 @Description("编码规则")
 public class CodeRuleController extends BaseController<CodeRuleEntity, CodeRuleService, CodeRuleRepository> {
     @Description("获取支持的表")
-    @Permission(login = false)
+    @Permission(login = true)
     @PostMapping("getFieldList")
     public Json getFieldList() {
         return Json.data(DictionaryUtil.getDictionaryList(CodeRuleField.class,
@@ -31,7 +31,7 @@ public class CodeRuleController extends BaseController<CodeRuleEntity, CodeRuleS
     }
 
     @Description("获取支持的参数")
-    @Permission(login = false)
+    @Permission(login = true)
     @PostMapping("getParamList")
     public Json getParamList() {
         return Json.data(DictionaryUtil.getDictionaryList(CodeRuleParam.class,
@@ -43,7 +43,7 @@ public class CodeRuleController extends BaseController<CodeRuleEntity, CodeRuleS
     }
 
     @Description("获取流水号更新方式")
-    @Permission(login = false)
+    @Permission(login = true)
     @PostMapping("getSerialNumberUpdate")
     public Json getSerialNumberUpdate() {
         return Json.data(DictionaryUtil.getDictionaryList(SerialNumberUpdate.class));

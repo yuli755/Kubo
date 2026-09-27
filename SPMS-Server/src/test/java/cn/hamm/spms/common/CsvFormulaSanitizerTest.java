@@ -37,14 +37,30 @@ class CsvFormulaSanitizerTest {
     }
 
     @Test
-    @DisplayName("= + - @ \\t \\r 六种危险首字符均被前缀单引号")
+    @DisplayName("= + - @ \\t 危险首字符被前缀单引号；\\r 首字符被替换为空格（不再是公式触发位）")
     void sanitizesAllTriggers() {
         assertEquals("'=cmd", CsvFormulaSanitizer.sanitizeValue("=cmd"));
         assertEquals("'+8613", CsvFormulaSanitizer.sanitizeValue("+8613"));
         assertEquals("'-1", CsvFormulaSanitizer.sanitizeValue("-1"));
         assertEquals("'@import", CsvFormulaSanitizer.sanitizeValue("@import"));
         assertEquals("'\tabc", CsvFormulaSanitizer.sanitizeValue("\tabc"));
-        assertEquals("'\rabc", CsvFormulaSanitizer.sanitizeValue("\rabc"));
+        // \r 首字符先被替换为空格再判首字符：「前缀 + 保留 \r」反而会被 Spring CSV
+        // （只去 \n 不去 \r）拆行绕过——替换成空格才真正消除拆行
+        assertEquals(" abc", CsvFormulaSanitizer.sanitizeValue("\rabc"));
+    }
+
+    @Test
+    @DisplayName("K-4：内部 CR 拆行绕过被消除（abc\\r=HYPERLINK(..) 不再产生裸公式）")
+    void neutralizesInternalCrFormulaBypass() {
+        String malicious = "abc\r=HYPERLINK(\"http://evil\",1)";
+        String sanitized = CsvFormulaSanitizer.sanitizeValue(malicious);
+        // 核心契约：输出不含 \r/\n，无法借拆行把 "=…" 顶到新一行首字符
+        assertTrue(sanitized.indexOf('\r') < 0 && sanitized.indexOf('\n') < 0, sanitized);
+        // 「=HYPERLINK」前留有内容，即使按行拆也永远不在行首
+        assertTrue(sanitized.startsWith("abc "), sanitized);
+        // \n 同理
+        String lfBypass = CsvFormulaSanitizer.sanitizeValue("abc\n=cmd|calc");
+        assertTrue(lfBypass.indexOf('\n') < 0 && lfBypass.indexOf('\r') < 0, lfBypass);
     }
 
     @Test

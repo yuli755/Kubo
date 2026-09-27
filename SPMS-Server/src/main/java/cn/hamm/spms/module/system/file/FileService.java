@@ -75,7 +75,9 @@ public class FileService extends BaseService<FileEntity, FileRepository> {
             // 上传链路共享同一行的生命周期。未命中时新建行；物理文件按
             // hashMd5 命名，重复落盘是幂等覆盖，无副作用。
             FileEntity file = repository.getListByCategoryAndHashMd5(fileCategory.getKey(), hashMd5).stream()
-                    .filter(exist -> Objects.equals(exist.getCreatorId(), creatorId))
+                    // creatorId 同为 null 也是「相等」：D-4 之前的历史行（creator_id 为 null）
+                    // 会让任何请求都命中并回显他人文件名/URL，null 属主行不参与复用
+                    .filter(exist -> Objects.nonNull(creatorId) && Objects.equals(exist.getCreatorId(), creatorId))
                     .findFirst()
                     .orElse(null);
             if (Objects.nonNull(file)) {

@@ -42,9 +42,12 @@ async function onLogout() {
 }
 
 async function onUploadAvatar(file: FileEntity) {
-  AppConfig.currentUser.value = await UserService.create(isLoading).getMyInfo()
-  AppConfig.currentUser.value.avatar = file.url
-  await UserService.create(isLoading).updateMyInfo(AppConfig.currentUser.value)
+  // L-1 载荷最小化：updateMyInfo 在后端是「非 null 即覆盖」的合并语义（K-1 已把
+  // 授权类字段强制清空作为兜底），前端只提交要改的 avatar——整对象上送会把
+  // roleList/departmentList 等授权字段带上线，纯属多余攻击面与回归风险。
+  const payload = new UserEntity()
+  payload.avatar = file.url
+  await UserService.create(isLoading).updateMyInfo(payload)
   AppConfig.currentUser.value = await UserService.create(isLoading).getMyInfo()
 }
 </script>

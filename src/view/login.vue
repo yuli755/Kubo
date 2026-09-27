@@ -13,6 +13,7 @@ import { OpenAppEntity } from '@/model/open/app/OpenAppEntity'
 import { useUserStore } from '@/stores/user'
 import { reportError } from '@/utils/errorHandler'
 import { safeRedirect } from '@/utils/safeRedirect'
+import { markTokenScope } from '@/utils/tokenScope'
 import { isEmail, isMobilePhone, isNaturalNumber } from '@/utils/validators'
 
 const userStore = useUserStore()
@@ -105,6 +106,8 @@ async function getAppInfo() {
  * ### 处理登录重定向
  */
 async function loginRedirect(token: string) {
+  // G-3：登记本次登录作用域（「记住我」勾选状态由 enforceTokenScope 在下次冷启动时兑现）
+  markTokenScope(rememberMe.value)
   userStore.setToken(token)
 
   // 登录成功后预加载首页需要的 chunk，缩短进入控制台的等待时间

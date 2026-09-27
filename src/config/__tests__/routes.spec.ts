@@ -13,13 +13,23 @@ import { routes } from '@/config/routes'
 describe('routes · 访客路由 meta 契约', () => {
   const byPath = new Map(routes.map(route => [route.path, route]))
 
-  it('guest 路由仅限登录/回调/绑定/授权，且一一标注', () => {
+  it('guest 路由仅限登录/回调/绑定/授权 + 静态法务页，且一一标注', () => {
     const guestPaths = routes
       .filter(route => route.meta?.guest === true)
       .map(route => route.path)
       .sort()
 
-    expect(guestPaths).toEqual(['/authorize', '/bind/:platform', '/callback/:platform', '/login'])
+    // G-1：/privacy /terms /forgot-password 是登录页入口对应的静态法务/帮助页，
+    // 无业务数据、不含鉴权依赖，允许访客访问；新增 guest 路由必须在此显式登记。
+    expect(guestPaths).toEqual([
+      '/authorize',
+      '/bind/:platform',
+      '/callback/:platform',
+      '/forgot-password',
+      '/login',
+      '/privacy',
+      '/terms',
+    ])
   })
 
   it('业务页 /home 与根布局 console 必须鉴权（无 guest）', () => {

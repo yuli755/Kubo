@@ -6,8 +6,10 @@ import cn.hamm.airpower.core.Json;
 import cn.hamm.airpower.core.annotation.Description;
 import cn.hamm.airpower.curd.permission.Permission;
 import cn.hamm.spms.base.BaseController;
+import cn.hamm.spms.common.security.RateLimitHelper;
 import cn.hamm.spms.module.personnel.user.UserService;
 import cn.hamm.spms.module.system.file.enums.FileCategory;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,23 +29,32 @@ import static cn.hamm.airpower.exception.Errors.FORBIDDEN_EDIT;
 @Description("文件")
 public class FileController extends BaseController<FileEntity, FileService, FileRepository> {
 
+    /**
+     * 上传限流：登录用户也防脚本刷盘（60 次/分钟/IP）
+     */
+    private static final int UPLOAD_LIMIT_PER_MINUTE = 60;
+    private static final String UPLOAD_RATE_KEY_PREFIX = "kubo:file:upload:rate:";
+
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private RateLimitHelper rateLimitHelper;
 
     @PostMapping("upload")
     @Description("文件上传")
     @Permission(authorize = false)
-    public Json upload(@NotNull(message = "文件不能为空") @RequestParam("file") MultipartFile file, @RequestParam("category") Integer category) {
+    public Json upload(@NotNull(message = "文件不能为空") @RequestParam("file") MultipartFile file,
+                       @RequestParam("category") Integer category,
+                       HttpServletRequest request) {
+        if (!rateLimitHelper.allowByIp(request, UPLOAD_RATE_KEY_PREFIX, UPLOAD_LIMIT_PER_MINUTE, 60)) {
+            return Json.error("操作过于频繁，请稍后重试", 429);
+        }
         category = Objects.requireNonNullElse(category, FileCategory.NORMAL.getKey());
         FileCategory fileCategory = DictionaryUtil.getDictionary(FileCategory.class, category);
-        // 该接口 authorize=false 允许匿名，登录用户上传时把属主落库（D-4）；
-        // 匿名（无头/坏头）时 getCurrentUserId 校验失败，按无属主记录。
-        Long creatorId = null;
-        try {
-            creatorId = getCurrentUserId();
-        } catch (RuntimeException ignored) {
-            // 匿名上传：保持 authorize=false 的既有契约，creator_id 记 null
-        }
+        // @Permission 默认 login=true，匿名请求到不了这里；属主恒取当前登录用户（D-4）。
+        // creatorId 允许为 null 仅兼容历史行：新建的行必须挂上属主。
+        Long creatorId = getCurrentUserId();
         return Json.data(service.upload(file, fileCategory, creatorId), "文件上传成功");
     }
 
@@ -62,5 +73,36 @@ public class FileController extends BaseController<FileEntity, FileService, File
             return;
         }
         FORBIDDEN_EDIT.when(!userService.get(currentUserId).isRootUser(), "你没有权限删除此文件");
+    }
+
+    /**
+     * 与删除同口径的属主校验（D 阶段把 delete 修好了，update 仍是「有权限就能改任何行」：
+     * 改掉一条合同附件行的 url 等于把别人的附件换成自己的内容）。历史 null 属主行仅 root。
+     */
+    @Override
+    protected FileEntity beforeAppUpdate(@org.jetbrains.annotations.NotNull FileEntity entity,
+                                         @org.jetbrains.annotations.NotNull FileEntity exist) {
+        Long creatorId = exist.getCreatorId();
+        long currentUserId = getCurrentUserId();
+        if (Objects.equals(creatorId, currentUserId)) {
+            return entity;
+        }
+        FORBIDDEN_EDIT.when(!userService.get(currentUserId).isRootUser(), "你没有权限修改此文件");
+        return entity;
+    }
+
+    /**
+     * getDetail 属主隔离：文件行带原始文件名与存储 URL，遍历 id 即可收集他人文件名
+     * 与下载地址（静态侧无鉴权，拿到 URL 即拿到内容）。与 delete/update 同口径。
+     */
+    @Override
+    protected FileEntity afterGetDetail(FileEntity entity) {
+        Long creatorId = entity.getCreatorId();
+        long currentUserId = getCurrentUserId();
+        if (Objects.equals(creatorId, currentUserId)) {
+            return entity;
+        }
+        FORBIDDEN_EDIT.when(!userService.get(currentUserId).isRootUser(), "你没有权限查看此文件");
+        return entity;
     }
 }

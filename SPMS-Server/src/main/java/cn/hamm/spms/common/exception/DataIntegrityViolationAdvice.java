@@ -71,11 +71,13 @@ public class DataIntegrityViolationAdvice {
         }
         Matcher tooLong = DATA_TOO_LONG.matcher(message);
         if (tooLong.find()) {
-            return Json.error(Errors.PARAM_INVALID, String.format("字段「%s」内容超出长度限制", tooLong.group(1)));
+            // 不回显 MySQL 列名：DB schema 属内部信息，匿名/低权用户可借错误消息枚举表结构；
+            // 具体列只进上面的 warn 日志。
+            return Json.error(Errors.PARAM_INVALID, "提交内容超出字段长度限制，请检查后重试");
         }
         Matcher notNull = NOT_NULL.matcher(message);
         if (notNull.find()) {
-            return Json.error(Errors.PARAM_INVALID, String.format("字段「%s」为必填项，不能为空", notNull.group(1)));
+            return Json.error(Errors.PARAM_INVALID, "存在必填字段未填写，请检查后重试");
         }
         // 兜底给通用文案，但绝不回退到「正在使用中」的误导性描述；完整堆栈只进日志。
         // 用 PARAM_INVALID 而非 DATABASE_ERROR（后者文案是「数据库服务连接失败」，

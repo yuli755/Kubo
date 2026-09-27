@@ -43,6 +43,8 @@ import org.springframework.web.servlet.ModelAndView;
 
 import java.io.IOException;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -150,7 +152,12 @@ public class OauthController extends ApiController implements IOauthAction {
         Long userId = service.getOauthUserCache(request.getAppKey(), request.getCode());
         // 查询 App 信息
         OpenAppEntity existApp = openAppService.getByAppKey(request.getAppKey());
-        FORBIDDEN.whenNotEquals(existApp.getAppSecret(), request.getAppSecret(), "应用秘钥错误");
+        // 常量时间比较：非常量时间的字符串比较会给 AppSecret 逐字节爆破留时序侧信道
+        String providedSecret = request.getAppSecret();
+        boolean secretMatched = providedSecret != null && MessageDigest.isEqual(
+                existApp.getAppSecret().getBytes(StandardCharsets.UTF_8),
+                providedSecret.getBytes(StandardCharsets.UTF_8));
+        FORBIDDEN.when(!secretMatched, "应用秘钥错误");
         // 移除缓存的用户
         service.removeOauthUserCache(existApp.getAppKey(), request.getCode());
         // 获取 Scope

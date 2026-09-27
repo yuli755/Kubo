@@ -10,6 +10,8 @@ import cn.hamm.spms.common.Configs;
 import cn.hamm.spms.common.filter.BearerTokenNormalizationFilter;
 import cn.hamm.spms.common.filter.SecurityHeadersFilter;
 import cn.hamm.spms.common.interceptor.RequestInterceptor;
+import cn.hamm.spms.common.websocket.WebSocketTicketResolvingDecorator;
+import cn.hamm.spms.common.websocket.WebSocketTicketService;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -21,6 +23,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -34,6 +37,8 @@ public class WebConfig implements WebMvcConfigurer, WebSocketConfigurer {
     private RequestInterceptor requestInterceptor;
     @Autowired
     private AppWebSocketHandler appWebSocketHandler;
+    @Autowired
+    private WebSocketTicketService webSocketTicketService;
 
     @Override
     public void addInterceptors(@NotNull InterceptorRegistry registry) {
@@ -111,7 +116,17 @@ public class WebConfig implements WebMvcConfigurer, WebSocketConfigurer {
         if (!StringUtils.hasText(channelPrefix)) {
             throw new ServiceException("没有配置 airpower.websocket.channelPrefix, 无法启动WebSocket服务");
         }
-        registry.addHandler(getWebSocketHandler(), webSocketConfig.getPath())
-                .setAllowedOrigins(webSocketConfig.getAllowedOrigins());
+        // 票据兑现装饰器（记录项 3）：新前端以 ?ticket= 建连，公开 URL 不再出现 JWT；
+        // 不带 ticket 的旧客户端原样透传给框架，行为与历史一致。
+        // allowedOrigins 框架默认 "*"（任意来源）——生产必须收紧：本处按逗号拆列表交给
+        // setAllowedOriginPatterns（支持精确值与 "http://localhost:*" 这类模式），
+        // application-production.yml 显式配置为站点域名。
+        String[] origins = Arrays.stream(webSocketConfig.getAllowedOrigins().split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .toArray(String[]::new);
+        registry.addHandler(new WebSocketTicketResolvingDecorator(getWebSocketHandler(), webSocketTicketService),
+                        webSocketConfig.getPath())
+                .setAllowedOriginPatterns(origins.length == 0 ? new String[]{"*"} : origins);
     }
 }

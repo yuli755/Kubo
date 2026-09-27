@@ -206,6 +206,35 @@ describe('mask contract · 前后端脱敏口径', () => {
     expect(offenders).toEqual([])
   })
 
+  it('策略脱敏列必须真的渲染进业务表格（接线被删时先红）', () => {
+    /**
+     * 审核记录项 2 的钉死：useMaskPolicy 曾被当作"已接好"引用，实际业务表格根本没用它——
+     * 半成品基础设施比没有更糟，因为文档会说"已经做了"。所以每个 @SensitiveField 资源
+     * 的列表视图必须同时满足：① 调用 useMaskPolicy 并 load；② 模板里有对应列插槽走
+     * restricted/masked。声明了策略却没接渲染 = fail-open（列照旧显示后端原值）。
+     */
+    const WIRING: Array<[string, string, string[]]> = [
+      // [视图路径, 资源键, 必须出现在插槽里的字段]
+      ['src/view/console/channel/purchasePrice/list.vue', 'channel.purchasePrice', ['price']],
+      ['src/view/console/channel/salePrice/list.vue', 'channel.salePrice', ['price']],
+      ['src/view/console/asset/material/list.vue', 'asset.material', ['purchasePrice', 'salePrice']],
+      ['src/view/console/personnel/user/list.vue', 'personnel.user', ['phone', 'email']],
+    ]
+    for (const [file, resourceKey, fields] of WIRING) {
+      const source = read(join(ROOT, file))
+      // 判据写成转义正则而不是示例字符串：示例里的「组合式名 + 资源键」字面量会被
+      // 上面的"资源键注册"门禁扫成前端真实引用（它不排除 __tests__）。
+      expect(source, `${file} 必须声明资源 ${resourceKey} 的策略组合式`).toMatch(
+        new RegExp(String.raw`useMaskPolicy\(\s*'${resourceKey}'`),
+      )
+      expect(source, `${file} 必须触发策略加载`).toMatch(/Policy\.load\(\)/)
+      for (const field of fields) {
+        expect(source, `${file} 的 ${field} 列没有渲染策略值（restricted/masked 接线被删）`)
+          .toMatch(new RegExp(`restricted\\('${field}'\\)|masked\\('${field}'`))
+      }
+    }
+  })
+
   it('showExport 只允许出现在后端提供 export 端点的实体视图上', () => {
     const exportCapable = new Set<string>()
     for (const file of collect(SERVER, '.java')) {

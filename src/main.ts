@@ -9,12 +9,14 @@ import { initAuthGuard } from '@/guard/authGuard'
 import { initPermissionGuard } from '@/guard/permissionGuard'
 import { registerPWA } from '@/pwa/registerSW'
 import { queryClient } from '@/query/queryClient'
+import { provideAirpowerRouter } from '@/router/airpower-router-bridge'
 import { createAppRouter } from '@/router/appRouter'
 import { createPersistPlugin } from '@/stores/persist'
 import { useThemeStore } from '@/stores/theme'
 import { installGlobalErrorHandler, setErrorReporter } from '@/utils/errorHandler'
 import { reportErrorToServer } from '@/utils/errorReportClient'
 import { installRouterErrorHandler } from '@/utils/routerErrorHandler'
+import { enforceTokenScope } from '@/utils/tokenScope'
 // airpower 的 WebConfig 配置 + web.css 已移至 src/config/airpower-bootstrap.ts，
 // 随业务页（Console.vue 懒加载）初始化，避免首屏加载 airpower 单体（107 KB）。
 // V1+V2：设计 token 层 + Element Plus 暗色变量（顺序敏感，必须在本文件其它样式之后引入）
@@ -27,6 +29,10 @@ import 'element-plus/es/components/message-box/style/css'
 import 'element-plus/es/components/loading/style/css'
 
 const app = createApp(App)
+
+// G-3：必须早于任何 store/router 创建——session 级登录（未勾选「记住我」）在
+// 浏览器重启后视为会话结束，先清掉残留 token 再初始化，避免守卫带着过期会话放行
+enforceTokenScope()
 
 // P1：全局错误兜底（未捕获异常落日志 + 预留上报钩子），在挂载前注册
 installGlobalErrorHandler(app)
@@ -53,6 +59,11 @@ initAuthGuard(router)
 initPermissionGuard(router)
 
 app.use(router)
+// FIX-G1：airpower bundle 内嵌的 vue-router 使用 globalThis 桥接 Symbol（见
+// infra/plugins/airpower-router-bridge.ts），此处用同一组 Symbol 向 app provide router，
+// 使 AFrame/Menu/APanel 等 airpower 组件的 useRoute()/useRouter() 拿到真实路由，
+// 而非 undefined（否则渲染即抛 "Cannot read properties of undefined (reading 'currentRoute')"）
+provideAirpowerRouter(app, router)
 app.use(VueQueryPlugin, { queryClient })
 
 // v-loading 指令：原由 app.use(ElementPlus) 全局注册，

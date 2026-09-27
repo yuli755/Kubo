@@ -6,6 +6,7 @@ import cn.hamm.airpower.curd.annotation.Search;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.module.open.notify.enums.NotifyChannel;
 import cn.hamm.spms.module.open.notify.enums.NotifyScene;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -44,6 +45,11 @@ public class NotifyEntity extends BaseEntity<NotifyEntity> {
     @Column(columnDefinition = "varchar(255) default '' comment '通知地址'")
     private String url;
 
+    /**
+     * 只进不出：webhook 令牌经 getPage/get 回显等于把「向该 webhook 投递消息」的
+     * 能力转授给任何有 notify 查询权限的人（读侧脱敏，写侧不受影响）
+     */
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Description("通知令牌")
     @Column(columnDefinition = "varchar(255) default '' comment '通知令牌'")
     private String token;

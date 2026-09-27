@@ -14,6 +14,7 @@ import cn.hamm.spms.common.interceptor.RequestInterceptor;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -37,7 +38,15 @@ public class McpController extends ApiController {
     @Permission(login = false)
     public McpResponse messages(HttpServletRequest request, @RequestBody McpRequest mcpRequest) {
         try {
-            String accessToken = request.getParameter("token");
+            // 优先 Authorization 头（RFC 6750 推荐；URL 查询串会进访问日志/历史），
+            // ?token= 保留为兼容通道：存量 MCP 客户端配置里的连接串不带请求头
+            String accessToken = request.getHeader("Authorization");
+            if (accessToken != null && accessToken.startsWith("Bearer ")) {
+                accessToken = accessToken.substring(7);
+            }
+            if (!StringUtils.hasText(accessToken)) {
+                accessToken = request.getParameter("token");
+            }
             PARAM_MISSING.whenNull(accessToken, "accessToken is required");
             AccessTokenUtil.VerifiedToken verifiedToken = requestInterceptor.getVerifiedToken(accessToken);
             return mcpService.run(mcpRequest, (mcpTool -> requestInterceptor.checkUserPermission(

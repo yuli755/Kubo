@@ -15,6 +15,11 @@ logging:
 # 可观测性（§7.2）：追加 prometheus，暴露 /actuator/prometheus 供 Prometheus 抓取 JVM/HTTP/HikariCP
 # 指标（依赖 pom 的 micrometer-registry-prometheus；不引入该依赖时此端点不存在，不会报错）。
 management:
+  # K-4：actuator 端点（含 prometheus 指标）不经 airpower 鉴权过滤器，与业务接口同端口
+  # 等于匿名暴露。生产把 actuator 整体挪到独立管理端口：LB/ ingress 只转发业务端口，
+  # 9080 仅集群内可达（Prometheus 抓取与 k8s 探针都改指 9080，见部署检查清单）。
+  server:
+    port: '${MANAGEMENT_PORT:9080}'
   endpoints:
     web:
       exposure:
@@ -47,6 +52,10 @@ spring:
       port: 6379
       database: 5
 airpower:
+  websocket:
+    # K-4：WebSocket Origin 白名单收紧为站点域名（框架默认 "*"）。
+    # 多域名用逗号分隔；跨域部署时改这里或注入 WS_ALLOWED_ORIGINS。
+    allowed-origins: '${WS_ALLOWED_ORIGINS:https://kubo.hamm.cn}'
   api:
     # P3：生产关闭请求/响应包体日志。airpower 的 request-log/response-log 会把完整请求/响应
     # body 打印到日志（登录密码、token、客户 PII、查询结果），是 PII 泄露面 + 无谓日志 I/O。

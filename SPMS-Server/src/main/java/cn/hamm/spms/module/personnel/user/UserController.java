@@ -37,7 +37,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -137,7 +136,11 @@ public class UserController extends BaseController<UserEntity, UserService, User
     @PostMapping("updateMyInfo")
     public Json updateMyInfo(@RequestBody @Validated(WhenUpdateMyInfo.class) UserEntity user) {
         user.setId(getCurrentUserId());
+        // 框架 update 是「非 null 即覆盖」的合并语义：授权类关联必须显式清空，
+        // 否则普通用户传 {id:self, roleList:[root]} 就能给自己挂 root 角色（提权）。
+        // 置 null 让合并层跳过这些字段，授权变更只能走受权限管控的 /user/update。
         user.setPhone(null).setEmail(null).setRealName(null).setIdCard(null);
+        user.setRoleList(null).setDepartmentList(null).setStorageList(null).setFactoryList(null);
         service.update(user);
         return Json.success("资料修改成功");
     }
@@ -313,26 +316,9 @@ public class UserController extends BaseController<UserEntity, UserService, User
         return Json.success("发送成功");
     }
 
-    @Description("获取 WebAuthn 断言选项")
-    @Permission(login = false)
-    @PostMapping("getWebAuthnAssertionOptions")
-    public Json getWebAuthnAssertionOptions() {
-        // ⚠️ 未实现：占位空壳。此处返回硬编码的示例 challenge 与 rpId，既无注册端点、无服务端
-        // challenge 存管，也无前端调用（全仓无 webauthn/passkey 引用）。属「看起来有、实际不能用」，
-        // 见 docs/业务功能未开发盘点.md §2。真正接入无密码登录时再实现 challenge 生成/校验闭环。
-        try {
-            return Json.data(com.yubico.webauthn.data.PublicKeyCredentialRequestOptions.builder()
-                .challenge(com.yubico.webauthn.data.ByteArray.fromBase64Url("test-challenge"))
-                .timeout(60000L)
-                .rpId("spms.hamm.cn")
-                .userVerification(com.yubico.webauthn.data.UserVerificationRequirement.PREFERRED)
-                .allowCredentials(Collections.emptyList())
-                .build(), "获取成功");
-        } catch (com.yubico.webauthn.data.exception.Base64UrlException e) {
-            log.error("获取 WebAuthn 断言选项失败", e);
-            return Json.error("获取 WebAuthn 断言选项失败");
-        }
-    }
+    // K-4：已删除 getWebAuthnAssertionOptions 占位端点——返回硬编码 challenge/rpId 的匿名空壳，
+    // 无注册与校验闭环、全仓无前端调用，属「看起来有实际不能用」的误导攻击面
+    //（见 docs/业务功能未开发盘点.md §2）。真正接入无密码登录时再实现完整 challenge 闭环。
 
     /**
      * <h1>处理用户登录</h1>

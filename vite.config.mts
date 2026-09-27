@@ -7,6 +7,7 @@ import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { airpowerCssStripPlugin } from './infra/plugins/airpower-css-strip'
 import { airpowerElementPlusShimPlugin } from './infra/plugins/airpower-element-plus-shim'
+import { airpowerRouterBridgePlugin } from './infra/plugins/airpower-router-bridge'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
@@ -28,6 +29,10 @@ export default defineConfig({
     // 此处在构建期剥离 element 部分，仅保留 airpower 自身样式（详见插件文件头注释），
     // vendor-airpower.css 52.2 KB → 4.5 KB（gzip）。
     airpowerCssStripPlugin(),
+    // FIX-G1：airpower vue-router 注入桥接——把 airpower bundle 私有 Symbol 常量
+    // 替换为 globalThis 上的稳定引用，与 src/router/airpower-router-bridge.ts 配对，
+    // 修复 AFrame/Menu useRoute() 返回 undefined 导致的 "currentRoute" 渲染崩溃
+    airpowerRouterBridgePlugin(),
     // vueDevTools() — 已禁用：开发模式底部注入的悬浮按钮影响页面预览
     // vueDevTools(),
 
@@ -85,6 +90,13 @@ export default defineConfig({
         replacement: resolve(__dirname, 'src/types/element-plus-aggregate.ts'),
       },
     ],
+  },
+  optimizeDeps: {
+    // FIX-G1：必须 exclude——Vite dev 对 node_modules 依赖做 esbuild 预打包后，
+    // 自定义 transform 钩子不会再在预打包产物上执行；exclude 让 @airpower/web
+    // 以源码形态进入模块图，airpowerRouterBridgePlugin 的 Symbol 替换才能在
+    // dev/build 一致生效。其外部依赖仅 vue/element-plus/axios 三个纯 ESM 包，安全。
+    exclude: ['@airpower/web'],
   },
   build: {
     assetsDir: 'assets',

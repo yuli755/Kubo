@@ -9,6 +9,12 @@ server:
 spring:
   profiles:
     active: local
+  servlet:
+    multipart:
+      # 与 AppConfig.uploadMaxSize（10MB）对齐：此前容器默认 1MB 先于业务限制生效，
+      # 「10MB」形同虚设；显式配置让两个口径一致（也让 1-10MB 的合法上传真正可用）。
+      max-file-size: 10MB
+      max-request-size: 12MB
   jackson:
     deserialization:
       fail-on-unknown-properties: false
@@ -59,6 +65,10 @@ spring:
 airpower:
   websocket:
     support: redis
+    # K-4：框架默认 "*"（任意 Origin 可建连）。这里收紧为本地开发来源
+    #（逗号分隔；WebConfig 用 setAllowedOriginPatterns，支持 ":*" 端口模式）。
+    # 生产由 application-production.yml 覆盖为站点域名。
+    allowed-origins: 'http://localhost:*,http://127.0.0.1:*'
   api:
     # S2：JWT 签名密钥改为环境变量注入。开发环境用弱默认值无妨，生产必须覆盖为强随机值
     #（部署时设置环境变量 AIRPOWER_API_ACCESS_TOKEN_SECRET）。密钥一旦上线变更会使存量令牌失效。

@@ -25,7 +25,9 @@ import org.springframework.web.bind.annotation.RequestBody;
  *   <li><b>限流</b>：按客户端 IP 固定窗口计数（复用 {@link RateLimitHelper}），1 分钟内超过
  *       {@value #MAX_REPORTS_PER_MINUTE} 条即拒绝，防「错误风暴」把后端日志/采集打爆；</li>
  *   <li><b>脱敏</b>：{@code message}/{@code stack} 截断到 {@value #MAX_MESSAGE_LENGTH} 字符，
- *       并去除 URL 查询参数里的 token（accessToken/authorization），避免堆栈把令牌泄进日志；</li>
+ *       并去除 URL 查询参数里的 token（accessToken/authorization），避免堆栈把令牌泄进日志；
+ *       四个字符串字段统一做 CRLF 替换（匿名端点塞换行即可伪造日志行），
+ *       {@code source}/{@code context} 另截断到 {@value #MAX_SHORT_FIELD_LENGTH} 字符；</li>
  *   <li><b>不落库</b>：仅落结构化日志（{@code log.error} + 字段 + traceId），不引入新表与迁移，
  *       由 Loki 承担查询/统计职责。</li>
  * </ul>
@@ -45,6 +47,8 @@ public class ErrorReportController extends ApiController {
     private static final int MAX_REPORTS_PER_MINUTE = 60;
     /** message / stack 落日志前截断长度（字符） */
     private static final int MAX_MESSAGE_LENGTH = 2000;
+    /** source / context 截断长度（正常值是枚举/短标识，超长即滥用信号） */
+    private static final int MAX_SHORT_FIELD_LENGTH = 200;
     /** 限流窗口（秒） */
     private static final int RATE_WINDOW_SECONDS = 60;
     /** 限流计数 key 前缀 */
@@ -62,15 +66,15 @@ public class ErrorReportController extends ApiController {
         }
         // 脱敏后落结构化日志（traceId 由 logback 自动附加）
         log.error("[frontend-error] source={} context={} time={} message={} stack={}",
-                report.getSource(),
-                report.getContext(),
+                sanitizeShort(report.getSource()),
+                sanitizeShort(report.getContext()),
                 report.getTime(),
                 sanitize(report.getMessage()),
                 sanitize(report.getStack()));
         return Json.success("上报成功");
     }
 
-    /** 截断 + 去除 URL 中的 token 参数，避免堆栈/URL 把敏感信息泄进日志。 */
+    /** 截断 + 去 CRLF + 去除 URL 中的 token 参数，避免堆栈/URL 把敏感信息泄进日志。 */
     private String sanitize(String value) {
         if (value == null) {
             return "";
@@ -78,9 +82,22 @@ public class ErrorReportController extends ApiController {
         String trimmed = value.length() > MAX_MESSAGE_LENGTH
                 ? value.substring(0, MAX_MESSAGE_LENGTH) + "…(truncated)"
                 : value;
-        // 去除 accessToken / authorization 等查询参数与 Bearer 头（大小写不敏感）
+        // 去除 accessToken / authorization 等查询参数与 Bearer 头（大小写不敏感）。
+        // CRLF 必须替换：本端点匿名可访问，值里塞 \r\n 即可伪造任意日志行（日志注入）。
         return trimmed
                 .replaceAll("(?i)(accessToken|authorization|token)=[^&\\s\"']+", "$1=***")
-                .replaceAll("(?i)(Bearer\\s+)[A-Za-z0-9._-]+", "$1***");
+                .replaceAll("(?i)(Bearer\\s+)[A-Za-z0-9._-]+", "$1***")
+                .replaceAll("[\\r\\n]", "_");
+    }
+
+    /** source / context 等短字段的口径：CRLF 替换 + 截断（同防匿名日志注入）。 */
+    private String sanitizeShort(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.length() > MAX_SHORT_FIELD_LENGTH
+                ? value.substring(0, MAX_SHORT_FIELD_LENGTH) + "…"
+                : value;
+        return trimmed.replaceAll("[\\r\\n]", "_");
     }
 }

@@ -52,14 +52,15 @@ class DataIntegrityViolationAdviceTest {
     }
 
     @Test
-    @DisplayName("字段超长 / 非空缺失 → 参数级错误并点名列")
+    @DisplayName("字段超长 / 非空缺失 → 参数级错误且绝不回显数据库列名（K-4：防匿名枚举表结构）")
     void lengthAndNotNullMapToParamInvalid() {
         Json longJson = advice.handle(wrapped("Data too long for column 'name' at row 1"));
-        assertTrue(longJson.getMessage().contains("name"), longJson.getMessage());
+        assertTrue(!longJson.getMessage().contains("name"), longJson.getMessage());
         assertTrue(longJson.getMessage().contains("长度"), longJson.getMessage());
 
         Json nullJson = advice.handle(wrapped("Column 'phone' cannot be null"));
-        assertTrue(nullJson.getMessage().contains("phone"), nullJson.getMessage());
+        assertTrue(!nullJson.getMessage().contains("phone"), nullJson.getMessage());
+        assertTrue(nullJson.getMessage().contains("必填"), nullJson.getMessage());
     }
 
     @Test

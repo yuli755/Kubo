@@ -275,6 +275,11 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
 
     @Override
     protected InventoryEntity beforeCreatePredicate(@NotNull InventoryEntity inventory) {
+        // 过滤模板可能不带 type（如仪表盘的整表统计 filter(new InventoryEntity())），
+        // 此时没有类型条件需要移除，直接返回；否则下面 switch 对 Integer 拆箱会 NPE。
+        if (inventory.getType() == null) {
+            return inventory;
+        }
         // 需要移除本身的查询条件
         switch (DictionaryUtil.getDictionary(InventoryType.class, inventory.getType())) {
             case STORAGE -> inventory.setStorage(null);

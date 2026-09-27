@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.regex.Pattern;
 
 import static cn.hamm.spms.module.iot.report.ReportConstant.*;
 
@@ -59,7 +60,9 @@ public class ReportMqCallback implements MqttCallback {
             DeviceService deviceService = AssetServices.getDeviceService();
             DeviceEntity device = deviceService.getByUuid(uuid);
             if (Objects.isNull(device)) {
-                log.info("设备不存在: {}", uuid);
+                // 报文来自 MQ（设备侧可任意伪造），uuid 原样进日志可被 \r\n 伪造日志行；
+                // 只记白名单形态的标识，其余整串替换为占位符。
+                log.info("设备不存在: {}", safeIdForLog(uuid));
                 return;
             }
             List<ReportPayload> payloadList = new ArrayList<>();
@@ -150,6 +153,13 @@ public class ReportMqCallback implements MqttCallback {
     private @Nullable String getLastDataInCache(String code, String uuid) {
         Object object = redisHelper.get(getDeviceReportParamCacheKey(code, uuid));
         return object == null ? null : object.toString();
+    }
+
+    /** 日志安全的设备标识：正常 uuid 是字母数字/连字符形态，其余（含换行）整串替换为占位符 */
+    private static final Pattern SAFE_DEVICE_ID = Pattern.compile("^[A-Za-z0-9._-]{1,64}$");
+
+    private static String safeIdForLog(String id) {
+        return id != null && SAFE_DEVICE_ID.matcher(id).matches() ? id : "(非法标识已隐藏)";
     }
 
     @Override

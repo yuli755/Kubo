@@ -19,6 +19,9 @@
  *
  * 用结构类型 `MenuItem`（而非 MenuEntity）避免本模块引入 airpower 依赖链，
  * 使 main.ts 可安全引入 `createAppRouter` 而不拖入 airpower 单体。
+ *
+ * airpower 组件的路由注入问题由 `src/router/airpower-router-bridge.ts` +
+ * `infra/plugins/airpower-router-bridge.ts`（FIX-G1）在 app 层解决，与本模块无关。
  */
 import type { RouteComponent, RouteMeta, Router, RouteRecordRaw } from 'vue-router'
 import { createRouter, createWebHistory } from 'vue-router'

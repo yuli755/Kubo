@@ -67,7 +67,10 @@ public final class CsvFormulaSanitizer {
     }
 
     /**
-     * 单个值转义：危险首字符前缀单引号。无需转义时原引用返回（含 null 原样返回）。
+     * 单个值转义：危险首字符前缀单引号；值内部的 CR/LF 一律替换为空格。
+     * 内部换行必须处理的原因：框架拼列只剥离逗号和换行符（\n），<b>不处理 \r</b>——
+     * {@code "abc\r=HYPERLINK(..)"} 首字符安全，但 CR 原样进 CSV 后 Excel 按 CR 分行，
+     * 新单元格里以 = 开头，首字符检查被整条绕过。无需处理时原引用返回（含 null）。
      *
      * @param value 原始值
      * @return 转义后的值（无需转义时返回原引用）
@@ -76,13 +79,16 @@ public final class CsvFormulaSanitizer {
         if (value == null || value.isEmpty()) {
             return value;
         }
-        char first = value.charAt(0);
+        String normalized = (value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0)
+                ? value.replace('\r', ' ').replace('\n', ' ')
+                : value;
+        char first = normalized.charAt(0);
         for (char trigger : FORMULA_TRIGGERS) {
             if (first == trigger) {
-                return "'" + value;
+                return "'" + normalized;
             }
         }
-        return value;
+        return normalized;
     }
 
     private static <E> E sanitizeOne(E entity) {

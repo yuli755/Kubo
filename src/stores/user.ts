@@ -2,6 +2,7 @@ import type { TenantOption } from '@kubo/shared'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { airpowerToken } from '@/utils/airpowerCompat'
+import { clearTokenScope } from '@/utils/tokenScope'
 /**
  * # 用户状态 Store
  *
@@ -113,6 +114,8 @@ export const useUserStore = defineStore(
       refreshTokenValue.value = ''
       airpowerToken.remove()
       localStorage.removeItem('kubo:user')
+      // G-3：登出同时清掉 token 作用域标记（session/persistent + 本会话 live）
+      clearTokenScope()
       // 阶段 E-M5：身份切换后跨用户缓存必须清零。react-query 缓存 key 不带
       // 用户身份（['wms:input','list'] 等），脱敏策略缓存按"登出/切租户应调用"
       // 的文档约定在此收口；否则低权限账号在同一标签页复用上一账号的读缓存。

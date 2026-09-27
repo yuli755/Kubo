@@ -1,5 +1,6 @@
 import type { WebSocketMessageHandler, WebSocketPayload } from './types'
 import { ref } from 'vue'
+import { request } from '@/api/axios'
 import { useUserStore } from '@/stores/user'
 import { reportError } from '@/utils/errorHandler'
 import { WebSocketStatus } from './types'
@@ -10,10 +11,13 @@ import { WebSocketStatus } from './types'
  * 与后端 `cn.hamm.airpower.websocket.WebSocketHandler`（airpower 原生 WebSocket，**非 STOMP**）对齐：
  *
  * ## 连接协议
- * - 端点：`ws(s)://<host>/websocket?accessToken=<token>`
+ * - 首选：`ws(s)://<host>/websocket?ticket=<一次性票据>`（记录项 3 收口）。票据经已鉴权的
+ *   `POST /api/websocket-ticket`（Authorization 头）换取，30 秒过期、兑现即销毁，
+ *   后端 `WebSocketTicketResolvingDecorator` 兑现后改写查询串交给框架原鉴权链路。
+ *   完整 JWT 不再出现在 URL —— URL 会进 nginx/网关访问日志与 Referer。
+ * - 兼容：票据端点不可用（旧后端）时回退 `?accessToken=<token>`，保证升级窗口不断线。
  *   后端在 `afterConnectionEstablished` 中读取 `session.getUri().getQuery()`，
  *   交由 `AccessTokenUtil.verify(query, secret)` 校验，取出 `payloadId`（即 userId）。
- *   因此 token 必须以**查询参数**形式携带（浏览器原生 WebSocket 不支持自定义请求头）。
  *
  * ## 消息格式
  * - 心跳：客户端发送文本帧 `PING`，后端 `handleTextMessage` 命中 `getPing()`（默认 `PING`）后回 `PONG`。
@@ -60,12 +64,29 @@ class WebSocketManager {
   private readonly statusListeners = new Set<(status: WebSocketStatus) => void>()
 
   /**
+   * ### 换取一次性连接票据
+   *
+   * 票据只能兑现出调用者本人的令牌，URL 上只出现短命随机串。
+   * 任何失败（端点缺失/网络错误）都返回 null 让调用方走兼容路径——
+   * 建连可用性优先，不因为安全增强反而把旧后端下的 WS 打死。
+   */
+  private async fetchTicket(): Promise<string | null> {
+    try {
+      const data = await request.post('/websocket-ticket') as { ticket?: string } | null
+      return typeof data?.ticket === 'string' && data.ticket ? data.ticket : null
+    }
+    catch {
+      return null
+    }
+  }
+
+  /**
    * ### 构造 WebSocket URL
    *
    * 开发环境通过 vite 代理 `/websocket`（ws:true）转发到后端；
    * 生产环境直接使用 `location` 同源地址。
    */
-  private buildUrl(): string {
+  private async buildUrl(): Promise<string> {
     const token = useUserStore().token
     if (!token) {
       throw new Error('无法建立 WebSocket 连接：缺少访问令牌')
@@ -74,18 +95,32 @@ class WebSocketManager {
     const { location } = window
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
     // 开发环境 vite 代理 /websocket，生产环境同源直连后端
-    const host = import.meta.env.DEV ? location.host : location.host
-    const params = new URLSearchParams({ accessToken: token })
-    return `${protocol}//${host}/websocket?${params.toString()}`
+    const host = location.host
+    const ticket = await this.fetchTicket()
+    if (ticket) {
+      return `${protocol}//${host}/websocket?${new URLSearchParams({ ticket }).toString()}`
+    }
+    // 兼容回退（票据端点不可用的旧后端）：框架契约是整个 query 串即裸令牌
+    // （AccessTokenUtil.verify 不识别 `accessToken=` 参数名——按参数名拼接从未握手成功，
+    //  此前 WS 静默失败、重连循环即该缺陷）。
+    return `${protocol}//${host}/websocket?${encodeURIComponent(token)}`
   }
 
   /**
    * ### 建立连接
    *
+   * 同步返回「是否发起」；真正的 open 在换票完成后进行（状态先置 CONNECTING，
+   * 期间重复的 connect() 会因状态非 DISCONNECTED 被挡住，不会双开）。
+   *
    * @returns 是否成功发起新连接（已在连接中返回 false）
    */
   connect(): boolean {
-    if (this.socket && this.status.value !== WebSocketStatus.DISCONNECTED) {
+    // 换票阶段 socket 尚未创建但状态已是 CONNECTING/RECONNECTING——只看 socket 会双开
+    if (
+      this.status.value === WebSocketStatus.CONNECTING
+      || this.status.value === WebSocketStatus.RECONNECTING
+      || (this.socket && this.status.value !== WebSocketStatus.DISCONNECTED)
+    ) {
       return false
     }
     if (!useUserStore().token) {
@@ -98,23 +133,43 @@ class WebSocketManager {
         ? WebSocketStatus.RECONNECTING
         : WebSocketStatus.CONNECTING,
     )
+    void this.openSocket()
+    return true
+  }
+
+  /**
+   * ### 换票并打开底层连接
+   */
+  private async openSocket(): Promise<void> {
+    let url: string
+    try {
+      url = await this.buildUrl()
+    }
+    catch (error) {
+      reportError(error, 'websocket-connect')
+      this.setStatus(WebSocketStatus.DISCONNECTED)
+      this.scheduleReconnect()
+      return
+    }
+    // 换票期间用户可能已登出/主动断开（disconnect 会置 manuallyClosed）
+    if (this.manuallyClosed || this.socket) {
+      return
+    }
 
     try {
-      const url = this.buildUrl()
       this.socket = new WebSocket(url)
     }
     catch (error) {
       reportError(error, 'websocket-connect')
+      this.setStatus(WebSocketStatus.DISCONNECTED)
       this.scheduleReconnect()
-      return false
+      return
     }
 
     this.socket.onopen = this.onOpen.bind(this)
     this.socket.onmessage = this.onMessage.bind(this)
     this.socket.onclose = this.onClose.bind(this)
     this.socket.onerror = this.onError.bind(this)
-
-    return true
   }
 
   /**

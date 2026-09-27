@@ -35,17 +35,20 @@ export function useTanStackTable<E extends BaseEntity, S extends AbstractBaseSer
     queryKey: string[]
   },
 ): ITableResult<E, S> {
-  // 传入的是"类本身"（参数名小写是约定，不是实例），因此 new 首字母小写是刻意的
-  // eslint-disable-next-line new-cap
-  const entity: E = new (serviceClass as unknown as { entityClass: new () => E }).entityClass()
+  // 传入的是"类本身"（参数名小写是约定，不是实例）。
+  // entityClass 是 Service 的**实例字段**（class field），静态读取永远是 undefined——
+  // 必须先实例化 service，再从实例上取 entityClass。
   // eslint-disable-next-line new-cap
   const service = new serviceClass() as S
+  const entity: E = new (service as unknown as { entityClass: new () => E }).entityClass()
   const userStore = useUserStore()
 
   // ── 查询状态 ──
-  // QueryRequestPage 构造函数接受 ITransformerConstructor<E>，
-  // 运行时也接受实体实例（airpower 内部提取 constructor）
-  const request = ref<QueryRequestPage<E>>(new (QueryRequestPage as any)(entity))
+  // QueryRequestPage 构造器内部执行 `new FilterClass()` 初始化 filter——必须传**类**
+  // （与 airpower 原生 useBaseTable 的 `new QueryRequestPage(service.entityClass)` 对齐）。
+  // 传实体实例时 `new instance()` 抛错并被构造器 try/catch 吞掉 → request.filter 恒 undefined
+  // → ATable 的 onSearch 里 Object.keys(searchFilter) 抛 "Cannot convert undefined or null to object"。
+  const request = ref<QueryRequestPage<E>>(new (QueryRequestPage as any)(service.entityClass))
   const response = ref<QueryResponsePage<E>>(new (QueryResponsePage as any)()) as Ref<QueryResponsePage<E>>
   const selectList = ref<E[]>([])
   const isLoading = ref(false)

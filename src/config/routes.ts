@@ -45,6 +45,26 @@ export const routes: RouteRecordRaw[] = [
     name: '无权限',
     component: () => import('@/view/error.vue'),
   },
+  // G-1：登录页三个静态入口（隐私政策/服务条款/忘记密码）。访客路由，
+  // 共用 legal.vue；不注册时这三个 href 会落进 Console 的 catchAll 错误页。
+  {
+    path: '/privacy',
+    name: '隐私政策',
+    meta: { guest: true },
+    component: () => import('@/view/legal.vue'),
+  },
+  {
+    path: '/terms',
+    name: '服务条款',
+    meta: { guest: true },
+    component: () => import('@/view/legal.vue'),
+  },
+  {
+    path: '/forgot-password',
+    name: '忘记密码',
+    meta: { guest: true },
+    component: () => import('@/view/legal.vue'),
+  },
   {
     path: '/',
     name: 'console',

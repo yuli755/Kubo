@@ -13,7 +13,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.net.URLEncoder;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,7 +41,8 @@ public class WeComCallback extends AbstractOauthCallback {
     @Override
     public OauthUserInfo getUserInfo(String code) {
         String accessToken = getAccessToken();
-        String url = String.format(USER_INFO_URL, accessToken, code);
+        // code 是浏览器回传的入参，必须编码后再拼 query，否则可注入额外参数到企微接口
+        String url = String.format(USER_INFO_URL, accessToken, URLEncoder.encode(code, StandardCharsets.UTF_8));
         HttpResponse<String> httpResponse = HttpUtil.create().setUrl(url).get();
         Map<String, Object> map = Json.parse2Map(httpResponse.body());
         Object userId = map.get("UserId");
@@ -59,7 +62,8 @@ public class WeComCallback extends AbstractOauthCallback {
         Object accessToken = Objects.requireNonNull(map.get("access_token"), "AccessToken 获取失败");
         FORBIDDEN.when(!StringUtils.hasText(accessToken.toString()), "AccessToken 获取失败");
         redisHelper.set(ACCESS_TOKEN_CACHE_KEY, accessToken.toString(), DateTimeUtil.SECOND_PER_HOUR);
-        log.info("企业微信获取AccessToken: {}", accessToken);
+        // 令牌只进 Redis 缓存，绝不进日志——日志泄露等价于企微应用凭据泄露
+        log.info("企业微信 AccessToken 已刷新并缓存");
         return accessToken.toString();
     }
 }

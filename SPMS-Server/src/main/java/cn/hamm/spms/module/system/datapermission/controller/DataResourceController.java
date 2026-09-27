@@ -12,6 +12,7 @@ import cn.hamm.airpower.core.Json;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 
 /**
@@ -154,7 +155,7 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @GetMapping("deny-logs")
     @Description("数据权限拒绝事件")
-    public Json getDenyLogs(String resourceKey) {
+    public Json getDenyLogs(@RequestParam(name = "resourceKey", required = false) String resourceKey) {
         return Json.data(service.denyLogs(resourceKey));
     }
 
@@ -170,7 +171,7 @@ public class DataResourceController extends BaseController<DataResourceEntity, D
      */
     @GetMapping("operation-logs")
     @Description("通用操作审计事件")
-    public Json getOperationLogs(String resourceKey) {
+    public Json getOperationLogs(@RequestParam(name = "resourceKey", required = false) String resourceKey) {
         return Json.data(service.operationLogs(resourceKey));
     }
 
