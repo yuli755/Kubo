@@ -10,6 +10,7 @@ import { KInputService } from '@/hook/wms/useInput'
 import { MaterialEntity } from '@/model/asset/material/MaterialEntity'
 import { InputDetailEntity } from '@/model/wms/input/InputDetailEntity'
 import { InputTypeEnum } from '@/model/wms/input/InputTypeEnum'
+import { playScanSuccess, playScanWarning } from '@/utils/audioFeedback'
 import InputDetailEditor from './detailEditor.vue'
 
 /**
@@ -78,12 +79,14 @@ const scanBarcode = ref('')
 function onScanEnter() {
   const code = scanBarcode.value.trim()
   if (!code) {
+    playScanWarning()
     return
   }
   // 如果已存在该物料编码的明细，则直接数量 +1
   const found = details.value.find(d => d.materialCode === code || d.material?.code === code)
   if (found) {
     found.quantity = (Number(found.quantity) || 0) + 1
+    playScanSuccess()
     FeedbackUtil.toastSuccess(`物料 [${code}] 数量累加至 ${found.quantity}`)
     scanBarcode.value = ''
     return
@@ -104,6 +107,7 @@ function onScanEnter() {
     newDetail.storageId = storage.id
   }
   details.value.push(newDetail)
+  playScanSuccess()
   FeedbackUtil.toastSuccess(`已快速录入物料 [${code}]，数量: 1`)
   scanBarcode.value = ''
 }

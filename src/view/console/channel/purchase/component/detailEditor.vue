@@ -3,7 +3,7 @@ import type { IDialogActionProps } from '@/framework'
 import type { MaterialEntity } from '@/model/asset/material/MaterialEntity'
 import type { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
 import type { SupplierEntity } from '@/model/channel/supplier/SupplierEntity'
-import { ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
+import { ElForm, ElFormItem, ElInput, ElInputNumber, ElTag } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import KSelector from '@/component/framework/KSelector.vue'
@@ -41,12 +41,14 @@ const props = defineProps<IDialogActionProps<PurchaseDetailEntity>>()
 const form = ref<PurchaseDetailEntity | null>(null)
 const materialPicking = ref(false)
 const supplierPicking = ref(false)
+const priceSource = ref<'none' | 'agreement' | 'reference'>('none')
 
 watch(
   () => props.param,
   (detail) => {
     // 复制一份再编辑：取消时不会把半截修改留在上一层的数组里
     form.value = detail ? (detail.copy() as PurchaseDetailEntity) : null
+    priceSource.value = 'none'
   },
   { immediate: true },
 )
@@ -54,6 +56,12 @@ watch(
 const rules = computed(() => WebValidator.createRules(PurchaseDetail as never) as unknown as Record<string, unknown[]>)
 
 const unitName = computed(() => (form.value?.material as MaterialEntity | undefined)?.unit?.name ?? '')
+
+const subtotal = computed(() => {
+  const price = Number(form.value?.price) || 0
+  const qty = Number(form.value?.quantity) || 0
+  return price * qty
+})
 
 /** 专属报价查询：物料 + 供应商都齐了才有意义 */
 async function lookupPrice(): Promise<void> {
@@ -66,10 +74,12 @@ async function lookupPrice(): Promise<void> {
   const price = await new KPurchasePriceService().getByMaterialAndSupplier(materialId, supplierId)
   if (price) {
     detail.price = price.price
+    priceSource.value = 'agreement'
     return
   }
   FeedbackUtil.toastWarning('该供应商未提供该物料的采购报价，将自动填写该物料的参考报价')
   detail.price = (detail.material as MaterialEntity).purchasePrice
+  priceSource.value = 'reference'
 }
 
 function onMaterialPicked(rows: unknown[]) {
@@ -147,6 +157,24 @@ function onConfirm() {
           class="purchase-detail-editor__number"
         />
         <span class="purchase-detail-editor__unit">元/{{ unitName }}</span>
+        <ElTag
+          v-if="priceSource === 'agreement'"
+          size="small"
+          type="success"
+          effect="light"
+          class="price-tag"
+        >
+          协议专属价
+        </ElTag>
+        <ElTag
+          v-else-if="priceSource === 'reference'"
+          size="small"
+          type="warning"
+          effect="light"
+          class="price-tag"
+        >
+          物料参考价
+        </ElTag>
       </ElFormItem>
       <ElFormItem
         :label="getFieldLabel(PurchaseDetail, 'quantity')"
@@ -158,6 +186,9 @@ function onConfirm() {
           class="purchase-detail-editor__number"
         />
         <span class="purchase-detail-editor__unit">{{ unitName }}</span>
+      </ElFormItem>
+      <ElFormItem label="小计金额">
+        <span class="subtotal-val font-mono">¥ {{ subtotal.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
       </ElFormItem>
     </ElForm>
   </KDialog>
@@ -187,5 +218,15 @@ function onConfirm() {
 .purchase-detail-editor__unit {
   margin-left: 8px;
   color: var(--el-text-color-secondary);
+}
+
+.price-tag {
+  margin-left: 8px;
+}
+
+.subtotal-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--el-color-success-dark-2);
 }
 </style>

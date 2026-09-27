@@ -13,6 +13,7 @@ import { MaterialEntity } from '@/model/asset/material/MaterialEntity'
 import { InventoryEntity } from '@/model/wms/inventory/InventoryEntity'
 import { InventoryTypeEnum } from '@/model/wms/inventory/InventoryTypeEnum'
 import { MoveDetailEntity } from '@/model/wms/move/MoveDetailEntity'
+import { playScanSuccess, playScanWarning } from '@/utils/audioFeedback'
 import { InventorySelector } from '@/view/console/wms/inventory/component'
 import MoveDetailEditor from './detailEditor.vue'
 
@@ -97,11 +98,13 @@ const scanBarcode = ref('')
 function onScanEnter() {
   const code = scanBarcode.value.trim()
   if (!code) {
+    playScanWarning()
     return
   }
   const found = details.value.find(d => d.materialCode === code || d.inventory?.material?.code === code)
   if (found) {
     found.quantity = (Number(found.quantity) || 0) + 1
+    playScanSuccess()
     FeedbackUtil.toastSuccess(`移库物料 [${code}] 数量累加至 ${found.quantity}`)
     scanBarcode.value = ''
     return
@@ -118,6 +121,7 @@ function onScanEnter() {
   })
   newDetail.quantity = 1
   details.value.push(newDetail)
+  playScanSuccess()
   FeedbackUtil.toastSuccess(`已快速录入移库物料 [${code}]，数量: 1`)
   scanBarcode.value = ''
 }

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { IJson } from '@/framework'
 import type { LogEntity } from '@/model/system/log/LogEntity'
-import { ElTabPane, ElTabs, ElTag, ElTree } from 'element-plus'
+import { ElEmpty, ElTable, ElTableColumn, ElTabPane, ElTabs, ElTag, ElTree } from 'element-plus'
 import { computed } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import { ClipboardUtil } from '@/framework'
@@ -72,6 +72,43 @@ function safeParse(jsonString?: string): IJson {
 
 const requestTree = computed(() => getTreeData(safeParse(log.value?.request)))
 const responseTree = computed(() => getTreeData(safeParse(log.value?.response)))
+
+interface IDiffItem {
+  field: string
+  requestVal: string
+  responseVal: string
+  status: 'modified' | 'added' | 'same'
+}
+
+const diffList = computed<IDiffItem[]>(() => {
+  const req = safeParse(log.value?.request)
+  const res = safeParse(log.value?.response)
+  if (!req || typeof req !== 'object' || !res || typeof res !== 'object') {
+    return []
+  }
+
+  const keys = Array.from(new Set([...Object.keys(req), ...Object.keys(res)]))
+  return keys
+    .filter(k => k !== 'error' && typeof req[k] !== 'object' && typeof res[k] !== 'object')
+    .map((field) => {
+      const rVal = req[field] !== undefined ? String(req[field]) : '-'
+      const respVal = res[field] !== undefined ? String(res[field]) : '-'
+      let status: IDiffItem['status'] = 'same'
+      if (req[field] === undefined && res[field] !== undefined) {
+        status = 'added'
+      }
+      else if (req[field] !== undefined && res[field] !== undefined && String(req[field]) !== String(res[field])) {
+        status = 'modified'
+      }
+      return {
+        field,
+        requestVal: rVal,
+        responseVal: respVal,
+        status,
+      }
+    })
+    .filter(item => item.status !== 'same')
+})
 
 const treeProps = { label: 'label', children: 'children' }
 
@@ -166,6 +203,60 @@ async function copy(value: string) {
           </template>
         </ElTree>
       </ElTabPane>
+
+      <ElTabPane label="字段变更 Diff">
+        <div
+          v-if="diffList.length > 0"
+          class="log-detail__diff"
+        >
+          <ElTable
+            :data="diffList"
+            size="small"
+            stripe
+            border
+          >
+            <ElTableColumn
+              prop="field"
+              label="变动字段"
+              width="160"
+            />
+            <ElTableColumn
+              label="类型"
+              width="100"
+            >
+              <template #default="{ row }">
+                <ElTag
+                  v-if="row.status === 'added'"
+                  size="small"
+                  type="success"
+                >
+                  新增字段
+                </ElTag>
+                <ElTag
+                  v-else-if="row.status === 'modified'"
+                  size="small"
+                  type="warning"
+                >
+                  内容变更
+                </ElTag>
+              </template>
+            </ElTableColumn>
+            <ElTableColumn
+              prop="requestVal"
+              label="请求提交值"
+            />
+            <ElTableColumn
+              prop="responseVal"
+              label="响应结果值"
+            />
+          </ElTable>
+        </div>
+        <ElEmpty
+          v-else
+          description="无标量字段差异（纯读取或未产生数据变动）"
+          :image-size="60"
+        />
+      </ElTabPane>
     </ElTabs>
   </KDialog>
 </template>
@@ -201,5 +292,9 @@ async function copy(value: string) {
   overflow: hidden;
   text-align: right;
   text-overflow: ellipsis;
+}
+
+.log-detail__diff {
+  padding: 4px 0;
 }
 </style>

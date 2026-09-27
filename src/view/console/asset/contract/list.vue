@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { ContractEntity } from '@/model/asset/contract/ContractEntity'
+import { ElTag } from 'element-plus'
 import { ref } from 'vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import KPanel from '@/component/framework/KPanel.vue'
@@ -31,6 +32,29 @@ const detailVisible = ref(false)
 const detailId = ref<number | null>(null)
 
 const isInvalid = (row: ContractEntity) => ContractStatusEnum.INVALID.equalsKey(row.status)
+
+function getExpirationInfo(endTime?: number) {
+  if (!endTime) {
+    return { text: '-', type: 'info' as const }
+  }
+  const now = Date.now()
+  const diffDays = Math.ceil((endTime - now) / (1000 * 60 * 60 * 24))
+  if (diffDays < 0) {
+    return { text: `逾期 ${Math.abs(diffDays)} 天`, type: 'danger' as const }
+  }
+  if (diffDays <= 30) {
+    return { text: `剩余 ${diffDays} 天`, type: 'warning' as const }
+  }
+  return { text: `剩余 ${diffDays} 天`, type: 'success' as const }
+}
+
+function formatDate(timestamp?: number) {
+  if (!timestamp) {
+    return '-'
+  }
+  const d = new Date(timestamp)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 function openCreate() {
   editingId.value = null
@@ -119,7 +143,21 @@ function onSaved() {
         @add="openCreate"
         @edit="openEdit"
         @row-dblclick="openDetail"
-      />
+      >
+        <template #cell-endTime="{ row }">
+          <div class="contract-expire-cell">
+            <span class="expire-date font-mono">{{ formatDate(row.endTime) }}</span>
+            <ElTag
+              :type="getExpirationInfo(row.endTime).type"
+              size="small"
+              effect="light"
+              class="expire-tag"
+            >
+              {{ getExpirationInfo(row.endTime).text }}
+            </ElTag>
+          </div>
+        </template>
+      </KTable>
     </KPanel>
 
     <KFormDialog
@@ -145,5 +183,20 @@ function onSaved() {
   flex-direction: column;
   gap: 16px;
   width: 100%;
+}
+
+.contract-expire-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  .expire-date {
+    font-size: 13px;
+  }
+
+  .expire-tag {
+    font-size: 11px;
+    padding: 0 6px;
+  }
 }
 </style>

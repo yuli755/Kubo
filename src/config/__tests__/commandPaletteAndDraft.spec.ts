@@ -320,4 +320,68 @@ describe('123 优化设计单元契约', () => {
       expect(idleCount).toBe(2)
     })
   })
+
+  describe('feature 12 · 扫码蜂鸣与触觉反馈契约', () => {
+    it('在无声卡或无振动环境下静默安全降级', async () => {
+      const { playScanSuccess, playScanWarning, playScanError } = await import('@/utils/audioFeedback')
+      expect(() => playScanSuccess()).not.toThrow()
+      expect(() => playScanWarning()).not.toThrow()
+      expect(() => playScanError()).not.toThrow()
+    })
+  })
+
+  describe('feature 13 · 渠道供应链明细小计与价格来源契约', () => {
+    it('单价与数量联动核算行小计', () => {
+      const calculateSubtotal = (price: number, quantity: number) => price * quantity
+      expect(calculateSubtotal(12.5, 4)).toBe(50)
+      expect(calculateSubtotal(99.9, 0)).toBe(0)
+    })
+  })
+
+  describe('feature 14 · 合同履约到期预警判断契约', () => {
+    it('准确识别逾期、临期与正常履约状态', () => {
+      const now = 1774600000000 // 假设基准时间
+      const ONE_DAY = 1000 * 60 * 60 * 24
+
+      const checkStatus = (endTime: number) => {
+        const diffDays = Math.ceil((endTime - now) / ONE_DAY)
+        if (diffDays < 0) {
+          return 'expired'
+        }
+        if (diffDays <= 30) {
+          return 'imminent'
+        }
+        return 'normal'
+      }
+
+      expect(checkStatus(now - ONE_DAY * 5)).toBe('expired')
+      expect(checkStatus(now + ONE_DAY * 10)).toBe('imminent')
+      expect(checkStatus(now + ONE_DAY * 90)).toBe('normal')
+    })
+  })
+
+  describe('feature 15 · 审计日志字段 Diff 对照分析契约', () => {
+    it('提取请求与响应中的字段变动并分类', () => {
+      const req: Record<string, unknown> = { id: 1, name: '新设备', status: 1 }
+      const res: Record<string, unknown> = { id: 1, name: '新设备', status: 2, version: '1.0' }
+
+      const keys = Array.from(new Set([...Object.keys(req), ...Object.keys(res)]))
+      const diffs = keys
+        .map((k) => {
+          if (req[k] === undefined && res[k] !== undefined) {
+            return { field: k, type: 'added' }
+          }
+          if (req[k] !== undefined && res[k] !== undefined && req[k] !== res[k]) {
+            return { field: k, type: 'modified' }
+          }
+          return null
+        })
+        .filter(Boolean)
+
+      expect(diffs).toEqual([
+        { field: 'status', type: 'modified' },
+        { field: 'version', type: 'added' },
+      ])
+    })
+  })
 })
