@@ -102,7 +102,10 @@ function onSaved() {
 </script>
 
 <template>
-  <KPanel>
+  <KPanel
+    title="数据资源治理"
+    description="全系统受控数据资源目录、行级列级绑定能力评估与灰度安全审计"
+  >
     <ElAlert
       v-if="gapSummary.entries"
       class="gap-warning"

@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
-import { ElButton } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
+import { ElButton, ElTag } from 'element-plus'
 import { computed, ref } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
@@ -39,6 +40,14 @@ const emit = defineEmits<{
 
 const form = ref<Record<string, unknown>>({})
 const details = computed<PurchaseDetailEntity[]>(() => (form.value.details ?? []) as PurchaseDetailEntity[])
+
+const totalAmount = computed(() => {
+  return details.value.reduce((sum, item) => {
+    const qty = Number(item.quantity) || 0
+    const prc = Number(item.price) || 0
+    return sum + (qty * prc)
+  }, 0)
+})
 
 function onLoaded(next: Record<string, unknown>) {
   next.details ??= []
@@ -87,10 +96,30 @@ function beforeSubmit(payload: Record<string, unknown>) {
     <template #extra>
       <div class="purchase-editor__details">
         <div class="purchase-editor__head">
-          <span class="purchase-editor__title">采购明细</span>
+          <div class="purchase-editor__head-left">
+            <span class="purchase-editor__title">采购明细</span>
+            <ElTag
+              effect="plain"
+              round
+              size="small"
+              type="info"
+            >
+              共 {{ details.length }} 项
+            </ElTag>
+            <ElTag
+              v-if="details.length > 0"
+              effect="light"
+              round
+              size="small"
+              type="success"
+            >
+              总金额: ¥{{ totalAmount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+            </ElTag>
+          </div>
           <ElButton
             v-permission="[Permissions.Channel.Purchase.add, Permissions.Channel.Purchase.update]"
-            link
+            :icon="Plus"
+            size="small"
             type="primary"
             @click="addDetail"
           >
@@ -117,18 +146,25 @@ function beforeSubmit(payload: Record<string, unknown>) {
 
 <style lang="scss" scoped>
 .purchase-editor__details {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .purchase-editor__head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.purchase-editor__head-left {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
 }
 
 .purchase-editor__title {
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 </style>

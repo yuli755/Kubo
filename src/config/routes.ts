@@ -19,7 +19,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/home',
     name: '首页',
-    component: () => import('@/view/home.vue'),
+    redirect: '/console/index',
   },
   {
     path: '/403',
@@ -29,7 +29,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'console',
-    redirect: '/home',
+    redirect: '/console/index',
     component: () => import('@/component/Console.vue'),
     children: [
       {

@@ -33,7 +33,10 @@ function onSaved() {
 </script>
 
 <template>
-  <KPanel>
+  <KPanel
+    title="列级脱敏策略"
+    description="配置字段级敏感数据的动态脱敏与导出授权规则，保障不同主体的数据安全"
+  >
     <ElAlert
       v-if="inertCount"
       class="inert-warning"

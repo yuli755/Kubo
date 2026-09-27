@@ -1,11 +1,13 @@
 <script lang="ts" setup>
-import { ElButton, ElMessage } from 'element-plus'
+import { Plus, Search } from '@element-plus/icons-vue'
+import { ElButton, ElIcon, ElInput, ElMessage, ElTag } from 'element-plus'
 import { computed, ref } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import { Permissions } from '@/config/permissions'
 import { FeedbackUtil } from '@/framework'
 import { KOutputService } from '@/hook/wms/useOutput'
+import { MaterialEntity } from '@/model/asset/material/MaterialEntity'
 import { OutputDetailEntity } from '@/model/wms/output/OutputDetailEntity'
 import { OutputTypeEnum } from '@/model/wms/output/OutputTypeEnum'
 import OutputDetailEditor from './detailEditor.vue'
@@ -54,6 +56,34 @@ function openAddDetail() {
   detailEditorVisible.value = true
 }
 
+const scanBarcode = ref('')
+
+function onScanEnter() {
+  const code = scanBarcode.value.trim()
+  if (!code) {
+    return
+  }
+  const found = details.value.find(d => d.materialCode === code || d.material?.code === code)
+  if (found) {
+    found.quantity = (Number(found.quantity) || 0) + 1
+    FeedbackUtil.toastSuccess(`出库物料 [${code}] 数量累加至 ${found.quantity}`)
+    scanBarcode.value = ''
+    return
+  }
+
+  const newDetail = new OutputDetailEntity()
+  newDetail.material = Object.assign(new MaterialEntity(), {
+    code,
+    name: `物料 ${code}`,
+  })
+  newDetail.materialCode = code
+  newDetail.materialName = `物料 ${code}`
+  newDetail.quantity = 1
+  details.value.push(newDetail)
+  FeedbackUtil.toastSuccess(`已快速录入出库物料 [${code}]，数量: 1`)
+  scanBarcode.value = ''
+}
+
 function onDetailConfirm(detail: OutputDetailEntity) {
   details.value.push(detail)
   detailEditorVisible.value = false
@@ -95,16 +125,43 @@ function beforeSubmit(payload: Record<string, unknown>) {
     <template #extra>
       <div class="output-editor__details">
         <div class="output-editor__head">
-          <span class="output-editor__title">出库明细</span>
-          <ElButton
+          <div class="output-editor__head-left">
+            <span class="output-editor__title">出库明细</span>
+            <ElTag
+              effect="plain"
+              round
+              size="small"
+              type="info"
+            >
+              共 {{ details.length }} 项
+            </ElTag>
+          </div>
+          <div
             v-if="isDetailEditable"
-            v-permission="[Permissions.Wms.Output.add, Permissions.Wms.Output.update]"
-            link
-            type="primary"
-            @click="openAddDetail"
+            class="output-editor__head-actions"
           >
-            添加明细
-          </ElButton>
+            <ElInput
+              v-model="scanBarcode"
+              placeholder="扫码枪扫入物料条码 (按回车直接录入/累加)"
+              size="small"
+              clearable
+              class="scan-input"
+              @keyup.enter="onScanEnter"
+            >
+              <template #prefix>
+                <ElIcon><Search /></ElIcon>
+              </template>
+            </ElInput>
+            <ElButton
+              v-permission="[Permissions.Wms.Output.add, Permissions.Wms.Output.update]"
+              :icon="Plus"
+              size="small"
+              type="primary"
+              @click="openAddDetail"
+            >
+              手动选择
+            </ElButton>
+          </div>
         </div>
 
         <KDetailTable
@@ -134,18 +191,35 @@ function beforeSubmit(payload: Record<string, unknown>) {
 
 <style lang="scss" scoped>
 .output-editor__details {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .output-editor__head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.output-editor__head-left {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+}
+
+.output-editor__head-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.scan-input {
+  width: 280px;
 }
 
 .output-editor__title {
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 </style>

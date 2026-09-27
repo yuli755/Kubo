@@ -70,12 +70,26 @@ function getColor(log: LogEntity) {
         hide-delete
         hide-edit
         hide-enable
+        @row-dblclick="openDetail"
       >
+        <template #cell-ip="{ row }">
+          <code
+            v-if="(row as LogEntity).ip"
+            class="font-mono text-xs px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 select-all"
+          >
+            {{ (row as LogEntity).ip }}
+          </code>
+          <span
+            v-else
+            class="text-slate-400"
+          >-</span>
+        </template>
         <template #cell-pendingTime="{ row }">
           <ElTag
             :color="getColor(row as LogEntity)"
             disable-transitions
             effect="dark"
+            class="font-mono tabular-nums font-semibold"
           >
             {{ ((row as LogEntity).updateTime ?? 0) - ((row as LogEntity).createTime ?? 0) }}ms
           </ElTag>
@@ -92,6 +106,9 @@ function getColor(log: LogEntity) {
 
 <style scoped>
 .k-page {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
 }
 </style>

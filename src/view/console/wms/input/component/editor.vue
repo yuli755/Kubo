@@ -1,11 +1,13 @@
 <script lang="ts" setup>
-import { ElButton, ElFormItem, ElInput, ElMessage } from 'element-plus'
+import { Plus, Search } from '@element-plus/icons-vue'
+import { ElButton, ElFormItem, ElIcon, ElInput, ElMessage, ElTag } from 'element-plus'
 import { computed, ref } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import { Permissions } from '@/config/permissions'
 import { FeedbackUtil } from '@/framework'
 import { KInputService } from '@/hook/wms/useInput'
+import { MaterialEntity } from '@/model/asset/material/MaterialEntity'
 import { InputDetailEntity } from '@/model/wms/input/InputDetailEntity'
 import { InputTypeEnum } from '@/model/wms/input/InputTypeEnum'
 import InputDetailEditor from './detailEditor.vue'
@@ -71,6 +73,41 @@ function openAddDetail() {
   detailEditorVisible.value = true
 }
 
+const scanBarcode = ref('')
+
+function onScanEnter() {
+  const code = scanBarcode.value.trim()
+  if (!code) {
+    return
+  }
+  // 如果已存在该物料编码的明细，则直接数量 +1
+  const found = details.value.find(d => d.materialCode === code || d.material?.code === code)
+  if (found) {
+    found.quantity = (Number(found.quantity) || 0) + 1
+    FeedbackUtil.toastSuccess(`物料 [${code}] 数量累加至 ${found.quantity}`)
+    scanBarcode.value = ''
+    return
+  }
+
+  // 否则新增明细行
+  const newDetail = new InputDetailEntity()
+  newDetail.material = Object.assign(new MaterialEntity(), {
+    code,
+    name: `物料 ${code}`,
+  })
+  newDetail.materialCode = code
+  newDetail.materialName = `物料 ${code}`
+  newDetail.quantity = 1
+  const storage = form.value.storage as InputDetailEntity['storage'] | undefined
+  if (storage?.id) {
+    newDetail.storage = storage
+    newDetail.storageId = storage.id
+  }
+  details.value.push(newDetail)
+  FeedbackUtil.toastSuccess(`已快速录入物料 [${code}]，数量: 1`)
+  scanBarcode.value = ''
+}
+
 function onDetailConfirm(detail: InputDetailEntity) {
   details.value.push(detail)
   detailEditorVisible.value = false
@@ -123,16 +160,43 @@ function beforeSubmit(payload: Record<string, unknown>) {
 
       <div class="input-editor__details">
         <div class="input-editor__head">
-          <span class="input-editor__title">入库明细</span>
-          <ElButton
+          <div class="input-editor__head-left">
+            <span class="input-editor__title">入库明细</span>
+            <ElTag
+              effect="plain"
+              round
+              size="small"
+              type="info"
+            >
+              共 {{ details.length }} 项
+            </ElTag>
+          </div>
+          <div
             v-if="isDetailEditable"
-            v-permission="[Permissions.Wms.Input.add, Permissions.Wms.Input.update]"
-            link
-            type="primary"
-            @click="openAddDetail"
+            class="input-editor__head-actions"
           >
-            添加明细
-          </ElButton>
+            <ElInput
+              v-model="scanBarcode"
+              placeholder="扫码枪扫入物料条码 (按回车直接录入/累加)"
+              size="small"
+              clearable
+              class="scan-input"
+              @keyup.enter="onScanEnter"
+            >
+              <template #prefix>
+                <ElIcon><Search /></ElIcon>
+              </template>
+            </ElInput>
+            <ElButton
+              v-permission="[Permissions.Wms.Input.add, Permissions.Wms.Input.update]"
+              :icon="Plus"
+              size="small"
+              type="primary"
+              @click="openAddDetail"
+            >
+              手动选择
+            </ElButton>
+          </div>
         </div>
 
         <KDetailTable
@@ -162,18 +226,35 @@ function beforeSubmit(payload: Record<string, unknown>) {
 
 <style lang="scss" scoped>
 .input-editor__details {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .input-editor__head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.input-editor__head-left {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+}
+
+.input-editor__head-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.scan-input {
+  width: 280px;
 }
 
 .input-editor__title {
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 </style>

@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { RoleEntity } from '@/model/personnel/role/RoleEntity'
-import { ElTable, ElTableColumn, ElTag } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
+import { ElButton, ElInput, ElTable, ElTableColumn, ElTag } from 'element-plus'
 import { computed, nextTick, ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import { FeedbackUtil, getEnumLabel, QueryRequest } from '@/framework'
@@ -40,6 +41,7 @@ const treeList = ref<PermissionEntity[]>([])
 const isLoading = ref(false)
 const isSubmitting = ref(false)
 const selected = ref<PermissionEntity[]>([])
+const filterKeyword = ref('')
 
 const checkedIds = computed(() => new Set((props.role?.permissionList ?? []).map(item => item.id)))
 
@@ -47,6 +49,30 @@ const checkedIds = computed(() => new Set((props.role?.permissionList ?? []).map
 function flatten(nodes: PermissionEntity[]): PermissionEntity[] {
   return nodes.flatMap(node => [node, ...flatten(node.children ?? [])])
 }
+
+const displayTreeList = computed(() => {
+  if (!filterKeyword.value.trim()) {
+    return treeList.value
+  }
+  const kw = filterKeyword.value.trim().toLowerCase()
+  const filterNodes = (nodes: PermissionEntity[]): PermissionEntity[] => {
+    const res: PermissionEntity[] = []
+    for (const node of nodes) {
+      const matchSelf = (node.name && node.name.toLowerCase().includes(kw))
+        || (node.identity && node.identity.toLowerCase().includes(kw))
+      const matchedChildren = node.children ? filterNodes(node.children) : []
+      if (matchSelf || matchedChildren.length > 0) {
+        const copy = Object.assign(new PermissionEntity(), node)
+        if (matchedChildren.length > 0) {
+          copy.children = matchedChildren
+        }
+        res.push(copy)
+      }
+    }
+    return res
+  }
+  return filterNodes(treeList.value)
+})
 
 async function loadTree() {
   isLoading.value = true
@@ -70,6 +96,7 @@ watch(
   () => props.modelValue,
   async (opened) => {
     if (opened) {
+      filterKeyword.value = ''
       await loadTree()
     }
   },
@@ -78,6 +105,11 @@ watch(
 
 function typeLabel(type: number): string {
   return getEnumLabel(PermissionTypeEnum, type) ?? '-'
+}
+
+function clearAllSelection() {
+  tableRef.value?.clearSelection()
+  selected.value = []
 }
 
 async function onSubmit() {
@@ -103,64 +135,152 @@ async function onSubmit() {
     :disable-confirm="isSubmitting"
     :title="`${role?.name ?? '角色'} · 权限授权`"
     confirm-text="保存"
-    width="70%"
+    width="74%"
     @update:model-value="value => emit('update:modelValue', value)"
     @cancel="emit('update:modelValue', false)"
     @confirm="onSubmit"
   >
-    <ElTable
-      ref="tableRef"
-      v-loading="isLoading"
-      :data="treeList"
-      :tree-props="{ children: 'children' }"
-      default-expand-all
-      row-key="id"
-      @selection-change="rows => selected = rows as PermissionEntity[]"
-    >
-      <ElTableColumn
-        type="selection"
-        width="46"
-        :reserve-selection="true"
-      />
-      <ElTableColumn
-        label="权限名称"
-        min-width="200"
-        prop="name"
-      />
-      <ElTableColumn
-        label="权限标识"
-        min-width="240"
-        prop="identity"
-      />
-      <ElTableColumn
-        label="类型"
-        width="120"
-      >
-        <template #default="{ row }">
+    <div class="k-permission-editor">
+      <div class="k-permission-editor__toolbar">
+        <ElInput
+          v-model="filterKeyword"
+          :prefix-icon="Search"
+          clearable
+          placeholder="搜索权限名称或标识..."
+          class="k-permission-editor__search"
+        />
+        <div class="k-permission-editor__summary">
           <ElTag
-            disable-transitions
             size="small"
+            type="primary"
+            effect="plain"
+            round
           >
-            {{ typeLabel(row.type) }}
+            已选定 {{ selected.length }} 项权限
           </ElTag>
-        </template>
-      </ElTableColumn>
-      <ElTableColumn
-        label="系统权限"
-        width="110"
-      >
-        <template #default="{ row }">
-          <ElTag
-            v-if="row.isSystem"
-            disable-transitions
+          <ElButton
+            v-if="selected.length"
             size="small"
-            type="warning"
+            link
+            type="primary"
+            @click="clearAllSelection"
           >
-            是
-          </ElTag>
-          <span v-else>-</span>
-        </template>
-      </ElTableColumn>
-    </ElTable>
+            清空已选
+          </ElButton>
+        </div>
+      </div>
+
+      <div class="k-permission-editor__table-wrap">
+        <ElTable
+          ref="tableRef"
+          v-loading="isLoading"
+          :data="displayTreeList"
+          :tree-props="{ children: 'children' }"
+          default-expand-all
+          border
+          stripe
+          max-height="460"
+          row-key="id"
+          class="k-permission-table"
+          @selection-change="rows => selected = rows as PermissionEntity[]"
+        >
+          <ElTableColumn
+            type="selection"
+            width="46"
+            :reserve-selection="true"
+          />
+          <ElTableColumn
+            label="权限名称"
+            min-width="190"
+            prop="name"
+          />
+          <ElTableColumn
+            label="权限标识"
+            min-width="240"
+            prop="identity"
+          >
+            <template #default="{ row }">
+              <span class="font-mono text-identity">{{ row.identity }}</span>
+            </template>
+          </ElTableColumn>
+          <ElTableColumn
+            label="类型"
+            width="110"
+            align="center"
+          >
+            <template #default="{ row }">
+              <ElTag
+                disable-transitions
+                size="small"
+                effect="light"
+              >
+                {{ typeLabel(row.type) }}
+              </ElTag>
+            </template>
+          </ElTableColumn>
+          <ElTableColumn
+            label="系统内置"
+            width="100"
+            align="center"
+          >
+            <template #default="{ row }">
+              <ElTag
+                v-if="row.isSystem"
+                disable-transitions
+                size="small"
+                type="warning"
+                effect="plain"
+              >
+                是
+              </ElTag>
+              <span
+                v-else
+                class="text-muted"
+              >-</span>
+            </template>
+          </ElTableColumn>
+        </ElTable>
+      </div>
+    </div>
   </KDialog>
 </template>
+
+<style scoped>
+.k-permission-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.k-permission-editor__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.k-permission-editor__search {
+  max-width: 320px;
+}
+
+.k-permission-editor__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.k-permission-editor__table-wrap {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.text-identity {
+  color: var(--el-color-primary-dark-2);
+  font-size: 13px;
+}
+
+.text-muted {
+  color: var(--el-text-color-placeholder);
+}
+</style>

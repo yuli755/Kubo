@@ -1,12 +1,15 @@
 <script lang="ts" setup>
-import { ElButton, ElInput, ElMessage } from 'element-plus'
+import { Plus, Search } from '@element-plus/icons-vue'
+import { ElButton, ElIcon, ElInput, ElMessage, ElTag } from 'element-plus'
 import { computed, ref } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import KSelector from '@/component/framework/KSelector.vue'
 import { Permissions } from '@/config/permissions'
+import { FeedbackUtil } from '@/framework'
 import { KStorageService } from '@/hook/factory/useStorage'
 import { KMoveService } from '@/hook/wms/useMove'
+import { MaterialEntity } from '@/model/asset/material/MaterialEntity'
 import { InventoryEntity } from '@/model/wms/inventory/InventoryEntity'
 import { InventoryTypeEnum } from '@/model/wms/inventory/InventoryTypeEnum'
 import { MoveDetailEntity } from '@/model/wms/move/MoveDetailEntity'
@@ -89,6 +92,36 @@ function onDetailConfirm(detail: MoveDetailEntity) {
   detailEditorVisible.value = false
 }
 
+const scanBarcode = ref('')
+
+function onScanEnter() {
+  const code = scanBarcode.value.trim()
+  if (!code) {
+    return
+  }
+  const found = details.value.find(d => d.materialCode === code || d.inventory?.material?.code === code)
+  if (found) {
+    found.quantity = (Number(found.quantity) || 0) + 1
+    FeedbackUtil.toastSuccess(`移库物料 [${code}] 数量累加至 ${found.quantity}`)
+    scanBarcode.value = ''
+    return
+  }
+
+  const newDetail = new MoveDetailEntity()
+  newDetail.materialCode = code
+  newDetail.materialName = `物料 ${code}`
+  newDetail.inventory = Object.assign(new InventoryEntity(), {
+    material: Object.assign(new MaterialEntity(), {
+      code,
+      name: `物料 ${code}`,
+    }),
+  })
+  newDetail.quantity = 1
+  details.value.push(newDetail)
+  FeedbackUtil.toastSuccess(`已快速录入移库物料 [${code}]，数量: 1`)
+  scanBarcode.value = ''
+}
+
 function removeDetail(row: MoveDetailEntity) {
   const index = details.value.indexOf(row)
   if (index >= 0) {
@@ -131,15 +164,40 @@ function beforeSubmit(payload: Record<string, unknown>) {
     <template #extra>
       <div class="move-editor__details">
         <div class="move-editor__head">
-          <span class="move-editor__title">移库明细</span>
-          <ElButton
-            v-permission="[Permissions.Wms.Move.add, Permissions.Wms.Move.update]"
-            link
-            type="primary"
-            @click="openInventoryPicker"
-          >
-            添加明细
-          </ElButton>
+          <div class="move-editor__head-left">
+            <span class="move-editor__title">移库明细</span>
+            <ElTag
+              effect="plain"
+              round
+              size="small"
+              type="info"
+            >
+              共 {{ details.length }} 项
+            </ElTag>
+          </div>
+          <div class="move-editor__head-actions">
+            <ElInput
+              v-model="scanBarcode"
+              placeholder="扫码枪扫入物料条码 (按回车直接录入/累加)"
+              size="small"
+              clearable
+              class="scan-input"
+              @keyup.enter="onScanEnter"
+            >
+              <template #prefix>
+                <ElIcon><Search /></ElIcon>
+              </template>
+            </ElInput>
+            <ElButton
+              v-permission="[Permissions.Wms.Move.add, Permissions.Wms.Move.update]"
+              :icon="Plus"
+              size="small"
+              type="primary"
+              @click="openInventoryPicker"
+            >
+              从库存选择
+            </ElButton>
+          </div>
         </div>
 
         <KDetailTable
@@ -178,18 +236,35 @@ function beforeSubmit(payload: Record<string, unknown>) {
 
 <style lang="scss" scoped>
 .move-editor__details {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .move-editor__head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.move-editor__head-left {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+}
+
+.move-editor__head-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.scan-input {
+  width: 280px;
 }
 
 .move-editor__title {
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 </style>

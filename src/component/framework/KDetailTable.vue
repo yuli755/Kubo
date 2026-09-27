@@ -165,7 +165,12 @@ function cellStyle(row: E, column: ITableColumn): CSSProperties {
     </ElTableColumn>
 
     <template #empty>
-      <ElEmpty :description="emptyText" />
+      <div class="k-detail-table__empty">
+        <ElEmpty
+          :description="emptyText"
+          :image-size="64"
+        />
+      </div>
     </template>
   </ElTable>
 </template>
@@ -173,5 +178,23 @@ function cellStyle(row: E, column: ITableColumn): CSSProperties {
 <style lang="scss" scoped>
 .k-detail-table {
   width: 100%;
+  border-radius: var(--kubo-radius-sm, 4px);
+  overflow: hidden;
+
+  :deep(.el-table__header th) {
+    background: var(--el-fill-color-light);
+    color: var(--el-text-color-primary);
+    font-weight: 600;
+    font-size: 13px;
+    height: 42px;
+  }
+
+  :deep(.el-table__row) {
+    transition: background-color var(--kubo-duration-fast, 150ms) ease;
+  }
+}
+
+.k-detail-table__empty {
+  padding: 16px 0;
 }
 </style>

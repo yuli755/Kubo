@@ -338,6 +338,7 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
      * @param quantity    数量
      */
     public void addInventoryQuantity(long inventoryId, double quantity) {
+        Errors.PARAM_INVALID.when(quantity <= 0, "入库数量必须大于 0");
         int rows = repository.increaseQuantityById(inventoryId, quantity, System.currentTimeMillis());
         Errors.FORBIDDEN.when(rows == 0, "库存记录不存在或已被删除");
     }
@@ -352,6 +353,7 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
      * @param quantity    数量
      */
     public void reduceInventoryQuantity(long inventoryId, double quantity) {
+        Errors.PARAM_INVALID.when(quantity <= 0, "出库扣减数量必须大于 0");
         int rows = repository.decreaseQuantityById(inventoryId, quantity, System.currentTimeMillis());
         Errors.FORBIDDEN_EDIT.when(rows == 0, "库存数量不足");
     }

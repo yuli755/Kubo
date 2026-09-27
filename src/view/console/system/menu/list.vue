@@ -77,10 +77,26 @@ function onSaved() {
             v-if="row.path"
             type="primary"
             :href="row.path"
+            class="font-mono text-xs"
           >
             {{ row.path }}
           </ElLink>
-          <span v-else>-</span>
+          <span
+            v-else
+            class="text-slate-400"
+          >-</span>
+        </template>
+        <template #cell-component="{ row }">
+          <code
+            v-if="row.component"
+            class="font-mono text-xs px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+          >
+            {{ row.component }}
+          </code>
+          <span
+            v-else
+            class="text-slate-400"
+          >-</span>
         </template>
       </KTable>
     </KPanel>
@@ -107,6 +123,9 @@ function onSaved() {
 
 <style scoped>
 .k-page {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
 }
 </style>

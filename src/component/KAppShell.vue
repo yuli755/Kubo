@@ -21,12 +21,14 @@ import type { UserEntity } from '@/model/personnel/user/UserEntity'
  * 因此本文件现在是控制台唯一的壳（见 `SPMS-Server/docs/前端F4·airpower 逐域迁移分批清单.md`）。
  */
 import type { MenuItem } from '@/router/appRouter'
-import { Expand, Fold } from '@element-plus/icons-vue'
+import { Expand, Fold, Search, Warning } from '@element-plus/icons-vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import KCommandPalette from '@/component/framework/KCommandPalette.vue'
 import TenantSwitcher from '@/component/TenantSwitcher.vue'
 import ThemeSwitcher from '@/component/ThemeSwitcher.vue'
 import UserCard from '@/component/UserCard.vue'
 import { isDemoRuntime } from '@/config/runtimeFlags'
+import { FeedbackUtil } from '@/framework'
 import { getRouter, useAppRoute } from '@/router/appRouter'
 import { resolveMenuIcon } from './shell/icons'
 import KAppMenuNode from './shell/KAppMenuNode.vue'
@@ -50,6 +52,14 @@ const router = getRouter()
 const collapsed = ref(localStorage.getItem('kubo:shell:collapsed') === 'true')
 const isNarrow = ref(false)
 const drawerVisible = ref(false)
+const paletteVisible = ref(false)
+
+function onGlobalKeydown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault()
+    paletteVisible.value = !paletteVisible.value
+  }
+}
 
 /** 按 orderNo 稳定排序的菜单树（后端通常已排好序，这里兜底，避免顺序随数据漂移） */
 const menuTree = computed<MenuItem[]>(() => sortMenus(props.menuList ?? []))
@@ -138,6 +148,16 @@ function syncViewport() {
   }
 }
 
+const isOffline = ref(typeof navigator !== 'undefined' ? !navigator.onLine : false)
+
+function updateOnlineStatus() {
+  const current = typeof navigator !== 'undefined' ? !navigator.onLine : false
+  if (isOffline.value && !current) {
+    FeedbackUtil.toastSuccess('网络连接已恢复')
+  }
+  isOffline.value = current
+}
+
 watch(() => route.fullPath, () => {
   drawerVisible.value = false
 })
@@ -145,10 +165,16 @@ watch(() => route.fullPath, () => {
 onMounted(() => {
   syncViewport()
   window.addEventListener('resize', syncViewport)
+  window.addEventListener('keydown', onGlobalKeydown)
+  window.addEventListener('online', updateOnlineStatus)
+  window.addEventListener('offline', updateOnlineStatus)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', syncViewport)
+  window.removeEventListener('keydown', onGlobalKeydown)
+  window.removeEventListener('online', updateOnlineStatus)
+  window.removeEventListener('offline', updateOnlineStatus)
 })
 </script>
 
@@ -240,6 +266,19 @@ onBeforeUnmount(() => {
     </el-drawer>
 
     <div class="k-shell__main">
+      <Transition name="fade-slide">
+        <div
+          v-if="isOffline"
+          class="k-shell__offline-banner"
+          role="alert"
+        >
+          <el-icon class="banner-icon">
+            <Warning />
+          </el-icon>
+          <span>当前网络已断开，系统已切换至离线只读模式，请检查网络连接以避免数据保存失败。</span>
+        </div>
+      </Transition>
+
       <header
         class="k-shell__topbar"
         :style="{ minHeight: `${headerHeight}px` }"
@@ -272,6 +311,25 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="k-topbar__right">
+          <button
+            class="k-topbar__search-trigger"
+            type="button"
+            title="全局命令与导航 (Ctrl + K)"
+            @click="paletteVisible = true"
+          >
+            <el-icon><Search /></el-icon>
+            <span class="placeholder">快速导航...</span>
+            <kbd class="shortcut font-mono">⌘K</kbd>
+          </button>
+          <el-tag
+            v-if="isOffline"
+            class="k-offline-tag"
+            size="small"
+            type="danger"
+            effect="plain"
+          >
+            离线
+          </el-tag>
           <el-tag
             v-if="isDemoRuntime()"
             class="k-demo-tag"
@@ -303,6 +361,12 @@ onBeforeUnmount(() => {
         </span>
       </footer>
     </div>
+
+    <KCommandPalette
+      v-model="paletteVisible"
+      :menus="menuList"
+      @toggle-collapse="toggleCollapse"
+    />
   </div>
 </template>
 
@@ -335,6 +399,25 @@ onBeforeUnmount(() => {
   flex-direction: column;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.k-shell__offline-banner {
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning-dark-2);
+  border-bottom: 1px solid var(--el-color-warning-light-5);
+  padding: 8px 20px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  z-index: 100;
+
+  .banner-icon {
+    font-size: 16px;
+    color: var(--el-color-warning);
+    flex-shrink: 0;
+  }
 }
 
 /* ── 品牌区 ── */
@@ -457,6 +540,38 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   min-width: 0;
+}
+
+.k-topbar__search-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--kubo-radius-sm, 6px);
+  background: var(--el-fill-color-light, #f1f5f9);
+  border: 1px solid var(--el-border-color-lighter, #e2e8f0);
+  color: var(--el-text-color-secondary, #64748b);
+  cursor: pointer;
+  transition: all var(--kubo-duration-fast, 120ms) ease;
+
+  &:hover {
+    background: var(--el-fill-color, #e2e8f0);
+    border-color: var(--el-border-color, #cbd5e1);
+    color: var(--el-text-color-primary, #1e293b);
+  }
+
+  .placeholder {
+    font-size: 12px;
+  }
+
+  .shortcut {
+    font-size: 11px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: var(--el-bg-color, #ffffff);
+    border: 1px solid var(--el-border-color-lighter, #cbd5e1);
+  }
 }
 
 .k-topbar__icon-btn {

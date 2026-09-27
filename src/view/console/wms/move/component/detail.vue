@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { MoveDetailEntity } from '@/model/wms/move/MoveDetailEntity'
 import type { MoveEntity } from '@/model/wms/move/MoveEntity'
-import { ElDescriptions, ElDescriptionsItem, ElInput, ElMessage } from 'element-plus'
+import { ElAlert, ElDescriptions, ElDescriptionsItem, ElInput, ElMessage, ElTag } from 'element-plus'
 import { computed, ref } from 'vue'
 import BillAddFinishDialog from '@/component/bill/BillAddFinishDialog.vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
@@ -65,6 +65,31 @@ function fieldText(key: string): string {
   return getCellText(entity, { ...(getTableConfig(Move, key) ?? {}), key } as never)
 }
 
+const statusTagType = computed<'danger' | 'warning' | 'primary' | 'success' | 'info'>(() => {
+  const status = bill.value?.status
+  if (status === undefined) {
+    return 'info'
+  }
+  if (MoveStatusEnum.REJECTED.equalsKey(status)) {
+    return 'danger'
+  }
+  if (MoveStatusEnum.AUDITING.equalsKey(status)) {
+    return 'warning'
+  }
+  if (MoveStatusEnum.MOVING.equalsKey(status)) {
+    return 'primary'
+  }
+  if (MoveStatusEnum.DONE.equalsKey(status)) {
+    return 'success'
+  }
+  return 'info'
+})
+
+const isRejected = computed(() => {
+  const status = bill.value?.status
+  return status !== undefined && MoveStatusEnum.REJECTED.equalsKey(status)
+})
+
 /** 本次作业的明细（打开数量弹窗后才有值） */
 const finishing = ref<MoveDetailEntity | null>(null)
 
@@ -112,6 +137,15 @@ async function onFinishConfirm(quantity: number) {
     @confirm="emit('update:modelValue', false)"
     @update:model-value="value => emit('update:modelValue', value)"
   >
+    <ElAlert
+      v-if="isRejected || bill?.rejectReason"
+      :closable="false"
+      class="move-detail__alert"
+      show-icon
+      :title="`单据已被驳回${bill?.rejectReason ? `：${bill.rejectReason}` : ''}`"
+      type="error"
+    />
+
     <ElDescriptions
       :column="3"
       border
@@ -122,7 +156,15 @@ async function onFinishConfirm(quantity: number) {
         :key="field"
         :label="fieldLabel(field)"
       >
-        {{ fieldText(field) }}
+        <ElTag
+          v-if="field === 'status'"
+          :type="statusTagType"
+          effect="light"
+          size="small"
+        >
+          {{ fieldText('status') }}
+        </ElTag>
+        <span v-else>{{ fieldText(field) }}</span>
       </ElDescriptionsItem>
       <ElDescriptionsItem
         v-if="bill?.rejectReason"
@@ -138,6 +180,32 @@ async function onFinishConfirm(quantity: number) {
     </ElDescriptions>
 
     <div class="move-detail__table">
+      <div class="move-detail__table-header">
+        <div class="move-detail__table-title">
+          <span>移库物资明细清单</span>
+          <ElTag
+            effect="plain"
+            round
+            size="small"
+            type="info"
+          >
+            共 {{ bill?.details?.length ?? 0 }} 项
+          </ElTag>
+        </div>
+        <div
+          v-if="canFinish()"
+          class="move-detail__table-tip"
+        >
+          <ElTag
+            effect="plain"
+            size="small"
+            type="primary"
+          >
+            移库进行中 · 可点击操作列「作业」登记实际移动数量
+          </ElTag>
+        </div>
+      </div>
+
       <KDetailTable
         :entity="MoveDetail"
         :exclude="['createTime', 'updateTime']"
@@ -164,7 +232,27 @@ async function onFinishConfirm(quantity: number) {
 </template>
 
 <style lang="scss" scoped>
+.move-detail__alert {
+  margin-bottom: 12px;
+}
+
 .move-detail__table {
-  margin-top: 12px;
+  margin-top: 16px;
+}
+
+.move-detail__table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.move-detail__table-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 </style>

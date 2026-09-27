@@ -78,7 +78,7 @@ async function retryInit() {
 }
 
 function backToHome() {
-  getRouter().push('/home')
+  getRouter().push('/console/index')
 }
 
 init()

@@ -422,7 +422,16 @@ onBeforeUnmount(() => {
 }
 
 .stat-card {
-  border-radius: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  transition:
+    transform var(--kubo-duration-base) var(--kubo-ease-out),
+    box-shadow var(--kubo-duration-base) var(--kubo-ease-out);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--kubo-shadow-base);
+  }
 
   .stat-label {
     font-size: 13px;
@@ -434,6 +443,8 @@ onBeforeUnmount(() => {
     font-size: 26px;
     font-weight: bold;
     line-height: 1.2;
+    font-family: var(--kubo-font-mono);
+    font-variant-numeric: tabular-nums;
 
     &.alert {
       color: var(--el-color-danger);

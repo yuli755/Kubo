@@ -8,16 +8,6 @@ import { ElCard } from 'element-plus'
  * 原库 `APanel` 同时管「标题栏 + 右侧操作区 + 内容留白 + 滚动容器」，27 个页面在用它，
  * 但每个页面只用到了其中一部分。这里保留最小可用集合：**标题（可选）+ 右上角插槽 + 内容**，
  * 其余交给页面（留白交给布局，滚动交给 `Console` 的工作区）。
- *
- * ## 用法
- * ```vue
- * <KPanel title="仓库">
- *   <template #extra><ElButton>导出</ElButton></template>
- *   <KTable :table="table" />
- * </KPanel>
- * ```
- *
- * 不传 `title` 时渲染成无头卡片（只有留白与边框），替代「裸 div」做页面外壳。
  */
 
 withDefaults(defineProps<{
@@ -47,6 +37,7 @@ withDefaults(defineProps<{
     >
       <div class="k-panel__header">
         <div class="k-panel__heading">
+          <div class="k-panel__bar" />
           <slot name="title">
             <span class="k-panel__title">{{ title }}</span>
           </slot>
@@ -67,16 +58,22 @@ withDefaults(defineProps<{
 
 <style scoped>
 .k-panel {
-  border-radius: var(--el-border-radius-base);
+  border-radius: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-bg-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s ease;
 }
 
 .k-panel--plain {
   border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
-/* 表格页：卡片不额外加内边距，由 KTable 自己控制，避免「框里再套一个框」 */
+/* 表格页：卡片内边距贴合现代流式视觉 */
 .k-panel--flush :deep(.el-card__body) {
-  padding: 12px 16px;
+  padding: 14px 18px;
 }
 
 .k-panel__header {
@@ -88,20 +85,29 @@ withDefaults(defineProps<{
 
 .k-panel__heading {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
+.k-panel__bar {
+  width: 3px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--el-color-primary);
+  flex-shrink: 0;
+}
+
 .k-panel__title {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--el-text-color-primary);
+  line-height: 1.2;
 }
 
 .k-panel__description {
   overflow: hidden;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--el-text-color-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;

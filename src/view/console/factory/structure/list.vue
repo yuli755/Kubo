@@ -142,7 +142,10 @@ function onSaved() {
 
 <style lang="scss" scoped>
 .k-page {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
 }
 
 .department-list {

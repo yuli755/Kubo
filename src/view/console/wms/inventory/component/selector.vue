@@ -3,7 +3,8 @@ import type { IDialogActionProps, ITableColumn } from '@/framework'
 import type { StorageEntity } from '@/model/factory/storage/StorageEntity'
 import type { StructureEntity } from '@/model/factory/structure/StructureEntity'
 import type { InventoryEntity } from '@/model/wms/inventory/InventoryEntity'
-import { ElButton, ElInput, ElRadioButton, ElRadioGroup, ElTable, ElTableColumn, ElTree } from 'element-plus'
+import { RefreshLeft, Search } from '@element-plus/icons-vue'
+import { ElButton, ElEmpty, ElInput, ElRadioButton, ElRadioGroup, ElTable, ElTableColumn, ElTag, ElTree } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import {
@@ -187,9 +188,24 @@ void loadList()
   >
     <div class="inventory-selector">
       <aside class="inventory-selector__aside">
+        <div class="inventory-selector__aside-header">
+          <span class="inventory-selector__aside-title">库存维度</span>
+          <ElTag
+            v-if="selectedNode"
+            size="small"
+            closable
+            type="primary"
+            effect="plain"
+            @close="onClearNode"
+          >
+            {{ selectedNode.name }}
+          </ElTag>
+        </div>
+
         <ElRadioGroup
           v-model="inventoryType"
           size="small"
+          class="inventory-selector__type-group"
           @change="onTypeChanged"
         >
           <ElRadioButton
@@ -204,25 +220,33 @@ void loadList()
         <ElInput
           v-model="treeKeyword"
           clearable
+          :prefix-icon="Search"
           :placeholder="treePlaceholder"
         />
-        <ElTree
-          ref="treeRef"
-          v-loading="isLoadingTree"
-          :data="treeNodes"
-          :filter-node-method="filterNode"
-          :props="{ label: 'name', children: 'children' }"
-          class="inventory-selector__tree"
-          default-expand-all
-          highlight-current
-          node-key="id"
-          @node-click="onNodeClick"
-        />
+
+        <div class="inventory-selector__tree-wrap">
+          <ElTree
+            ref="treeRef"
+            v-loading="isLoadingTree"
+            :data="treeNodes"
+            :filter-node-method="filterNode"
+            :props="{ label: 'name', children: 'children' }"
+            class="inventory-selector__tree"
+            default-expand-all
+            highlight-current
+            node-key="id"
+            @node-click="onNodeClick"
+          />
+        </div>
+
         <ElButton
+          v-if="selectedNode"
           link
+          :icon="RefreshLeft"
+          class="inventory-selector__reset-btn"
           @click="onClearNode"
         >
-          查看全部
+          查看全部库存
         </ElButton>
       </aside>
 
@@ -232,7 +256,9 @@ void loadList()
           :data="list"
           border
           stripe
+          class="inventory-selector__table"
           @selection-change="onSelectionChange"
+          @row-dblclick="row => !isMultiple && !(row as InventoryEntity).isDisabled && pick(row as InventoryEntity)"
         >
           <ElTableColumn
             v-if="isMultiple"
@@ -251,7 +277,16 @@ void loadList()
             show-overflow-tooltip
           >
             <template #default="{ row }">
-              <span :style="cellColor(row as InventoryEntity, column) ? { color: cellColor(row as InventoryEntity, column) } : {}">
+              <span
+                v-if="column.key === 'quantity'"
+                class="inventory-selector__quantity"
+              >
+                {{ cellText(row as InventoryEntity, column) }}
+              </span>
+              <span
+                v-else
+                :style="cellColor(row as InventoryEntity, column) ? { color: cellColor(row as InventoryEntity, column) } : {}"
+              >
                 {{ cellText(row as InventoryEntity, column) }}
               </span>
             </template>
@@ -275,7 +310,10 @@ void loadList()
             </template>
           </ElTableColumn>
           <template #empty>
-            <span class="inventory-selector__empty">没有符合条件的库存</span>
+            <ElEmpty
+              description="没有符合条件的库存"
+              :image-size="64"
+            />
           </template>
         </ElTable>
       </div>
@@ -286,16 +324,58 @@ void loadList()
 <style lang="scss" scoped>
 .inventory-selector {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   align-items: flex-start;
 }
 
 .inventory-selector__aside {
-  flex: 0 0 220px;
+  flex: 0 0 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--el-border-radius-base);
+}
+
+.inventory-selector__aside-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.inventory-selector__aside-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.inventory-selector__type-group {
+  width: 100%;
+  display: flex;
+
+  :deep(.el-radio-button) {
+    flex: 1;
+
+    .el-radio-button__inner {
+      width: 100%;
+      padding: 6px 0;
+    }
+  }
+}
+
+.inventory-selector__tree-wrap {
+  max-height: 360px;
+  overflow-y: auto;
 }
 
 .inventory-selector__tree {
-  margin: 8px 0;
+  margin: 4px 0;
+}
+
+.inventory-selector__reset-btn {
+  margin-top: 4px;
 }
 
 .inventory-selector__main {
@@ -303,7 +383,20 @@ void loadList()
   min-width: 0;
 }
 
-.inventory-selector__empty {
-  color: var(--el-text-color-secondary);
+.inventory-selector__table {
+  width: 100%;
+  border-radius: var(--kubo-radius-sm, 4px);
+  overflow: hidden;
+
+  :deep(.el-table__header th) {
+    background: var(--el-fill-color-light);
+    color: var(--el-text-color-primary);
+    font-weight: 600;
+  }
+}
+
+.inventory-selector__quantity {
+  font-weight: 600;
+  color: var(--el-color-primary);
 }
 </style>

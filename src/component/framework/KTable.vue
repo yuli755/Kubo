@@ -2,11 +2,37 @@
 import type { CSSProperties } from 'vue'
 import type { AbstractCurdService, IIdentifiableEntity, ISearchField, ITableColumn } from '@/framework'
 import type { UseTableReturn } from '@/hook/kubo/useTable'
-// 显式 import 而不是只靠 `unplugin-vue-components` 自动导入：
-// 视图中出现 <el-*> 就依赖全局注册，在 vitest（不加载该插件）与任何独立挂载场景下
-// 都会退化成一个未知元素 —— 表格列的 `#default="{ row }"` 拿不到 row，直接抛错。
-import { ElButton, ElEmpty, ElForm, ElFormItem, ElInput, ElPagination, ElTable, ElTableColumn } from 'element-plus'
-import { computed, nextTick, ref, shallowRef, useSlots, watch } from 'vue'
+import {
+  Download,
+  Operation,
+  Plus,
+  RefreshLeft,
+  RefreshRight,
+  Search,
+} from '@element-plus/icons-vue'
+import {
+  ElButton,
+  ElCheckbox,
+  ElEmpty,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElPagination,
+  ElPopover,
+  ElTable,
+  ElTableColumn,
+  ElTooltip,
+} from 'element-plus'
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  shallowRef,
+  useSlots,
+  watch,
+} from 'vue'
 import { getCellColor, getCellText, getColumnAlign, getDictionary, getSearchConfigList, getTableConfigList } from '@/framework'
 
 /**
@@ -21,15 +47,6 @@ import { getCellColor, getCellText, getColumnAlign, getDictionary, getSearchConf
  * | 行操作 | 内置 add/edit/delete/enable 按钮 + `permission` 判断权限码 | 同样内置，但权限码由页面传入（`permissions` 对象），组件不认识业务常量 |
  * | 单元格 | 组件内一堆 if | 统一走 `@/framework` 的 `getCellText`（金额/日期/脱敏/关联对象/字典同一套规则） |
  * | 空态 | 自动文案 | 区分“没数据”与“有筛选但没匹配”（后者要引导用户改条件，而不是让人以为表是空的） |
- *
- * ## 为什么不做成“上帝组件”
- * airpower 的 `ATable` 有 40+ 个 prop、内部还管弹窗与权限，改一处怕碰别处。
- * 这里把职责切干净：**KTable 只负责“显示 + 交互回传”**，CRUD、Dialog 由 `useTable` 与页面决定。
- *
- * ## 用法
- * ```vue
- * <KTable :table="table" :permissions="{ add, edit, delete }" @edit="openEditor" />
- * ```
  */
 
 interface RowAction {
@@ -54,22 +71,11 @@ const props = withDefaults(defineProps<{
   hideRefresh?: boolean
   /** 是否隐藏整列行操作（选择器场景用） */
   hideActions?: boolean
-  /**
-   * 是否隐藏「删除」按钮。
-   *
-   * 为什么需要它：`v-permission` 遇到未传值（`undefined`）时是**不拦截**的（见 `directives/permission.ts`），
-   * 所以「没传 delete 权限码」不等于「不显示删除」—— 实体没有删除端点时必须显式关掉，
-   * 否则用户会看到一个点下去必然报错的按钮（如移库单：后端 `@Extends(exclude = Curd.Delete)`）。
-   */
+  /** 是否隐藏「删除」按钮 */
   hideDelete?: boolean
   /** 是否隐藏「编辑」按钮（纯只读列表用，如操作日志） */
   hideEdit?: boolean
-  /**
-   * 是否隐藏「启用/禁用」按钮。
-   *
-   * 单据类实体没有启用/禁用语义（状态由状态机决定），传 `false` 时同样会因为
-   * 未传 `enable` 权限码而照常渲染 —— 与 `hideDelete` 同理。
-   */
+  /** 是否隐藏「启用/禁用」按钮 */
   hideEnable?: boolean
   /** 是否显示序号列 */
   showIndex?: boolean
@@ -85,35 +91,16 @@ const props = withDefaults(defineProps<{
   rowKey?: string
   /** 该行是否禁止删除（如树节点下有子级）；返回 true 时删除按钮置灰 */
   disableDelete?: (row: E) => boolean
-  /**
-   * 该行是否禁止「添加子级」（树表）；返回 true 时按钮置灰。
-   *
-   * 判据同样来自业务：系统内置权限（`isSystem`）不允许挂子权限 ——
-   * 它们是后端 `@Permission` 注解的镜像，从界面加子级只会造成两边不一致。
-   */
+  /** 该行是否禁止「添加子级」（树表）；返回 true 时按钮置灰 */
   disableAddChild?: (row: E) => boolean
-  /**
-   * 该行是否禁止编辑；返回 true 时「编辑」按钮置灰。
-   *
-   * 与 `disableDelete` 一样，判据来自**实体自身的状态机**（如合同只有"未生效"可改），
-   * 由页面传入 —— 组件不认识业务状态。
-   */
+  /** 该行是否禁止编辑；返回 true 时「编辑」按钮置灰 */
   disableEdit?: (row: E) => boolean
-  /**
-   * 是否显示导出按钮。
-   *
-   * 导出由**后端的异步导出任务**完成（`ExportUtil`），点击后走 `useTable` 的 `onExport`；
-   * 页面只要在 `useTable(..., { export: true })` 里声明，并把 `permissions.export` 传进来。
-   */
+  /** 是否显示导出按钮 */
   showExport?: boolean
-  /**
-   * 不显示的列（按 `@KTable` 的字段名）。
-   *
-   * 用于「同一张表在不同维度下要的列不同」的场景（库存按仓库看时不显示生产单元列，
-   * 按生产单元看时不显示仓库列）。做成 prop 而不是让页面自己 `getTableConfigList()`
-   * 过滤：`KTable` 的列、搜索项、单元格规则都读同一份元数据，页面绕过去容易两边不一致。
-   */
+  /** 不显示的列（按 `@KTable` 的字段名） */
   excludeColumns?: string[]
+  /** 自定义空态文案（不传则按有无筛选条件自动生成） */
+  emptyText?: string
 }>(), {
   showIndex: true,
   hideRefresh: false,
@@ -129,33 +116,31 @@ const emit = defineEmits<{
   (event: 'detail', row: E): void
   (event: 'add'): void
   (event: 'addChild', row: E): void
+  (event: 'rowDblclick', row: E): void
 }>()
 
-/** 插槽声明（同 KFormDialog：泛型组件不声明插槽时页面用不了） */
+/** 插槽声明 */
 defineSlots<{
   /** 工具条左侧（新增按钮之后） */
   'toolbar-left'?: (props: { selection: E[] }) => unknown
   /** 工具条右侧（刷新按钮之前） */
   'toolbar-right'?: (props: { selection: E[] }) => unknown
-  /**
-   * 覆盖任意列的单元格渲染：`#cell-<字段名>`（如 `#cell-purchasePrice`）。
-   *
-   * 需要它的场景是「列的显示不只看值」：金额要先查脱敏策略、链接要拼静态资源前缀、
-   * 状态要带图标。默认渲染走 `getCellText`（字典/日期/金额/脱敏同一套规则），
-   * 只有默认规则不够时才用插槽覆盖 —— 不是每个字段都要写一个插槽。
-   */
+  /** 批量操作插槽（勾选多行时展示） */
+  'batch-actions'?: (props: { selection: E[] }) => unknown
+  /** 空态自定义插槽 */
+  'empty'?: () => unknown
+  /** 覆盖任意列的单元格渲染 */
   [key: `cell-${string}`]: (props: { row: E, value: unknown, column: ITableColumn }) => unknown
 }>()
 
 const EntityClass = computed(() => props.table.entityClass as unknown as object)
 
-/** 页面是否覆盖了该列的单元格渲染（`useSlots` 而不是模板里的 `$slots[...]`：动态键在模板里类型不友好） */
 const slots = useSlots()
 function hasCellSlot(key: string): boolean {
   return !!slots[`cell-${key}`]
 }
 
-/** 导出中（按钮 loading；导出的进度只有后端知道，这里只表达"还没回来"） */
+/** 导出中 */
 const isExporting = ref(false)
 
 async function onExportClick() {
@@ -168,21 +153,82 @@ async function onExportClick() {
   }
 }
 
-/** 列：来自 `@Table` 元数据（框架层注册表），可被 `excludeColumns` 裁掉几列 */
-const columns = computed<ITableColumn[]>(() => {
+/** 列：来自 `@Table` 元数据 */
+const rawColumns = computed<ITableColumn[]>(() => {
   const all = getTableConfigList(EntityClass.value)
   return props.excludeColumns?.length
     ? all.filter(column => !props.excludeColumns!.includes(column.key))
     : all
 })
 
+const storageColumnKey = computed(() => {
+  const qk = props.table.queryKey?.join(':') || 'default'
+  return `kubo:table:columns:${qk}`
+})
+
+const hiddenColumnKeys = ref<string[]>([])
+
+function loadColumnPreferences() {
+  try {
+    const saved = localStorage.getItem(storageColumnKey.value)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (Array.isArray(parsed)) {
+        hiddenColumnKeys.value = parsed
+        return
+      }
+    }
+  }
+  catch {
+    // ignore
+  }
+  hiddenColumnKeys.value = []
+}
+
+loadColumnPreferences()
+
+watch(storageColumnKey, () => {
+  loadColumnPreferences()
+})
+
+function toggleColumn(key: string, visible: boolean) {
+  if (visible) {
+    hiddenColumnKeys.value = hiddenColumnKeys.value.filter(k => k !== key)
+  }
+  else {
+    if (!hiddenColumnKeys.value.includes(key)) {
+      hiddenColumnKeys.value = [...hiddenColumnKeys.value, key]
+    }
+  }
+  try {
+    localStorage.setItem(storageColumnKey.value, JSON.stringify(hiddenColumnKeys.value))
+  }
+  catch {
+    // ignore
+  }
+}
+
+function resetColumns() {
+  hiddenColumnKeys.value = []
+  try {
+    localStorage.removeItem(storageColumnKey.value)
+  }
+  catch {
+    // ignore
+  }
+}
+
+const columns = computed<ITableColumn[]>(() => {
+  return rawColumns.value.filter(col => !hiddenColumnKeys.value.includes(col.key))
+})
+
 /** 搜索项：来自 `@Search` 元数据 */
 const searchFields = computed<ISearchField[]>(() => getSearchConfigList(EntityClass.value))
 
-/** 树模式：数据来自 `getTreeList`，用 Element Plus 的树表格渲染（不分页） */
+/** 树模式 */
 const isTree = computed(() => props.table.isTree.value)
 
-/** 搜索表单草稿：编辑中不直接影响列表，点「搜索」才提交（否则每个字符都触发请求） */
+/** 搜索表单草稿 */
 const searchDraft = ref<Record<string, unknown>>({})
 
 watch(
@@ -202,9 +248,9 @@ const hasSearch = computed(() => searchFields.value.length > 0)
 function onSearch() {
   const next: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(searchDraft.value)) {
-    // 空串统一转 undefined：后端把空串当"等于空字符串"过滤时会查不到任何数据
-    if (value !== '' && value !== null && value !== undefined)
+    if (value !== '' && value !== null && value !== undefined) {
       next[key] = value
+    }
   }
   props.table.search(next)
 }
@@ -214,30 +260,45 @@ function onResetSearch() {
   props.table.reset()
 }
 
-/** 单元格文本：金额/日期/脱敏/关联对象/字典由框架层统一处理 */
+const firstSearchInputRef = ref<InstanceType<typeof ElInput> | null>(null)
+
+function onGlobalKeydown(e: KeyboardEvent) {
+  if (
+    e.key === '/'
+    && !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)
+    && !(e.target as HTMLElement)?.isContentEditable
+  ) {
+    if (searchFields.value.length > 0 && firstSearchInputRef.value) {
+      e.preventDefault()
+      firstSearchInputRef.value.focus()
+    }
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onGlobalKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onGlobalKeydown)
+})
+
+/** 单元格文本 */
 function cellText(row: E, column: ITableColumn): string {
   return getCellText(row, column, getDictionary(EntityClass.value, column.key))
 }
 
-/** 状态色：字典带颜色时给单元格上色（数据密集场景靠颜色扫读，比读文字快） */
+/** 状态色 */
 function cellStyle(row: E, column: ITableColumn): CSSProperties {
   const color = getCellColor(getDictionary(EntityClass.value, column.key), (row as unknown as Record<string, unknown>)[column.key])
   return color ? { color } : {}
 }
 
-/**
- * 已选行。
- * 用 `shallowRef`：`ref<E[]>` 会被深度解包成 `UnwrapRefSimple<E>[]`，
- * 传给插槽（声明为 `E[]`）或 emit 时会报「E 可能是别的子类型」。
- */
 const selection = shallowRef<E[]>([])
-/**
- * ElTable 实例（只用到 `toggleRowSelection`）。
- * 不能写 `InstanceType<typeof ElTable>`：EP 的表格是**泛型函数组件**，`InstanceType`
- * 需要 `new (...)` 签名，直接报 TS2344。
- */
+
 interface IElTableInstance {
   toggleRowSelection: (row: unknown, selected?: boolean) => void
+  clearSelection: () => void
 }
 const tableRef = ref<IElTableInstance>()
 
@@ -246,7 +307,36 @@ function onSelectionChange(rows: E[]) {
   emit('selectionChanged', rows)
 }
 
-/** 回显已选：数据到达后按 id 勾选（选择器再次打开时能看到上次选的） */
+function clearSelection() {
+  tableRef.value?.clearSelection()
+  selection.value = []
+  emit('selectionChanged', [])
+}
+
+defineExpose({
+  clearSelection,
+  tableRef,
+})
+
+const hasActiveFilter = computed(() => {
+  const f = props.table.filter.value as Record<string, unknown>
+  return Object.values(f).some(v => v !== '' && v !== null && v !== undefined)
+})
+
+function isMonospaceColumn(column: ITableColumn): boolean {
+  const key = column.key.toLowerCase()
+  return (
+    key.includes('code')
+    || key.includes('number')
+    || key.includes('no')
+    || key.includes('sn')
+    || key.includes('identity')
+    || key.includes('phone')
+    || key.includes('ip')
+  )
+}
+
+/** 回显已选 */
 watch(
   [() => props.selectedIds, () => props.table.list.value, tableRef],
   async () => {
@@ -264,26 +354,19 @@ watch(
   { immediate: true },
 )
 
-/**
- * ElTable 的 sort-change 载荷（`prop: string | null`，不是可选字段 —— 直接内联箭头函数
- * 会因为 `prop?: string` 与 EP 的类型不兼容而再次触发 TS2322）。
- */
 interface ITableSortPayload {
   prop: string | null
   order: 'ascending' | 'descending' | null
 }
 
-/** 列头排序 → useTable 的语义化排序（`ascending/descending` → `desc` 布尔） */
 function onSortChange(payload: ITableSortPayload) {
   props.table.onSortChanged(payload.prop && payload.order ? { field: payload.prop, desc: payload.order === 'descending' } : null)
 }
 
-/** 行是否处于禁用态（用于「启用/禁用」按钮的切换与置灰） */
 function isDisabled(row: E): boolean {
   return !!(row as unknown as { isDisabled?: boolean }).isDisabled
 }
 
-/** 该行是否还能删除（树模式下有子级不能删，否则会留下孤儿节点） */
 function isDeleteDisabled(row: E): boolean {
   if (props.disableDelete?.(row)) {
     return true
@@ -299,44 +382,85 @@ const hasRowActions = computed(() => !props.hideActions)
 
 const tableHeight = computed(() => props.height ?? undefined)
 
-/** 空态文案：区分「本来就没有」与「筛选后没有」 */
-const emptyText = computed(() =>
-  Object.keys(props.table.filter.value).length
+/** 动态计算操作列宽度，保障按钮单行展示不折叠挤压 */
+const actionsColumnWidth = computed(() => {
+  let count = (props.actions?.length ?? 0)
+  if (isTree.value) {
+    count++
+  }
+  if (!props.hideEdit) {
+    count++
+  }
+  if (!props.hideEnable) {
+    count++
+  }
+  if (!props.hideDelete) {
+    count++
+  }
+  if (count <= 1) {
+    return 90
+  }
+  if (count <= 2) {
+    return 140
+  }
+  if (count <= 3) {
+    return 190
+  }
+  if (count <= 4) {
+    return 230
+  }
+  return Math.min(count * 58, 360)
+})
+
+/** 空态文案 */
+const emptyText = computed(() => {
+  if (props.emptyText) {
+    return props.emptyText
+  }
+  return Object.keys(props.table.filter.value).length
     ? '没有符合条件的记录，试试放宽筛选条件'
-    : '暂无数据',
-)
+    : '暂无数据'
+})
 </script>
 
 <template>
   <div class="k-table">
-    <!-- 搜索区：条件不自动提交，避免每个字符打一次接口 -->
+    <!-- 搜索区 -->
     <ElForm
       v-if="hasSearch"
       class="k-table__search"
       :inline="true"
       @submit.prevent="onSearch"
     >
-      <ElFormItem
-        v-for="field in searchFields"
-        :key="field.key"
-        :label="field.label"
-        class="k-table__search-item"
-      >
-        <ElInput
-          v-model="searchDraft[field.key] as string"
-          :placeholder="`请输入${field.label}`"
-          clearable
-          @keyup.enter="onSearch"
-        />
-      </ElFormItem>
+      <div class="k-table__search-fields">
+        <ElFormItem
+          v-for="(field, idx) in searchFields"
+          :key="field.key"
+          :label="field.label"
+          class="k-table__search-item"
+        >
+          <ElInput
+            :ref="el => { if (idx === 0) firstSearchInputRef = el as InstanceType<typeof ElInput> }"
+            v-model="searchDraft[field.key] as string"
+            :placeholder="idx === 0 ? `请输入${field.label} (按 / 聚焦)` : `请输入${field.label}`"
+            :prefix-icon="Search"
+            clearable
+            @keyup.enter="onSearch"
+          />
+        </ElFormItem>
+      </div>
       <ElFormItem class="k-table__search-actions">
         <ElButton
           type="primary"
+          :icon="Search"
           @click="onSearch"
         >
           搜索
         </ElButton>
-        <ElButton @click="onResetSearch">
+        <ElButton
+          :icon="RefreshLeft"
+          @click="onResetSearch"
+        >
           重置
         </ElButton>
       </ElFormItem>
@@ -349,6 +473,7 @@ const emptyText = computed(() =>
           v-if="!hideAdd"
           v-permission="permissions?.add"
           type="primary"
+          :icon="Plus"
           @click="emit('add')"
         >
           新增
@@ -363,6 +488,7 @@ const emptyText = computed(() =>
           v-if="showExport"
           v-permission="permissions?.export"
           :loading="isExporting"
+          :icon="Download"
           plain
           @click="onExportClick"
         >
@@ -375,14 +501,85 @@ const emptyText = computed(() =>
         <ElButton
           v-if="!hideRefresh"
           :loading="table.isLoading.value"
+          :icon="RefreshRight"
           @click="table.reload()"
         >
           刷新
         </ElButton>
+        <ElPopover
+          trigger="click"
+          placement="bottom-end"
+          :width="200"
+        >
+          <template #reference>
+            <ElTooltip
+              content="列显隐设置"
+              placement="top"
+            >
+              <ElButton
+                :icon="Operation"
+                circle
+                aria-label="列显隐设置"
+              />
+            </ElTooltip>
+          </template>
+          <div class="k-table__col-settings">
+            <div class="k-table__col-settings-header">
+              <span class="setting-title">自定义显示列</span>
+              <ElButton
+                type="primary"
+                link
+                size="small"
+                @click="resetColumns"
+              >
+                重置
+              </ElButton>
+            </div>
+            <div class="k-table__col-settings-list">
+              <ElCheckbox
+                v-for="col in rawColumns"
+                :key="col.key"
+                :model-value="!hiddenColumnKeys.includes(col.key)"
+                :disabled="col.force"
+                class="col-checkbox"
+                @change="val => toggleColumn(col.key, !!val)"
+              >
+                {{ col.label }}
+              </ElCheckbox>
+            </div>
+          </div>
+        </ElPopover>
       </div>
     </div>
 
-    <!-- 表格：data 直接来自 TanStack Query，加载中用 loading 覆盖而不是清空 data（避免整块闪空） -->
+    <!-- 批量选中浮动提示条 -->
+    <Transition name="fade-slide">
+      <div
+        v-if="selectable && selection.length > 0"
+        class="k-table__selection-bar k-slide-down"
+      >
+        <div class="k-table__selection-info">
+          <span class="selection-pill">{{ selection.length }}</span>
+          <span class="selection-label">项已选定</span>
+        </div>
+        <div class="k-table__selection-actions">
+          <slot
+            name="batch-actions"
+            :selection="selection"
+          />
+          <ElButton
+            link
+            size="small"
+            type="primary"
+            @click="clearSelection"
+          >
+            清空已选
+          </ElButton>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 表格本体 -->
     <ElTable
       ref="tableRef"
       v-loading="table.isLoading.value"
@@ -396,6 +593,7 @@ const emptyText = computed(() =>
       class="k-table__body"
       @selection-change="onSelectionChange"
       @sort-change="onSortChange"
+      @row-dblclick="row => emit('rowDblclick', row as E)"
     >
       <ElTableColumn
         v-if="selectable"
@@ -422,7 +620,6 @@ const emptyText = computed(() =>
         show-overflow-tooltip
       >
         <template #default="{ row }">
-          <!-- 页面用 `#cell-<字段名>` 覆盖该列的渲染（金额脱敏、链接、图标等） -->
           <slot
             v-if="hasCellSlot(column.key)"
             v-bind="{ row, column, value: (row as E)[column.key as keyof E] }"
@@ -430,6 +627,7 @@ const emptyText = computed(() =>
           />
           <span
             v-else
+            :class="{ 'font-mono': isMonospaceColumn(column) }"
             :style="cellStyle(row as E, column)"
           >{{ cellText(row as E, column) }}</span>
         </template>
@@ -438,71 +636,94 @@ const emptyText = computed(() =>
       <ElTableColumn
         v-if="hasRowActions"
         label="操作"
-        width="200"
+        :width="actionsColumnWidth"
         fixed="right"
         align="center"
       >
         <template #default="{ row }">
-          <ElButton
-            v-for="action in actions ?? []"
-            :key="action.label"
-            v-permission="action.permission"
-            link
-            type="primary"
-            :disabled="action.disabled?.(row as E)"
-            @click="action.handler(row as E)"
-          >
-            {{ action.label }}
-          </ElButton>
-          <ElButton
-            v-if="isTree"
-            v-permission="permissions?.addChild"
-            link
-            type="primary"
-            :disabled="disableAddChild?.(row as E)"
-            @click="emit('addChild', row as E)"
-          >
-            添加子级
-          </ElButton>
-          <ElButton
-            v-if="!hideEdit"
-            v-permission="permissions?.edit"
-            link
-            type="primary"
-            :disabled="disableEdit?.(row as E)"
-            @click="emit('edit', row as E)"
-          >
-            编辑
-          </ElButton>
-          <ElButton
-            v-if="!hideEnable"
-            v-permission="permissions?.enable"
-            link
-            :type="isDisabled(row as E) ? 'success' : 'warning'"
-            @click="table.onToggleEnable((row as E).id, isDisabled(row as E))"
-          >
-            {{ isDisabled(row as E) ? '启用' : '禁用' }}
-          </ElButton>
-          <ElButton
-            v-if="!hideDelete"
-            v-permission="permissions?.delete"
-            link
-            type="danger"
-            :disabled="isDeleteDisabled(row as E)"
-            @click="table.onDelete((row as E).id)"
-          >
-            删除
-          </ElButton>
+          <div class="k-table__actions">
+            <ElButton
+              v-for="action in actions ?? []"
+              :key="action.label"
+              v-permission="action.permission"
+              link
+              type="primary"
+              size="small"
+              :disabled="action.disabled?.(row as E)"
+              @click="action.handler(row as E)"
+            >
+              {{ action.label }}
+            </ElButton>
+            <ElButton
+              v-if="isTree"
+              v-permission="permissions?.addChild"
+              link
+              type="primary"
+              size="small"
+              :disabled="disableAddChild?.(row as E)"
+              @click="emit('addChild', row as E)"
+            >
+              添加子级
+            </ElButton>
+            <ElButton
+              v-if="!hideEdit"
+              v-permission="permissions?.edit"
+              link
+              type="primary"
+              size="small"
+              :disabled="disableEdit?.(row as E)"
+              @click="emit('edit', row as E)"
+            >
+              编辑
+            </ElButton>
+            <ElButton
+              v-if="!hideEnable"
+              v-permission="permissions?.enable"
+              link
+              size="small"
+              :type="isDisabled(row as E) ? 'success' : 'warning'"
+              @click="table.onToggleEnable((row as E).id, isDisabled(row as E))"
+            >
+              {{ isDisabled(row as E) ? '启用' : '禁用' }}
+            </ElButton>
+            <ElButton
+              v-if="!hideDelete"
+              v-permission="permissions?.delete"
+              link
+              size="small"
+              type="danger"
+              :disabled="isDeleteDisabled(row as E)"
+              @click="table.onDelete((row as E).id)"
+            >
+              删除
+            </ElButton>
+          </div>
         </template>
       </ElTableColumn>
 
       <template #empty>
-        <ElEmpty :description="emptyText" />
+        <slot name="empty">
+          <div class="k-table__empty-wrapper">
+            <ElEmpty
+              :description="emptyText"
+              :image-size="80"
+            >
+              <ElButton
+                v-if="hasActiveFilter"
+                class="k-table__empty-reset"
+                size="small"
+                :icon="RefreshLeft"
+                @click="onResetSearch"
+              >
+                清空筛选条件
+              </ElButton>
+            </ElEmpty>
+          </div>
+        </slot>
       </template>
     </ElTable>
 
-    <!-- 分页：条数变化时回到第 1 页（否则会停在不存在的页码，表格空白但没人知道为什么）；
-         树数据不分页，隐藏分页器 -->
+    <!-- 分页器 -->
     <div
       v-if="!isTree"
       class="k-table__pagination"
@@ -525,40 +746,171 @@ const emptyText = computed(() =>
 .k-table {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .k-table__search {
-  padding: 12px 16px 0;
+  padding: 16px 18px 4px;
   background: var(--el-fill-color-blank);
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--el-border-radius-base);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.k-table__search-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
 }
 
 .k-table__search-item {
-  margin-right: 16px;
+  margin-right: 0;
   margin-bottom: 12px;
 }
 
 .k-table__search-actions {
+  margin-right: 0;
   margin-bottom: 12px;
+  display: flex;
+  gap: 8px;
 }
 
 .k-table__toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0 2px;
 }
 
 .k-table__toolbar-left,
 .k-table__toolbar-right {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
+}
+
+.k-table__col-settings {
+  display: flex;
+  flex-direction: column;
+}
+
+.k-table__col-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.k-table__col-settings-header .setting-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.k-table__col-settings-list {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding-top: 6px;
+}
+
+.k-table__col-settings-list .col-checkbox {
+  margin-right: 0;
+  height: 28px;
+}
+
+.k-table__selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-7);
+  border-radius: 8px;
+}
+
+.k-table__selection-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--el-text-color-primary);
+}
+
+.selection-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--el-color-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--kubo-font-mono);
+}
+
+.selection-label {
+  font-weight: 500;
+}
+
+.k-table__selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.k-table__empty-wrapper {
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.k-table__empty-reset {
+  margin-top: 10px;
+}
+
+.k-table__body {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.k-table__body :deep(.el-table__header-wrapper th) {
+  background-color: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+  font-size: 13px;
+  height: 44px;
+}
+
+.k-table__body :deep(.el-table__row) {
+  height: 46px;
+  font-variant-numeric: tabular-nums;
+}
+
+.k-table__actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 4px;
 }
 
 .k-table__pagination {
   display: flex;
   justify-content: flex-end;
+  padding-top: 6px;
 }
 </style>

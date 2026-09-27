@@ -42,7 +42,10 @@ function onSaved() {
 </script>
 
 <template>
-  <KPanel>
+  <KPanel
+    title="行级数据策略"
+    description="配置基于租户、部门及本人的行级数据隔离策略与生效范围"
+  >
     <ElAlert
       v-if="riskCount"
       class="risk-warning"

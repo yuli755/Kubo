@@ -226,7 +226,11 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
                 inputType.getLabel()
         );
         switch (inputType) {
-            case PURCHASE -> ChannelServices.getPurchaseService().setBillFinished(inputBill.getPurchase().getId());
+            case PURCHASE -> {
+                if (inputBill.getPurchase() != null && inputBill.getPurchase().getId() != null) {
+                    ChannelServices.getPurchaseService().setBillFinished(inputBill.getPurchase().getId());
+                }
+            }
             default -> {
             }
         }
@@ -246,24 +250,54 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
         // 毫秒级仓库+物料细粒度互斥锁：防止并发入库创建重复库存行或累加竞态
         String lockKey = "lock:wms:inventory:storage:" + storage.getId() + ":material:" + existDetail.getMaterial().getId();
         Runnable updateAction = () -> {
-            // 查询库存信息
-            InventoryEntity inventory = inventoryService.getByMaterialIdAndStorageId(existDetail.getMaterial().getId(), storage.getId());
+            Runnable coreAction = () -> {
+                // 查询库存信息
+                InventoryEntity inventory = inventoryService.getByMaterialIdAndStorageId(existDetail.getMaterial().getId(), storage.getId());
 
-            // 入库数量
-            Double inputDetailQuantity = inputDetail.getQuantity();
+                // 入库数量
+                Double inputDetailQuantity = inputDetail.getQuantity();
 
-            if (Objects.nonNull(inventory)) {
-                inventoryService.addInventoryQuantity(inventory.getId(), inputDetailQuantity);
-                log.info("入库单明细更新库存完毕，单据ID: {}", inputDetail.getId());
-                return;
+                if (Objects.nonNull(inventory)) {
+                    inventoryService.addInventoryQuantity(inventory.getId(), inputDetailQuantity);
+                    log.info("入库单明细更新库存完毕，单据ID: {}", inputDetail.getId());
+                } else {
+                    inventory = new InventoryEntity()
+                            .setQuantity(inputDetailQuantity)
+                            .setMaterial(existDetail.getMaterial())
+                            .setStorage(storage)
+                            .setType(InventoryType.STORAGE.getKey());
+                    inventoryService.add(inventory);
+                    log.info("入库单明细创建库存完毕，单据ID: {}", inputDetail.getId());
+                }
+
+                // 同步反写来源单据（采购单）完成进度
+                InputEntity bill = get(existDetail.getBillId());
+                InputType inputType = EnumDictionaries.require(InputType.class, bill.getType(), InputType::getKey, InputType::getLabel);
+                switch (inputType) {
+                    case PURCHASE -> {
+                        if (bill.getPurchase() != null && bill.getPurchase().getId() != null) {
+                            ChannelServices.getPurchaseDetailService().updateDetailQuantity(
+                                    bill.getPurchase().getId(),
+                                    inputDetailQuantity,
+                                    ChannelServices.getPurchaseService(),
+                                    detail -> FORBIDDEN.whenNotEquals(
+                                            detail.getMaterial().getId(),
+                                            existDetail.getMaterial().getId(),
+                                            "物料信息不匹配"
+                                    )
+                            );
+                        }
+                    }
+                    default -> {
+                    }
+                }
+            };
+
+            if (transactionHelper != null) {
+                transactionHelper.run(coreAction);
+            } else {
+                coreAction.run();
             }
-            inventory = new InventoryEntity()
-                    .setQuantity(inputDetailQuantity)
-                    .setMaterial(existDetail.getMaterial())
-                    .setStorage(storage)
-                    .setType(InventoryType.STORAGE.getKey());
-            inventoryService.add(inventory);
-            log.info("入库单明细创建库存完毕，单据ID: {}", inputDetail.getId());
         };
 
         if (redisHelper != null) {

@@ -111,12 +111,37 @@ function appendParam(param: CodeRuleParam) {
         @edit="openEdit"
       >
         <template #cell-ruleField="{ row }">
-          {{ getFieldName(row as CodeRuleEntity) }}
+          <span class="font-medium text-slate-700 dark:text-slate-300">{{ getFieldName(row as CodeRuleEntity) }}</span>
+        </template>
+        <template #cell-prefix="{ row }">
+          <code
+            v-if="(row as CodeRuleEntity).prefix"
+            class="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/60"
+          >
+            {{ (row as CodeRuleEntity).prefix }}
+          </code>
+          <span
+            v-else
+            class="text-slate-400"
+          >-</span>
+        </template>
+        <template #cell-template="{ row }">
+          <code
+            v-if="(row as CodeRuleEntity).template"
+            class="font-mono text-xs px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+          >
+            {{ (row as CodeRuleEntity).template }}
+          </code>
+          <span
+            v-else
+            class="text-slate-400"
+          >-</span>
         </template>
         <template #cell-nextCode="{ row }">
           <ElTag
             type="info"
             disable-transitions
+            class="font-mono tabular-nums font-semibold"
           >
             {{ nextCode(row as CodeRuleEntity) }}
           </ElTag>
@@ -178,7 +203,10 @@ function appendParam(param: CodeRuleParam) {
 
 <style scoped>
 .k-page {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
 }
 
 .param-item {

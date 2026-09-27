@@ -3,9 +3,12 @@ package cn.hamm.spms.common.redis;
 import cn.hamm.spms.framework.error.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -18,12 +21,17 @@ import static cn.hamm.spms.common.exception.Errors.SERVICE_ERROR;
  *
  * <p>封装 Redis 常用操作（键值读写、过期、自增、发布等），底层直接委托给 Spring Data Redis 的 {@link RedisTemplate}。
  * 单机无 Redis 调试时 {@link #getRedisTemplate()} 返回 {@code null}，各方法自动安全降级。</p>
- * <p>提供轻量级分布式互斥锁（SET NX EX）与安全释放能力，保障仓储出入库与单据流转在高并发下的原子性与防重放。</p>
+ * <p>提供轻量级分布式互斥锁（SET NX EX）与 Lua CAS 原子安全释放能力，保障仓储出入库与单据流转在高并发下的原子性与防重放。</p>
  *
  * @author Hamm.cn
  */
 @Component
 public class RedisHelper {
+
+    private static final RedisScript<Long> UNLOCK_LUA_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+            Long.class
+    );
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
@@ -75,7 +83,7 @@ public class RedisHelper {
     }
 
     /**
-     * 安全释放分布式锁（仅当锁持有者 token 匹配时才删除，防止误删他人锁）
+     * 安全释放分布式锁（基于 Lua 脚本 CAS 原子校验并删除，杜绝并发误删他人锁）
      *
      * @param key   锁键
      * @param token 锁持有者标识
@@ -85,11 +93,17 @@ public class RedisHelper {
         if (redisTemplate == null || key == null || token == null) {
             return true;
         }
-        Object current = redisTemplate.opsForValue().get(key);
-        if (Objects.equals(String.valueOf(token), String.valueOf(current))) {
-            return Boolean.TRUE.equals(redisTemplate.delete(key));
+        try {
+            Long result = redisTemplate.execute(UNLOCK_LUA_SCRIPT, Collections.singletonList(key), String.valueOf(token));
+            return Long.valueOf(1L).equals(result);
+        } catch (Exception e) {
+            // Redis 执行异常或未初始化时降级走防御核验
+            Object current = redisTemplate.opsForValue().get(key);
+            if (Objects.equals(String.valueOf(token), String.valueOf(current))) {
+                return Boolean.TRUE.equals(redisTemplate.delete(key));
+            }
+            return false;
         }
-        return false;
     }
 
     /**

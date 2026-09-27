@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { DepartmentEntity } from '@/model/personnel/department/DepartmentEntity'
 import type { RoleEntity } from '@/model/personnel/role/RoleEntity'
+import { RefreshLeft, Search } from '@element-plus/icons-vue'
 import { ElButton, ElInput, ElMessage, ElTag, ElTree } from 'element-plus'
 import { computed, onMounted, ref, watch } from 'vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
@@ -41,6 +42,7 @@ const departmentNodes = departmentTree.list
 
 const treeRef = ref<InstanceType<typeof ElTree>>()
 const treeKeyword = ref('')
+const selectedDept = ref<DepartmentEntity | null>(null)
 
 function filterNode(value: string, data: Record<string, unknown>) {
   if (!value) {
@@ -54,10 +56,12 @@ watch(treeKeyword, (value) => {
 })
 
 function selectDepartment(node: DepartmentEntity) {
+  selectedDept.value = node
   table.search({ ...table.filter.value, departmentId: node.id })
 }
 
 function clearDepartment() {
+  selectedDept.value = null
   const rest = { ...table.filter.value }
   delete rest.departmentId
   table.search(rest)
@@ -132,23 +136,52 @@ function onSaved() {
 <template>
   <div class="k-page">
     <aside class="k-page__aside">
+      <div class="k-page__aside-header">
+        <span class="k-page__aside-title">部门架构</span>
+        <ElTag
+          v-if="selectedDept"
+          size="small"
+          closable
+          type="primary"
+          effect="plain"
+          @close="clearDepartment"
+        >
+          {{ selectedDept.name }}
+        </ElTag>
+      </div>
+
       <ElInput
         v-model="treeKeyword"
         clearable
+        :prefix-icon="Search"
         placeholder="搜索部门"
       />
-      <ElTree
-        ref="treeRef"
-        :data="departmentNodes"
-        :filter-node-method="filterNode"
-        :props="{ label: 'name', children: 'children' }"
-        class="k-page__tree"
-        default-expand-all
-        highlight-current
-        node-key="id"
-        @node-click="selectDepartment"
-      />
+
+      <div class="k-page__tree-wrap">
+        <ElTree
+          ref="treeRef"
+          :data="departmentNodes"
+          :filter-node-method="filterNode"
+          :props="{ label: 'name', children: 'children' }"
+          class="k-page__tree"
+          default-expand-all
+          highlight-current
+          node-key="id"
+          @node-click="selectDepartment"
+        />
+      </div>
+
       <ElButton
+        v-if="selectedDept"
+        link
+        :icon="RefreshLeft"
+        class="k-page__aside-reset"
+        @click="clearDepartment"
+      >
+        查看全部用户
+      </ElButton>
+      <ElButton
+        v-else
         link
         @click="clearDepartment"
       >
@@ -268,19 +301,44 @@ function onSaved() {
   display: flex;
   gap: 16px;
   align-items: flex-start;
-  padding: 16px;
+  width: 100%;
 }
 
 .k-page__aside {
   flex: 0 0 240px;
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--el-border-radius-base);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.k-page__aside-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.k-page__aside-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.k-page__tree-wrap {
+  max-height: 480px;
+  overflow-y: auto;
 }
 
 .k-page__tree {
-  margin: 8px 0;
+  margin: 4px 0;
+}
+
+.k-page__aside-reset {
+  margin-top: 4px;
 }
 
 .k-page__main {
@@ -289,7 +347,11 @@ function onSaved() {
 }
 
 .block {
-  margin-top: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--el-fill-color-lighter);
+  border-radius: var(--el-border-radius-base);
+  border: 1px solid var(--el-border-color-lighter);
 }
 
 .block__head {
@@ -300,11 +362,12 @@ function onSaved() {
 
 .block__title {
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  font-weight: 600;
+  color: var(--el-text-color-regular);
 }
 
 .block__tag {
-  margin: 4px 6px 0 0;
+  margin: 6px 6px 0 0;
 }
 
 .mask-tip {

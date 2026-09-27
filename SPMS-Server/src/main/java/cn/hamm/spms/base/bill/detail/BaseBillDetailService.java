@@ -107,10 +107,12 @@ public class BaseBillDetailService<
             }
 
             // 还需要完成的数量
-            double detailNeedQuantity = DecimalMath.subtract(detail.getQuantity(), detail.getFinishQuantity());
+            double currentFinish = detail.getFinishQuantity() == null ? 0D : detail.getFinishQuantity();
+            double detailNeedQuantity = DecimalMath.subtract(detail.getQuantity(), currentFinish);
             if (quantity < detailNeedQuantity) {
                 // 添加单据完成数量
-                detail.setFinishQuantity(quantity);
+                detail.setFinishQuantity(DecimalMath.add(currentFinish, quantity));
+                quantity = 0;
             } else {
                 quantity = DecimalMath.subtract(quantity, detailNeedQuantity);
                 detail.setFinishQuantity(detail.getQuantity()).setIsFinished(true);

@@ -27,9 +27,9 @@ describe('routes · 访客路由 meta 契约', () => {
     expect(byPath.get('/')?.meta?.guest).toBeUndefined()
   })
 
-  it('根路由重定向 /home，Console 承载 catchAll 兜底错误页', () => {
+  it('根路由重定向 /console/index，Console 承载 catchAll 兜底错误页', () => {
     const root = byPath.get('/')
-    expect(root?.redirect).toBe('/home')
+    expect(root?.redirect).toBe('/console/index')
     expect(root?.component).toBeDefined()
 
     const child = root?.children?.find(route => route.path === ':catchAll(.*)')

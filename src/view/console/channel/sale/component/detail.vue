@@ -2,7 +2,7 @@
 import type { IDialogActionProps } from '@/framework'
 import type { SaleDetailEntity } from '@/model/channel/sale/SaleDetailEntity'
 import type { SaleEntity } from '@/model/channel/sale/SaleEntity'
-import { ElDescriptions, ElDescriptionsItem } from 'element-plus'
+import { ElAlert, ElDescriptions, ElDescriptionsItem, ElTag } from 'element-plus'
 import { computed } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KDialog from '@/component/framework/KDialog.vue'
@@ -56,6 +56,28 @@ function fieldText(key: string): string {
   return getCellText(entity, { ...(getTableConfig(Sale, key) ?? {}), key } as never)
 }
 
+const statusTagType = computed<'danger' | 'warning' | 'primary' | 'success' | 'info'>(() => {
+  const status = bill.value?.status
+  if (status === undefined) {
+    return 'info'
+  }
+  if (SaleStatusEnum.REJECTED.equalsKey(status)) {
+    return 'danger'
+  }
+  if (SaleStatusEnum.AUDITING.equalsKey(status)) {
+    return 'warning'
+  }
+  if (SaleStatusEnum.DONE.equalsKey(status)) {
+    return 'success'
+  }
+  return 'primary'
+})
+
+const isRejected = computed(() => {
+  const status = bill.value?.status
+  return status !== undefined && SaleStatusEnum.REJECTED.equalsKey(status)
+})
+
 function close() {
   props.onConfirm?.()
 }
@@ -71,6 +93,15 @@ function close() {
     @cancel="close"
     @confirm="close"
   >
+    <ElAlert
+      v-if="isRejected || bill?.rejectReason"
+      :closable="false"
+      class="sale-detail__alert"
+      show-icon
+      :title="`单据已被驳回${bill?.rejectReason ? `：${bill.rejectReason}` : ''}`"
+      type="error"
+    />
+
     <ElDescriptions
       v-loading="detail.isLoading.value"
       :column="3"
@@ -82,11 +113,39 @@ function close() {
         :key="field"
         :label="fieldLabel(field)"
       >
-        {{ fieldText(field) }}
+        <ElTag
+          v-if="field === 'status'"
+          :type="statusTagType"
+          effect="light"
+          size="small"
+        >
+          {{ fieldText('status') }}
+        </ElTag>
+        <span
+          v-else-if="field === 'totalPrice'"
+          class="sale-detail__amount"
+        >
+          {{ fieldText(field) }}
+        </span>
+        <span v-else>{{ fieldText(field) }}</span>
       </ElDescriptionsItem>
     </ElDescriptions>
 
     <div class="sale-detail__table">
+      <div class="sale-detail__table-header">
+        <div class="sale-detail__table-title">
+          <span>销售商品明细清单</span>
+          <ElTag
+            effect="plain"
+            round
+            size="small"
+            type="info"
+          >
+            共 {{ bill?.details?.length ?? 0 }} 项
+          </ElTag>
+        </div>
+      </div>
+
       <KDetailTable
         :entity="SaleDetail"
         :exclude="['createTime', 'updateTime']"
@@ -98,7 +157,32 @@ function close() {
 </template>
 
 <style lang="scss" scoped>
+.sale-detail__alert {
+  margin-bottom: 12px;
+}
+
+.sale-detail__amount {
+  font-weight: 600;
+  color: var(--el-color-primary);
+}
+
 .sale-detail__table {
-  margin-top: 12px;
+  margin-top: 16px;
+}
+
+.sale-detail__table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.sale-detail__table-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 </style>

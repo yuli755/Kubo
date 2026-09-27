@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
 import static cn.hamm.spms.module.system.config.enums.ConfigFlag.MOVE_BILL_AUTO_AUDIT;
 
 /**
@@ -210,14 +211,17 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
 
         // 目标存储文字
         StorageEntity storage = bill.getStorage();
+        FORBIDDEN.whenNull(storage, "移库单目标仓库未配置");
 
         InventoryService inventoryService = WmsServices.getInventoryService();
 
         // 来源库存信息
         InventoryEntity from = existDetail.getInventory();
+        FORBIDDEN.whenNull(from, "移库明细来源库存未配置");
 
         // 物料信息
         MaterialEntity material = from.getMaterial();
+        FORBIDDEN.whenNull(material, "来源库存物料信息缺失");
 
         String lockKey = "lock:wms:inventory:storage:" + storage.getId() + ":material:" + material.getId();
         Runnable moveAction = () -> transactionHelper.run(() -> {

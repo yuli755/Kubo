@@ -1,7 +1,8 @@
 <script lang="ts" setup>
 import type { CustomerEntity } from '@/model/channel/customer/CustomerEntity'
 import type { SaleDetailEntity } from '@/model/channel/sale/SaleDetailEntity'
-import { ElButton, ElInput } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
+import { ElButton, ElInput, ElTag } from 'element-plus'
 import { computed, ref } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
@@ -42,6 +43,14 @@ const emit = defineEmits<{
 const form = ref<Record<string, unknown>>({})
 const details = computed<SaleDetailEntity[]>(() => (form.value.details ?? []) as SaleDetailEntity[])
 const customerPicking = ref(false)
+
+const totalAmount = computed(() => {
+  return details.value.reduce((sum, item) => {
+    const qty = Number(item.quantity) || 0
+    const prc = Number(item.price) || 0
+    return sum + (qty * prc)
+  }, 0)
+})
 
 const customerName = computed(() => (form.value.customer as CustomerEntity | undefined)?.name ?? '')
 
@@ -126,10 +135,30 @@ function beforeSubmit(payload: Record<string, unknown>) {
     <template #extra>
       <div class="sale-editor__details">
         <div class="sale-editor__head">
-          <span class="sale-editor__title">销售明细</span>
+          <div class="sale-editor__head-left">
+            <span class="sale-editor__title">销售明细</span>
+            <ElTag
+              effect="plain"
+              round
+              size="small"
+              type="info"
+            >
+              共 {{ details.length }} 项
+            </ElTag>
+            <ElTag
+              v-if="details.length > 0"
+              effect="light"
+              round
+              size="small"
+              type="success"
+            >
+              总金额: ¥{{ totalAmount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+            </ElTag>
+          </div>
           <ElButton
             v-permission="[Permissions.Channel.Sale.add, Permissions.Channel.Sale.update]"
-            link
+            :icon="Plus"
+            size="small"
             type="primary"
             @click="addDetail"
           >
@@ -170,18 +199,25 @@ function beforeSubmit(payload: Record<string, unknown>) {
 }
 
 .sale-editor__details {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .sale-editor__head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.sale-editor__head-left {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
 }
 
 .sale-editor__title {
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 </style>

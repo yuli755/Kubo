@@ -83,10 +83,10 @@ const isButtonDisabled = computed(() => {
 async function loginRedirect(token: string) {
   userStore.setToken(token)
 
-  // 登录成功后预加载首页需要的 chunk，缩短进入控制台的等待时间
+  // 登录成功后预加载工作台需要的 chunk，缩短进入工作台的等待时间
   preload([
     () => import('@/component/Console.vue'),
-    () => import('@/view/home.vue'),
+    () => import('@/view/console/index/index.vue'),
   ])
 
   // 正常登录（开放平台移除后不再有 OAuth 授权跳转分支）

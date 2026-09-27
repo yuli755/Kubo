@@ -52,7 +52,6 @@ export class OutputDetailEntity extends AbstractBaseBillDetailEntity {
   @KField({ label: '已出库数量' })
   finishQuantity!: number
 
-  @KForm({ requiredNumber: true })
   @KField({ label: '库存来源' })
   inventoryId!: number
 }

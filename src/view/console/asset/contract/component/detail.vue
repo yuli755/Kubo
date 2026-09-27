@@ -134,6 +134,12 @@ function fileUrl(document: ContractDocumentEntity): string {
 
 <style lang="scss" scoped>
 .contract-tabs {
-  margin-top: 12px;
+  margin-top: 16px;
+
+  :deep(.el-table__header th) {
+    background: var(--el-fill-color-light);
+    color: var(--el-text-color-primary);
+    font-weight: 600;
+  }
 }
 </style>

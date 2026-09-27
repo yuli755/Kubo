@@ -37,6 +37,7 @@ import org.springframework.stereotype.Service;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static cn.hamm.spms.module.system.config.enums.ConfigFlag.PURCHASE_BILL_AUTO_AUDIT;
 
@@ -192,7 +193,7 @@ public class PurchaseService extends AbstractBaseBillService<
 
     @Override
     public IDictionary getBillDetailsFinishStatus() {
-        return PurchaseStatus.INPUTTING;
+        return PurchaseStatus.DONE;
     }
 
     @Override
@@ -201,38 +202,48 @@ public class PurchaseService extends AbstractBaseBillService<
     }
 
     @Override
-    protected void afterAllBillDetailFinished(long billId) {
+    protected void afterBillAudited(long billId) {
         PurchaseEntity purchaseBill = get(billId);
-        List<PurchaseDetailEntity> details = detailService.getAllByBillId(billId);
-        List<InputDetailEntity> inputDetails = new ArrayList<>();
-        double totalRealPrice = 0D;
-        for (PurchaseDetailEntity detail : details) {
-            totalRealPrice += detail.getPrice() * detail.getFinishQuantity();
-            inputDetails.add(new InputDetailEntity()
-                    .setQuantity(detail.getFinishQuantity())
-                    .setMaterial(detail.getMaterial())
-            );
-        }
-        purchaseBill.setTotalRealPrice(totalRealPrice);
-        updateToDatabase(purchaseBill);
-        log.info("采购单已经全部采购完成，单据ID:{}", purchaseBill.getId());
-
-        // 创建采购入库单
+        // 采购单审核完毕后创建入库单
         InputEntity inputBill = new InputEntity()
                 .setStatus(InputStatus.AUDITING.getKey())
                 .setPurchase(purchaseBill)
-                .setType(InputType.PURCHASE.getKey())
-                .setDetails(inputDetails);
+                .setType(InputType.PURCHASE.getKey());
+        List<PurchaseDetailEntity> details = detailService.getAllByBillId(purchaseBill.getId());
+        List<InputDetailEntity> inputDetails = details.stream()
+                .map(detail -> new InputDetailEntity()
+                        .setMaterial(detail.getMaterial())
+                        .setQuantity(detail.getQuantity()))
+                .collect(Collectors.toList());
+        inputBill.setDetails(inputDetails);
         WmsServices.getInputService().add(inputBill);
-        log.info("创建采购入库单：{}", inputBill);
+        log.info("采购单审核完成，已创建采购入库单：{}", inputBill.getBillCode());
+    }
+
+    @Override
+    protected void afterAllBillDetailFinished(long billId) {
+        PurchaseEntity purchaseBill = get(billId);
+        List<PurchaseDetailEntity> details = detailService.getAllByBillId(billId);
+        double totalRealPrice = 0D;
+        for (PurchaseDetailEntity detail : details) {
+            double price = detail.getPrice() == null ? 0D : detail.getPrice();
+            double finishQuantity = detail.getFinishQuantity() == null ? 0D : detail.getFinishQuantity();
+            totalRealPrice = DecimalMath.add(totalRealPrice, DecimalMath.multiply(price, finishQuantity));
+        }
+        purchaseBill.setTotalRealPrice(totalRealPrice);
+        updateToDatabase(purchaseBill);
+        log.info("采购单已经全部采购完成，单据ID:{}，实际总金额:{}", purchaseBill.getId(), totalRealPrice);
     }
 
     @Override
     protected void afterDetailSaved(long purchaseId) {
         List<PurchaseDetailEntity> details = detailService.getAllByBillId(purchaseId);
-        double totalPrice = details.stream()
-                .mapToDouble(detail -> DecimalMath.multiply(detail.getPrice(), detail.getQuantity()))
-                .sum();
+        double totalPrice = 0D;
+        for (PurchaseDetailEntity detail : details) {
+            double price = detail.getPrice() == null ? 0D : detail.getPrice();
+            double quantity = detail.getQuantity() == null ? 0D : detail.getQuantity();
+            totalPrice = DecimalMath.add(totalPrice, DecimalMath.multiply(price, quantity));
+        }
         updateToDatabase(getEntityInstance(purchaseId).setTotalPrice(totalPrice));
     }
 

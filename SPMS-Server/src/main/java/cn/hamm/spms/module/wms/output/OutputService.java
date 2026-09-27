@@ -36,6 +36,7 @@ import org.springframework.stereotype.Service;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
 import static cn.hamm.spms.module.system.config.enums.ConfigFlag.OUTPUT_BILL_AUTO_AUDIT;
@@ -195,7 +196,11 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
         OutputEntity outputBill = get(billId);
         OutputType outputType = EnumDictionaries.require(OutputType.class, outputBill.getType(), OutputType::getKey, OutputType::getLabel);
         switch (outputType) {
-            case SALE -> ChannelServices.getSaleService().setBillFinished(outputBill.getSale().getId());
+            case SALE -> {
+                if (outputBill.getSale() != null && outputBill.getSale().getId() != null) {
+                    ChannelServices.getSaleService().setBillFinished(outputBill.getSale().getId());
+                }
+            }
             default -> {
             }
         }
@@ -214,8 +219,14 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
         // 出库单
         OutputEntity bill = get(existDetail.getBillId());
 
+        if (Objects.isNull(outputDetail.getInventory()) || Objects.isNull(outputDetail.getInventory().getId())) {
+            FORBIDDEN.show("请传入出库来源库存信息");
+            return;
+        }
+
         // 库存信息
         InventoryEntity inventory = inventoryService.get(outputDetail.getInventory().getId());
+        FORBIDDEN.whenNull(inventory, "未找到指定的出库来源库存");
         FORBIDDEN.whenNotEquals(inventory.getMaterial().getId(), materialId, "物料信息不匹配");
 
         // 库存细粒度分布式排他锁：防止并发扣减超卖与销售单明细状态竞态
@@ -227,14 +238,18 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
                 // 获取出库单类型
                 OutputType outputType = EnumDictionaries.require(OutputType.class, bill.getType(), OutputType::getKey, OutputType::getLabel);
                 switch (outputType) {
-                    case SALE -> ChannelServices.getSaleDetailService().updateDetailQuantity(
-                            bill.getSale().getId(),
-                            outputDetailQuantity,
-                            ChannelServices.getSaleService(),
-                            detail -> FORBIDDEN.whenNotEquals(
-                                    detail.getMaterial().getId(),
-                                    materialId,
-                                    "物料信息不匹配"));
+                    case SALE -> {
+                        if (bill.getSale() != null && bill.getSale().getId() != null) {
+                            ChannelServices.getSaleDetailService().updateDetailQuantity(
+                                    bill.getSale().getId(),
+                                    outputDetailQuantity,
+                                    ChannelServices.getSaleService(),
+                                    detail -> FORBIDDEN.whenNotEquals(
+                                            detail.getMaterial().getId(),
+                                            materialId,
+                                            "物料信息不匹配"));
+                        }
+                    }
                     default -> {
                     }
                 }

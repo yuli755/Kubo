@@ -23,18 +23,49 @@ const num = ref(props.param ?? 0)
 
 <template>
   <KDialog
-    :disable-confirm="num <= 0"
+    :disable-confirm="Number(num) <= 0"
     confirm-text="添加完成"
-    min-height="200px"
+    width="480px"
+    min-height="100px"
     title="添加完成数量"
     @cancel="() => props.onCancel?.()"
-    @confirm="() => props.onConfirm?.(num)"
+    @confirm="() => props.onConfirm?.(Number(num))"
   >
-    <ElInput
-      v-model="num"
-      clearable
-      placeholder="请输入本次完成数量..."
-      type="number"
-    />
+    <div class="k-finish-dialog">
+      <div
+        v-if="props.param && props.param > 0"
+        class="k-finish-dialog__tip"
+      >
+        <span>建议待完成数量：<strong>{{ props.param }}</strong></span>
+      </div>
+      <ElInput
+        v-model="num"
+        clearable
+        placeholder="请输入本次完成数量..."
+        type="number"
+      />
+    </div>
   </KDialog>
 </template>
+
+<style lang="scss" scoped>
+.k-finish-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.k-finish-dialog__tip {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  background: var(--el-fill-color-light);
+  padding: 8px 12px;
+  border-radius: var(--el-border-radius-base);
+  border: 1px solid var(--el-border-color-lighter);
+
+  strong {
+    color: var(--el-color-primary);
+    font-weight: 600;
+  }
+}
+</style>

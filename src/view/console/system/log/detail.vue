@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { IJson } from '@/framework'
 import type { LogEntity } from '@/model/system/log/LogEntity'
-import { ElTabPane, ElTabs, ElTree } from 'element-plus'
+import { ElTabPane, ElTabs, ElTag, ElTree } from 'element-plus'
 import { computed } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import { ClipboardUtil } from '@/framework'
@@ -101,10 +101,34 @@ async function copy(value: string) {
       v-if="log"
       class="log-detail__meta"
     >
-      <span>用户：{{ log.userId ?? '-' }}</span>
-      <span>IP：{{ log.ip ?? '-' }}</span>
-      <span>版本：{{ log.version ?? '-' }}</span>
-      <span>耗时：{{ (log.updateTime ?? 0) - (log.createTime ?? 0) }}ms</span>
+      <ElTag
+        size="small"
+        type="info"
+        effect="plain"
+      >
+        用户：{{ log.userId ?? '-' }}
+      </ElTag>
+      <ElTag
+        size="small"
+        type="info"
+        effect="plain"
+      >
+        IP：{{ log.ip ?? '-' }}
+      </ElTag>
+      <ElTag
+        size="small"
+        type="info"
+        effect="plain"
+      >
+        版本：{{ log.version ?? '-' }}
+      </ElTag>
+      <ElTag
+        size="small"
+        :type="((log.updateTime ?? 0) - (log.createTime ?? 0)) > 500 ? 'warning' : 'success'"
+        effect="plain"
+      >
+        耗时：{{ (log.updateTime ?? 0) - (log.createTime ?? 0) }}ms
+      </ElTag>
     </div>
 
     <ElTabs type="border-card">

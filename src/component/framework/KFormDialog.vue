@@ -1,7 +1,19 @@
 <script lang="ts" setup generic="E extends IIdentifiableEntity">
 import type { FormInstance } from 'element-plus'
 import type { AbstractCurdService, IFormField, IFormModel, IIdentifiableEntity, WebValidateRuleSet } from '@/framework'
-import { ElButton, ElDatePicker, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElSelect, ElSwitch } from 'element-plus'
+import {
+  ElAlert,
+  ElButton,
+  ElDatePicker,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElInputNumber,
+  ElOption,
+  ElSelect,
+  ElSwitch,
+} from 'element-plus'
 import { computed, nextTick, ref, watch } from 'vue'
 import { FeedbackUtil, getEnumItems, getFormConfigList, getModelName, WebValidator } from '@/framework'
 
@@ -239,6 +251,107 @@ async function loadDetail(id: number) {
   }
 }
 
+const draftStorageKey = computed(() => {
+  if (props.id != null) {
+    return null
+  }
+  return `kubo:draft:${props.service.name}`
+})
+
+const hasDraft = ref(false)
+const draftTime = ref('')
+
+function checkDraft() {
+  if (!draftStorageKey.value) {
+    hasDraft.value = false
+    return
+  }
+  try {
+    const raw = localStorage.getItem(draftStorageKey.value)
+    if (raw) {
+      const parsed = JSON.parse(raw) as { data: Record<string, unknown>, time: number }
+      if (parsed && parsed.data && Object.keys(parsed.data).length > 0) {
+        hasDraft.value = true
+        draftTime.value = new Date(parsed.time).toLocaleTimeString()
+        return
+      }
+    }
+  }
+  catch {
+    // ignore
+  }
+  hasDraft.value = false
+}
+
+function restoreDraft() {
+  if (!draftStorageKey.value) {
+    return
+  }
+  try {
+    const raw = localStorage.getItem(draftStorageKey.value)
+    if (raw) {
+      const parsed = JSON.parse(raw) as { data: Record<string, unknown> }
+      if (parsed?.data) {
+        Object.assign(form.value, parsed.data)
+        FeedbackUtil.toastSuccess('已恢复此前未保存的草稿')
+      }
+    }
+  }
+  finally {
+    hasDraft.value = false
+  }
+}
+
+function discardDraft() {
+  if (draftStorageKey.value) {
+    try {
+      localStorage.removeItem(draftStorageKey.value)
+    }
+    catch {
+      // ignore
+    }
+  }
+  hasDraft.value = false
+  FeedbackUtil.toastInfo('已放弃未保存草稿')
+}
+
+function clearDraft() {
+  if (draftStorageKey.value) {
+    try {
+      localStorage.removeItem(draftStorageKey.value)
+    }
+    catch {
+      // ignore
+    }
+    hasDraft.value = false
+  }
+}
+
+let draftDebounceTimer: ReturnType<typeof setTimeout> | null = null
+watch(
+  () => form.value,
+  (val) => {
+    if (!draftStorageKey.value || props.id != null) {
+      return
+    }
+    if (draftDebounceTimer) {
+      clearTimeout(draftDebounceTimer)
+    }
+    draftDebounceTimer = setTimeout(() => {
+      const hasContent = Object.values(val).some(v => v !== undefined && v !== null && v !== '')
+      if (hasContent) {
+        try {
+          localStorage.setItem(draftStorageKey.value!, JSON.stringify({ data: val, time: Date.now() }))
+        }
+        catch {
+          // ignore
+        }
+      }
+    }, 600)
+  },
+  { deep: true },
+)
+
 /**
  * 打开时初始化：
  * - 编辑：拉详情并回填；
@@ -253,10 +366,12 @@ watch(
     await nextTick()
     formRef.value?.clearValidate()
     if (id) {
+      hasDraft.value = false
       await loadDetail(id)
     }
     else {
       resetForm()
+      checkDraft()
     }
   },
   { immediate: true },
@@ -284,6 +399,7 @@ async function onSubmit() {
     const id = props.id
       ? await service.value.update({ ...entity, id: props.id } as E)
       : await service.value.add(entity)
+    clearDraft()
     FeedbackUtil.toastSuccess(props.id ? '保存成功' : '新增成功')
     emit('saved', Number(id))
     if (props.closeOnSaved)
@@ -310,6 +426,37 @@ function onCancel() {
     destroy-on-close
     @closed="emit('closed')"
   >
+    <ElAlert
+      v-if="hasDraft"
+      type="info"
+      :closable="false"
+      show-icon
+      class="k-form-dialog__draft-alert"
+      title="检测到此前未保存的表单草稿"
+      :description="`自动暂存于 ${draftTime}，是否恢复继续编辑？`"
+    >
+      <template #default>
+        <div class="k-form-dialog__draft-actions">
+          <ElButton
+            size="small"
+            type="primary"
+            link
+            @click="restoreDraft"
+          >
+            恢复草稿
+          </ElButton>
+          <ElButton
+            size="small"
+            type="info"
+            link
+            @click="discardDraft"
+          >
+            放弃草稿
+          </ElButton>
+        </div>
+      </template>
+    </ElAlert>
+
     <ElForm
       ref="formRef"
       v-loading="isLoading"
@@ -387,6 +534,16 @@ function onCancel() {
       </ElFormItem>
     </ElForm>
 
+    <div
+      v-if="$slots.extra"
+      class="k-form-dialog__extra"
+    >
+      <slot
+        name="extra"
+        :form="form as IFormModel"
+      />
+    </div>
+
     <template #footer>
       <slot
         name="footer"
@@ -410,6 +567,16 @@ function onCancel() {
 </template>
 
 <style scoped>
+.k-form-dialog__draft-alert {
+  margin-bottom: 14px;
+}
+
+.k-form-dialog__draft-actions {
+  margin-top: 6px;
+  display: flex;
+  gap: 12px;
+}
+
 .k-form-dialog__control {
   width: 100%;
 }
@@ -427,5 +594,11 @@ function onCancel() {
 
 .k-form-dialog--two-columns :deep(.el-form-item:has(textarea)) {
   grid-column: span 2;
+}
+
+.k-form-dialog__extra {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--el-border-color-lighter);
 }
 </style>

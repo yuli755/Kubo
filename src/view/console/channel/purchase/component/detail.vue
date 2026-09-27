@@ -2,7 +2,7 @@
 import type { IDialogActionProps } from '@/framework'
 import type { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
 import type { PurchaseEntity } from '@/model/channel/purchase/PurchaseEntity'
-import { ElDescriptions, ElDescriptionsItem } from 'element-plus'
+import { ElAlert, ElDescriptions, ElDescriptionsItem, ElTag } from 'element-plus'
 import { computed, ref } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KDialog from '@/component/framework/KDialog.vue'
@@ -59,6 +59,31 @@ function fieldText(key: string): string {
   return getCellText(entity, { ...(getTableConfig(Purchase, key) ?? {}), key } as never)
 }
 
+const statusTagType = computed<'danger' | 'warning' | 'primary' | 'success' | 'info'>(() => {
+  const status = bill.value?.status
+  if (status === undefined) {
+    return 'info'
+  }
+  if (PurchaseStatusEnum.REJECTED.equalsKey(status)) {
+    return 'danger'
+  }
+  if (PurchaseStatusEnum.AUDITING.equalsKey(status)) {
+    return 'warning'
+  }
+  if (PurchaseStatusEnum.PURCHASING.equalsKey(status)) {
+    return 'primary'
+  }
+  if (PurchaseStatusEnum.DONE.equalsKey(status)) {
+    return 'success'
+  }
+  return 'info'
+})
+
+const isRejected = computed(() => {
+  const status = bill.value?.status
+  return status !== undefined && PurchaseStatusEnum.REJECTED.equalsKey(status)
+})
+
 /** 「作业」是否可点：只有「采购中」的单据能登记到货数量 */
 function canFinish(): boolean {
   const status = bill.value?.status
@@ -91,6 +116,15 @@ function close() {
     @cancel="close"
     @confirm="close"
   >
+    <ElAlert
+      v-if="isRejected || bill?.rejectReason"
+      :closable="false"
+      class="purchase-detail__alert"
+      show-icon
+      :title="`单据已被驳回${bill?.rejectReason ? `：${bill.rejectReason}` : ''}`"
+      type="error"
+    />
+
     <ElDescriptions
       v-loading="detail.isLoading.value"
       :column="3"
@@ -102,11 +136,51 @@ function close() {
         :key="field"
         :label="fieldLabel(field)"
       >
-        {{ fieldText(field) }}
+        <ElTag
+          v-if="field === 'status'"
+          :type="statusTagType"
+          effect="light"
+          size="small"
+        >
+          {{ fieldText('status') }}
+        </ElTag>
+        <span
+          v-else-if="field === 'totalPrice' || field === 'totalRealPrice'"
+          class="purchase-detail__amount"
+        >
+          {{ fieldText(field) }}
+        </span>
+        <span v-else>{{ fieldText(field) }}</span>
       </ElDescriptionsItem>
     </ElDescriptions>
 
     <div class="purchase-detail__table">
+      <div class="purchase-detail__table-header">
+        <div class="purchase-detail__table-title">
+          <span>采购物资明细清单</span>
+          <ElTag
+            effect="plain"
+            round
+            size="small"
+            type="info"
+          >
+            共 {{ bill?.details?.length ?? 0 }} 项
+          </ElTag>
+        </div>
+        <div
+          v-if="canFinish()"
+          class="purchase-detail__table-tip"
+        >
+          <ElTag
+            effect="plain"
+            size="small"
+            type="primary"
+          >
+            采购进行中 · 可点击操作列「作业」登记实际到货量
+          </ElTag>
+        </div>
+      </div>
+
       <KDetailTable
         :entity="PurchaseDetail"
         :exclude="['createTime', 'updateTime']"
@@ -132,7 +206,32 @@ function close() {
 </template>
 
 <style lang="scss" scoped>
+.purchase-detail__alert {
+  margin-bottom: 12px;
+}
+
+.purchase-detail__amount {
+  font-weight: 600;
+  color: var(--el-color-primary);
+}
+
 .purchase-detail__table {
-  margin-top: 12px;
+  margin-top: 16px;
+}
+
+.purchase-detail__table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.purchase-detail__table-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 </style>

@@ -425,6 +425,32 @@ describe('f2 · 第二批组件（KPanel / 树表格 / KSelector / KDetail）', 
     expect(picked?.[0]?.id, '确定后应把选中实体交给页面').toBe(11)
   })
 
+  it('kSelector：无数据时给出主数据引导空态文案', async () => {
+    const KSelector = (await import('@/component/framework/KSelector.vue')).default
+
+    vi.spyOn(TreeNodeService.prototype, 'getPage').mockResolvedValue({
+      list: [],
+      total: 0,
+      pageCount: 0,
+      page: { pageNum: 1, pageSize: 20 },
+    } as never)
+
+    const Host = defineComponent({
+      components: { KSelector },
+      template: '<KSelector v-model="visible" :service="service" />',
+      data() {
+        return { visible: true }
+      },
+      computed: {
+        service: () => TreeNodeService,
+      },
+    })
+    await mountWithQuery(Host)
+    await vi.waitFor(() => {
+      expect(document.body.textContent).toContain('暂无可选的')
+    }, { timeout: 8000 })
+  })
+
   it('kDetail：按 id 重新查详情，字段名来自元数据、金额按规则格式化', async () => {
     const KDetail = (await import('@/component/framework/KDetail.vue')).default
 

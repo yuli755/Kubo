@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { RoleEntity } from '@/model/personnel/role/RoleEntity'
-import { ElTree } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
+import { ElInput, ElTag, ElTree } from 'element-plus'
 import { ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import { FeedbackUtil, QueryRequest } from '@/framework'
@@ -34,16 +35,36 @@ const treeRef = ref<InstanceType<typeof ElTree>>()
 const treeList = ref<MenuEntity[]>([])
 const isLoading = ref(false)
 const isSubmitting = ref(false)
+const filterKeyword = ref('')
+const checkedCount = ref(0)
 
 /** 已勾选的菜单 id：来自角色详情的 `menuList`（后端 getDetail 会带出来） */
 function checkedIds(): number[] {
-  return (props.role?.menuList ?? []).map(item => item.id)
+  const ids = (props.role?.menuList ?? []).map(item => item.id)
+  checkedCount.value = ids.length
+  return ids
 }
+
+function onCheckChange() {
+  checkedCount.value = treeRef.value?.getCheckedKeys()?.length ?? 0
+}
+
+function filterNode(value: string, data: Record<string, unknown>): boolean {
+  if (!value)
+    return true
+  const name = String(data.name ?? '')
+  return name.toLowerCase().includes(value.toLowerCase())
+}
+
+watch(filterKeyword, (val) => {
+  treeRef.value?.filter(val)
+})
 
 async function loadTree() {
   isLoading.value = true
   try {
     treeList.value = await new KMenuService().getTreeList(new QueryRequest(MenuEntity))
+    checkedCount.value = (props.role?.menuList ?? []).length
   }
   finally {
     isLoading.value = false
@@ -54,6 +75,7 @@ watch(
   () => props.modelValue,
   async (opened) => {
     if (opened) {
+      filterKeyword.value = ''
       await loadTree()
     }
   },
@@ -84,20 +106,74 @@ async function onSubmit() {
     :disable-confirm="isSubmitting"
     :title="`${role?.name ?? '角色'} · 菜单授权`"
     confirm-text="保存"
+    width="540px"
     @update:model-value="value => emit('update:modelValue', value)"
     @cancel="emit('update:modelValue', false)"
     @confirm="onSubmit"
   >
-    <ElTree
-      ref="treeRef"
-      v-loading="isLoading"
-      :data="treeList"
-      :default-checked-keys="checkedIds()"
-      :props="{ label: 'name', children: 'children' }"
-      check-strictly
-      default-expand-all
-      node-key="id"
-      show-checkbox
-    />
+    <div class="k-menu-editor">
+      <div class="k-menu-editor__toolbar">
+        <ElInput
+          v-model="filterKeyword"
+          :prefix-icon="Search"
+          clearable
+          placeholder="搜索菜单名称..."
+          size="default"
+          class="k-menu-editor__search"
+        />
+        <ElTag
+          size="small"
+          type="primary"
+          effect="plain"
+          round
+        >
+          已选 {{ checkedCount }} 项
+        </ElTag>
+      </div>
+
+      <div class="k-menu-editor__tree-wrap">
+        <ElTree
+          ref="treeRef"
+          v-loading="isLoading"
+          :data="treeList"
+          :default-checked-keys="checkedIds()"
+          :props="{ label: 'name', children: 'children' }"
+          :filter-node-method="filterNode"
+          check-strictly
+          default-expand-all
+          node-key="id"
+          show-checkbox
+          @check="onCheckChange"
+        />
+      </div>
+    </div>
   </KDialog>
 </template>
+
+<style scoped>
+.k-menu-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.k-menu-editor__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.k-menu-editor__search {
+  flex: 1;
+}
+
+.k-menu-editor__tree-wrap {
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 10px;
+  background: var(--el-fill-color-blank);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+}
+</style>

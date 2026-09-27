@@ -118,7 +118,7 @@ const javaFiles = (() => {
 })()
 
 const migrations = (() => {
-  const dirs = [path.join(SERVER, 'src/main/resources/db'), path.join(ROOT, 'SPMS-Server/docs/database')]
+  const dirs = [path.join(SERVER, 'src/main/resources/db/migration')]
   const files = []
   for (const dir of dirs) {
     if (!exists(dir))

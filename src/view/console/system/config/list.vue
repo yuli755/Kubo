@@ -116,13 +116,21 @@ const numberConfig = computed<number>({
             {{ (row as ConfigEntity).name }}
           </ElLink>
         </template>
+        <template #cell-flag="{ row }">
+          <code class="font-mono text-xs px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 select-all">
+            {{ (row as ConfigEntity).flag }}
+          </code>
+        </template>
         <template #cell-config="{ row }">
           <ElSwitch
             v-if="ConfigType.BOOLEAN.equalsKey((row as ConfigEntity).type)"
             :model-value="(row as ConfigEntity).config === Constant.BOOLEAN_YES"
             disabled
           />
-          <span v-else>{{ (row as ConfigEntity).config }}</span>
+          <span
+            v-else
+            class="font-mono tabular-nums"
+          >{{ (row as ConfigEntity).config }}</span>
         </template>
         <template #cell-type="{ row }">
           <ElTag
@@ -190,7 +198,10 @@ const numberConfig = computed<number>({
 
 <style scoped>
 .k-page {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
 }
 
 .system-hint {

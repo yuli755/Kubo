@@ -95,6 +95,7 @@
 
   /* ── 字体 ── */
   --kubo-font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --kubo-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* ── 骨架屏 shimmer 高光（浅色下用较亮白，深色下见 html.dark 覆盖） ── */
   --kubo-skeleton-highlight: rgb(255 255 255 / 60%);

@@ -1,31 +1,79 @@
 <script lang="ts" setup>
-import { RefreshRight } from '@element-plus/icons-vue'
+import type { Component } from 'vue'
+import {
+  Box,
+  Goods,
+  RefreshRight,
+  Right,
+  Sell,
+  ShoppingCart,
+  User,
+  Van,
+} from '@element-plus/icons-vue'
+import { markRaw } from 'vue'
 import Skeleton from '@/component/Skeleton.vue'
 import { useBusinessOverview } from '@/composables/useBusinessOverview'
+import { getRouter } from '@/router/appRouter'
 
 /**
  * # 业务概况（P2 · 数据权限感知看板）
  *
  * 「我」在当前租户与行级权限下、各资源有多少行。数据来自 `dashboard/overview`（后端对每个资源
  * 走 `getMapperCount` 权限拦截链再聚合），本组件只回显 count、不重算任何聚合判定。
- *
- * 与「安全态势看板」（仅数据权限管理身份可见）不同，业务概况对<b>所有登录用户</b>可见 ——
- * 它回答的是「我能看到多少」，不含跨租户元数据。
  */
-
 const overview = useBusinessOverview()
+
+interface ResourceVisual {
+  icon: Component
+  color: string
+  bg: string
+  path: string
+}
+
+const RESOURCE_CONFIG: Record<string, ResourceVisual> = {
+  'wms.input': { icon: markRaw(Van), color: '#3b82f6', bg: '#eff6ff', path: '/console/wms/input/list' },
+  'wms.output': { icon: markRaw(Box), color: '#f97316', bg: '#fff7ed', path: '/console/wms/output/list' },
+  'wms.inventory': { icon: markRaw(Goods), color: '#10b981', bg: '#ecfdf5', path: '/console/wms/inventory/list' },
+  'channel.purchase': { icon: markRaw(ShoppingCart), color: '#6366f1', bg: '#eef2ff', path: '/console/channel/purchase/list' },
+  'channel.sale': { icon: markRaw(Sell), color: '#06b6d4', bg: '#ecfeff', path: '/console/channel/sale/list' },
+  'asset.material': { icon: markRaw(Goods), color: '#8b5cf6', bg: '#f5f3ff', path: '/console/asset/material/list' },
+  'personnel.user': { icon: markRaw(User), color: '#ec4899', bg: '#fdf2f8', path: '/console/personnel/user/list' },
+}
+
+const DEFAULT_VISUAL: ResourceVisual = {
+  icon: markRaw(Box),
+  color: '#6b7280',
+  bg: '#f3f4f6',
+  path: '/console/index',
+}
+
+function getVisual(key: string): ResourceVisual {
+  return RESOURCE_CONFIG[key] ?? DEFAULT_VISUAL
+}
+
+function goResource(key: string) {
+  const visual = getVisual(key)
+  if (visual.path && visual.path !== '/console/index') {
+    getRouter().push(visual.path)
+  }
+}
 </script>
 
 <template>
   <section class="business-overview">
     <div class="overview-header">
-      <h3 class="title">
-        业务概况
-      </h3>
+      <div class="header-left">
+        <h3 class="title">
+          业务数据全景
+        </h3>
+        <span class="sub-tip">当前租户与数据范围内的实体量级 · 点击直接进入业务列表</span>
+      </div>
       <el-button
         :loading="overview.loading"
         :icon="RefreshRight"
         circle
+        size="small"
+        title="刷新统计数据"
         @click="overview.refresh"
       />
     </div>
@@ -48,19 +96,32 @@ const overview = useBusinessOverview()
       v-else
       class="grid"
     >
-      <el-card
+      <div
         v-for="item in overview.items"
         :key="item.resourceKey"
-        class="item"
-        shadow="never"
+        class="metric-card"
+        :style="{
+          '--accent-color': getVisual(item.resourceKey).color,
+          '--accent-bg': getVisual(item.resourceKey).bg,
+        }"
+        @click="goResource(item.resourceKey)"
       >
-        <div class="label">
-          {{ item.label }}
+        <div class="card-top">
+          <div class="icon-wrap">
+            <el-icon :size="18">
+              <component :is="getVisual(item.resourceKey).icon" />
+            </el-icon>
+          </div>
+          <span class="label">{{ item.label }}</span>
         </div>
-        <div class="count">
-          {{ item.count }}
+        <div class="card-bottom">
+          <span class="count">{{ Number(item.count || 0).toLocaleString() }}</span>
+          <span class="jump-hint">
+            <span>穿透</span>
+            <el-icon :size="12"><Right /></el-icon>
+          </span>
         </div>
-      </el-card>
+      </div>
     </div>
   </section>
 </template>
@@ -69,8 +130,7 @@ const overview = useBusinessOverview()
 .business-overview {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 10px;
+  gap: 12px;
 }
 
 .overview-header {
@@ -79,11 +139,22 @@ const overview = useBusinessOverview()
   align-items: center;
   justify-content: space-between;
 
+  .header-left {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
   .title {
     margin: 0;
     font-size: 16px;
-    font-weight: bold;
+    font-weight: 700;
     color: var(--el-text-color-primary);
+  }
+
+  .sub-tip {
+    font-size: 13px;
+    color: var(--el-text-color-secondary);
   }
 }
 
@@ -93,39 +164,106 @@ const overview = useBusinessOverview()
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
 }
 
-.item {
-  border-radius: 8px;
+.metric-card {
+  position: relative;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
 
-  .label {
-    font-size: 13px;
-    color: var(--el-text-color-secondary);
-    margin-bottom: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--accent-color);
+    opacity: 0.85;
+    transition: width 0.2s ease;
   }
 
-  .count {
-    font-size: 24px;
-    font-weight: bold;
-    color: var(--el-color-primary);
-    line-height: 1.2;
+  &:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent-color);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+
+    &::before {
+      width: 5px;
+    }
+
+    .jump-hint {
+      color: var(--accent-color);
+      transform: translateX(2px);
+    }
+  }
+
+  .card-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+
+    .icon-wrap {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--accent-bg);
+      color: var(--accent-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--el-text-color-regular);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .card-bottom {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+
+    .count {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--el-text-color-primary);
+      line-height: 1;
+      font-family: var(--kubo-font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .jump-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 12px;
+      color: var(--el-text-color-secondary);
+      transition: all 0.2s ease;
+    }
   }
 }
 
-@media (max-width: 1200px) {
-  .grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-@media (max-width: 700px) {
-  .grid {
-    grid-template-columns: repeat(2, 1fr);
+@media (max-width: 768px) {
+  .overview-header .sub-tip {
+    display: none;
   }
 }
 </style>

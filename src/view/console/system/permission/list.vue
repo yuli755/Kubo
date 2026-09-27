@@ -66,7 +66,20 @@ function onSaved() {
         @add="openCreate"
         @edit="openEdit"
         @add-child="openAddChild"
-      />
+      >
+        <template #cell-identity="{ row }">
+          <code
+            v-if="(row as PermissionEntity).identity"
+            class="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 select-all"
+          >
+            {{ (row as PermissionEntity).identity }}
+          </code>
+          <span
+            v-else
+            class="text-slate-400"
+          >-</span>
+        </template>
+      </KTable>
     </KPanel>
 
     <KFormDialog
@@ -91,6 +104,9 @@ function onSaved() {
 
 <style scoped>
 .k-page {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
 }
 </style>

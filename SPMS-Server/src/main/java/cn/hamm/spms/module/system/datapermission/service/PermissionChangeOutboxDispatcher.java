@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * <h1>权限变更 Outbox Dispatcher（P5 第二刀：拉到期行重投 Redis）</h1>
@@ -31,6 +32,9 @@ import java.util.List;
 @Slf4j
 @Component
 public class PermissionChangeOutboxDispatcher {
+
+    private static final String LEASE_LOCK_KEY = "lock:schedule:data-permission:outbox:dispatcher";
+    private static final long LEASE_LOCK_SECONDS = 10;
 
     private final DataPermissionProperties properties;
     private final ObjectProvider<PermissionChangeOutboxRepository> repositoryProvider;
@@ -61,12 +65,22 @@ public class PermissionChangeOutboxDispatcher {
                     repository != null, redisHelper != null);
             return;
         }
-        long now = System.currentTimeMillis();
-        List<PermissionChangeOutboxEntity> due = repository
-                .findTop100ByStatusAndNextRetryAtLessThanEqualOrderByIdAsc(
-                        PermissionChangeOutboxStatus.PENDING.name(), now);
-        for (PermissionChangeOutboxEntity row : due) {
-            dispatch(repository, redisHelper, row, now);
+        String lockValue = UUID.randomUUID().toString();
+        boolean acquired = redisHelper.setIfAbsent(LEASE_LOCK_KEY, lockValue, LEASE_LOCK_SECONDS);
+        if (!acquired) {
+            log.debug("[data-permission][outbox] 调度租约未获取到，由其他实例执行");
+            return;
+        }
+        try {
+            long now = System.currentTimeMillis();
+            List<PermissionChangeOutboxEntity> due = repository
+                    .findTop100ByStatusAndNextRetryAtLessThanEqualOrderByIdAsc(
+                            PermissionChangeOutboxStatus.PENDING.name(), now);
+            for (PermissionChangeOutboxEntity row : due) {
+                dispatch(repository, redisHelper, row, now);
+            }
+        } finally {
+            redisHelper.releaseLock(LEASE_LOCK_KEY, lockValue);
         }
     }
 

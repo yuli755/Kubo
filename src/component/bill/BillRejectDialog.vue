@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { IDialogActionProps } from '@/framework'
-import { ElInput } from 'element-plus'
+import { ElAlert, ElInput } from 'element-plus'
 import { ref } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 
@@ -23,15 +23,39 @@ const rejectReason = ref('')
   <KDialog
     :disable-confirm="rejectReason === ''"
     :title="props.param ?? '驳回'"
-    min-height="200px"
+    width="500px"
+    min-height="120px"
     @cancel="() => props.onCancel?.()"
     @confirm="() => props.onConfirm?.(rejectReason)"
   >
-    <ElInput
-      v-model="rejectReason"
-      :rows="3"
-      placeholder="请输入驳回原因..."
-      type="textarea"
-    />
+    <div class="k-reject-dialog">
+      <ElAlert
+        :closable="false"
+        show-icon
+        title="单据驳回提示"
+        description="驳回后单据状态将变更，制单人可查阅驳回原因并进行修改再次提交。"
+        type="warning"
+        class="k-reject-dialog__alert"
+      />
+      <ElInput
+        v-model="rejectReason"
+        :rows="4"
+        maxlength="200"
+        show-word-limit
+        placeholder="请输入详细的驳回原因..."
+        type="textarea"
+      />
+    </div>
   </KDialog>
 </template>
+
+<style lang="scss" scoped>
+.k-reject-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.k-reject-dialog__alert {
+  margin-bottom: 2px;
+}
+</style>

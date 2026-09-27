@@ -108,6 +108,7 @@ function onSaved() {
         show-export
         @add="openCreate"
         @edit="openEdit"
+        @row-dblclick="openDetail"
       />
     </KPanel>
 
@@ -134,6 +135,9 @@ function onSaved() {
 
 <style lang="scss" scoped>
 .k-page {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
 }
 </style>

@@ -206,11 +206,12 @@ public class SaleService extends AbstractBaseBillService<SaleEntity, SaleReposit
     protected void afterDetailSaved(long billId) {
         // 计算总金额
         List<SaleDetailEntity> details = detailService.getAllByBillId(billId);
-        double totalPrice = details.stream()
-                .mapToDouble(detail -> DecimalMath.multiply(
-                        detail.getQuantity(), detail.getPrice())
-                )
-                .sum();
+        double totalPrice = 0D;
+        for (SaleDetailEntity detail : details) {
+            double price = detail.getPrice() == null ? 0D : detail.getPrice();
+            double quantity = detail.getQuantity() == null ? 0D : detail.getQuantity();
+            totalPrice = DecimalMath.add(totalPrice, DecimalMath.multiply(quantity, price));
+        }
         updateToDatabase(getEntityInstance(billId).setTotalPrice(totalPrice));
     }
 

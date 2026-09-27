@@ -1,7 +1,8 @@
 <script lang="ts" setup>
 import type { InputDetailEntity } from '@/model/wms/input/InputDetailEntity'
 import type { InputEntity } from '@/model/wms/input/InputEntity'
-import { ElDescriptions, ElDescriptionsItem, ElLink } from 'element-plus'
+import { Link } from '@element-plus/icons-vue'
+import { ElAlert, ElDescriptions, ElDescriptionsItem, ElIcon, ElLink, ElTag } from 'element-plus'
 import { computed, ref } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KDialog from '@/component/framework/KDialog.vue'
@@ -62,6 +63,31 @@ function typeIs(target: { equalsKey: (key: number) => boolean }): boolean {
 const isPurchaseInput = computed(() => typeIs(InputTypeEnum.PURCHASE))
 const isMoveInput = computed(() => typeIs(InputTypeEnum.MOVE))
 
+const statusTagType = computed<'danger' | 'warning' | 'primary' | 'success' | 'info'>(() => {
+  const status = bill.value?.status
+  if (status === undefined) {
+    return 'info'
+  }
+  if (InputStatusEnum.REJECTED.equalsKey(status)) {
+    return 'danger'
+  }
+  if (InputStatusEnum.AUDITING.equalsKey(status)) {
+    return 'warning'
+  }
+  if (InputStatusEnum.INPUTTING.equalsKey(status)) {
+    return 'primary'
+  }
+  if (InputStatusEnum.DONE.equalsKey(status)) {
+    return 'success'
+  }
+  return 'info'
+})
+
+const isRejected = computed(() => {
+  const status = bill.value?.status
+  return status !== undefined && InputStatusEnum.REJECTED.equalsKey(status)
+})
+
 const moveVisible = ref(false)
 const finishing = ref<InputDetailEntity | null>(null)
 
@@ -114,6 +140,15 @@ function openMoveDetail() {
     @confirm="emit('update:modelValue', false)"
     @update:model-value="value => emit('update:modelValue', value)"
   >
+    <ElAlert
+      v-if="isRejected || bill?.rejectReason"
+      :closable="false"
+      class="input-detail__alert"
+      show-icon
+      :title="`单据已被驳回${bill?.rejectReason ? `：${bill.rejectReason}` : ''}`"
+      type="error"
+    />
+
     <ElDescriptions
       :column="3"
       border
@@ -124,7 +159,15 @@ function openMoveDetail() {
         :key="field"
         :label="fieldLabel(field)"
       >
-        {{ fieldText(field) }}
+        <ElTag
+          v-if="field === 'status'"
+          :type="statusTagType"
+          effect="light"
+          size="small"
+        >
+          {{ fieldText('status') }}
+        </ElTag>
+        <span v-else>{{ fieldText(field) }}</span>
       </ElDescriptionsItem>
 
       <ElDescriptionsItem
@@ -136,6 +179,9 @@ function openMoveDetail() {
           type="primary"
           @click="bill && openPurchaseDetail(bill.purchase)"
         >
+          <ElIcon class="input-detail__link-icon">
+            <Link />
+          </ElIcon>
           {{ bill.purchase.billCode }}
         </ElLink>
         <span v-else>-</span>
@@ -150,6 +196,9 @@ function openMoveDetail() {
           type="primary"
           @click="openMoveDetail"
         >
+          <ElIcon class="input-detail__link-icon">
+            <Link />
+          </ElIcon>
           {{ bill.move.billCode }}
         </ElLink>
         <span v-else>-</span>
@@ -157,6 +206,32 @@ function openMoveDetail() {
     </ElDescriptions>
 
     <div class="input-detail__table">
+      <div class="input-detail__table-header">
+        <div class="input-detail__table-title">
+          <span>入库物资明细清单</span>
+          <ElTag
+            effect="plain"
+            round
+            size="small"
+            type="info"
+          >
+            共 {{ bill?.details?.length ?? 0 }} 项
+          </ElTag>
+        </div>
+        <div
+          v-if="canFinish()"
+          class="input-detail__table-tip"
+        >
+          <ElTag
+            effect="plain"
+            size="small"
+            type="primary"
+          >
+            入库进行中 · 可点击操作列「作业」登记实际入库量
+          </ElTag>
+        </div>
+      </div>
+
       <KDetailTable
         :entity="InputDetail"
         :exclude="['createTime', 'updateTime']"
@@ -187,7 +262,31 @@ function openMoveDetail() {
 </template>
 
 <style lang="scss" scoped>
+.input-detail__alert {
+  margin-bottom: 12px;
+}
+
+.input-detail__link-icon {
+  margin-right: 4px;
+}
+
 .input-detail__table {
-  margin-top: 12px;
+  margin-top: 16px;
+}
+
+.input-detail__table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.input-detail__table-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 </style>

@@ -1,5 +1,8 @@
 package cn.hamm.spms.base.bill;
 
+import cn.hamm.spms.module.channel.purchase.PurchaseEntity;
+import cn.hamm.spms.module.channel.purchase.PurchaseService;
+import cn.hamm.spms.module.channel.purchase.enums.PurchaseStatus;
 import cn.hamm.spms.module.wms.input.InputService;
 import cn.hamm.spms.module.wms.input.enums.InputStatus;
 import cn.hamm.spms.module.wms.input.InputEntity;
@@ -43,6 +46,23 @@ class BillStateMachineGateTest {
         MoveEntity bill = new MoveEntity();
         bill.setStatus(status.getKey());
         return bill;
+    }
+
+    private PurchaseEntity purchase(PurchaseStatus status) {
+        PurchaseEntity bill = new PurchaseEntity();
+        bill.setStatus(status.getKey());
+        return bill;
+    }
+
+    @Test
+    @DisplayName("采购单：仅 PURCHASING 可录入完成量，DONE 不得重复录入")
+    void purchaseFinishGate() {
+        PurchaseService service = new PurchaseService();
+        assertFalse(service.canAddFinish(purchase(PurchaseStatus.AUDITING)));
+        assertFalse(service.canAddFinish(purchase(PurchaseStatus.REJECTED)));
+        assertTrue(service.canAddFinish(purchase(PurchaseStatus.PURCHASING)));
+        assertFalse(service.canAddFinish(purchase(PurchaseStatus.INPUTTING)));
+        assertFalse(service.canAddFinish(purchase(PurchaseStatus.DONE)));
     }
 
     @Test

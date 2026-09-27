@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
+import KPanel from '@/component/framework/KPanel.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { Permissions } from '@/config/permissions'
 import { useTable } from '@/hook/kubo/useTable'
@@ -50,17 +51,22 @@ function onSaved() {
 
 <template>
   <div class="k-page">
-    <KTable
-      :table="table"
-      :permissions="{
-        add: Permissions.System.Unit.add,
-        edit: Permissions.System.Unit.update,
-        delete: Permissions.System.Unit.delete,
-        enable: Permissions.System.Unit.update,
-      }"
-      @add="openCreate"
-      @edit="openEdit"
-    />
+    <KPanel
+      title="计量单位"
+      description="系统度量衡基础配置，支持多维度单位精度与换算管理"
+    >
+      <KTable
+        :table="table"
+        :permissions="{
+          add: Permissions.System.Unit.add,
+          edit: Permissions.System.Unit.update,
+          delete: Permissions.System.Unit.delete,
+          enable: Permissions.System.Unit.update,
+        }"
+        @add="openCreate"
+        @edit="openEdit"
+      />
+    </KPanel>
 
     <KFormDialog
       :id="editingId"
@@ -73,6 +79,9 @@ function onSaved() {
 
 <style scoped>
 .k-page {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
 }
 </style>
