@@ -62,10 +62,12 @@ function checkCanaryConfig() {
   const baseDp = baseApp?.kubo?.['data-permission'] || {}
   const prodDp = prodApp?.kubo?.['data-permission'] || {}
 
-  // 2. 模式档位校验
+  // 2. 模式档位校验（生产档位支持 ${DATA_PERMISSION_MODE:默认档} 占位符，由 .env 一键控制）
   const validModes = new Set(['off', 'shadow', 'enforce'])
   const baseMode = String(baseDp.mode || 'off').toLowerCase()
-  const prodMode = String(prodDp.mode || baseMode).toLowerCase()
+  const rawProdMode = String(prodDp.mode || '').trim()
+  const prodPlaceholder = rawProdMode.match(/^\$\{DATA_PERMISSION_MODE:(\w+)\}$/)
+  const prodMode = prodPlaceholder ? prodPlaceholder[1].toLowerCase() : rawProdMode.toLowerCase()
 
   if (!validModes.has(baseMode)) {
     problems.push(`application.yml 中的 data-permission.mode [${baseMode}] 非法，必须是 off / shadow / enforce 之一`)
@@ -124,7 +126,22 @@ function checkCanaryConfig() {
     passes.push('权限变更 Outbox 派发器：未启用（单机/开发模式默认）')
   }
 
-  // 7. 输出结果
+  // 7. 紧急回滚杠杆检查：档位必须可由 .env 一键控制（零改码回滚）
+  const prodRaw = readFileSync(join(REPO, 'SPMS-Server/src/main/resources/application-production.yml'), 'utf8')
+  const composeProd = readFileSync(join(REPO, 'docker-compose.prod.yml'), 'utf8')
+  const envExample = readFileSync(join(REPO, '.env.production.example'), 'utf8')
+  const leverWired = prodRaw.includes('${DATA_PERMISSION_MODE:')
+    && composeProd.includes('DATA_PERMISSION_MODE: ${DATA_PERMISSION_MODE:-')
+    && !/KUBO_DATA_PERMISSION_MODE\s*:/.test(composeProd)
+    && envExample.includes('DATA_PERMISSION_MODE=')
+  if (leverWired) {
+    passes.push('紧急回滚杠杆接线正确（.env 一键切 off/shadow/enforce，Spring 显式占位符绑定，无失效的宽松绑定名）')
+  }
+  else {
+    problems.push('回滚杠杆未接线：application-production.yml 需以 ${DATA_PERMISSION_MODE:...} 占位符绑定，编排需传递 DATA_PERMISSION_MODE（KUBO_DATA_PERMISSION_MODE 无法被 Spring 绑定）')
+  }
+
+  // 8. 输出结果
   if (VERBOSE) {
     for (const p of passes) {
       console.log(`  ✓ ${p}`)

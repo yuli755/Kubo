@@ -95,7 +95,7 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
         join(ROOT, 'SPMS-Server/src/main/resources/application-production.yml'),
         'utf8',
       )
-      expect(prodYml).toContain('mode: shadow')
+      expect(prodYml).toContain('mode: "${DATA_PERMISSION_MODE' + ':shadow}"')
       expect(prodYml).toContain('allow-weak-default-secret: false')
     })
 
@@ -206,6 +206,47 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       const packageJson = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
       expect(packageJson.scripts['alert:test']).toBe('node scripts/alert-helper.mjs')
       expect(existsSync(join(ROOT, 'scripts/alert-helper.mjs'))).toBe(true)
+    })
+
+    it('pnpm deploy:drill 部署预演全链路真实空跑通过（19 项）', () => {
+      const output = execSync('node scripts/deploy-drill.mjs', {
+        cwd: ROOT,
+        encoding: 'utf8',
+      })
+      expect(output).toContain('生产部署预演通过')
+      expect(output).toContain('19 项')
+    })
+
+    it('紧急回滚杠杆真实可用：.env 一键切档，Spring 显式占位符绑定而非失效的宽松绑定名', () => {
+      const prodYml = readFileSync(
+        join(ROOT, 'SPMS-Server/src/main/resources/application-production.yml'),
+        'utf8',
+      )
+      expect(prodYml).toContain('mode: "${DATA_PERMISSION_MODE' + ':shadow}"')
+
+      const composeContent = readFileSync(join(ROOT, 'docker-compose.prod.yml'), 'utf8')
+      expect(composeContent).toContain('DATA_PERMISSION_MODE: ${DATA_PERMISSION_MODE' + ':-shadow}')
+      expect(composeContent).not.toMatch(/KUBO_DATA_PERMISSION_MODE\s*:/)
+      // 幽灵挂载已被部署预演揪掉：schema 由 Flyway 负责
+      expect(composeContent).not.toContain('init-sql')
+
+      const envExample = readFileSync(join(ROOT, '.env.production.example'), 'utf8')
+      expect(envExample).toContain('DATA_PERMISSION_MODE=shadow')
+
+      const dockerHelper = readFileSync(join(ROOT, 'scripts/docker-helper.mjs'), 'utf8')
+      // 生成密码不得包含 YAML/插值元字符（预演曾真实抓到 * 开头密码炸掉编排解析）
+      expect(dockerHelper).toContain('\'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\'')
+    })
+
+    it('灰度向导具备一键切换 ENFORCE 能力且以后端真实就绪结果为闸门', () => {
+      const listSource = readFileSync(
+        join(ROOT, 'src/view/console/system/datapermission/resource/list.vue'),
+        'utf8',
+      )
+      expect(listSource).toContain('switchToEnforce')
+      expect(listSource).toContain('一键切换 ENFORCE')
+      expect(listSource).toContain('mode: enforce')
+      expect(listSource).toContain('切换被拒绝')
     })
 
     it('购销核心单据具备一键「再来一单」与「一键全部到货」，大幅精简全流程操作', () => {

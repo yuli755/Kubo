@@ -150,6 +150,31 @@ function checkInventoryReadiness() {
   }
   FeedbackUtil.toastSuccess(`放量前置就绪验证通过：${readinessTotal || activeBatchDef.value.resources.length} 个资源全部满足放量前置条件！`)
 }
+
+// 一键切换 ENFORCE：用后端真实 readiness 结果做闸门 —— 全绿才给出最终形态配置，
+// 否则明确告诉管理员还差什么；生成到复制全程零手动，拒绝红着开闸。
+const allCanaryResources = computed(() => Object.values(CANARY_BATCHES).flatMap(batch => batch.resources))
+
+const enforceYaml = computed(() => {
+  return `kubo:\n  data-permission:\n    mode: enforce\n    enforce-resources:\n${allCanaryResources.value.map(r => `      - ${r.key}`).join('\n')}\n`
+})
+
+async function switchToEnforce() {
+  if (readinessFailed) {
+    FeedbackUtil.toastWarning('未能取得后端放量前置检查结果，切换被拒绝：请刷新本页或检查 /dataResource/enforce-readiness 是否可用')
+    return
+  }
+  if (readinessTotal && readinessReadyCount < readinessTotal) {
+    FeedbackUtil.toastWarning(`切换被拒绝：${readinessTotal - readinessReadyCount} 个资源未通过就绪检查（${readinessPreview.join('；')}）。缺的补完再切，证据不足绝不红着开闸！`)
+    return
+  }
+  await FeedbackUtil.confirmWarning(
+    `后端就绪检查 ${readinessReadyCount}/${readinessTotal} 全绿。即将复制 ENFORCE 最终形态配置（mode: enforce + ${allCanaryResources.value.length} 资源白名单）到剪贴板，粘贴至 application-production.yml 并重启后生效；紧急回滚只需在 .env 把 DATA_PERMISSION_MODE 改为 off。`,
+    '一键切换 ENFORCE',
+  )
+  navigator.clipboard?.writeText(enforceYaml.value)
+  FeedbackUtil.toastSuccess('ENFORCE 最终形态配置已复制，粘贴至 application-production.yml 重启即可生效（启动期闸门会再次用真实证据复核）')
+}
 </script>
 
 <template>
@@ -177,6 +202,14 @@ function checkInventoryReadiness() {
             @click="checkInventoryReadiness"
           >
             一键放量就绪体检
+          </ElButton>
+          <ElButton
+            size="small"
+            type="danger"
+            plain
+            @click="switchToEnforce"
+          >
+            一键切换 ENFORCE
           </ElButton>
         </div>
       </div>

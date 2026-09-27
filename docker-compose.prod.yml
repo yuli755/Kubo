@@ -41,7 +41,8 @@ services:
       - --sync-binlog=1
     volumes:
       - mysql-prod-data:/var/lib/mysql
-      - ./infra/init-sql:/docker-entrypoint-initdb.d:ro
+    # 说明：schema 由后端 Flyway 迁移（10 个受控 SQL）在应用启动时自建，
+    # 这里不挂 docker-entrypoint-initdb.d —— 幽灵挂载只会被 Docker 静默建成空目录。
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD} || exit 1"]
       interval: 10s
@@ -99,7 +100,11 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-RedisPass_Secure_2026!}
-      KUBO_DATA_PERMISSION_MODE: ${DATA_PERMISSION_MODE:-shadow}
+      # 回滚杠杆：.env 的 DATA_PERMISSION_MODE 一键控制数据权限档位
+      # （application-production.yml 以 ${DATA_PERMISSION_MODE:shadow} 显式占位符绑定；
+      #  之前的 KUBO_DATA_PERMISSION_MODE 是失效写法 —— Spring 宽松绑定映射不到
+      #  kubo.data-permission.mode，改 env 不生效，属于只有实机才暴露的事故）
+      DATA_PERMISSION_MODE: ${DATA_PERMISSION_MODE:-shadow}
     deploy:
       resources:
         limits:

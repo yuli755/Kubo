@@ -25,8 +25,11 @@ function generateSecureSecret(bytes = 32) {
   return randomBytes(bytes).toString('hex')
 }
 
-function generatePassword(length = 20) {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
+function generatePassword(length = 24) {
+  // 只用字母数字：生成结果会经 compose ${VAR} 插值进 YAML，若包含 * & ! % 等
+  // YAML/插值元字符（尤其出现在开头会成为 alias/anchor 标记），实机 up 直接解析失败
+  // —— 部署预演（deploy:drill）曾真实抓到这类坏密码。24 位字母数字 ≈ 142 bits 熵。
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   const randomValues = randomBytes(length)
   let result = ''
   for (let i = 0; i < length; i++) {

@@ -83,7 +83,12 @@ kubo:
     # AIRPOWER_API_ACCESS_TOKEN_SECRET 时 AccessTokenSecretGuard 直接拒绝启动。
     allow-weak-default-secret: false
   data-permission:
-    mode: shadow
+    # 档位由 .env 的 DATA_PERMISSION_MODE 一键控制（占位符显式绑定，部署零改码）：
+    #   shadow  —— 默认档：全量影子比对打点，收集 SHADOW_EVIDENCE 放量证据；
+    #   enforce —— 放量完成档：6 资源白名单进入强管控（启动期 readiness 闸门会用
+    #              真实影子证据复核，证据不足直接拒绝启动，红着开闸是不可能的）；
+    #   off     —— 紧急回滚档：一键关闭全部拦截，恢复旧行为。
+    mode: "${DATA_PERMISSION_MODE:shadow}"
     tenant-required: false
     shadow-diff-log: true
     enforce-resources:

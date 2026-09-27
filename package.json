@@ -37,6 +37,7 @@
     "canary:check": "node infra/scripts/check-canary-readiness.mjs",
     "docker:check": "node scripts/docker-helper.mjs --check",
     "docker:env": "node scripts/docker-helper.mjs --init-env",
+    "deploy:drill": "node scripts/deploy-drill.mjs",
     "alert:test": "node scripts/alert-helper.mjs",
     "drill:check": "node infra/scripts/check-backup-drill.mjs",
     "perms:report": "node infra/scripts/check-permission-codes.mjs --verbose",
