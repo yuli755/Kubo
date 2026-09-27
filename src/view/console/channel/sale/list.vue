@@ -51,15 +51,26 @@ const editingId = ref<number | null>(null)
 
 const rejecting = ref(false)
 const rejectingBill = ref<SaleEntity | null>(null)
+const cloningBill = ref<SaleEntity | null>(null)
 
 function openCreate() {
+  cloningBill.value = null
   editingId.value = null
   editorVisible.value = true
 }
 
 function openEdit(row: SaleEntity) {
+  cloningBill.value = null
   editingId.value = row.id
   editorVisible.value = true
+}
+
+async function onCloneBill(row: SaleEntity) {
+  const detail = await new KSaleService().getDetail(row.id)
+  cloningBill.value = detail
+  editingId.value = null
+  editorVisible.value = true
+  FeedbackUtil.toastSuccess(`已载入销售单 [${row.billCode || row.id}] 的客户与明细，可直接确认`)
 }
 
 function openDetail(row: SaleEntity) {
@@ -113,6 +124,7 @@ function onSaved() {
           { label: '查看', permission: Permissions.Channel.Sale.getDetail, handler: openDetail },
           { label: '审核', permission: Permissions.Channel.Sale.audit, disabled: (row: SaleEntity) => !row.canAudit(), handler: onAudit },
           { label: '驳回', permission: Permissions.Channel.Sale.reject, disabled: (row: SaleEntity) => !row.canReject(), handler: onRejectStart },
+          { label: '再来一单', permission: Permissions.Channel.Sale.add, handler: onCloneBill },
         ]"
         :disable-edit="(row: SaleEntity) => !SaleStatusEnum.REJECTED.equalsKey(row.status)"
         :permissions="{
@@ -131,6 +143,7 @@ function onSaved() {
     <SaleEditor
       :id="editingId"
       v-model="editorVisible"
+      :initial-bill="cloningBill"
       @saved="onSaved"
     />
 

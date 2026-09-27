@@ -13,6 +13,7 @@ import { KStructureService } from '@/hook/factory/useStructure'
 import { useTable } from '@/hook/kubo/useTable'
 import { KInventoryService } from '@/hook/wms/useInventory'
 import { InventoryTypeEnum } from '@/model/wms/inventory/InventoryTypeEnum'
+import { playScanSuccess } from '@/utils/audioFeedback'
 import WarehouseHeatmap from './component/WarehouseHeatmap.vue'
 
 /**
@@ -101,6 +102,26 @@ const inventorySummary = computed(() => {
   const lowStockCount = list.filter(row => (Number(row.quantity) || 0) < 10).length
   return { totalSku, totalQty, lowStockCount }
 })
+
+const scanKeyword = ref('')
+
+function onScanLocate() {
+  const kw = scanKeyword.value.trim()
+  if (kw) {
+    playScanSuccess()
+    table.search({
+      type: inventoryType.value,
+      ...(selectedNode.value ? { [dimensionKey.value]: { id: selectedNode.value.id } } : {}),
+      material: { name: kw } as never,
+    })
+  }
+  else {
+    table.search({
+      type: inventoryType.value,
+      ...(selectedNode.value ? { [dimensionKey.value]: { id: selectedNode.value.id } } : {}),
+    })
+  }
+}
 
 function onNodeClick(node: StorageEntity | StructureEntity) {
   selectedNode.value = node
@@ -205,21 +226,34 @@ function clearNodeFilter() {
           </div>
         </div>
 
-        <div
-          v-if="inventoryType === InventoryTypeEnum.STORAGE.key"
-          class="view-mode-toggle"
-        >
-          <ElRadioGroup
-            v-model="viewMode"
+        <div class="inventory-quick-actions">
+          <ElInput
+            v-model="scanKeyword"
             size="small"
+            clearable
+            :prefix-icon="Search"
+            placeholder="扫码枪扫码或键入回车定位..."
+            class="inventory-scan-input"
+            @keyup.enter="onScanLocate"
+            @clear="onScanLocate"
+          />
+
+          <div
+            v-if="inventoryType === InventoryTypeEnum.STORAGE.key"
+            class="view-mode-toggle"
           >
-            <ElRadioButton value="table">
-              表格数据
-            </ElRadioButton>
-            <ElRadioButton value="heatmap">
-              库位热力图
-            </ElRadioButton>
-          </ElRadioGroup>
+            <ElRadioGroup
+              v-model="viewMode"
+              size="small"
+            >
+              <ElRadioButton value="table">
+                表格数据
+              </ElRadioButton>
+              <ElRadioButton value="heatmap">
+                库位热力图
+              </ElRadioButton>
+            </ElRadioGroup>
+          </div>
         </div>
       </div>
 
@@ -313,6 +347,16 @@ function clearNodeFilter() {
   margin-bottom: 12px;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.inventory-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.inventory-scan-input {
+  width: 220px;
 }
 
 .inventory-stats-bar {

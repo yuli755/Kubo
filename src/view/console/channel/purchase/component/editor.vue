@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { PurchaseDetailEntity } from '@/model/channel/purchase/PurchaseDetailEntity'
+import type { PurchaseEntity } from '@/model/channel/purchase/PurchaseEntity'
 import { Plus, Search } from '@element-plus/icons-vue'
 import { ElButton, ElIcon, ElInput, ElInputNumber, ElTag } from 'element-plus'
 import { computed, ref, watch } from 'vue'
@@ -34,6 +35,8 @@ const props = defineProps<{
   modelValue: boolean
   /** 编辑的记录 id（不传为新增） */
   id?: number | null
+  /** 克隆再来一单时传入的源单据（新增模式生效） */
+  initialBill?: PurchaseEntity | null
 }>()
 
 const emit = defineEmits<{
@@ -73,7 +76,18 @@ watch(
 )
 
 function onLoaded(next: Record<string, unknown>) {
-  next.details ??= []
+  if (!props.id && props.initialBill) {
+    const copy = props.initialBill.copy() as PurchaseEntity
+    next.reason = copy.reason ? `[再来一单] ${copy.reason}` : '快速再来一单'
+    next.details = (copy.details ?? []).map((d: PurchaseDetailEntity) => {
+      const cloned = d.copy() as PurchaseDetailEntity
+      delete (cloned as { id?: number }).id
+      return cloned
+    })
+  }
+  else {
+    next.details ??= []
+  }
   form.value = next
   if (totalAmount.value > 0) {
     next.totalPrice = totalAmount.value

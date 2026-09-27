@@ -121,5 +121,40 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       expect(listSource).toContain('checkInventoryReadiness')
       expect(listSource).toContain('wms.inventory')
     })
+
+    it('生产配置真实落地第一批次灰度放量 (wms.inventory) 且通过门禁', () => {
+      const prodYml = readFileSync(
+        join(ROOT, 'SPMS-Server/src/main/resources/application-production.yml'),
+        'utf8',
+      )
+      expect(prodYml).toContain('enforce-resources:')
+      expect(prodYml).toContain('- wms.inventory')
+
+      const inventorySource = readFileSync(
+        join(ROOT, 'src/view/console/wms/inventory/list.vue'),
+        'utf8',
+      )
+      expect(inventorySource).toContain('scanKeyword')
+      expect(inventorySource).toContain('inventory-scan-input')
+      expect(inventorySource).toContain('onScanLocate')
+    })
+
+    it('购销核心单据具备一键「再来一单」快速克隆功能，大幅精简重复录单流程', () => {
+      const purchaseListSource = readFileSync(
+        join(ROOT, 'src/view/console/channel/purchase/list.vue'),
+        'utf8',
+      )
+      expect(purchaseListSource).toContain('再来一单')
+      expect(purchaseListSource).toContain('onCloneBill')
+      expect(purchaseListSource).toContain('initial-bill')
+
+      const saleListSource = readFileSync(
+        join(ROOT, 'src/view/console/channel/sale/list.vue'),
+        'utf8',
+      )
+      expect(saleListSource).toContain('再来一单')
+      expect(saleListSource).toContain('onCloneBill')
+      expect(saleListSource).toContain('initial-bill')
+    })
   })
 })

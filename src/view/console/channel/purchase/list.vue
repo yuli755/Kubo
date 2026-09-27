@@ -58,15 +58,26 @@ const editingId = ref<number | null>(null)
 
 const rejecting = ref(false)
 const rejectingBill = ref<PurchaseEntity | null>(null)
+const cloningBill = ref<PurchaseEntity | null>(null)
 
 function openCreate() {
+  cloningBill.value = null
   editingId.value = null
   editorVisible.value = true
 }
 
 function openEdit(row: PurchaseEntity) {
+  cloningBill.value = null
   editingId.value = row.id
   editorVisible.value = true
+}
+
+async function onCloneBill(row: PurchaseEntity) {
+  const detail = await new KPurchaseService().getDetail(row.id)
+  cloningBill.value = detail
+  editingId.value = null
+  editorVisible.value = true
+  FeedbackUtil.toastSuccess(`已载入采购单 [${row.billCode || row.id}] 的物料明细，可直接确认`)
 }
 
 function openDetail(row: PurchaseEntity) {
@@ -120,6 +131,7 @@ function onSaved() {
           { label: '查看', permission: Permissions.Channel.Purchase.getDetail, handler: openDetail },
           { label: '审核', permission: Permissions.Channel.Purchase.audit, disabled: (row: PurchaseEntity) => !row.canAudit(), handler: onAudit },
           { label: '驳回', permission: Permissions.Channel.Purchase.reject, disabled: (row: PurchaseEntity) => !row.canReject(), handler: onRejectStart },
+          { label: '再来一单', permission: Permissions.Channel.Purchase.add, handler: onCloneBill },
         ]"
         :disable-edit="(row: PurchaseEntity) => !PurchaseStatusEnum.REJECTED.equalsKey(row.status)"
         :permissions="{
@@ -138,6 +150,7 @@ function onSaved() {
     <PurchaseEditor
       :id="editingId"
       v-model="editorVisible"
+      :initial-bill="cloningBill"
       @saved="onSaved"
     />
 

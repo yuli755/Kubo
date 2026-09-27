@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { CustomerEntity } from '@/model/channel/customer/CustomerEntity'
 import type { SaleDetailEntity } from '@/model/channel/sale/SaleDetailEntity'
+import type { SaleEntity } from '@/model/channel/sale/SaleEntity'
 import { Plus, Search } from '@element-plus/icons-vue'
 import { ElButton, ElIcon, ElInput, ElInputNumber, ElTag } from 'element-plus'
 import { computed, ref, watch } from 'vue'
@@ -37,6 +38,8 @@ const props = defineProps<{
   modelValue: boolean
   /** 编辑的记录 id（不传为新增） */
   id?: number | null
+  /** 克隆再来一单时传入的源单据（新增模式生效） */
+  initialBill?: SaleEntity | null
 }>()
 
 const emit = defineEmits<{
@@ -72,7 +75,20 @@ watch(
 const customerName = computed(() => (form.value.customer as CustomerEntity | undefined)?.name ?? '')
 
 function onLoaded(next: Record<string, unknown>) {
-  next.details ??= []
+  if (!props.id && props.initialBill) {
+    const copy = props.initialBill.copy() as SaleEntity
+    next.customer = copy.customer
+    next.customerId = copy.customerId
+    next.reason = copy.reason ? `[再来一单] ${copy.reason}` : '快速再来一单'
+    next.details = (copy.details ?? []).map((d: SaleDetailEntity) => {
+      const cloned = d.copy() as SaleDetailEntity
+      delete (cloned as { id?: number }).id
+      return cloned
+    })
+  }
+  else {
+    next.details ??= []
+  }
   form.value = next
   if (totalAmount.value > 0) {
     next.totalPrice = totalAmount.value
