@@ -53,6 +53,11 @@ spms:
     # 排障改用 traceId（airpower 默认 bodyTraceId: true，响应体带 traceId 可关联）。
     request-log: false
     response-log: false
+  notification:
+    # 企业群机器人告警与通知 Webhook（生产环境由环境变量注入）
+    webhook:
+      url: '${SPMS_NOTIFICATION_WEBHOOK_URL:}'
+      platform: '${SPMS_NOTIFICATION_WEBHOOK_PLATFORM:generic}'
 
 app:
   upload-platform: local

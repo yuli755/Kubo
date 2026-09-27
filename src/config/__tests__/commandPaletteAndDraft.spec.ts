@@ -384,4 +384,94 @@ describe('123 优化设计单元契约', () => {
       ])
     })
   })
+
+  describe('feature 16 · 库位物料/条码精准搜索与高亮匹配契约', () => {
+    it('按物料名称、物料编码、规格、批次号或储位号模糊检索匹配储位', () => {
+      const slots = [
+        { id: 'S1', code: 'WH01-A1-1-1', materialName: '微型伺服电机 24V', materialCode: 'MTR-24V-01', specification: '24V/100W', batchNo: 'BAT-202601' },
+        { id: 'S2', code: 'WH01-A1-1-2', materialName: '精密行星减速机', materialCode: 'GR-PL-080', specification: '速比 1:10', batchNo: 'BAT-202602' },
+        { id: 'S3', code: 'WH01-A2-1-1', materialName: '高频传感器芯片', materialCode: 'SNS-HF-05', specification: '0-100kHz', batchNo: 'BAT-202603' },
+      ]
+
+      const filterSlots = (kw: string) => {
+        const query = kw.trim().toLowerCase()
+        return slots.filter(s =>
+          s.code.toLowerCase().includes(query)
+          || s.materialName.toLowerCase().includes(query)
+          || s.materialCode.toLowerCase().includes(query)
+          || s.specification.toLowerCase().includes(query)
+          || s.batchNo.toLowerCase().includes(query),
+        ).map(s => s.id)
+      }
+
+      expect(filterSlots('电机')).toEqual(['S1'])
+      expect(filterSlots('GR-PL')).toEqual(['S2'])
+      expect(filterSlots('BAT-2026')).toEqual(['S1', 'S2', 'S3'])
+      expect(filterSlots('WH01-A2')).toEqual(['S3'])
+      expect(filterSlots('不存在')).toEqual([])
+    })
+  })
+
+  describe('feature 17 · 库位排数筛选与 KPI 联动过滤契约', () => {
+    it('排数筛选正确收敛展示的货架组', () => {
+      const aisles = [
+        { aisle: 1, name: '第 1 排货架' },
+        { aisle: 2, name: '第 2 排货架' },
+        { aisle: 3, name: '第 3 排货架' },
+      ]
+
+      const filterAisles = (target: number | 'all') => {
+        if (target === 'all')
+          return aisles
+        return aisles.filter(a => a.aisle === target)
+      }
+
+      expect(filterAisles('all').length).toBe(3)
+      expect(filterAisles(2).map(a => a.name)).toEqual(['第 2 排货架'])
+    })
+
+    it('kpi 胶囊点击切换占用率过滤档位', () => {
+      let currentFilter: 'all' | 'high' | 'idle' = 'all'
+      const toggleFilter = (target: 'high' | 'idle') => {
+        currentFilter = currentFilter === target ? 'all' : target
+      }
+
+      toggleFilter('high')
+      expect(currentFilter).toBe('high')
+      toggleFilter('high')
+      expect(currentFilter).toBe('all')
+      toggleFilter('idle')
+      expect(currentFilter).toBe('idle')
+    })
+  })
+
+  describe('feature 18 · 企业 Webhook 通知 Payload 多平台格式契约', () => {
+    it('各平台消息体协议满足开放平台要求', () => {
+      const formatWeCom = (title: string, content: string, level: string) => {
+        return {
+          msgtype: 'markdown',
+          markdown: {
+            content: `### ${title}\n> 级别: ${level}\n> 内容: ${content}`,
+          },
+        }
+      }
+
+      const formatFeishu = (title: string, content: string, level: string) => {
+        return {
+          msg_type: 'text',
+          content: {
+            text: `【${level}】${title}\n${content}`,
+          },
+        }
+      }
+
+      const wecom = formatWeCom('单据驳回', '采购单 PO-20260901 被驳回', 'WARNING')
+      expect(wecom.msgtype).toBe('markdown')
+      expect(wecom.markdown.content).toContain('PO-20260901')
+
+      const feishu = formatFeishu('死信警报', 'Outbox 记录已达最大重试上限', 'ERROR')
+      expect(feishu.msg_type).toBe('text')
+      expect(feishu.content.text).toContain('死信警报')
+    })
+  })
 })

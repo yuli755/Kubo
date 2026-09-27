@@ -161,4 +161,27 @@ function printDetail() {
   font-variant-numeric: tabular-nums;
   color: var(--el-text-color-primary);
 }
+
+@media print {
+  .k-detail__print-btn {
+    display: none !important;
+  }
+  .k-detail {
+    width: 100% !important;
+    padding: 0 !important;
+  }
+  .k-detail :deep(.el-descriptions) {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .k-detail :deep(.k-detail__label) {
+    background-color: #f8fafc !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color: #1e293b !important;
+  }
+  .k-detail :deep(.el-descriptions__content) {
+    color: #0f172a !important;
+  }
+}
 </style>

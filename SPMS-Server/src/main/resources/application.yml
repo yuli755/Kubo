@@ -92,6 +92,11 @@ spms:
       template-code: '${SPMS_SMS_ALIYUN_TEMPLATE_CODE:}'
       endpoint: '${SPMS_SMS_ALIYUN_ENDPOINT:dysmsapi.aliyuncs.com}'
       timeout-ms: 5000
+  notification:
+    # 企业群机器人告警与通知 Webhook（支持 wecom 企业微信、feishu 飞书、dingtalk 钉钉、generic）
+    webhook:
+      url: '${SPMS_NOTIFICATION_WEBHOOK_URL:}'
+      platform: '${SPMS_NOTIFICATION_WEBHOOK_PLATFORM:generic}'
 
 # SpringDoc OpenAPI 3 配置
 springdoc:

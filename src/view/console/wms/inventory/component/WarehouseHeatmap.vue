@@ -6,16 +6,20 @@ import {
   Filter,
   Grid,
   Monitor,
+  Search,
   Switch,
 } from '@element-plus/icons-vue'
 import {
   ElButton,
   ElDrawer,
   ElEmpty,
+  ElInput,
   ElMessage,
+  ElOption,
   ElProgress,
   ElRadioButton,
   ElRadioGroup,
+  ElSelect,
   ElTag,
   ElTooltip,
 } from 'element-plus'
@@ -55,6 +59,21 @@ const displayMode = ref<'isometric' | 'matrix'>('isometric')
 const activeZone = ref('ZONE_A')
 /** 占用率筛选条件 */
 const occupancyFilter = ref<'all' | 'high' | 'normal' | 'idle'>('all')
+/** 储位物料/编码搜索关键词 */
+const searchKeyword = ref('')
+/** 货架排数过滤 */
+const aisleFilter = ref<number | 'all'>('all')
+
+const isSearching = computed(() => searchKeyword.value.trim().length > 0)
+
+function toggleOccupancyFilter(target: 'high' | 'idle') {
+  if (occupancyFilter.value === target) {
+    occupancyFilter.value = 'all'
+  }
+  else {
+    occupancyFilter.value = target
+  }
+}
 
 /** 抽屉展开状态与当前选中的储位 */
 const drawerVisible = ref(false)
@@ -143,6 +162,25 @@ const currentZoneSlots = computed(() => {
   return allSlots.value.filter(s => s.zone === activeZone.value)
 })
 
+const matchingSlotIds = computed(() => {
+  const kw = searchKeyword.value.trim().toLowerCase()
+  if (!kw)
+    return new Set<string>()
+  const matched = new Set<string>()
+  currentZoneSlots.value.forEach((s) => {
+    if (
+      s.code.toLowerCase().includes(kw)
+      || s.materialName.toLowerCase().includes(kw)
+      || s.materialCode.toLowerCase().includes(kw)
+      || s.specification.toLowerCase().includes(kw)
+      || s.batchNo.toLowerCase().includes(kw)
+    ) {
+      matched.add(s.id)
+    }
+  })
+  return matched
+})
+
 /** 经过占用率过滤后的储位 */
 const filteredSlots = computed(() => {
   return currentZoneSlots.value.filter((s) => {
@@ -193,6 +231,14 @@ const aislesGrouped = computed(() => {
         return a.depth - b.depth
       }),
     }))
+})
+
+/** 经过排数筛选的货架聚合 */
+const displayedAisles = computed(() => {
+  if (aisleFilter.value === 'all') {
+    return aislesGrouped.value
+  }
+  return aislesGrouped.value.filter(g => g.aisle === aisleFilter.value)
 })
 
 /** 获取储位色块样式 */
@@ -414,19 +460,33 @@ onBeforeUnmount(() => {
 
       <!-- 实时指标胶囊 -->
       <div class="metrics-row">
-        <div class="metric-card">
+        <div
+          class="metric-card is-clickable"
+          @click="occupancyFilter = 'all'"
+        >
           <span class="m-label">总监控储位</span>
           <span class="m-value font-mono">{{ heatmapMetrics.total }}</span>
         </div>
-        <div class="metric-card">
+        <div
+          class="metric-card is-clickable"
+          @click="occupancyFilter = 'all'"
+        >
           <span class="m-label">库区平均利用率</span>
           <span class="m-value font-mono text-primary">{{ heatmapMetrics.avgOccupancy }}%</span>
         </div>
-        <div class="metric-card is-danger">
+        <div
+          class="metric-card is-danger is-clickable"
+          :class="{ 'is-active': occupancyFilter === 'high' }"
+          @click="toggleOccupancyFilter('high')"
+        >
           <span class="m-label">满载/高危储位 (&gt;80%)</span>
           <span class="m-value font-mono">{{ heatmapMetrics.highCount }}</span>
         </div>
-        <div class="metric-card is-idle">
+        <div
+          class="metric-card is-idle is-clickable"
+          :class="{ 'is-active': occupancyFilter === 'idle' }"
+          @click="toggleOccupancyFilter('idle')"
+        >
           <span class="m-label">空闲/低位储位 (&lt;20%)</span>
           <span class="m-value font-mono">{{ heatmapMetrics.idleCount }}</span>
         </div>
@@ -435,25 +495,67 @@ onBeforeUnmount(() => {
 
     <!-- 过滤工具栏与状态图例 -->
     <div class="toolbar-row">
-      <div class="filter-group">
-        <span class="filter-label"><Filter class="icon" /> 状态筛选：</span>
-        <ElRadioGroup
-          v-model="occupancyFilter"
-          size="small"
-        >
-          <ElRadioButton value="all">
-            全量储位
-          </ElRadioButton>
-          <ElRadioButton value="high">
-            饱和高载 (&ge;80%)
-          </ElRadioButton>
-          <ElRadioButton value="normal">
-            正常周转 (20~80%)
-          </ElRadioButton>
-          <ElRadioButton value="idle">
-            空闲闲置 (&le;20%)
-          </ElRadioButton>
-        </ElRadioGroup>
+      <div class="toolbar-left-controls">
+        <div class="filter-group">
+          <span class="filter-label"><Filter class="icon" /> 状态筛选：</span>
+          <ElRadioGroup
+            v-model="occupancyFilter"
+            size="small"
+          >
+            <ElRadioButton value="all">
+              全量储位
+            </ElRadioButton>
+            <ElRadioButton value="high">
+              饱和高载 (&ge;80%)
+            </ElRadioButton>
+            <ElRadioButton value="normal">
+              正常周转 (20~80%)
+            </ElRadioButton>
+            <ElRadioButton value="idle">
+              空闲闲置 (&le;20%)
+            </ElRadioButton>
+          </ElRadioGroup>
+        </div>
+
+        <!-- 货架排数过滤 -->
+        <div class="aisle-select-group">
+          <ElSelect
+            v-model="aisleFilter"
+            size="small"
+            style="width: 120px"
+          >
+            <ElOption
+              value="all"
+              label="全部货架排"
+            />
+            <ElOption
+              v-for="i in 6"
+              :key="i"
+              :value="i"
+              :label="`第 ${i} 排货架`"
+            />
+          </ElSelect>
+        </div>
+
+        <!-- 物料 / 条码实时定位搜索 -->
+        <div class="search-group">
+          <ElInput
+            v-model="searchKeyword"
+            placeholder="搜索储位 / 物料 / 批次..."
+            size="small"
+            clearable
+            :prefix-icon="Search"
+            style="width: 220px"
+          />
+          <ElTag
+            v-if="isSearching"
+            size="small"
+            type="warning"
+            effect="light"
+          >
+            匹配 {{ matchingSlotIds.size }} 个货位
+          </ElTag>
+        </div>
       </div>
 
       <div class="legend-group">
@@ -474,7 +576,7 @@ onBeforeUnmount(() => {
       >
         <div class="racks-container">
           <div
-            v-for="rack in aislesGrouped"
+            v-for="rack in displayedAisles"
             :key="rack.aisle"
             class="rack-card"
           >
@@ -495,7 +597,13 @@ onBeforeUnmount(() => {
                 v-for="slot in rack.slots"
                 :key="slot.id"
                 class="slot-cell"
-                :class="[getSlotColorClass(slot), { 'is-filtered-out': !filteredSlots.some(s => s.id === slot.id) }]"
+                :class="[
+                  getSlotColorClass(slot),
+                  {
+                    'is-filtered-out': !filteredSlots.some(s => s.id === slot.id) || (isSearching && !matchingSlotIds.has(slot.id)),
+                    'is-matched': isSearching && matchingSlotIds.has(slot.id),
+                  },
+                ]"
                 @click="onSelectSlot(slot)"
               >
                 <ElTooltip
@@ -805,6 +913,23 @@ onBeforeUnmount(() => {
       &.is-idle .m-value {
         color: #10b981;
       }
+
+      &.is-clickable {
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover {
+          border-color: var(--el-color-primary);
+          background: var(--el-fill-color);
+          transform: translateY(-1px);
+        }
+
+        &.is-active {
+          border-color: var(--el-color-primary);
+          box-shadow: 0 0 0 1px var(--el-color-primary);
+          background: var(--el-color-primary-light-9);
+        }
+      }
     }
   }
 }
@@ -813,28 +938,46 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 12px;
+  padding: 8px 12px;
   background: var(--el-fill-color-extra-light);
   border-radius: 6px;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
 
-  .filter-group {
+  .toolbar-left-controls {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 12px;
+    flex-wrap: wrap;
 
-    .filter-label {
-      font-size: 12px;
-      color: var(--el-text-color-secondary);
+    .filter-group {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
 
-      .icon {
-        width: 14px;
-        height: 14px;
+      .filter-label {
+        font-size: 12px;
+        color: var(--el-text-color-secondary);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+
+        .icon {
+          width: 14px;
+          height: 14px;
+        }
       }
+    }
+
+    .aisle-select-group {
+      display: flex;
+      align-items: center;
+    }
+
+    .search-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
   }
 
@@ -976,6 +1119,13 @@ onBeforeUnmount(() => {
         font-weight: 700;
       }
 
+      &.is-matched {
+        border-color: var(--el-color-primary) !important;
+        transform: translateY(-2px) scale(1.08);
+        z-index: 5;
+        animation: pulse-match 1.8s infinite;
+      }
+
       &.is-filtered-out {
         opacity: 0.15;
         filter: grayscale(80%);
@@ -1100,6 +1250,18 @@ onBeforeUnmount(() => {
     :deep(.el-button) {
       flex: 1;
     }
+  }
+}
+
+@keyframes pulse-match {
+  0% {
+    box-shadow: 0 0 0 2px var(--el-color-primary), 0 0 6px rgba(64, 158, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 3px #f59e0b, 0 0 14px rgba(245, 158, 11, 0.7);
+  }
+  100% {
+    box-shadow: 0 0 0 2px var(--el-color-primary), 0 0 6px rgba(64, 158, 255, 0.4);
   }
 }
 </style>
