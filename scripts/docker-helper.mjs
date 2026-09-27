@@ -154,6 +154,31 @@ function checkDockerSetup() {
     else {
       errors.push(`docker-compose.prod.yml 缺失必要服务: ${missing.join(', ')}`)
     }
+
+    // 5. 生产告警通知链路检查：抓取 + 通知 + env 渲染，三环缺一不可
+    const alertServices = ['prometheus', 'alertmanager']
+    const missingAlertServices = alertServices.filter(s => !services.includes(s))
+    if (missingAlertServices.length === 0) {
+      passes.push('生产编排已接入监控告警闭环（prometheus 抓取 + alertmanager 通知）')
+    }
+    else {
+      errors.push(`docker-compose.prod.yml 缺失告警链路服务: ${missingAlertServices.join(', ')}`)
+    }
+
+    if (composeContent.includes('KUBO_ALERT_WEBHOOK_URL')) {
+      passes.push('告警 webhook 通知地址已通过 .env 注入（KUBO_ALERT_WEBHOOK_URL，换地址不改 YAML）')
+    }
+    else {
+      errors.push('生产编排未接线 KUBO_ALERT_WEBHOOK_URL，告警无法投递到真实通知渠道')
+    }
+
+    const alertTpl = join(REPO, 'infra', 'alertmanager', 'alertmanager.prod.yml.tpl')
+    if (existsSync(alertTpl) && readFileSync(alertTpl, 'utf8').includes('__KUBO_ALERT_WEBHOOK_URL__')) {
+      passes.push('alertmanager 生产模板就绪（env 渲染占位符，零手动改配置）')
+    }
+    else {
+      errors.push('缺失 infra/alertmanager/alertmanager.prod.yml.tpl 生产渲染模板或占位符不全')
+    }
   }
   else {
     errors.push('缺失 docker-compose.prod.yml 生产编排文件')

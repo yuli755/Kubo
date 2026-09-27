@@ -52,7 +52,7 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
 
     it('docker-compose.prod.yml 形成四位一体完整闭环', () => {
       expect(existsSync(composeProdFile)).toBe(true)
-      const composeContent = readFileSync(composeProdFile, 'utf8')
+      const composeContent = readFileSync(join(ROOT, 'docker-compose.prod.yml'), 'utf8')
 
       expect(composeContent).toContain('mysql:')
       expect(composeContent).toContain('redis:')
@@ -122,7 +122,7 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       expect(listSource).toContain('wms.inventory')
     })
 
-    it('生产配置真实落地灰度放量白名单 (wms.inventory, purchase, sale) 与 Outbox 调度且通过门禁', () => {
+    it('生产配置真实落地三批次灰度放量白名单与 Outbox 调度且通过门禁', () => {
       const prodYml = readFileSync(
         join(ROOT, 'SPMS-Server/src/main/resources/application-production.yml'),
         'utf8',
@@ -131,6 +131,9 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       expect(prodYml).toContain('- wms.inventory')
       expect(prodYml).toContain('- channel.purchase')
       expect(prodYml).toContain('- channel.sale')
+      expect(prodYml).toContain('- channel.customer')
+      expect(prodYml).toContain('- channel.supplier')
+      expect(prodYml).toContain('- asset.material')
       expect(prodYml).toContain('outbox:')
       expect(prodYml).toContain('enabled: true')
 
@@ -141,6 +144,68 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       expect(inventorySource).toContain('scanKeyword')
       expect(inventorySource).toContain('inventory-scan-input')
       expect(inventorySource).toContain('onScanLocate')
+    })
+
+    it('数据资源编辑器预置第三批次档案类资源速选，向导卡片支持三批次一键切换与复制', () => {
+      const editorSource = readFileSync(
+        join(ROOT, 'src/view/console/system/datapermission/resource/component/editor.vue'),
+        'utf8',
+      )
+      expect(editorSource).toContain('\'channel.customer\'')
+      expect(editorSource).toContain('\'channel.supplier\'')
+
+      const listSource = readFileSync(
+        join(ROOT, 'src/view/console/system/datapermission/resource/list.vue'),
+        'utf8',
+      )
+      expect(listSource).toContain('CANARY_BATCHES')
+      expect(listSource).toContain('batch3')
+      expect(listSource).toContain('channel.customer')
+      expect(listSource).toContain('channel.supplier')
+      expect(listSource).toContain('asset.material')
+    })
+
+    it('生产告警通知链路完整闭环：抓取、分级路由、env 渲染与一键实测触达', () => {
+      const alertmanagerYml = readFileSync(
+        join(ROOT, 'infra/alertmanager/alertmanager.yml'),
+        'utf8',
+      )
+      expect(alertmanagerYml).toContain('receiver: \'kubo-webhook\'')
+      expect(alertmanagerYml).toContain('severity = "critical"')
+      expect(alertmanagerYml).toContain('webhook_configs:')
+
+      const alertTpl = readFileSync(
+        join(ROOT, 'infra/alertmanager/alertmanager.prod.yml.tpl'),
+        'utf8',
+      )
+      expect(alertTpl).toContain('__KUBO_ALERT_WEBHOOK_URL__')
+
+      const prodPrometheus = readFileSync(
+        join(ROOT, 'infra/prometheus/prometheus.prod.yml'),
+        'utf8',
+      )
+      expect(prodPrometheus).toContain('targets: [\'server:8080\']')
+      expect(prodPrometheus).toContain('targets: [\'alertmanager:9093\']')
+
+      const prodAlerts = readFileSync(
+        join(ROOT, 'infra/prometheus/rules/alerts.prod.yml'),
+        'utf8',
+      )
+      expect(prodAlerts).toContain('TargetDown')
+      expect(prodAlerts).toContain('jvm_memory_used_bytes')
+
+      const composeContent = readFileSync(join(ROOT, 'docker-compose.prod.yml'), 'utf8')
+      expect(composeContent).toContain('prometheus:')
+      expect(composeContent).toContain('alertmanager:')
+      expect(composeContent).toContain('KUBO_ALERT_WEBHOOK_URL')
+      expect(composeContent).toContain('alertmanager.prod.yml.tpl')
+
+      const envExample = readFileSync(join(ROOT, '.env.production.example'), 'utf8')
+      expect(envExample).toContain('KUBO_ALERT_WEBHOOK_URL=')
+
+      const packageJson = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
+      expect(packageJson.scripts['alert:test']).toBe('node scripts/alert-helper.mjs')
+      expect(existsSync(join(ROOT, 'scripts/alert-helper.mjs'))).toBe(true)
     })
 
     it('购销核心单据具备一键「再来一单」与「一键全部到货」，大幅精简全流程操作', () => {

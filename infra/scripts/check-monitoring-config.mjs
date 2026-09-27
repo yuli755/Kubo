@@ -110,6 +110,26 @@ function checkMonitoringConfig(cfg) {
     }
   }
 
+  // ⑤ alertmanager 的 route/sub-route 引用的 receiver 必须真实存在（引用未定义的 receiver 启动即炸）
+  const am = parsed.alertmanager
+  if (am && am.route) {
+    const receiverNames = new Set(((am.receivers || [])).map(r => r.name).filter(Boolean))
+    const referenced = [am.route.receiver, ...((am.route.routes || []).map(r => r.receiver))].filter(Boolean)
+    for (const name of referenced) {
+      if (!receiverNames.has(name)) {
+        fail(`alertmanager.yml: route 引用未定义的 receiver \`${name}\`（Alertmanager 启动即失败，告警全链路瘫痪）`)
+      }
+    }
+
+    // ⑥ 每个 receiver 必须至少配置一种投递通道（webhook_configs / email_configs），否则告警送进去就丢
+    for (const r of (am.receivers || [])) {
+      const hasChannel = ((r.webhook_configs || []).length > 0) || ((r.email_configs || []).length > 0)
+      if (!hasChannel) {
+        fail(`alertmanager.yml: receiver \`${r.name}\` 没有配置任何投递通道（webhook_configs / email_configs），告警送进去就丢`)
+      }
+    }
+  }
+
   return errors
 }
 
@@ -138,7 +158,17 @@ function selfCheck() {
       '        labels: { severity: critical }',
       '        annotations: { summary: x }',
     ].join('\n'),
-    alertmanager: 'route:\n  receiver: default\nreceivers:\n  - name: default\n',
+    alertmanager: [
+      'route:',
+      '  receiver: default',
+      '  routes:',
+      '    - matchers: [severity="critical"]',
+      '      receiver: default',
+      'receivers:',
+      '  - name: default',
+      '    webhook_configs:',
+      '      - url: "http://hook.example.invalid/alert"',
+    ].join('\n'),
     compose: 'services:\n  redis-exporter:\n    image: x\n  alertmanager:\n    image: y\n',
   })
   const cases = [
@@ -177,6 +207,24 @@ function selfCheck() {
         return c
       })(),
       expect: /YAML 语法错误/,
+    },
+    {
+      name: 'route 引用未定义的 receiver（alertmanager 启动即炸）',
+      cfg: (() => {
+        const c = good()
+        c.alertmanager = c.alertmanager.replace('      receiver: default\nreceivers:', '      receiver: ghost\nreceivers:')
+        return c
+      })(),
+      expect: /引用未定义的 receiver `ghost`/,
+    },
+    {
+      name: 'receiver 没有任何投递通道（告警送进去就丢）',
+      cfg: (() => {
+        const c = good()
+        c.alertmanager = c.alertmanager.replace('    webhook_configs:\n      - url: "http://hook.example.invalid/alert"', '')
+        return c
+      })(),
+      expect: /没有配置任何投递通道/,
     },
     {
       name: '合法：targets 非空 + 主机存在 + 无愿景指标',
@@ -239,4 +287,4 @@ if (allErrors.length > 0) {
   process.exit(1)
 }
 
-console.log(`✓ 监控/告警配置静态检查通过：4 个文件 YAML 合法、alertmanager 有处可送、所有 target 真实存在、无愿景指标；门禁自检 ${checked} 例通过`)
+console.log(`✓ 监控/告警配置静态检查通过：4 个文件 YAML 合法、alertmanager 有处可送、路由 receiver 真实存在且有投递通道、所有 target 真实存在、无愿景指标；门禁自检 ${checked} 例通过`)

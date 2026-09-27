@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { ElAlert, ElButton, ElTag } from 'element-plus'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import KPanel from '@/component/framework/KPanel.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { useDataPermissionRuntimeStatus } from '@/composables/useDataPermissionRuntimeStatus'
@@ -100,14 +100,55 @@ function onSaved() {
   table.reload()
 }
 
-function copyCanaryConfig(resourceKey: string) {
-  const yaml = `kubo:\n  data-permission:\n    mode: shadow\n    enforce-resources:\n      - ${resourceKey}\n`
-  navigator.clipboard?.writeText(yaml)
-  FeedbackUtil.toastSuccess('放量配置已复制到剪贴板，粘贴至 application-production.yml 即可安全灰度上线！')
+// 三批次灰度放量向导：每批的 YAML 一键复制、就绪体检一键预检，全程零手动拼配置
+const CANARY_BATCHES: Record<string, { label: string, resources: Array<{ key: string, name: string }>, note: string }> = {
+  batch1: {
+    label: '第一批次',
+    resources: [{ key: 'wms.inventory', name: '仓储库存' }],
+    note: '纯读查询、低交易冲突，首批最安全的试金石',
+  },
+  batch2: {
+    label: '第二批次',
+    resources: [
+      { key: 'channel.purchase', name: '采购单据' },
+      { key: 'channel.sale', name: '销售单据' },
+    ],
+    note: '购销核心单据：供应商底价与客户合同价格商业级隔离',
+  },
+  batch3: {
+    label: '第三批次',
+    resources: [
+      { key: 'channel.customer', name: '客户档案' },
+      { key: 'channel.supplier', name: '供应商档案' },
+      { key: 'asset.material', name: '物料档案' },
+    ],
+    note: '客户联系方式与供应商底价档案按部门物理隔离，杜绝跨部门泄露',
+  },
+}
+
+const activeBatch = ref<'batch1' | 'batch2' | 'batch3'>('batch3')
+
+const activeBatchDef = computed(() => CANARY_BATCHES[activeBatch.value])
+
+const activeBatchYaml = computed(() => {
+  return `kubo:\n  data-permission:\n    mode: shadow\n    enforce-resources:\n${activeBatchDef.value.resources.map(r => `      - ${r.key}`).join('\n')}\n`
+})
+
+function copyCanaryConfig() {
+  navigator.clipboard?.writeText(activeBatchYaml.value)
+  FeedbackUtil.toastSuccess(`已复制 ${activeBatchDef.value.label}放量配置到剪贴板，粘贴至 application-production.yml 即可安全灰度上线！`)
 }
 
 function checkInventoryReadiness() {
-  FeedbackUtil.toastSuccess('已完成放量前置就绪验证：wms.inventory 满足全部放量前置条件！')
+  if (readinessFailed) {
+    FeedbackUtil.toastWarning('未能取得后端放量前置检查结果，请刷新本页后重试')
+    return
+  }
+  if (readinessTotal && readinessReadyCount < readinessTotal) {
+    FeedbackUtil.toastWarning(`放量前置检查：${readinessReadyCount}/${readinessTotal} 个资源就绪，未就绪资源见上方预警卡片，缺的补完再放！`)
+    return
+  }
+  FeedbackUtil.toastSuccess(`放量前置就绪验证通过：${readinessTotal || activeBatchDef.value.resources.length} 个资源全部满足放量前置条件！`)
 }
 </script>
 
@@ -119,15 +160,15 @@ function checkInventoryReadiness() {
     <!-- 灰度放量向导与一键预检卡片 -->
     <div class="canary-assistant-card">
       <div class="canary-assistant-card__header">
-        <span class="canary-title">🎯 数据权限灰度放量向导（生产第一批次 · wms.inventory）</span>
+        <span class="canary-title">🎯 数据权限灰度放量向导（三批次一键推进 · 已落地至第三批次）</span>
         <div class="canary-actions">
           <ElButton
             size="small"
             type="primary"
             plain
-            @click="copyCanaryConfig('wms.inventory')"
+            @click="copyCanaryConfig"
           >
-            一键复制放量配置
+            一键复制当前批次配置
           </ElButton>
           <ElButton
             size="small"
@@ -141,21 +182,38 @@ function checkInventoryReadiness() {
       </div>
       <div class="canary-assistant-card__body">
         <div class="canary-item">
-          <span class="item-label">首推候选资源：</span>
+          <span class="item-label">选择放量批次：</span>
           <ElTag
+            v-for="(batch, key) in CANARY_BATCHES"
+            :key="key"
+            class="batch-chip"
+            :type="activeBatch === key ? 'success' : 'info'"
+            :effect="activeBatch === key ? 'light' : 'plain'"
+            size="small"
+            @click="activeBatch = key as 'batch1' | 'batch2' | 'batch3'"
+          >
+            {{ batch.label }}
+          </ElTag>
+        </div>
+        <div class="canary-item">
+          <span class="item-label">本批候选资源：</span>
+          <ElTag
+            v-for="resource in activeBatchDef.resources"
+            :key="resource.key"
             size="small"
             type="success"
+            style="margin-right: 8px"
           >
-            wms.inventory (仓储库存)
+            {{ resource.key }} ({{ resource.name }})
           </ElTag>
         </div>
         <div class="canary-item">
           <span class="item-label">放量就绪评估：</span>
-          <span class="item-status">已具备条件（零写侧阻断 / 纯读态势可见）</span>
+          <span class="item-status">{{ activeBatchDef.note }}</span>
         </div>
         <div class="canary-item">
           <span class="item-label">放量 YAML 片段：</span>
-          <code>kubo.data-permission.enforce-resources: [wms.inventory]</code>
+          <code>{{ activeBatchYaml.trim().replaceAll('\n', ' ') }}</code>
         </div>
       </div>
     </div>
@@ -446,6 +504,10 @@ function checkInventoryReadiness() {
       .item-status {
         color: var(--el-color-success);
         font-weight: 500;
+      }
+
+      .batch-chip {
+        cursor: pointer;
       }
 
       code {

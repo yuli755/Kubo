@@ -1,0 +1,41 @@
+# Prometheus 生产抓取配置（docker-compose.prod.yml 专用 · 最小真实闭环）
+# ============================================================================
+# 与开发版 prometheus.yml 的差异：
+#   * 只抓「生产编排里真实存在的服务」：prometheus 自身、alertmanager、后端 server
+#     的 /actuator/prometheus（micrometer 已在 pom 引入、production 已暴露该端点）。
+#     开发版里的 node-exporter / redis-exporter / mysql-exporter 不在生产编排里，
+#     一个都不抄进来 —— 抓不到的 target 只会制造 TargetDown 噪音。
+#   * external_labels 标记 cluster=kubo-prod，告警里能区分来源环境。
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: kubo-prod
+    environment: production
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        # compose 内 alertmanager 服务（9093），告警有处可送
+        - targets:
+            - 'alertmanager:9093'
+
+rule_files:
+  - '/etc/prometheus/rules/alerts.prod.yml'
+
+scrape_configs:
+  # Prometheus 自身
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Alertmanager 自身（挂了也能第一时间 TargetDown）
+  - job_name: alertmanager
+    static_configs:
+      - targets: ['alertmanager:9093']
+
+  # 后端应用层指标（JVM / HTTP / HikariCP）—— 生产编排里的 kubo-server:8080
+  - job_name: spring-boot-actuator
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['server:8080']

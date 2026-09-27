@@ -6,6 +6,9 @@
 #   2. kubo-redis  : Redis 7.2 高性能缓存与分布式锁（AOF 持久化 + 密码鉴权）
 #   3. kubo-server : Spring Boot 3.4.4 / Java 17 后端（非 root + 容器感知堆内存）
 #   4. kubo-web    : Vue 3 + Nginx 反向代理（极小镜像 ~25MB，反代 API）
+#   5. prometheus  : 生产指标抓取（仅抓编排内真实存在的服务）
+#   6. alertmanager: 告警通知（启动时用 .env 的 KUBO_ALERT_WEBHOOK_URL 渲染模板，
+#                    零手动改配置；真实触达验收用 pnpm alert:test）
 #
 # 使用方式：
 #   cp .env.production.example .env
@@ -138,6 +141,64 @@ services:
     networks:
       - kubo-prod-net
 
+  # ===========================================================================
+  # 5. 指标抓取 (Prometheus · 只抓编排内真实存在的服务)
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: kubo-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./infra/prometheus/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/rules/alerts.prod.yml:/etc/prometheus/rules/alerts.prod.yml:ro
+      - prometheus-prod-data:/prometheus
+    depends_on:
+      server:
+        condition: service_healthy
+      alertmanager:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/-/ready"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - kubo-prod-net
+
+  # ===========================================================================
+  # 6. 告警通知 (Alertmanager · .env 渲染 webhook，零手动改配置)
+  # ===========================================================================
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: kubo-alertmanager
+    restart: unless-stopped
+    environment:
+      KUBO_ALERT_WEBHOOK_URL: ${KUBO_ALERT_WEBHOOK_URL:-http://kubo-alert-hook.example.invalid/alert}
+    # 模板渲染：busybox sed 把占位符替换为 .env 注入的真实 webhook 地址，
+    # 写出 rendered 配置后再拉起 alertmanager —— 改通知地址只改 .env，不碰 YAML。
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        sed "s|__KUBO_ALERT_WEBHOOK_URL__|$${KUBO_ALERT_WEBHOOK_URL}|g" \
+          /etc/alertmanager/alertmanager.yml.tpl > /etc/alertmanager/alertmanager.rendered.yml
+        exec /bin/alertmanager --config.file=/etc/alertmanager/alertmanager.rendered.yml --storage.path=/alertmanager
+    volumes:
+      - ./infra/alertmanager/alertmanager.prod.yml.tpl:/etc/alertmanager/alertmanager.yml.tpl:ro
+      - alertmanager-prod-data:/alertmanager
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9093/-/ready"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - kubo-prod-net
+
 networks:
   kubo-prod-net:
     driver: bridge
@@ -145,3 +206,5 @@ networks:
 volumes:
   mysql-prod-data:
   redis-prod-data:
+  prometheus-prod-data:
+  alertmanager-prod-data:

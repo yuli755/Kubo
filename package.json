@@ -37,6 +37,7 @@
     "canary:check": "node infra/scripts/check-canary-readiness.mjs",
     "docker:check": "node scripts/docker-helper.mjs --check",
     "docker:env": "node scripts/docker-helper.mjs --init-env",
+    "alert:test": "node scripts/alert-helper.mjs",
     "drill:check": "node infra/scripts/check-backup-drill.mjs",
     "perms:report": "node infra/scripts/check-permission-codes.mjs --verbose",
     "check": "pnpm lint:ci && pnpm airpower:check && pnpm airpower:backend -- --check && pnpm pom:check && pnpm deadcode:check && pnpm exports:check && pnpm typecheck && pnpm test:coverage && pnpm perms:check && pnpm auth:check && pnpm text:check && pnpm ddl:check && pnpm migration:check && pnpm monitoring:check && pnpm canary:check && pnpm docker:check && pnpm drill:check && pnpm build && pnpm demo:check && pnpm size",

@@ -1,0 +1,65 @@
+# 生产告警规则（docker-compose.prod.yml 专用 · 只保留真实可采集的最小集）
+# ============================================================================
+# 原则：每条规则引用的指标都必须由本编排里的 target 真实暴露：
+#   * up                —— Prometheus 内置，任何 target 都有；
+#   * jvm_* / http_server_requests_* —— 后端 micrometer-registry-prometheus 暴露
+#     （pom 已引入，production 已暴露 /actuator/prometheus）。
+# 开发版 alerts.yml 里的 node_/redis_/mysql_ 规则依赖 exporters，生产编排未部署
+# 这些 exporter，因此**不抄进来** —— 抓不到的规则只会永远静默，属愿景配置。
+# 阈值与开发版应用层规则一致，随真实负载标定后同步调整。
+groups:
+  - name: kubo-prod-critical
+    interval: 30s
+    rules:
+      # ==================== 实例存活 ====================
+      - alert: TargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: '监控目标 {{ $labels.job }} / {{ $labels.instance }} 停止响应'
+          description: '监控目标 {{ $labels.job }} / {{ $labels.instance }} 已停止响应超过 1 分钟'
+
+      # ==================== JVM（actuator / micrometer） ====================
+      - alert: JVMMemoryHigh
+        expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: 'JVM 堆内存使用率过高'
+          description: '{{ $labels.instance }} 堆内存使用率 {{ $value | humanizePercentage }}，超过 85%'
+
+      - alert: JVMMemoryCritical
+        expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: 'JVM 堆内存使用率严重过高'
+          description: '{{ $labels.instance }} 堆内存使用率 {{ $value | humanizePercentage }}，超过 95%，即将 OOM'
+
+      # ==================== API 质量（actuator / micrometer） ====================
+      - alert: APIHighErrorRate
+        expr: sum(rate(http_server_requests_seconds_count{status=~"5.."}[1m])) by (service) / sum(rate(http_server_requests_seconds_count[1m])) by (service) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: '{{ $labels.service }} 错误率超过 5%'
+          description: '{{ $labels.service }} 5xx 错误率 {{ $value | humanizePercentage }}，持续超过 2 分钟'
+
+      - alert: APIHighLatency
+        expr: histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, service)) > 2
+        for: 3m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: '{{ $labels.service }} P99 延迟超过 2s'
+          description: '{{ $labels.service }} P99 延迟 {{ $value | humanizeDuration }}，持续超过 3 分钟'

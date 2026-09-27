@@ -1,9 +1,13 @@
-# Alertmanager 配置（最小可用）
+# Alertmanager 配置（分级路由 · webhook 通知链）
 # ============================================================================
 # 职责：接收 Prometheus 告警 → 分组/去重/抑制 → 投递到通知通道。
-# 通知通道（钉钉/企微/邮件/自研告警网关 webhook）需按真实环境填，此处给出
-# 「默认 receiver + webhook 占位」结构，保证告警有处可送、不会因 receiver 缺失而丢。
+# 通知通道（钉钉/企微/飞书/自研告警网关 webhook）只需一个真实 URL：
+#   开发/联调环境保留 example.invalid 占位（RFC 2606 保留域，永不解析 —— 明确
+#   表达「未配置」而非误连）；生产环境由 docker-compose.prod.yml 的 alertmanager
+#   服务在启动时用 .env 里的 KUBO_ALERT_WEBHOOK_URL 渲染
+#   infra/alertmanager/alertmanager.prod.yml.tpl 生成，零手动改配置。
 # webhook 是 fire-and-forget：URL 无效只会投递失败，不会让 Alertmanager 崩溃。
+# 真实触达验收：pnpm alert:test（一条命令把测试告警推进链路，人工确认群里收到）。
 global:
   resolve_timeout: 5m
   smtp_require_tls: false
@@ -14,13 +18,18 @@ route:
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
-  receiver: 'default'
+  receiver: 'kubo-webhook'
+  routes:
+    # critical 告警走快车道：10s 内即分组送出、30m 重发一次，直到 resolve
+    - matchers:
+        - severity = "critical"
+      group_wait: 10s
+      repeat_interval: 30m
+      receiver: 'kubo-webhook'
 
 receivers:
-  - name: 'default'
+  - name: 'kubo-webhook'
     webhook_configs:
-      # 占位：真实环境替换为钉钉/企微/自研告警网关 webhook。
-      # example.invalid 是 RFC 2606 保留域，永不解析 —— 明确表达「未配置」而非误连。
       - url: 'http://kubo-alert-hook.example.invalid/alert'
         send_resolved: true
 
