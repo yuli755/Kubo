@@ -4,9 +4,6 @@ import cn.hamm.spms.framework.web.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Data;
@@ -29,11 +26,6 @@ import org.hibernate.annotations.DynamicUpdate;
 @Table(name = "data_policy", uniqueConstraints = @UniqueConstraint(name = "uk_data_policy_code", columnNames = "policy_code"))
 @Description("数据权限策略")
 public class DataPolicyEntity extends BaseEntity<DataPolicyEntity> {
-    @Description("ID")
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
-    private Long id;
 
     @Description("策略编码")
     @Column(name = "policy_code", nullable = false, length = 128)

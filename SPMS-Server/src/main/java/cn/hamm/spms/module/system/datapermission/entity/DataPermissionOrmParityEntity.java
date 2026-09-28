@@ -4,9 +4,6 @@ import cn.hamm.spms.framework.web.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -63,11 +60,6 @@ public class DataPermissionOrmParityEntity extends BaseEntity<DataPermissionOrmP
      */
     public static final String VERDICT_ERROR = "ERROR";
 
-    @Description("ID")
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
-    private Long id;
 
     @Description("数据资源标识")
     @Column(name = "resource_key", nullable = false, length = 128)

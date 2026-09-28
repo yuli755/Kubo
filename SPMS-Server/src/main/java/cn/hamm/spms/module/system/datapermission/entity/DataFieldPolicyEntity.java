@@ -4,9 +4,6 @@ import cn.hamm.spms.framework.web.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -30,11 +27,6 @@ import org.hibernate.annotations.DynamicUpdate;
 @Table(name = "data_field_policy", uniqueConstraints = @UniqueConstraint(name = "uk_data_field_policy", columnNames = {"resource_id", "field_name", "role_code"}))
 @Description("数据字段权限策略")
 public class DataFieldPolicyEntity extends BaseEntity<DataFieldPolicyEntity> {
-    @Description("ID")
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
-    private Long id;
 
     @Description("资源 ID")
     // UNSIGNED 必须显式声明：data_resource.id 是 bigint UNSIGNED（BaseEntity 的 columnDefinition

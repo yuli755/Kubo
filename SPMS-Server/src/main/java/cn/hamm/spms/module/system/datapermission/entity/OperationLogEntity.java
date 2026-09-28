@@ -4,9 +4,6 @@ import cn.hamm.spms.framework.web.annotation.Description;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -37,11 +34,6 @@ import org.hibernate.annotations.DynamicUpdate;
 @Description("通用操作审计日志")
 public class OperationLogEntity extends BaseEntity<OperationLogEntity> {
 
-    @Description("ID")
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
-    private Long id;
 
     @Description("资源标识（如 asset.material）")
     @Column(name = "resource_key", nullable = false, length = 128)
