@@ -60,7 +60,10 @@ function collectPageViews(dir: string): string[] {
       out.push(...collectPageViews(full))
     }
     else if (entry.endsWith('.vue')) {
-      out.push(`/${full.slice(VIEW_DIR.length + 1, -4)}`)
+      // 归一成正斜杠：join() 在 Windows 上产出反斜杠路径，而菜单侧的 component/path
+      // 一律是正斜杠（`/console/wms/input/list`）。不归一则 referenced 永不命中，
+      // 磁盘上每一个页面视图都会被判成「没有菜单入口」的孤儿（Windows 恒红 30 个）。
+      out.push(`/${full.slice(VIEW_DIR.length + 1, -4).replace(/\\/g, '/')}`)
     }
   }
   return out

@@ -1752,7 +1752,9 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
       .not
       .toHaveLength(0)
     // 两处都该有，且角色不同：V1 基线负责全新库建表，V2 是历史脚本负责存量库（幂等，重复不会生效）
-    expect(migration.map(file => file.split('/').pop()).sort(), '对账表应同时出现在基线（全新库）与历史迁移（存量库）里')
+    // 用本文件已有的 baseName()（split(/[\\/]/)）取文件名：原先直接 split('/') 在 Windows 上
+    // 取到的是整条反斜杠路径，与期望的裸文件名永不相等，导致该不变量在 Windows 恒红。
+    expect(migration.map(file => baseName(file)).sort(), '对账表应同时出现在基线（全新库）与历史迁移（存量库）里')
       .toEqual(['V1__baseline_schema.sql', 'V2__data_permission_migrations.sql'])
     expect(read(PARITY_ENTITY), '对账实体没把表名钉在 @Table 上：那三处同源就无从对起')
       .toContain(`@Table(name = "${PARITY_TABLE}")`)
