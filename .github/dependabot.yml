@@ -7,7 +7,12 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 2
+    # 2026-09-28 分支收敛决策：limit=0 彻底停用该 ecosystem 的自动版本更新 PR，
+    # 因为 dependabot/* 分支会每周重建，导致「只保留 main + dev」的清理不可持续。
+    # 依赖升级改为人工按需执行（pnpm up / mvn versions:display-dependency-updates）。
+    # 注意：Dependabot **security updates** 由 repo Settings → Security 单独控制，
+    # 本文件管不到；若要彻底静默，需在设置里一并关闭。
+    open-pull-requests-limit: 0
     labels:
       - dependencies
       - frontend
@@ -24,7 +29,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 2
+    # 2026-09-28 同上：停用自动版本更新 PR，后端升级走人工评估
+    open-pull-requests-limit: 0
     labels:
       - dependencies
       - backend
@@ -44,8 +50,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    # 只有 5 个 action，1 个并发 PR 足够，避免分支堆积
-    open-pull-requests-limit: 1
+    # 2026-09-28 同上：停用自动版本更新 PR，action 版本升级走人工
+    open-pull-requests-limit: 0
     labels:
       - dependencies
       - ci
