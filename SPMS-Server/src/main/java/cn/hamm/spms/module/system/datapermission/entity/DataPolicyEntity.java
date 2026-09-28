@@ -40,7 +40,13 @@ public class DataPolicyEntity extends BaseEntity<DataPolicyEntity> {
     private String policyCode;
 
     @Description("资源 ID")
-    @Column(name = "resource_id", nullable = false)
+    // 与 DataFieldPolicyEntity 同源问题：data_resource.id 是 bigint UNSIGNED，此处原先未声明
+    // columnDefinition，JPA 建出有符号 bigint，与 V2 的 `resource_id BIGINT UNSIGNED NOT NULL`
+    // 分叉。本实体没有 @ManyToOne，Hibernate 不会尝试建外键（所以启动日志里没有它的报错），
+    // 但类型仍须对齐：一是遵守「迁移脚本 / 实体 / H2 schema 三处同源」，二是 V12 会为其
+    // 补建 fk_data_policy_resource，符号性不一致时那条 ALTER 会直接失败。
+    @Column(name = "resource_id", nullable = false,
+            columnDefinition = "bigint UNSIGNED NOT NULL comment '数据资源ID'")
     private Long resourceId;
 
     @Description("主体类型")

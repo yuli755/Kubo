@@ -37,12 +37,20 @@ public class DataFieldPolicyEntity extends BaseEntity<DataFieldPolicyEntity> {
     private Long id;
 
     @Description("资源 ID")
-    @Column(name = "resource_id", nullable = false, insertable = false, updatable = false)
+    // UNSIGNED 必须显式声明：data_resource.id 是 bigint UNSIGNED（BaseEntity 的 columnDefinition
+    // + V2 的 DDL 都是），而这里原先没写 columnDefinition，JPA 建出的是**有符号** bigint。
+    // MySQL 拒绝有符号↔无符号建外键，启动日志里那条唯一的 DDL 失败就是它：
+    //   alter table data_field_policy add constraint FK... foreign key (resource_id)
+    //     references data_resource (id) -> ... are incompatible
+    // 后果是「列级脱敏策略 → 数据资源」的引用完整性在库层静默缺失。
+    @Column(name = "resource_id", nullable = false, insertable = false, updatable = false,
+            columnDefinition = "bigint UNSIGNED NOT NULL comment '数据资源ID'")
     private Long resourceId;
 
     @Description("关联资源")
     @ManyToOne
-    @jakarta.persistence.JoinColumn(name = "resource_id", nullable = false)
+    @jakarta.persistence.JoinColumn(name = "resource_id", nullable = false,
+            columnDefinition = "bigint UNSIGNED NOT NULL comment '数据资源ID'")
     private DataResourceEntity resource;
 
     @Description("字段名")
