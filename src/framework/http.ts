@@ -11,7 +11,7 @@
  * | --- | --- |
  * | `getPage` | `POST /{baseUrl}/getPage` |
  * | `getList` | `POST /{baseUrl}/getList` |
- * | `getTreeList` | `POST /{baseUrl}/getTreeList` |
+ * | `getTreeList` | `POST /{baseUrl}/getList`（后端无 `getTreeList` 端点，树形实体由 `getList` 直接返回嵌套树；详见 `urlGetTreeList` 的注释） |
  * | `getDetail` | `GET /{baseUrl}/getDetail/{id}` |
  * | `add` | `POST /{baseUrl}/add` |
  * | `update` | `POST /{baseUrl}/update` |
@@ -152,8 +152,44 @@ export abstract class AbstractCurdService<E extends IIdentifiableEntity> extends
   /** 不分页查询 */
   protected urlGetList = 'getList'
 
-  /** 树查询 */
-  protected urlGetTreeList = 'getTreeList'
+  /**
+   * 树查询。
+   *
+   * 值刻意是 `getList` 而不是 `getTreeList`：**后端从来没有 `getTreeList` 这个端点**。
+   * 本文件头部写的「URL 拼法与后端 airpower 控制器保持一致」正是来源 —— `getTreeList`
+   * 是 airpower `CurdController` 的契约，B0 退役 airpower 底座时后端没有实现它，
+   * 前端却继续按旧名字发请求。真机实测 6 个树形服务全部如此：
+   *
+   *     /permission/getTreeList  → HTTP 404      /permission/getList → 200，29/35 个节点带 children
+   *     /menu/getTreeList        → HTTP 404      /menu/getList       → 200，4/5
+   *     /department/getTreeList  → HTTP 404      /department/getList → 200，1/1
+   *     /storage/getTreeList     → HTTP 404      /storage/getList    → 200，1/4
+   *     /structure/getTreeList   → HTTP 404      /structure/getList  → 200
+   *     /inventory/getTreeList   → HTTP 404      /inventory/getList  → 200
+   *
+   * 影响面：`useTable({ tree: true })` 的 7 处页面（factory/storage、factory/structure、
+   * personnel/department、personnel/user 的部门筛选树、system/menu、system/permission、
+   * wms/inventory 的仓库树+库位树）以及角色授权的两个弹窗
+   * （`personnel/role/component/permissionEditor.vue`、`menuEditor.vue`）——
+   * 全部请求 404，表现为树形表格与授权弹窗**空白**，且 404 响应体没有 code/message，
+   * 前端只能显示泛化的网络错误，看不出是端点不存在。
+   *
+   * 为什么修前端而不是给后端补一个 `getTreeList`：后端 `getList` 对树形实体**本来就返回树**
+   * （`Trees.buildTreeList` 在三个不同层次被调用：PermissionController 的 controller 级
+   * `afterGetList`、Menu/DepartmentController 直接覆写端点、Storage/StructureService 的
+   * service 级 `afterGetList`）。而新增端点会新增权限身份 `X_getTreeList`，
+   * `RequestInterceptor.checkUserPermission` 是**从数据库查权限并且 fail-closed**
+   * （`FORBIDDEN.whenNull(needPermission, "权限不存在")`，且该判空在 SYSTEM_ROOT 的
+   * bypass 判断之前），而把扫描结果写库的 `PermissionService.loadPermission()` 只被
+   * `DevDataInitRunner` 调用、受 `init.lock` 与 dev profile 双重限制 ——
+   * 结果是新端点在权限行落库前**对所有角色都是 403**，包括超管。
+   * 为一个「后端早已用 getList 满足」的契约去手写权限播种脚本，得不偿失。
+   *
+   * 保留 `getTreeList()` 方法本身（而不是让调用方直接改调 `getList()`）：调用点
+   * `useTable({ tree: true })` 表达的是「不分页、要嵌套 children」的语义，
+   * 这个名字在调用侧仍然有价值，只是不再对应一个独立的后端 URL。
+   */
+  protected urlGetTreeList = 'getList'
 
   /** 详情查询 */
   protected urlGetDetail = 'getDetail'

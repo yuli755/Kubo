@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
@@ -145,5 +145,65 @@ describe('p1 · 业务异常与旧 HTTP 链的切换边界', () => {
     expect(manifest.ref).toBe('fe1691b2c978')
     expect(manifest.files).toHaveLength(41)
     expect(manifest.files.every((file: { path: string, sha256: string }) => file.path.startsWith('cn/hamm/airpower/core/') && /^[a-f0-9]{64}$/.test(file.sha256))).toBe(true)
+  })
+})
+
+/**
+ * # 树形列表端点契约
+ *
+ * 真机联调实测：前端 7 个 `useTable({ tree: true })` 页面与角色授权的两个弹窗
+ * 都在 POST `/{baseUrl}/getTreeList`，而后端**没有这个端点**，6 个树形服务全部 HTTP 404，
+ * 页面表现为树形表格与授权弹窗空白。`getTreeList` 是 airpower `CurdController` 的旧契约，
+ * B0 退役 airpower 底座时后端未实现，前端却继续按旧名字发请求。
+ *
+ * 修法是把 `urlGetTreeList` 指回 `getList`（后端树形实体的 `getList` 本就返回嵌套树），
+ * 而不是给后端补端点 —— 补端点会新增权限身份 `X_getTreeList`，而
+ * `RequestInterceptor.checkUserPermission` 从**数据库**查权限且 fail-closed
+ * （判空还在 SYSTEM_ROOT 的 bypass 之前），写库的 `loadPermission()` 又只被
+ * 受 `init.lock` 与 dev profile 双重限制的 `DevDataInitRunner` 调用，
+ * 于是新端点在权限行落库前对所有角色都是 403「权限不存在」。
+ *
+ * 这组用例把上述结论钉成可执行契约：任何一侧单独改动都会在这里失败。
+ */
+describe('p6 · 树形列表端点契约（前端不得请求后端不存在的 getTreeList）', () => {
+  /** 递归列出目录下匹配扩展名的文件全文 */
+  const sources = (dir: string, ext: RegExp): string[] =>
+    (readdirSync(resolve(dir), { recursive: true }) as string[])
+      .filter(name => ext.test(name))
+      .map(name => readFileSync(join(resolve(dir), name), 'utf8'))
+
+  it('urlGetTreeList 指向 getList，不再发往后端不存在的 getTreeList', () => {
+    const source = readFileSync(resolve('src/framework/http.ts'), 'utf8')
+    expect(source).toMatch(/urlGetTreeList\s*=\s*'getList'/)
+    expect(source).not.toMatch(/urlGetTreeList\s*=\s*'getTreeList'/)
+    // 方法本身要保留：调用点 useTable({ tree: true }) 表达的是「不分页 + 嵌套 children」的语义
+    expect(source).toContain('async getTreeList(')
+    // 头部 URL 对照表不能继续宣称存在 /getTreeList
+    expect(source).not.toContain('`POST /{baseUrl}/getTreeList`')
+  })
+
+  it('后端确实没有 getTreeList 映射，且树由 Trees.buildTreeList 在 getList 链路内组装', () => {
+    const javaSources = sources('SPMS-Server/src/main/java', /\.java$/)
+    // 若将来后端真的补上了这个端点，这条会失败 —— 那时应重新评估：
+    // 需要同时播种 X_getTreeList 权限行并授予已持有 X_getList 的角色，否则一律 403。
+    expect(javaSources.filter(s => s.includes('"getTreeList"'))).toHaveLength(0)
+    expect(javaSources.filter(s => s.includes('Trees.buildTreeList('))).not.toHaveLength(0)
+  })
+
+  it('树模式确实在被使用（契约不是死代码），且这些服务都有后端 getList', () => {
+    const vueSources = sources('src/view', /\.vue$/)
+    const treePages = vueSources.filter(s => /tree:\s*true/.test(s))
+    // factory/storage、factory/structure、personnel/department、personnel/user 的部门筛选树、
+    // system/menu、system/permission、wms/inventory（仓库树 + 库位树）
+    expect(treePages.length, '树形页面数量异常，请核对 useTable({ tree: true }) 的调用点').toBeGreaterThanOrEqual(7)
+
+    const javaSources = sources('SPMS-Server/src/main/java', /\.java$/)
+    // 这些页面用到的树形服务，后端都必须暴露 getList（BaseController 提供）
+    for (const api of ['storage', 'structure', 'department', 'menu', 'permission']) {
+      expect(
+        javaSources.some(s => s.includes(`@Api("${api}")`)),
+        `后端缺少 @Api("${api}") 控制器，树形页面将无数据源`,
+      ).toBe(true)
+    }
   })
 })
