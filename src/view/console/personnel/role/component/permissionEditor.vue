@@ -112,6 +112,30 @@ function clearAllSelection() {
   selected.value = []
 }
 
+/**
+ * # 父子级联勾选
+ *
+ * `ElTable` 的树表**不做父子级联**（级联是 `ElTree` 的语义），勾父节点只会选中父节点自己。
+ * 而后端 `RequestInterceptor` 是按**叶子身份**精确匹配且 fail-closed 的：
+ * identity = 控制器身份 + `_` + 方法名（如 `Inventory_getPage`），
+ * 父节点身份（如 `Inventory`）不对应任何端点。
+ *
+ * 于是会出现「勾了『库存』→ 提示授权成功 → 该角色实际什么权限都没有」，且全程无任何报错。
+ * 真机验证过：只绑 6 个父节点时，`/inventory/getPage` 返回
+ * `403 你无权访问 库存-分页查询 (Inventory_getPage)`；改绑 65 条（含 59 个叶子）后同一请求 200。
+ *
+ * 这里补上**向下**级联，让「勾一个模块 = 授这个模块的全部操作」符合直觉。
+ * 刻意不向上联动父节点：父身份本身不授权任何东西，留着无害；
+ * 而「取消一个子操作就顺带取消父节点」会让部分授权在树上无法表达。
+ */
+function onRowSelect(selection: PermissionEntity[], row: PermissionEntity) {
+  const checked = selection.includes(row)
+  // flatten([row]) = [row, ...全部后代]，去掉首项即后代；复用既有 flatten，不再写一份递归
+  for (const descendant of flatten([row]).slice(1)) {
+    tableRef.value?.toggleRowSelection(descendant, checked)
+  }
+}
+
 function selectAllPermissions() {
   const allRows = flatten(displayTreeList.value)
   allRows.forEach((row) => {
@@ -197,6 +221,7 @@ async function onSubmit() {
           max-height="460"
           row-key="id"
           class="k-permission-table"
+          @select="onRowSelect"
           @selection-change="rows => selected = rows as PermissionEntity[]"
         >
           <ElTableColumn

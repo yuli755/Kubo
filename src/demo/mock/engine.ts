@@ -195,22 +195,42 @@ function resolveIdentity(resourcePath: string, action: string): { hit: boolean, 
 }
 
 /**
+ * 树形资源集合，与后端严格对齐。
+ *
+ * 这 5 个实体在后端都 `implements TreeNode`，且它们的 `getList` **本身就返回嵌套树** ——
+ * `Trees.buildTreeList` 分别挂在三个不同层次：`PermissionController` 的 controller 级
+ * `afterGetList`、`Menu`/`DepartmentController` 直接覆写的端点、
+ * `Storage`/`StructureService` 的 service 级 `afterGetList`。
+ *
+ * 后端**没有** `getTreeList` 端点（真机实测 6 个服务全部 HTTP 404），它是 airpower
+ * `CurdController` 的旧契约；框架层 `urlGetTreeList` 因此指向 `getList`。
+ * mock 必须镜像同一契约，否则演示模式下 7 个树形页面与 2 个授权弹窗会拿到
+ * **扁平假数据**：表格渲染得出行、却永远没有层级，且不报错。
+ */
+const TREE_RESOURCES = new Set(['menu', 'permission', 'department', 'storage', 'structure'])
+
+/** 这次请求是否应当返回**嵌套树**（而非扁平数组） */
+function isTreeRequest(resourceKey: string, action: string): boolean {
+  return action === 'getTreeList' || (action === 'getList' && TREE_RESOURCES.has(resourceKey))
+}
+
+/**
  * 角色授权树端点（F4 批 3 起）。
  *
  * 菜单/权限两棵授权树**不能走通用树生成器**：
- * - `menu/getTreeList` 返回的是应用菜单树本身（与 `user/getMyMenuList` 同源，
+ * - `menu/getList` 返回的是应用菜单树本身（与 `user/getMyMenuList` 同源，
  *   演示时授权的菜单名与左侧导航一致，评审时对得上）；
- * - `permission/getTreeList` 返回按真实权限码分组的树（identity 提交给后端，
+ * - `permission/getList` 返回按真实权限码分组的树（identity 提交给后端，
  *   演示数据里编造的编码会让人误判授权对象）。
  */
-function resolveAuthTree(resourcePath: string, action: string): { hit: boolean, data?: unknown } {
-  if (action !== 'getTreeList') {
+function resolveAuthTree(resourceKey: string, action: string): { hit: boolean, data?: unknown } {
+  if (!isTreeRequest(resourceKey, action)) {
     return { hit: false }
   }
-  if (resourcePath === 'menu') {
+  if (resourceKey === 'menu') {
     return { hit: true, data: demoMenuTree() }
   }
-  if (resourcePath === 'permission') {
+  if (resourceKey === 'permission') {
     return { hit: true, data: demoPermissionTree() }
   }
   return { hit: false }
@@ -259,9 +279,29 @@ export function resolveMock(resourcePath: string, action: string, payload: Paylo
     return report.data
   }
 
-  const authTree = resolveAuthTree(resourcePath, action)
+  const authTree = resolveAuthTree(resourceKey, action)
   if (authTree.hit) {
     return authTree.data
+  }
+
+  // 树形请求必须排在 ARRAY_ACTIONS 之前：树形资源的 `getList` 要返回**嵌套树**，
+  // 而 `getList` 本身也在 ARRAY_ACTIONS 里，落到下面会被拍平成扁平数组。
+  if (action === 'getTree' || isTreeRequest(resourceKey, action)) {
+    const page = buildPage(resourceKey, { ...payload, pageSize: 24 })
+    const list = page.list as Row[]
+    // 树形页：把前 6 行作为根，其余挂到「父级」下，验证树表的展开/折叠视觉
+    const roots = list.slice(0, 6).map(row => ({
+      ...row,
+      parentId: 0,
+      children: list.slice(6, 12).map(child => ({ ...child, parentId: row.id, children: [] })),
+    }))
+    // ⚠️ 两种形状**不同**，别合并：
+    // - `getTree`（typed client `api/personnel`、`api/system` 用）返回 `{ list, total, ... }` 信封；
+    // - `getTreeList` 与树形资源的 `getList`（`@/framework` 的两个方法都用）返回**裸数组**，
+    //   框架层见非数组直接返回 `[]` —— 形状不对会表现为「树表永远空」而**不报错**。
+    return action === 'getTree'
+      ? { list: roots, total: roots.length, pageNum: 1, pageSize: 24 }
+      : roots
   }
 
   if (PAGE_ACTIONS.has(action)) {
@@ -276,23 +316,6 @@ export function resolveMock(resourcePath: string, action: string, payload: Paylo
   }
   if (DETAIL_ACTIONS.has(action)) {
     return buildDetail(resourceKey, payload)
-  }
-  if (action === 'getTree' || action === 'getTreeList') {
-    const page = buildPage(resourceKey, { ...payload, pageSize: 24 })
-    const list = page.list as Row[]
-    // 树形页：把前 6 行作为根，其余挂到「父级」下，验证树表的展开/折叠视觉
-    const roots = list.slice(0, 6).map(row => ({
-      ...row,
-      parentId: 0,
-      children: list.slice(6, 12).map(child => ({ ...child, parentId: row.id, children: [] })),
-    }))
-    // ⚠️ 两个端点的**响应形状不同**，别合并：
-    // - `getTree`（typed client `api/personnel`、`api/system` 用）返回 `{ list, total, ... }`；
-    // - `getTreeList`（airpower 的 useTableTree 与 `@/framework` 的 getTreeList 都用）返回**裸数组**，
-    //   框架层的 getTreeList 见非数组直接返回 `[]` —— 形状不对会表现为「树表永远空」而**不报错**。
-    return action === 'getTreeList'
-      ? roots
-      : { list: roots, total: roots.length, pageNum: 1, pageSize: 24 }
   }
   if (WRITE_ACTIONS.has(action)) {
     return true

@@ -462,6 +462,63 @@ describe('f4 · 批 3 授权弹窗在演示模式下的端到端（真实数据 
     wrapper.unmount()
     document.body.innerHTML = ''
   })
+
+  /**
+   * `ElTable` 的树表不做父子级联（那是 `ElTree` 的语义），而后端 `RequestInterceptor`
+   * 只认**叶子身份**（`Inventory_getPage`），父身份 `Inventory` 不对应任何端点。
+   * 少了级联就会「勾了模块 → 提示授权成功 → 角色实际零权限」，且全程无报错。
+   * 真机实测：只绑 6 个父节点时 `/inventory/getPage` 返回 403，绑 65 条（含 59 叶子）后 200。
+   */
+  it('权限授权：勾父节点会级联勾选全部后代（后端只认叶子身份）', async () => {
+    const { demoPermissionTree } = await import('@/demo/fixtures/permissions')
+    const { KRoleService } = await import('@/model/personnel/role/KRoleService')
+
+    const tree = demoPermissionTree()
+    const group = tree.find(node => node.children.length)!
+    const child = group.children[0]!
+
+    vi.spyOn(KRoleService.prototype, 'authorizePermission').mockResolvedValue()
+    const Editor = (await import('@/view/console/personnel/role/component/permissionEditor.vue')).default
+    const wrapper = await mountPageWith(
+      Editor,
+      { modelValue: true, role: { id: 9, name: '仓储专员', permissionList: [] } },
+    )
+
+    await vi.waitFor(() => {
+      expect(document.body.textContent).toContain(child.identity)
+    }, { timeout: 8000 })
+    await flushPromises()
+
+    // 权限标识列渲染在 .text-identity 里，按**全等**定位行：
+    // 父身份是子身份的前缀（Inventory / Inventory_getPage），用 includes 会串到子行
+    const rowOf = (identity: string) => Array.from(document.body.querySelectorAll('.el-table__body tr'))
+      .find(tr => Array.from(tr.querySelectorAll('.text-identity'))
+        .some(span => span.textContent?.trim() === identity))
+    const checkboxOf = (identity: string) =>
+      rowOf(identity)?.querySelector('input[type="checkbox"]') as HTMLInputElement | undefined
+
+    const parentBox = checkboxOf(group.identity)
+    const childBox = checkboxOf(child.identity)
+    expect(parentBox, `没找到父节点行 ${group.identity}`).toBeTruthy()
+    expect(childBox, `没找到子节点行 ${child.identity}（default-expand-all 应展开）`).toBeTruthy()
+    expect(childBox!.checked, '前置：子节点初始应为未勾选').toBe(false)
+
+    parentBox!.checked = true
+    parentBox!.dispatchEvent(new Event('change', { bubbles: true }))
+    await flushPromises()
+
+    // 先断言父节点自身被勾上：若这条就失败，说明是 jsdom 事件模拟没打通，而非级联逻辑有问题
+    expect(parentBox!.checked, '父节点没被勾上（勾选事件未生效，无法验证级联）').toBe(true)
+    expect(
+      childBox!.checked,
+      `勾父节点「${group.name}」没有级联到子节点「${child.name}」：`
+      + '后端只认叶子身份，这样授出来的角色是零权限',
+    ).toBe(true)
+    expect(capturedErrors).toEqual([])
+
+    wrapper.unmount()
+    document.body.innerHTML = ''
+  })
 })
 
 describe('f4 · 批 3 树组件冒烟（真实挂载）', () => {
