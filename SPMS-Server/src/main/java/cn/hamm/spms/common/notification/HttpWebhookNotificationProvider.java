@@ -1,5 +1,6 @@
 package cn.hamm.spms.common.notification;
 
+import cn.hamm.spms.common.security.WebhookUrlGuard;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -80,6 +81,10 @@ public class HttpWebhookNotificationProvider implements NotificationProvider {
     }
 
     private void postJson(String targetUrl, String json) throws Exception {
+        // SSRF 防护：webhookUrl 来自配置项，等价于把「服务端向任意地址发请求」的能力
+        // 交给持有配置权的人。出站前收敛到公网 http(s)，拒绝内网/环回/链路本地
+        // （169.254 = 云 metadata）/组播/CGNAT/IPv6 ULA。
+        WebhookUrlGuard.checkHttpUrl(targetUrl);
         URL url = new URL(targetUrl);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("POST");
