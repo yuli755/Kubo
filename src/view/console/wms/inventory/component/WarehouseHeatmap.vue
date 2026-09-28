@@ -25,6 +25,7 @@ import {
 } from 'element-plus'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { chartTextColor, occupancyColor, occupancyRamp, resolveCssToken } from '@/config/palette'
 import { init } from '@/utils/echarts'
 
 export interface ISlotInfo {
@@ -329,13 +330,13 @@ function renderEChartsHeatmap() {
       type: 'category',
       data: aisles,
       splitArea: { show: true },
-      axisLabel: { color: '#64748b', fontWeight: 'bold' },
+      axisLabel: { color: chartTextColor(), fontWeight: 'bold' },
     },
     yAxis: {
       type: 'category',
       data: levels,
       splitArea: { show: true },
-      axisLabel: { color: '#64748b', fontWeight: 'bold' },
+      axisLabel: { color: chartTextColor(), fontWeight: 'bold' },
     },
     visualMap: {
       min: 0,
@@ -345,10 +346,13 @@ function renderEChartsHeatmap() {
       left: 'center',
       bottom: 5,
       inRange: {
-        color: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'],
+        // 色带取自 palette 的 OCCUPANCY_LEVELS 同一张表（排除 empty 档，理由见 occupancyRamp 注释）。
+        // 原来这里写死 4 个十六进制，与图例的 5 个 .dot-* 类、进度条的 3 档三元各写一份，
+        // 同一个储位能在同屏显示两种颜色；现在三处同源。
+        color: occupancyRamp(),
       },
       text: ['满载 (100%)', '空闲 (0%)'],
-      textStyle: { color: '#64748b', fontSize: 11 },
+      textStyle: { color: chartTextColor(), fontSize: 11 },
     },
     series: [
       {
@@ -358,12 +362,15 @@ function renderEChartsHeatmap() {
         label: {
           show: true,
           formatter: (p: any) => `${p.data[2]}%`,
-          color: '#ffffff',
+          // 格子上的百分比文字：饱和色块上白字在亮/暗两种主题下都成立，故取 --el-color-white
+          color: resolveCssToken('--el-color-white', '#ffffff'),
           fontWeight: 600,
           fontSize: 11,
         },
         itemStyle: {
-          borderColor: '#ffffff',
+          // 格子分隔线取**背景色**而不是写死白色：亮色下 --el-bg-color 就是 #fff，
+          // 与改动前完全一致（零视觉变化）；暗色下它会变成深色，格子之间不再被白边割裂。
+          borderColor: resolveCssToken('--el-bg-color', '#ffffff'),
           borderWidth: 2,
           borderRadius: 4,
         },
@@ -707,7 +714,7 @@ onBeforeUnmount(() => {
           <div class="occupancy-meter">
             <ElProgress
               :percentage="selectedSlot.occupancy"
-              :color="selectedSlot.occupancy >= 80 ? '#ef4444' : selectedSlot.occupancy >= 60 ? '#f59e0b' : '#10b981'"
+              :color="occupancyColor(selectedSlot.occupancy)"
               :stroke-width="16"
               striped
               striped-flow
@@ -907,11 +914,11 @@ onBeforeUnmount(() => {
       }
 
       &.is-danger .m-value {
-        color: #ef4444;
+        color: var(--kubo-occupancy-danger);
       }
 
       &.is-idle .m-value {
-        color: #10b981;
+        color: var(--kubo-occupancy-idle);
       }
 
       &.is-clickable {
@@ -998,11 +1005,11 @@ onBeforeUnmount(() => {
         height: 10px;
         border-radius: 2px;
 
-        &.dot-empty { background: #e2e8f0; border: 1px solid #cbd5e1; }
-        &.dot-idle { background: #10b981; }
-        &.dot-low { background: #3b82f6; }
-        &.dot-normal { background: #f59e0b; }
-        &.dot-danger { background: #ef4444; }
+        &.dot-empty { background: var(--kubo-occupancy-empty); border: 1px solid var(--kubo-occupancy-empty-border); }
+        &.dot-idle { background: var(--kubo-occupancy-idle); }
+        &.dot-low { background: var(--kubo-occupancy-low); }
+        &.dot-normal { background: var(--kubo-occupancy-normal); }
+        &.dot-danger { background: var(--kubo-occupancy-danger); }
       }
     }
   }
@@ -1035,7 +1042,7 @@ onBeforeUnmount(() => {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--kubo-shadow-sm);
 
     &__header {
       display: flex;
@@ -1084,38 +1091,42 @@ onBeforeUnmount(() => {
 
       &:hover {
         transform: translateY(-2px) scale(1.05);
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        box-shadow: var(--kubo-shadow-lg);
         z-index: 2;
       }
 
+      /* 五档占用徽章。底色 / 文字 / 描边全部取 EP 的 light-9 / dark-2 / light-7 三级色阶：
+       * 一是暗色模式自动适配（原来写死 Tailwind 的 50/600/200 三色一组，暗色下对比度不足），
+       * 二是色相与 --kubo-occupancy-* 对齐（见 tokens.scss），
+       *    于是热力格、图例点、进度条、徽章四处同源，不再各写一份。 */
       &.is-empty {
-        background: #f1f5f9;
-        color: #94a3b8;
-        border-color: #e2e8f0;
+        background: var(--el-color-info-light-9);
+        color: var(--el-color-info-dark-2);
+        border-color: var(--el-color-info-light-7);
       }
 
       &.is-idle {
-        background: #ecfdf5;
-        color: #059669;
-        border-color: #a7f3d0;
+        background: var(--el-color-success-light-9);
+        color: var(--el-color-success-dark-2);
+        border-color: var(--el-color-success-light-7);
       }
 
       &.is-low {
-        background: #eff6ff;
-        color: #2563eb;
-        border-color: #bfdbfe;
+        background: var(--el-color-primary-light-9);
+        color: var(--el-color-primary-dark-2);
+        border-color: var(--el-color-primary-light-7);
       }
 
       &.is-normal {
-        background: #fffbeb;
-        color: #d97706;
-        border-color: #fde68a;
+        background: var(--el-color-warning-light-9);
+        color: var(--el-color-warning-dark-2);
+        border-color: var(--el-color-warning-light-7);
       }
 
       &.is-danger {
-        background: #fef2f2;
-        color: #dc2626;
-        border-color: #fecaca;
+        background: var(--el-color-danger-light-9);
+        color: var(--el-color-danger-dark-2);
+        border-color: var(--el-color-danger-light-7);
         font-weight: 700;
       }
 
@@ -1254,14 +1265,20 @@ onBeforeUnmount(() => {
 }
 
 @keyframes pulse-match {
+  /* 光晕色也走 token。原来两处都把颜色写死：主色光晕是 `rgba(64, 158, 255, 0.4)`
+   * （即 #409eff 加 40% 透明度），中档光晕是 `#f59e0b` + `rgba(245, 158, 11, 0.7)`。
+   * 前者与紧邻的 `var(--el-color-primary)` 自相矛盾：一旦 tokens.scss 改主色，
+   * 圆环跟着变、光晕却停在旧蓝色上。改用同色相的 light-5 / light-3 得到层次。
+   * 取舍：token 是不透明色而非 alpha 色，光晕会略微实一点；
+   * 换来的是「改主色只改一处」这条约束真正成立。 */
   0% {
-    box-shadow: 0 0 0 2px var(--el-color-primary), 0 0 6px rgba(64, 158, 255, 0.4);
+    box-shadow: 0 0 0 2px var(--el-color-primary), 0 0 6px var(--el-color-primary-light-5);
   }
   50% {
-    box-shadow: 0 0 0 3px #f59e0b, 0 0 14px rgba(245, 158, 11, 0.7);
+    box-shadow: 0 0 0 3px var(--kubo-occupancy-normal), 0 0 14px var(--el-color-warning-light-3);
   }
   100% {
-    box-shadow: 0 0 0 2px var(--el-color-primary), 0 0 6px rgba(64, 158, 255, 0.4);
+    box-shadow: 0 0 0 2px var(--el-color-primary), 0 0 6px var(--el-color-primary-light-5);
   }
 }
 </style>

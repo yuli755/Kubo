@@ -138,4 +138,35 @@ html.dark {
 :root {
   --kubo-color-muted-bg: #f5f7fa;
   --kubo-color-muted-border: #e4e7ed;
+
+  /* ── 库位占用色阶（语义 token，5 档） ──────────────────────────────
+   *
+   * 与 `src/config/palette.ts` 的 `OCCUPANCY_LEVELS` **一一对应**，
+   * 阈值只在那一处定义，这里只给颜色。
+   *
+   * 为什么放在 token 层而不是让 SCSS 直接写十六进制：
+   * `WarehouseHeatmap.vue` 的图例点（SCSS）、状态徽章（SCSS）、进度条（模板）、
+   * ECharts 色阶（JS）原本各写一份，且**档位还不一致**（图例 5 档 / 进度条 3 档 /
+   * 色阶 4 色），同一个储位能同屏显示两种颜色。现在 SCSS 用 var()、
+   * JS 用 `resolveCssToken()` 读同一批变量，改色只改这里。
+   *
+   * **色相对齐 Element Plus 状态色**（而不是原先的 Tailwind emerald/blue/amber/red）：
+   * 这样占用徽章可以直接复用 EP 完整的 `--el-color-{kind}-light-9 / -dark-2 / -light-7`
+   * 三级色阶 —— 那套色阶 EP 在暗色主题里已有对应值，无需再为徽章维护一份暗色映射；
+   * 同时热力图、图例点、进度条、徽章四处共用同一组色相，不会出现
+   * 「格子里是 Tailwind 绿、徽章上是 EP 绿」这种同义不同色。
+   *
+   * 这里刻意写**具体十六进制**而非 `var(--el-color-success)`：
+   * JS 侧要靠 `getComputedStyle().getPropertyValue()` 取值喂给 ECharts canvas，
+   * canvas 不认 `var()`，而自定义属性嵌套引用在各浏览器下的解析时机并不一致，
+   * 拿到未替换的字面量就会画不出颜色。写死 EP 默认值最稳妥。
+   */
+  --kubo-occupancy-empty: #c0c4cc; /* EP 占位灰 */
+  --kubo-occupancy-idle: #67c23a; /* EP success */
+  --kubo-occupancy-low: #409eff; /* EP primary */
+  --kubo-occupancy-normal: #e6a23c; /* EP warning */
+  --kubo-occupancy-danger: #f56c6c; /* EP danger */
+
+  /* 空储位的描边：与 empty 底色配套，图例点靠它在中性背景上显形 */
+  --kubo-occupancy-empty-border: #dcdfe6;
 }

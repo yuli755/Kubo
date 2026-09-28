@@ -16,6 +16,7 @@ import {
   Van,
 } from '@element-plus/icons-vue'
 import { computed, markRaw } from 'vue'
+import { accentOf } from '@/config/palette'
 import { Permissions } from '@/config/permissions'
 import { getRouter } from '@/router/appRouter'
 import { usePermissionStore } from '@/stores/permission'
@@ -76,13 +77,19 @@ const workflowSteps = [
   { num: '06', name: '出库核销', path: '/console/wms/output/list', icon: markRaw(Sell) },
 ]
 
+/**
+ * 首页功能卡片。
+ *
+ * **不含 color/bg**：强调色由 `@/config/palette` 按 `path` 统一派发，
+ * 与业务概览（`BusinessOverview.vue`）查同一张表。此前这里各写一份，
+ * 7 个重叠模块与业务概览的配色**全部不一致**，同一模块在两个页面呈现不同颜色。
+ * 去掉这两个字段后，新增卡片只需给 `path`，颜色自动跟随注册表。
+ */
 interface IDashboardAction {
   name: string
   desc: string
   path: string
   icon: Component
-  color: string
-  bg: string
 }
 
 interface IDashboardModule {
@@ -103,32 +110,24 @@ const modules: IDashboardModule[] = [
         desc: '采购需求录入、单据审核与供应商采购明细跟踪',
         path: '/console/channel/purchase/list',
         icon: markRaw(ShoppingCart),
-        color: '#3b82f6',
-        bg: '#eff6ff',
       },
       {
         name: '销售单管理',
         desc: '客户销售合同、销售订单闭环及发货结算管理',
         path: '/console/channel/sale/list',
         icon: markRaw(Sell),
-        color: '#10b981',
-        bg: '#ecfdf5',
       },
       {
         name: '往来合作伙伴',
         desc: '供应商名录、企业客户资料与渠道结算账户',
         path: '/console/channel/customer/list',
         icon: markRaw(OfficeBuilding),
-        color: '#8b5cf6',
-        bg: '#f5f3ff',
       },
       {
         name: '物料与资产主数据',
         desc: '企业物料分类、规格型号、计量单位与资产档案',
         path: '/console/asset/material/list',
         icon: markRaw(Goods),
-        color: '#f97316',
-        bg: '#fff7ed',
       },
     ],
   },
@@ -142,40 +141,30 @@ const modules: IDashboardModule[] = [
         desc: '全库区实时库存、批次号追踪与安全库存预警',
         path: '/console/wms/inventory/list',
         icon: markRaw(Goods),
-        color: '#06b6d4',
-        bg: '#ecfeff',
       },
       {
         name: '库位热力态势',
         desc: '2.5D立体货架立面、ECharts色阶矩阵与物料定位',
         path: '/console/wms/inventory/list?view=heatmap',
         icon: markRaw(Grid),
-        color: '#8b5cf6',
-        bg: '#f5f3ff',
       },
       {
         name: '验收入库作业',
         desc: '采购到货检验、生产完工入库与智能上架货位',
         path: '/console/wms/input/list',
         icon: markRaw(Van),
-        color: '#2563eb',
-        bg: '#dbeafe',
       },
       {
         name: '出库核销作业',
         desc: '销售提货复核、生产领料出库与实时扣减校验',
         path: '/console/wms/output/list',
         icon: markRaw(Box),
-        color: '#ea580c',
-        bg: '#ffedd5',
       },
       {
         name: '库位移动调拨',
         desc: '跨库区调拨、库内货位整理与动线移库作业',
         path: '/console/wms/move/list',
         icon: markRaw(Coordinate),
-        color: '#059669',
-        bg: '#d1fae5',
       },
     ],
   },
@@ -189,32 +178,24 @@ const modules: IDashboardModule[] = [
         desc: '内部员工档案、企业账号、所属部门与岗位关联',
         path: '/console/personnel/user/list',
         icon: markRaw(User),
-        color: '#4f46e5',
-        bg: '#e0e7ff',
       },
       {
         name: '角色与权限矩阵',
         desc: '功能权限分配、数据权限策略与角色身份授权',
         path: '/console/personnel/role/list',
         icon: markRaw(Management),
-        color: '#7c3aed',
-        bg: '#ede9fe',
       },
       {
         name: '仓库与货位模型',
         desc: '厂区结构、立体仓库、库区及具体储位拓扑',
         path: '/console/factory/storage/list',
         icon: markRaw(OfficeBuilding),
-        color: '#0d9488',
-        bg: '#ccfbf1',
       },
       {
         name: '单据编码与规则',
         desc: '单据流水号、业务前缀、日期格式与批次码规则',
         path: '/console/system/coderule/list',
         icon: markRaw(Tickets),
-        color: '#d97706',
-        bg: '#fef3c7',
       },
     ],
   },
@@ -315,8 +296,8 @@ function goPage(path: string) {
             :key="action.name"
             class="action-card"
             :style="{
-              '--badge-color': action.color,
-              '--badge-bg': action.bg,
+              '--badge-color': accentOf(action.path).color,
+              '--badge-bg': accentOf(action.path).bg,
             }"
             @click="goPage(action.path)"
           >
@@ -358,7 +339,7 @@ function goPage(path: string) {
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 12px;
   padding: 22px 26px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--kubo-shadow-sm);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -432,20 +413,25 @@ function goPage(path: string) {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: #ecfdf5;
+
+      /* 语义是「系统正常」= success，故走 EP 的 success 色阶而非硬编码 emerald。
+       * 原来写死 #ecfdf5 / #059669 / #a7f3d0 / #10b981 + rgba(16,185,129,.25)：
+       * 亮色下好看，但 html.dark 下仍是这套浅绿底深绿字，对比度不足且与暗色工作区割裂。
+       * EP 的 light-9/light-7/dark-2 在暗色主题里有对应值，换主题即自动适配。 */
+      background: var(--el-color-success-light-9);
       padding: 6px 12px;
       border-radius: 8px;
       font-size: 13px;
-      color: #059669;
+      color: var(--el-color-success-dark-2);
       font-weight: 500;
-      border: 1px solid #a7f3d0;
+      border: 1px solid var(--el-color-success-light-7);
 
       .status-pulse {
         width: 7px;
         height: 7px;
         border-radius: 50%;
-        background: #10b981;
-        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+        background: var(--el-color-success);
+        box-shadow: 0 0 0 2px var(--el-color-success-light-8);
         animation: kubo-pulse 2s infinite ease-in-out;
       }
     }
@@ -535,7 +521,7 @@ function goPage(path: string) {
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 12px;
   padding: 20px 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  box-shadow: var(--kubo-shadow-sm);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -597,7 +583,7 @@ function goPage(path: string) {
     &:hover {
       background: var(--el-bg-color);
       border-color: var(--badge-color);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+      box-shadow: var(--kubo-shadow-base);
       transform: translateY(-2px);
 
       .action-arrow {

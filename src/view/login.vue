@@ -537,7 +537,7 @@ function switchLoginAction(action: LoginAction) {
   bottom: 0;
   display: flex;
   flex-direction: column;
-  background: #f0f2f5 url(@/assets/img/login/bg.jpg) no-repeat bottom center;
+  background: var(--el-bg-color-page) url(@/assets/img/login/bg.jpg) no-repeat bottom center;
   background-size: cover;
   align-items: center;
   justify-content: center;
@@ -545,8 +545,8 @@ function switchLoginAction(action: LoginAction) {
 
   .card {
     overflow: hidden;
-    background: rgba(255, 255, 255, 0.95);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    background: var(--el-bg-color);
+    box-shadow: var(--kubo-shadow-lg);
     backdrop-filter: blur(20px);
     border-radius: 16px;
     padding: 48px 56px;
@@ -556,12 +556,12 @@ function switchLoginAction(action: LoginAction) {
     width: 400px;
     position: absolute;
     right: 8%;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid var(--el-border-color-lighter);
 
     .app-name {
       font-size: 28px;
       font-weight: 600;
-      color: #1a1a2e;
+      color: var(--el-text-color-primary);
       margin-bottom: 8px;
       letter-spacing: -0.5px;
     }
@@ -581,10 +581,10 @@ function switchLoginAction(action: LoginAction) {
         padding: 20px 0;
 
         .qrcode-img {
-          background: #fff;
+          background: var(--el-bg-color);
           padding: 20px;
           border-radius: 12px;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+          box-shadow: var(--kubo-shadow-base);
 
           img {
             width: 180px;
@@ -594,14 +594,14 @@ function switchLoginAction(action: LoginAction) {
 
         .qrcode-desc {
           font-size: 15px;
-          color: #333;
+          color: var(--el-text-color-primary);
           margin-top: 16px;
           font-weight: 500;
         }
 
         .qrcode-hint {
           font-size: 13px;
-          color: #999;
+          color: var(--el-text-color-secondary);
           margin-top: 8px;
         }
       }
@@ -621,7 +621,7 @@ function switchLoginAction(action: LoginAction) {
             .form-label {
               display: block;
               font-size: 13px;
-              color: #333;
+              color: var(--el-text-color-primary);
               font-weight: 500;
               margin-bottom: 8px;
             }
@@ -631,7 +631,7 @@ function switchLoginAction(action: LoginAction) {
               bottom: -18px;
               left: 0;
               font-size: 12px;
-              color: #f56c6c;
+              color: var(--el-color-danger);
               height: 16px;
             }
           }
@@ -640,37 +640,37 @@ function switchLoginAction(action: LoginAction) {
             .el-input__wrapper {
               box-shadow: none;
               border-radius: 10px;
-              border: 1px solid #e0e0e0;
+              border: 1px solid var(--el-border-color);
               transition: all 0.2s ease;
-              background: #fff;
+              background: var(--el-bg-color);
 
               &:hover {
-                border-color: #bdbdbd;
+                border-color: var(--el-border-color-hover);
               }
 
               &.is-focus {
-                border-color: var(--primary-color, #409eff);
-                box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.15);
+                border-color: var(--el-color-primary);
+                box-shadow: 0 0 0 3px var(--el-color-primary-light-8);
               }
 
               &.is-error {
-                border-color: #f56c6c;
+                border-color: var(--el-color-danger);
 
                 &:hover {
-                  border-color: #f56c6c;
+                  border-color: var(--el-color-danger);
                 }
               }
             }
 
             .el-input__inner {
-              color: #1a1a2e;
+              color: var(--el-text-color-primary);
               font-size: 14px;
               padding: 8px 12px;
               height: auto;
               background: transparent;
 
               &::placeholder {
-                color: #bbb;
+                color: var(--el-text-color-placeholder);
               }
             }
 
@@ -692,19 +692,19 @@ function switchLoginAction(action: LoginAction) {
             .remember-me {
               ::v-deep(.el-checkbox__label) {
                 font-size: 13px;
-                color: #666;
+                color: var(--el-text-color-regular);
               }
             }
 
             .forgot-password {
               font-size: 13px;
-              color: var(--primary-color, #409eff);
+              color: var(--el-color-primary);
               text-decoration: none;
               transition: color 0.2s;
 
               &:hover {
                 text-decoration: underline;
-                color: #66b1ff;
+                color: var(--el-color-primary-light-3);
               }
             }
           }
@@ -716,18 +716,18 @@ function switchLoginAction(action: LoginAction) {
           .agreement-checkbox {
             ::v-deep(.el-checkbox__label) {
               font-size: 12px;
-              color: #999;
+              color: var(--el-text-color-secondary);
               line-height: 1.6;
             }
 
             .agreement-link {
-              color: var(--primary-color, #409eff);
+              color: var(--el-color-primary);
               text-decoration: none;
               transition: color 0.2s;
 
               &:hover {
                 text-decoration: underline;
-                color: #66b1ff;
+                color: var(--el-color-primary-light-3);
               }
             }
           }
@@ -742,14 +742,14 @@ function switchLoginAction(action: LoginAction) {
             font-size: 16px;
             font-weight: 500;
             border-radius: 10px;
-            background: linear-gradient(135deg, var(--primary-color, #409eff), #66b1ff);
+            background: linear-gradient(135deg, var(--el-color-primary), var(--el-color-primary-light-3));
             border: none;
-            box-shadow: 0 4px 16px rgba(64, 158, 255, 0.3);
+            box-shadow: 0 4px 16px var(--el-color-primary-light-7);
             transition: all 0.2s ease;
 
             &:hover:not(:disabled) {
               transform: translateY(-1px);
-              box-shadow: 0 6px 20px rgba(64, 158, 255, 0.4);
+              box-shadow: 0 6px 20px var(--el-color-primary-light-5);
             }
 
             &:active:not(:disabled) {
@@ -778,13 +778,13 @@ function switchLoginAction(action: LoginAction) {
             content: '';
             flex: 1;
             height: 1px;
-            background: #e0e0e0;
+            background: var(--el-border-color);
           }
 
           span {
             padding: 0 12px;
             font-size: 12px;
-            color: #999;
+            color: var(--el-text-color-secondary);
             white-space: nowrap;
           }
         }
@@ -794,7 +794,7 @@ function switchLoginAction(action: LoginAction) {
           gap: 4px;
           margin-bottom: 16px;
           padding: 4px;
-          background: rgba(0, 0, 0, 0.03);
+          background: var(--el-fill-color-light);
           border-radius: 10px;
 
           .tab-item {
@@ -805,20 +805,20 @@ function switchLoginAction(action: LoginAction) {
             background: transparent;
             font-size: 14px;
             font-weight: 500;
-            color: #666;
+            color: var(--el-text-color-regular);
             cursor: pointer;
             transition: all 0.2s ease;
             white-space: nowrap;
 
             &:hover:not(.active) {
-              color: #333;
-              background: rgba(255, 255, 255, 0.5);
+              color: var(--el-text-color-primary);
+              background: var(--el-fill-color-lighter);
             }
 
             &.active {
-              background: #fff;
-              color: var(--primary-color, #409eff);
-              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+              background: var(--el-bg-color);
+              color: var(--el-color-primary);
+              box-shadow: var(--kubo-shadow-sm);
             }
           }
         }
@@ -842,7 +842,7 @@ function switchLoginAction(action: LoginAction) {
       padding: 32px 24px !important;
       border-radius: 16px !important;
       box-shadow: none !important;
-      background: #fff !important;
+      background: var(--el-bg-color) !important;
       backdrop-filter: none !important;
       border: none !important;
 

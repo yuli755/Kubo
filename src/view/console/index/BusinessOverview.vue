@@ -13,6 +13,7 @@ import {
 import { markRaw } from 'vue'
 import Skeleton from '@/component/Skeleton.vue'
 import { useBusinessOverview } from '@/composables/useBusinessOverview'
+import { accentOf } from '@/config/palette'
 import { getRouter } from '@/router/appRouter'
 
 /**
@@ -30,25 +31,30 @@ interface ResourceVisual {
   path: string
 }
 
-const RESOURCE_CONFIG: Record<string, ResourceVisual> = {
-  'wms.input': { icon: markRaw(Van), color: '#3b82f6', bg: '#eff6ff', path: '/console/wms/input/list' },
-  'wms.output': { icon: markRaw(Box), color: '#f97316', bg: '#fff7ed', path: '/console/wms/output/list' },
-  'wms.inventory': { icon: markRaw(Goods), color: '#10b981', bg: '#ecfdf5', path: '/console/wms/inventory/list' },
-  'channel.purchase': { icon: markRaw(ShoppingCart), color: '#6366f1', bg: '#eef2ff', path: '/console/channel/purchase/list' },
-  'channel.sale': { icon: markRaw(Sell), color: '#06b6d4', bg: '#ecfeff', path: '/console/channel/sale/list' },
-  'asset.material': { icon: markRaw(Goods), color: '#8b5cf6', bg: '#f5f3ff', path: '/console/asset/material/list' },
-  'personnel.user': { icon: markRaw(User), color: '#ec4899', bg: '#fdf2f8', path: '/console/personnel/user/list' },
+/**
+ * 资源码 → 图标与落地路由。
+ *
+ * **颜色不在这里定义**：强调色统一由 `@/config/palette` 的 `MODULE_ACCENTS` 按 path 派发，
+ * 首页卡片（`console/index/index.vue`）查的是同一张表。
+ * 收拢前两处各写一份，7 个重叠模块的配色**全部不一致**（同一个「采购」在首页是蓝、
+ * 在这里是靛），颜色承担的模块身份识别因此失效；详见 palette.ts 头部对照表。
+ */
+const RESOURCE_CONFIG: Record<string, { icon: Component, path: string }> = {
+  'wms.input': { icon: markRaw(Van), path: '/console/wms/input/list' },
+  'wms.output': { icon: markRaw(Box), path: '/console/wms/output/list' },
+  'wms.inventory': { icon: markRaw(Goods), path: '/console/wms/inventory/list' },
+  'channel.purchase': { icon: markRaw(ShoppingCart), path: '/console/channel/purchase/list' },
+  'channel.sale': { icon: markRaw(Sell), path: '/console/channel/sale/list' },
+  'asset.material': { icon: markRaw(Goods), path: '/console/asset/material/list' },
+  'personnel.user': { icon: markRaw(User), path: '/console/personnel/user/list' },
 }
 
-const DEFAULT_VISUAL: ResourceVisual = {
-  icon: markRaw(Box),
-  color: '#6b7280',
-  bg: '#f3f4f6',
-  path: '/console/index',
-}
+/** 未注册资源的兜底；`/console/index` 不在 `MODULE_ACCENTS` 里，故 accentOf 返回中性灰 */
+const DEFAULT_RESOURCE = { icon: markRaw(Box), path: '/console/index' }
 
 function getVisual(key: string): ResourceVisual {
-  return RESOURCE_CONFIG[key] ?? DEFAULT_VISUAL
+  const entry = RESOURCE_CONFIG[key] ?? DEFAULT_RESOURCE
+  return { ...entry, ...accentOf(entry.path) }
 }
 
 function goResource(key: string) {

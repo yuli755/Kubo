@@ -15,6 +15,7 @@ import { useInertPolicyReport } from '@/composables/useInertPolicyReport'
 import { useOutboxDead } from '@/composables/useOutboxDead'
 import { usePolicyResourceRiskReport } from '@/composables/usePolicyResourceRiskReport'
 import { useRowPolicyRiskReport } from '@/composables/useRowPolicyRiskReport'
+import { statusColor } from '@/config/palette'
 
 /**
  * # 数据权限安全态势看板（P2 · 前端二次改造）
@@ -224,10 +225,14 @@ function buildParityOption() {
         name: '对账样本数',
         type: 'bar' as const,
         data: [
-          { value: consistent, itemStyle: { color: '#67c23a' } },
-          { value: stricter, itemStyle: { color: '#909399' } },
-          { value: looser, itemStyle: { color: '#f56c6c' } },
-          { value: error, itemStyle: { color: '#e6a23c' } },
+          // 颜色不再写死 EP 状态色的十六进制，改由 statusColor() 在**渲染时**解析 CSS 变量：
+          // 暗色模式下 tokens.scss 对色阶做过对比度微调，写死就拿不到那份调整。
+          // 四档语义与 xAxis 的 ['一致','偏严','偏松','错误'] 一一对应，保持原有映射不变
+          // （「偏松」是安全风险故用 danger，「错误」是数据问题故用 warning）。
+          { value: consistent, itemStyle: { color: statusColor('success') } },
+          { value: stricter, itemStyle: { color: statusColor('info') } },
+          { value: looser, itemStyle: { color: statusColor('danger') } },
+          { value: error, itemStyle: { color: statusColor('warning') } },
         ],
         barMaxWidth: 60,
       },
