@@ -35,7 +35,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Dependency review
         uses: actions/dependency-review-action@v4
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # 不要再传 version：package.json 已有 "packageManager": "pnpm@9.0.0"，
       # pnpm/action-setup@v4 对"两处都指定版本"直接报错退出（本仓的 web job 因此从未跑起来过）。
@@ -134,7 +134,7 @@ jobs:
       run:
         working-directory: SPMS-Server
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-java@v5
         with:
@@ -297,7 +297,7 @@ jobs:
           --health-timeout=5s
           --health-retries=24
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Ensure mysql client
         run: |
