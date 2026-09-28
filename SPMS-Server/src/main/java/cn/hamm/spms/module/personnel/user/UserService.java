@@ -9,6 +9,7 @@ import cn.hamm.spms.common.config.AccessConfig;
 import cn.hamm.spms.framework.query.Sort;
 import cn.hamm.spms.framework.security.PasswordHasher;
 import cn.hamm.spms.common.email.EmailHelper;
+import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.common.AppConfig;
 import cn.hamm.spms.common.sms.SmsHelper;

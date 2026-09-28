@@ -106,6 +106,21 @@
         </dependency>
 
         <!--
+          2026-09-28：补回 airpower 父 POM 退场（B0）时遗漏的传递依赖。
+          全仓 65 个文件 import org.jetbrains.annotations 的 @NotNull/@Nullable，
+          原先由 cn.hamm:airpower 父 POM 传递引入；退场后未重新声明，导致
+          146 处「程序包 org.jetbrains.annotations 不存在」编译错误、后端整体构建失败。
+          仅编译期需要，故用 provided，不进运行时 classpath。
+          版本需显式指定：Spring Boot BOM 不管理该 GA。
+        -->
+        <dependency>
+            <groupId>org.jetbrains</groupId>
+            <artifactId>annotations</artifactId>
+            <version>26.0.2</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!--
           2026-09-18：airpower-email 已摘除。全仓只有 UserService 用它发邮箱验证码，
           自建的 cn.hamm.spms.common.email.EmailHelper 逐行等价（同样的 HTML 模板、
           同样的 spring.mail.username 发件人、同样的「未配置即报错」语义），

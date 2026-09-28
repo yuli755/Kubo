@@ -62,6 +62,20 @@ public class PermissionService extends BaseService<PermissionEntity, PermissionR
         }
     }
     /**
+     * 按权限标识查询权限。
+     *
+     * <p>补齐 airpower 退场时遗漏的读出口：本类三处与 {@code RequestInterceptor}
+     * 均调用它，但方法体在迁移中丢失，导致编译期「找不到符号」。
+     * 实现与 main 分支一致，直接委托 {@code PermissionRepository.getByIdentity}。</p>
+     *
+     * @param identity 权限标识
+     * @return 命中的权限；不存在返回 null
+     */
+    public PermissionEntity getPermissionByIdentity(String identity) {
+        return repository.getByIdentity(identity);
+    }
+
+    /**
      * 确保系统级权限存在，供权限迁移和开发初始化幂等调用。
      *
      * @param identity 权限标识

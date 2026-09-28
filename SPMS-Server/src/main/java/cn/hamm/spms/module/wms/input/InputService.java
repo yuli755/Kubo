@@ -12,6 +12,7 @@ import cn.hamm.spms.framework.query.ReadPage;
 import cn.hamm.spms.base.bill.AbstractBaseBillService;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;
+import cn.hamm.spms.common.transaction.TransactionHelper;
 import cn.hamm.spms.module.channel.ChannelServices;
 import cn.hamm.spms.module.factory.storage.StorageEntity;
 import cn.hamm.spms.module.system.config.enums.ConfigFlag;
@@ -250,7 +251,10 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
         // 毫秒级仓库+物料细粒度互斥锁：防止并发入库创建重复库存行或累加竞态
         String lockKey = "lock:wms:inventory:storage:" + storage.getId() + ":material:" + existDetail.getMaterial().getId();
         Runnable updateAction = () -> {
-            Runnable coreAction = () -> {
+            // TransactionHelper.run 收的是 TransactionHelper.Task 而非 Runnable；
+            // 两者都是 void run()，但类型不兼容。外层 updateAction 仍须保持 Runnable
+            // （redisHelper.runWithLock 的形参是 Runnable），故只改 coreAction。
+            TransactionHelper.Task coreAction = () -> {
                 // 查询库存信息
                 InventoryEntity inventory = inventoryService.getByMaterialIdAndStorageId(existDetail.getMaterial().getId(), storage.getId());
 

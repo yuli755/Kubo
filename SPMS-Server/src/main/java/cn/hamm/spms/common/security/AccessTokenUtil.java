@@ -29,6 +29,16 @@ public class AccessTokenUtil {
     private static final String TOKEN_DELIMITER_SPLIT = "\\.";
     private static final int UNAUTHORIZED_CODE = 401;
 
+    /**
+     * 令牌主体 ID 在 payload 中的 key，与 {@link VerifiedToken#getPayloadId()} 读取口径一致
+     */
+    private static final String PAYLOAD_KEY_ID = "id";
+
+    /**
+     * 秒 → 毫秒换算因子
+     */
+    private static final long MILLIS_PER_SECOND = 1000L;
+
     private final VerifiedToken verifiedToken = new VerifiedToken();
 
     private AccessTokenUtil() {
@@ -68,6 +78,29 @@ public class AccessTokenUtil {
         return this;
     }
 
+    /**
+     * {@link #setPayload(String, Object)} 的同义别名。
+     *
+     * <p>补齐 airpower 退场时遗漏的链式入口：{@code UserService.createAccessToken} 与
+     * {@code PersonalTokenService.createToken} 都按 {@code addPayload} 书写，
+     * 语义与 {@code setPayload} 完全一致（写入同名 key 即覆盖）。</p>
+     */
+    public final AccessTokenUtil addPayload(String key, Object value) {
+        return setPayload(key, value);
+    }
+
+    /**
+     * 写入令牌主体 ID。
+     *
+     * <p>key 固定为 {@code "id"}，与 {@link VerifiedToken#getPayloadId()} 的读取口径对齐
+     * （该方法即 {@code getPayload("id")} 后转 long）。</p>
+     *
+     * @param userId 用户 ID
+     */
+    public final AccessTokenUtil setPayloadId(long userId) {
+        return setPayload(PAYLOAD_KEY_ID, userId);
+    }
+
     public final AccessTokenUtil removePayload(String key) {
         verifiedToken.getPayloads().remove(key);
         return this;
@@ -81,6 +114,19 @@ public class AccessTokenUtil {
     public final AccessTokenUtil setExpire(long millisecond) {
         verifiedToken.setExpireTimestamps(System.currentTimeMillis() + millisecond);
         return this;
+    }
+
+    /**
+     * 以<b>秒</b>为单位设置有效期。
+     *
+     * <p>补齐 airpower 退场时遗漏的链式入口。注意与 {@link #setExpire(long)} 的单位区别：
+     * 后者入参是毫秒，本方法是秒，内部换算为毫秒后复用同一实现，
+     * 避免调用方把「秒」当「毫秒」传导致令牌瞬间过期。</p>
+     *
+     * @param second 有效期秒数
+     */
+    public final AccessTokenUtil setExpireSecond(long second) {
+        return setExpire(second * MILLIS_PER_SECOND);
     }
 
     public final AccessTokenUtil setExpireTimestamps(long expireTimestamps) {
@@ -170,7 +216,7 @@ public class AccessTokenUtil {
         }
 
         public long getPayloadId() {
-            Object id = getPayload("id");
+            Object id = getPayload(PAYLOAD_KEY_ID);
             if (id instanceof Number num) {
                 return num.longValue();
             }

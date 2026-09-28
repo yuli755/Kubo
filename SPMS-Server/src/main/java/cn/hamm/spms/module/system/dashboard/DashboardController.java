@@ -8,6 +8,8 @@ import cn.hamm.spms.framework.web.annotation.Permission;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 
+import java.util.List;
+
 /**
  * <h1>数据看板控制器</h1>
  *
@@ -27,7 +29,7 @@ public class DashboardController extends ApiController {
     @GetMapping("overview")
     @Description("业务概况")
     @Permission(authorize = false)
-    public ApiResponse<DashboardService.DashboardOverview> overview() {
+    public ApiResponse<List<DashboardOverviewItem>> overview() {
         return ApiResponse.data(dashboardService.overview());
     }
 }

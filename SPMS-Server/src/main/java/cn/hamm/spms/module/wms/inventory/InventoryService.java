@@ -9,6 +9,7 @@ import cn.hamm.spms.framework.query.QueryPageRequest;
 import cn.hamm.spms.framework.query.QueryPageResponse;
 import cn.hamm.spms.framework.query.ReadPage;
 import cn.hamm.spms.common.exception.Errors;
+import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.base.BaseService;
 import cn.hamm.spms.base.mapper.ReadStat;
 import cn.hamm.spms.common.CsvFormulaSanitizer;

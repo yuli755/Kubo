@@ -1,6 +1,7 @@
 package cn.hamm.spms.base;
 
 
+import cn.hamm.spms.framework.web.annotation.Meta;
 import cn.hamm.spms.framework.web.annotation.ReadOnly;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -20,7 +21,10 @@ import org.springframework.beans.BeanUtils;
 
 import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Collection;
+import java.util.List;
 
 import static jakarta.persistence.GenerationType.IDENTITY;
 
@@ -56,6 +60,12 @@ public class BaseEntity<E extends BaseEntity<E>> implements Serializable, CurdAc
      */
     public static final String STRING_CREATE_TIME = "createTime";
 
+    /**
+     * 主键标记为 {@link Meta}：与旧 {@code airpower.curd.base.CurdEntity#id} 一致，
+     * 使 {@link #excludeNotMeta()} 收敛实体时保留 ID —— 菜单树、部门树都靠
+     * id/parentId 重建，ID 被清空会导致树构建全废。
+     */
+    @Meta
     @Id
     @GeneratedValue(strategy = IDENTITY)
     @Column(nullable = false, columnDefinition = "bigint UNSIGNED comment 'ID'")
@@ -184,6 +194,104 @@ public class BaseEntity<E extends BaseEntity<E>> implements Serializable, CurdAc
                 }
             }
             current = current.getSuperclass();
+        }
+    }
+
+    /**
+     * 收敛<b>嵌套引用</b>的实体为「仅元数据」。
+     *
+     * <p>移植自旧 {@code airpower.core.RootModel#excludeNotMeta()}，语义按字节码逐条对齐。
+     * 注意其真实含义与字面相反：<b>接收者自身保留全部字段</b>，被收敛的是它引用到的
+     * 下级实体 —— 调用链为 {@code excludeNotMeta()} → {@code excludeNotMeta(List.of(getClass()))}，
+     * 而处理器在 {@code list.contains(this.getClass())} 为真时<b>跳过</b>自身字段收敛，
+     * 只沿嵌套模型与集合元素向下递归；递归到下级实体时，下级类不在名单内，
+     * 才执行「非 {@link Meta} 字段置空」。</p>
+     *
+     * <p>用途：{@code afterGetList} 返回列表前切断深层嵌套载荷（如菜单的 parent/children、
+     * 用户的 roleList/menuList），列表本身字段不受影响。因此调用方若还要清掉自身某个
+     * 非 Meta 字段（如 {@code isPublished}），必须显式再 set null。</p>
+     */
+    public final void excludeNotMeta() {
+        traverseNotMeta(List.of(getClass()));
+    }
+
+    /**
+     * 按保留名单遍历整条继承链的非 static、非 transient 字段。
+     *
+     * @param keep 保留自身字段的类名单；名单内的类只向下递归，不收敛自己
+     */
+    private void traverseNotMeta(List<Class<?>> keep) {
+        Class<?> current = getClass();
+        while (current != null && current != Object.class) {
+            for (Field field : current.getDeclaredFields()) {
+                int modifiers = field.getModifiers();
+                if (Modifier.isStatic(modifiers) || Modifier.isTransient(modifiers)) {
+                    continue;
+                }
+                handleNotMetaField(keep, field);
+            }
+            current = current.getSuperclass();
+        }
+    }
+
+    /**
+     * 单字段处理：等价于旧 {@code lambda$excludeNotMetaAndDesensitize$3}（desensitize 恒 false）。
+     */
+    private void handleNotMetaField(List<Class<?>> keep, Field field) {
+        field.setAccessible(true);
+        Object value;
+        try {
+            value = field.get(this);
+        } catch (IllegalAccessException ignored) {
+            return;
+        }
+        if (value == null) {
+            return;
+        }
+        // 本类不在保留名单：收敛自身字段（对应旧 excludeFieldValueNotMeta）
+        if (!keep.isEmpty() && !keep.contains(getClass())) {
+            if (value instanceof BaseEntity<?> nested) {
+                // 嵌套模型不置空，改为递归收敛（各自以自己为保留名单起点）
+                nested.excludeNotMeta();
+                return;
+            }
+            if (!hasMeta(field)) {
+                try {
+                    field.set(this, null);
+                } catch (IllegalAccessException ignored) {
+                }
+            }
+            return;
+        }
+        // 本类在保留名单：自身字段一律保留，只向下遍历
+        if (value instanceof Collection<?> collection) {
+            for (Object item : collection) {
+                if (item instanceof BaseEntity<?> nested) {
+                    nested.traverseNotMeta(keep);
+                }
+            }
+            return;
+        }
+        if (value instanceof BaseEntity<?> nested) {
+            nested.traverseNotMeta(keep);
+        }
+    }
+
+    /**
+     * 字段或其 getter 是否标注 {@link Meta}。
+     *
+     * <p>与旧实现一致：getter 不存在（NoSuchMethodException）时视为「保留」，不置空。</p>
+     */
+    private boolean hasMeta(Field field) {
+        if (field.isAnnotationPresent(Meta.class)) {
+            return true;
+        }
+        String name = field.getName();
+        String getter = "get" + Character.toUpperCase(name.charAt(0)) + name.substring(1);
+        try {
+            return getClass().getMethod(getter).isAnnotationPresent(Meta.class);
+        } catch (NoSuchMethodException ignored) {
+            return true;
         }
     }
 }

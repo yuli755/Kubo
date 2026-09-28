@@ -33,7 +33,7 @@ public class FileController extends BaseController<FileEntity, FileService, File
     @PostMapping("upload")
     @Description("文件上传")
     @Permission(authorize = false)
-    public ApiResponse<String> upload(@NotNull(message = "文件不能为空") @RequestParam("file") MultipartFile file, @RequestParam("category") Integer category) {
+    public ApiResponse<FileEntity> upload(@NotNull(message = "文件不能为空") @RequestParam("file") MultipartFile file, @RequestParam("category") Integer category) {
         category = Objects.requireNonNullElse(category, FileCategory.NORMAL.getKey());
         FileCategory fileCategory = EnumDictionaries.require(FileCategory.class, category, FileCategory::getKey, FileCategory::getLabel);
         // 该接口 authorize=false 允许匿名，登录用户上传时把属主落库（D-4）；

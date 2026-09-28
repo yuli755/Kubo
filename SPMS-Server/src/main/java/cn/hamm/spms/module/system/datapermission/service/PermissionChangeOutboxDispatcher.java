@@ -4,7 +4,8 @@ import cn.hamm.spms.common.notification.NotificationHelper;
 import cn.hamm.spms.common.redis.RedisHelper;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
 import cn.hamm.spms.module.system.datapermission.entity.PermissionChangeOutboxEntity;
-import cn.hamm.spms.module.system.datapermission.enums.PermissionChangeOutboxStatus;
+// PermissionChangeOutboxStatus 与本类同处 ...datapermission.service 包，无需 import；
+// 原 import 误指向不存在的 ...datapermission.enums 包，导致编译期「找不到符号」。
 import cn.hamm.spms.module.system.datapermission.event.DataPermissionEventPublisher;
 import cn.hamm.spms.module.system.datapermission.repository.PermissionChangeOutboxRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -110,7 +111,12 @@ public class PermissionChangeOutboxDispatcher {
             if (failed.lastError() != null) {
                 row.setLastError(failed.lastError());
             }
-            if (failed.status() == PermissionChangeOutboxStatus.DEAD.getKey() && notificationHelper != null) {
+            // PermissionChangeOutboxStatus 是无 key 的纯枚举，其状态值口径为 name()
+            // （OutboxDispatchStep.markFailed 正是用 DEAD.name() 构造 Result，
+            //   permission_change_outbox.status 列也是字符串）。原写法调 .getKey() 编译不过。
+            // 比较用 equals 而非 ==：此处虽同为驻留字符串、== 恰好成立，但 status 一旦
+            // 从数据库读回就不再驻留，== 会静默失效。
+            if (PermissionChangeOutboxStatus.DEAD.name().equals(failed.status()) && notificationHelper != null) {
                 notificationHelper.sendError("权限变更Outbox死信告警",
                         String.format("事件 [%s] 投递失败次数达到上限已转入死信队列，错误: %s", row.getEventKey(), ex.getMessage()));
             }
