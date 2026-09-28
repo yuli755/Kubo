@@ -304,7 +304,13 @@ public final class KuboDataPermissionHandler implements MultiDataPermissionHandl
             return bool ? "TRUE" : "FALSE";
         }
         if (value instanceof String text) {
-            return "'" + text.replace("'", "''") + "'";
+            // S-1：MySQL 默认模式把反斜杠当串内转义符，仅双写单引号不够——
+            // 以 `\` 结尾的值会吃掉闭合引号、让后续 SQL 拼进字符串继续解析。
+            // 反斜杠必须先加倍；\0 会截断字符串参数，直接拒绝。
+            if (text.indexOf('\0') >= 0) {
+                throw new IllegalArgumentException("permission parameter must not contain NUL");
+            }
+            return "'" + text.replace("\\", "\\\\").replace("'", "''") + "'";
         }
         throw new IllegalArgumentException("permission parameter has an unbindable type: "
                 + (value == null ? "null" : value.getClass().getName()));
