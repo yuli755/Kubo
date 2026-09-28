@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
+import static cn.hamm.spms.common.exception.Errors.PARAM_MISSING;
 import static cn.hamm.spms.module.system.config.enums.ConfigFlag.OUTPUT_BILL_AUTO_AUDIT;
 
 /**
@@ -220,8 +221,9 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
         OutputEntity bill = get(existDetail.getBillId());
 
         if (Objects.isNull(outputDetail.getInventory()) || Objects.isNull(outputDetail.getInventory().getId())) {
-            FORBIDDEN.show("请传入出库来源库存信息");
-            return;
+            // 「请求少传了字段」用 PARAM_MISSING(4001)，不用 FORBIDDEN(403)：
+            // 403 会让调用方与监控误判为权限问题。show() 恒抛，故不需要 return。
+            PARAM_MISSING.show("请传入出库来源库存信息");
         }
 
         // 库存信息

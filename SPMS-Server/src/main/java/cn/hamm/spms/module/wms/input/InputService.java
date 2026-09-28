@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
+import static cn.hamm.spms.common.exception.Errors.PARAM_MISSING;
 import static cn.hamm.spms.module.system.config.enums.ConfigFlag.INPUT_BILL_AUTO_AUDIT;
 
 /**
@@ -242,8 +243,10 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
         // 入库仓库信息
         StorageEntity storage = inputDetail.getStorage();
         if (Objects.isNull(storage) || Objects.isNull(storage.getId())) {
-            FORBIDDEN.show("请传入入库仓库");
-            return;
+            // 语义是「请求少传了字段」，用 PARAM_MISSING(4001) 而不是 FORBIDDEN(403)：
+            // 403 会让调用方与监控误判为权限问题，转而去查角色配置而不是查请求体。
+            // show() 恒抛 BusinessException（见 ErrorCode L26），故此处不需要也不应有 return。
+            PARAM_MISSING.show("请传入入库仓库");
         }
         InputDetailEntity existDetail = detailService.get(inputDetail.getId());
         InventoryService inventoryService = WmsServices.getInventoryService();

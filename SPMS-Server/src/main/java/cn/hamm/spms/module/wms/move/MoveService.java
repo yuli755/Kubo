@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
 import static cn.hamm.spms.module.system.config.enums.ConfigFlag.MOVE_BILL_AUTO_AUDIT;
 
@@ -211,13 +212,19 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
 
         // 目标存储文字
         StorageEntity storage = bill.getStorage();
-        FORBIDDEN.whenNull(storage, "移库单目标仓库未配置");
+        // 注意与 Input/OutputService 的同类校验**语义不同**：那两处读的是**请求载荷**
+        // （inputDetail.getStorage() / outputDetail.getInventory()，addFinish 只校验 quantity，
+        // 调用方确实可能漏传）→ 属 PARAM_MISSING；这里读的是**库中已持久化**的单据，
+        // 而 MoveEntity.storage 与 MoveDetailEntity.inventory 在 WhenAdd/WhenUpdate 分组下
+        // 都是 @NotNull，正常写入路径不可能为空 → 触发即属数据完整性问题，用 DATA_NOT_FOUND。
+        // 两者都不该用 FORBIDDEN(403)：403 会让调用方与监控误判为权限问题，转而去查角色配置。
+        DATA_NOT_FOUND.whenNull(storage, "移库单目标仓库未配置");
 
         InventoryService inventoryService = WmsServices.getInventoryService();
 
         // 来源库存信息
         InventoryEntity from = existDetail.getInventory();
-        FORBIDDEN.whenNull(from, "移库明细来源库存未配置");
+        DATA_NOT_FOUND.whenNull(from, "移库明细来源库存未配置");
 
         // 物料信息
         MaterialEntity material = from.getMaterial();
