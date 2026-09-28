@@ -320,10 +320,31 @@ public class BaseService<
     }
 
     /**
+     * 归一化查询筛选体：null → 空实体实例。
+     *
+     * <p>{@link QueryRequest} 的无参构造允许 {@code filter} 为 null（前端只传分页/排序、
+     * 或清空筛选后提交 {@code {}} 都会走到这里）。下游 {@link #createSpecification} 本来就会做
+     * {@code filter != null ? filter : getEntityInstance()} 的替换，所以在入口补齐
+     * <b>不会改变任何查询语义</b>，只是把这次替换提前到钩子之前。</p>
+     *
+     * <p>提前到钩子之前是必要的：{@code beforeGetList} / {@code beforeGetPage} 的各实现
+     * 此前直接解引用 filter（如 {@code filter.getParentId()}），一旦 filter 为 null 就是
+     * 未捕获的 NPE → HTTP 500。实测 {@code /structure/getList}、{@code /storage/getList}
+     * 正是如此。集中在这一处归一化后，现有与后续新增的钩子都无需各自判空。</p>
+     *
+     * @param filter 原始筛选体，可为 null
+     * @return 非 null 的筛选体
+     */
+    private E normalizeFilter(@Nullable E filter) {
+        return filter != null ? filter : getEntityInstance();
+    }
+
+    /**
      * 列表查询
      */
     public final @NotNull List<E> getList(QueryListRequest<E> queryListRequest) {
         queryListRequest = Objects.requireNonNullElse(queryListRequest, new QueryListRequest<>());
+        queryListRequest.setFilter(normalizeFilter(queryListRequest.getFilter()));
         queryListRequest = beforeGetList(queryListRequest);
         List<E> list = query(queryListRequest.getFilter(), queryListRequest.getSort());
         return afterGetList(list);
@@ -334,6 +355,7 @@ public class BaseService<
      */
     public final @NotNull QueryPageResponse<E> getPage(QueryPageRequest<E> queryPageRequest) {
         queryPageRequest = Objects.requireNonNullElse(queryPageRequest, new QueryPageRequest<>());
+        queryPageRequest.setFilter(normalizeFilter(queryPageRequest.getFilter()));
         queryPageRequest = beforeGetPage(queryPageRequest);
         Page page = queryPageRequest.getPage() != null ? queryPageRequest.getPage() : new Page();
         Sort sort = queryPageRequest.getSort() != null ? queryPageRequest.getSort() : new Sort();
@@ -381,7 +403,7 @@ public class BaseService<
      * 创建 Specification 查询规格
      */
     protected final Specification<E> createSpecification(@Nullable E filter, boolean isEqual) {
-        final E finalFilter = filter != null ? filter : getEntityInstance();
+        final E finalFilter = normalizeFilter(filter);
         return (root, criteriaQuery, criteriaBuilder) -> {
             if (criteriaQuery == null) {
                 return null;

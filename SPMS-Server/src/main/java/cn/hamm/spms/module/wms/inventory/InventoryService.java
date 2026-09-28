@@ -252,6 +252,14 @@ public class InventoryService extends BaseService<InventoryEntity, InventoryRepo
 
     @Override
     protected InventoryEntity beforeCreatePredicate(@NotNull InventoryEntity inventory) {
+        // type 为空表示「不按库存维度过滤」——前端清空筛选、或首次进列表页只带分页/排序时就是这样。
+        // EnumDictionaries.require 的第二个形参是原生 int，传入 Integer 的 null 会在调用点拆箱抛
+        // NullPointerException，而不是被 require 内部的字典校验拦住（那道校验只在值「非空但不合法」时生效）。
+        // 后果实测：/inventory 的 getPage / getList / getCount / getStat 四个读端点全部 500，
+        // 「库存查询」这个 WMS 核心页面整条链路不可用。此时没有需要移除的维度条件，直接返回。
+        if (inventory.getType() == null) {
+            return inventory;
+        }
         // 需要移除本身的查询条件
         switch (EnumDictionaries.require(InventoryType.class, inventory.getType(), InventoryType::getKey, InventoryType::getLabel)) {
             case STORAGE -> inventory.setStorage(null);

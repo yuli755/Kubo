@@ -1,5 +1,6 @@
 package cn.hamm.spms.module.personnel.user.token;
 
+import cn.hamm.spms.framework.error.BusinessException;
 import cn.hamm.spms.framework.web.annotation.Api;
 import cn.hamm.spms.framework.web.annotation.Description;
 import cn.hamm.spms.base.annotation.Extends;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
+import static cn.hamm.spms.common.exception.Errors.API_SERVICE_UNSUPPORTED;
 import static cn.hamm.spms.common.exception.Errors.FORBIDDEN_EDIT;
 
 /**
@@ -52,34 +54,54 @@ public class PersonalTokenController extends BaseController<PersonalTokenEntity,
         return ApiResponse.success("禁用成功");
     }
 
+    /**
+     * 私人令牌只提供「我的」系列端点（getMyList / createMy / enableMy / disableMy / deleteMy）：
+     * 令牌必须绑定当前登录用户，由管理端代增删改查没有业务意义，也会绕过
+     * 「完整值仅在 createMy 一次性返回」的凭据暴露约束。
+     *
+     * <p>但继承自 {@code BaseController} 的通用 CRUD 端点<b>仍被 Spring 映射</b>
+     * （因此照样出现在 /v3/api-docs 里，调用方能打到），只能在钩子里显式拒绝。</p>
+     *
+     * <p>此前抛的是 {@link IllegalStateException}，被全局异常处理器兜成 <b>HTTP 500</b>：
+     * 一个「设计上就不提供」的端点表现得像服务端故障，会污染错误率监控与 canary 告警，
+     * 调用方也拿不到可判读的业务码。改为 501 {@code API_SERVICE_UNSUPPORTED}，
+     * 与本项目对 {@code queryExport} 等「接口未实现」场景的既有口径一致。</p>
+     *
+     * @param useInstead 应当改用的端点名
+     * @return 待抛出的业务异常
+     */
+    private static BusinessException unsupported(@NotNull String useInstead) {
+        return new BusinessException(API_SERVICE_UNSUPPORTED, "私人令牌不支持此操作，请改用 " + useInstead);
+    }
+
     @Override
     protected PersonalTokenEntity beforeAdd(@NotNull PersonalTokenEntity entity) {
-        throw new IllegalStateException("请使用createMy");
+        throw unsupported("createMy");
     }
 
     @Override
     protected void beforeDisable(@NotNull PersonalTokenEntity entity) {
-        throw new IllegalStateException("请使用disableMy");
+        throw unsupported("disableMy");
     }
 
     @Override
     protected QueryPageRequest<PersonalTokenEntity> beforeGetPage(QueryPageRequest<PersonalTokenEntity> queryPageRequest) {
-        throw new IllegalStateException("请使用getMyList");
+        throw unsupported("getMyList");
     }
 
     @Override
     protected QueryListRequest<PersonalTokenEntity> beforeGetList(QueryListRequest<PersonalTokenEntity> queryListRequest) {
-        throw new IllegalStateException("请使用getMyList");
+        throw unsupported("getMyList");
     }
 
     @Override
     protected void beforeEnable(@NotNull PersonalTokenEntity entity) {
-        throw new IllegalStateException("请使用enableMy");
+        throw unsupported("enableMy");
     }
 
     @Override
     protected void beforeAppDelete(@NotNull PersonalTokenEntity entity) {
-        throw new IllegalStateException("请使用deleteMy");
+        throw unsupported("deleteMy");
     }
 
     /**
