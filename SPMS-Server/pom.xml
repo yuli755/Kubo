@@ -173,6 +173,19 @@
           读端点仍按施工图逐资源收口。`MybatisJpaCoexistenceTest` 继续验证默认关闭时两套 ORM
           能共存且回滚位有效。
         -->
+        <!--
+          2026-09-28：补回 airpower 父 POM 退场（B0）时遗漏的第二个传递依赖 —— MySQL JDBC 驱动。
+          原由 cn.hamm:airpower 父 POM 传递引入，退场后未重新声明。
+          与 org.jetbrains:annotations 不同的是：没有任何源码 import com.mysql.*，
+          所以编译期完全静默，只在运行时炸 —— Hikari 建 DataSource 时
+          "Cannot load driver class: com.mysql.cj.jdbc.Driver"，后端根本起不来。
+          版本交给 spring-boot-dependencies BOM 管理（3.4.4 → 9.1.0），不写死。
+        -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
         <!-- 数据库迁移：此前是 9 个手工 SQL 脚本，靠人对着文档按顺序执行；现在收编为
              db/migration 下的版本化迁移（V1 基线 + V2..V10 存量脚本），由 Flyway 记账。
              存量库用 baseline-on-migrate 记为 baseline 1，不会重放 V1。 -->
@@ -227,6 +240,42 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!--
+                      【B0 退役 airpower 时丢失的第三处配置，也是唯一在运行期才暴露的一处 —— 现予还原】
+
+                      Spring Boot 3 / Spring Framework 6.1 起，`@RequestParam` / `@PathVariable`
+                      未写显式 name 时，参数名绑定**完全依赖编译期写入的参数名元数据**：
+                      6.1 已删除 `LocalVariableTableParameterNameDiscoverer`，不再回退到调试信息。
+                      缺 `-parameters` 时，编译通过、启动正常、单测通过，但请求一进来就
+                      `IllegalArgumentException: Name for argument of type [java.lang.String] not
+                      specified, and parameter name information not available via reflection`
+                      → HTTP 500，且因为是在 Filter 链内抛出，会**绕过 @RestControllerAdvice**，
+                      返回 Spring 默认错误体（timestamp/status/error/path）而非本项目 ApiResponse。
+
+                      实测受影响端点（2026-09-28 真机联调，与 main 注释里的 GUI-2 同一处）：
+                        GET /dataResource/operation-logs   getOperationLogs(String resourceKey)   裸形参
+                        GET /dataResource/deny-logs        getDenyLogs(String resourceKey)        裸形参
+                        GET /dataResource/enforce-readiness getEnforceReadiness(String resourceKey)
+                        GET /dataFieldPolicy/my-mask        getMyMask(@RequestParam String ...)   注解无 value
+                        GET /dataFieldPolicy/my-mask-map
+                        GET /dataFieldPolicy/my-export-visibility
+
+                      为什么 properties 里的自持构建基线没覆盖到它：
+                      `maven.compiler.source/target/encoding` 都有同名标准属性，写进 <properties> 即生效；
+                      但 `-parameters` **没有任何标准 Maven 属性**，只能落在插件 <configuration> 里。
+                      B0 把属性搬过来了，却没意识到还有一块插件配置必须一起搬 —— 于是静默回退了
+                      main 上那条带根因注释的 GUI-2 修复。
+
+                      验证方式：javap -v 编译产物应能看到 MethodParameters 属性；
+                      缺失时该属性命中数为 0。
+                    -->
+                    <parameters>true</parameters>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
