@@ -201,7 +201,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.2.5</version>
+                <version>3.6.0</version>
                 <configuration>
                     <!-- 必须显式限堆：不设时 fork JVM 按物理内存 1/4 预留，Windows 提交限制
                          （页面文件）不足时 fork 直接以「Error occurred in starting fork」死亡。
