@@ -20,9 +20,9 @@
         <association property="move" javaType="cn.hamm.spms.module.wms.move.MoveEntity">
             <id column="move_id" property="id"/>
         </association>
-        <association property="picking" javaType="cn.hamm.spms.module.mes.picking.PickingEntity">
-            <id column="picking_id" property="id"/>
-        </association>
+        <!-- mes 模块已整体退场（PickingEntity 已删；OutputEntity 仅保留 legacyPickingId 这一 Long 列），
+             原 <association property="picking" javaType="...mes.picking.PickingEntity"> 会让 MyBatis
+             解析本 XML 时抛 ClassNotFoundException，连带 sqlSessionFactory 创建失败，故摘除。 -->
     </resultMap>
 
     <sql id="outputColumns">

@@ -24,9 +24,10 @@
         <association property="structure" javaType="cn.hamm.spms.module.factory.structure.StructureEntity">
             <id column="structure_id" property="id"/>
         </association>
-        <association property="order" javaType="cn.hamm.spms.module.mes.order.OrderEntity">
-            <id column="order_id" property="id"/>
-        </association>
+        <!-- mes 模块已整体退场（OrderEntity 已删、InputEntity 亦无 order 字段），
+             原 <association property="order" javaType="...mes.order.OrderEntity"> 会让
+             MyBatis 解析本 XML 时抛 ClassNotFoundException，连带 sqlSessionFactory 创建失败、
+             所有 @SpringBootTest 上下文加载不了，故一并摘除。 -->
         <association property="move" javaType="cn.hamm.spms.module.wms.move.MoveEntity">
             <id column="move_id" property="id"/>
         </association>
