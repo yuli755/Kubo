@@ -86,7 +86,15 @@ public class BaseEntity<E extends BaseEntity<E>> implements Serializable, CurdAc
     private Long updateTime;
 
     @ReadOnly
-    @Column(name = "is_published", nullable = false)
+    // columnDefinition 必须带 default：同批的 isDisabled/createTime/updateTime 都写了 default 0，
+    // 唯独本字段原先只有 nullable=false，Hibernate 便建出「NOT NULL 且无 DB 级默认值」的列。
+    // JPA 路径的 INSERT 总会带上该字段（成员初始化 = false）所以看不出问题，但任何裸 SQL
+    // 只要没显式列出 is_published 就会撞 "Field 'is_published' doesn't have a default value"
+    // —— V2__data_permission_migrations.sql 第 252 行的 INSERT INTO user_tenant 正是如此，
+    // 导致「JPA 先建表、Flyway 后迁移」的库（STARTUP.md 规定的本地开发流程）后端起不来。
+    // 补上默认值后，JPA 建出的列与 V1/V2 的 `is_published BIT(1) NOT NULL DEFAULT b'0'` 一致。
+    @Column(name = "is_published", nullable = false,
+            columnDefinition = "bit(1) NOT NULL default 0 comment '是否已发布'")
     private Boolean isPublished = false;
 
     /**
