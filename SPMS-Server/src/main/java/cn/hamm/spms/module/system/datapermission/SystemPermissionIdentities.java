@@ -1,5 +1,7 @@
 package cn.hamm.spms.module.system.datapermission;
 
+import java.util.Set;
+
 /**
  * <h1>系统级权限标识</h1>
  *
@@ -22,6 +24,26 @@ public final class SystemPermissionIdentities {
      * 每次重放/丢弃都落审计（见 {@code PermissionChangeOutboxAdminService}）。
      */
     public static final String DATA_PERMISSION_OUTBOX = "system:data-permission:outbox";
+
+    /**
+     * 上面四个治理特权身份的集合。
+     *
+     * <p>存在的理由是它们**不由 {@code PermissionScanner} 扫描产生** —— 扫描器遍历的是
+     * Controller 的 HTTP 端点，而这四个身份是授予给角色的能力开关，没有对应端点。
+     * 因此任何「用扫描结果作为应有权限全集」的逻辑都必须把它们并进去，否则会把它们
+     * 判成过期项。{@code PermissionService.syncPermissionCatalog()} 就踩过这个坑：
+     * 差集把它们算作 stale，一旦运维开启 {@code kubo.permission.purge-stale}，
+     * 启动即删掉绕过/归属迁移/死信管理三项特权，非 root 角色从此永远拿不到，
+     * 而且因为是启动期删的，界面上看不出任何操作痕迹。</p>
+     *
+     * <p>新增治理身份时只改这里，播种与同步两侧会同时跟上。</p>
+     */
+    public static final Set<String> ALL = Set.of(
+            ROOT,
+            DATA_PERMISSION_BYPASS,
+            DATA_PERMISSION_OWNERSHIP,
+            DATA_PERMISSION_OUTBOX
+    );
 
     private SystemPermissionIdentities() {
     }

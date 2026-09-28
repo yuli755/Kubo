@@ -83,8 +83,22 @@ public class DevDataInitRunner implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        AppConfig appConfig = Configs.getAppConfig();
         PermissionService permissionService = SystemServices.getPermissionService();
+        // 权限目录同步必须放在下面两道闸**之前**，且与它们无关。
+        //
+        // 此前它写在闸门之后（与 initRootUser 等开发数据初始化并列），于是：
+        // 生产环境 isDevMode=false 直接 return，权限目录永不同步；而
+        // RequestInterceptor.checkUserPermission 是从库里查权限、且在 SYSTEM_ROOT
+        // 放行之前就 fail-closed 的 —— 结果是任何新增端点在生产上对所有人（含 root）
+        // 都返回 403「权限不存在」，只能手工往 permission 表塞数据。
+        // 本地开发同理：init.lock 一旦存在，后加的接口也永远扫不进来。
+        //
+        // 选择改造本 runner 而不是新建一个 CommandLineRunner，是为了不引入 runner 之间
+        // 的顺序不确定性：下面的 initRootAuthorization 依赖权限目录已就绪，
+        // 同一个 run() 里的先后顺序是确定的，跨 bean 则要额外实现 Ordered 才敢保证。
+        permissionService.syncPermissionCatalog();
+
+        AppConfig appConfig = Configs.getAppConfig();
         MenuService menuService = SystemServices.getMenuService();
         if (!appConfig.getIsDevMode()) {
             log.info("非开发者模式，无需初始化数据");
@@ -99,8 +113,8 @@ public class DevDataInitRunner implements CommandLineRunner {
         initRootUser();
         initCodeRules();
         initConfigs();
-        permissionService.loadPermission();
-        permissionService.ensureDataPermissionSystemPermissions();
+        // loadPermission() 与 ensureDataPermissionSystemPermissions() 已上移进
+        // syncPermissionCatalog()：那里是权限目录的唯一写入口，避免两处各调一半导致口径漂移。
         initDataPermissionResources();
         initDataFieldPolicies();
         initRootAuthorization();
