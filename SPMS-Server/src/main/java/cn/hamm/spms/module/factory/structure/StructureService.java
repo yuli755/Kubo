@@ -26,7 +26,9 @@ import org.springframework.stereotype.Service;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * <h1>Service</h1>
@@ -167,12 +169,53 @@ public class StructureService extends BaseService<StructureEntity, StructureRepo
 
     @Override
     protected @NotNull List<StructureEntity> afterGetList(@NotNull List<StructureEntity> list) {
-        list.forEach(item -> {
-            QueryListRequest<StructureEntity> queryListRequest = new QueryListRequest<>();
-            queryListRequest.setFilter(new StructureEntity().setParentId(item.getId()));
-            item.setChildren(getList(queryListRequest));
-        });
+        attachChildren(list);
         return list;
+    }
+
+    /**
+     * 逐层为节点挂子级。
+     *
+     * <p>把原来「对每个节点递归调一次 {@code getList}」的 O(N) 查询，改成
+     * 「每层一次 {@code parentId IN (...)} 批量查」—— 深度 D 的树只需 D+1 次查询。
+     * 递归深度 = 树深（与旧实现相同），但查询次数从随节点数线性增长降为随深度增长。</p>
+     */
+    private void attachChildren(@NotNull List<StructureEntity> nodes) {
+        if (nodes.isEmpty()) {
+            return;
+        }
+        List<Long> parentIds = nodes.stream()
+                .map(StructureEntity::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (parentIds.isEmpty()) {
+            return;
+        }
+        List<StructureEntity> children = queryChildrenByParentIds(parentIds);
+        if (children.isEmpty()) {
+            return;
+        }
+        Map<Long, List<StructureEntity>> byParent = children.stream()
+                .collect(Collectors.groupingBy(StructureEntity::getParentId));
+        for (StructureEntity node : nodes) {
+            List<StructureEntity> sub = byParent.getOrDefault(node.getId(), List.of());
+            node.setChildren(sub);
+            attachChildren(sub);
+        }
+    }
+
+    /**
+     * 一次取出 {@code parentId IN (parentIds)} 的全部子级，并**保留数据权限谓词**。
+     *
+     * <p>不能改用无谓词的 {@code findAllByParentIdIn}：那会绕过 {@code addSearchPredicate}
+     * 注入的 {@code factory.structure} QUERY 策略，造成越权读取。</p>
+     */
+    private @NotNull List<StructureEntity> queryChildrenByParentIds(@NotNull List<Long> parentIds) {
+        return repository.findAll((root, criteriaQuery, criteriaBuilder) -> {
+            List<Predicate> predicates = addSearchPredicate(root, criteriaBuilder, new StructureEntity());
+            predicates.add(root.get("parentId").in(parentIds));
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        });
     }
 
     @Override
