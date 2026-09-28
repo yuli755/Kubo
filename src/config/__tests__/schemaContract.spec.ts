@@ -189,16 +189,17 @@ describe('schema 契约 · 实体 ↔ Flyway 基线', () => {
     )
   })
 
-  it('存量脚本按原日期顺序收编（V1 基线 + V2..V12，不能颠倒）', () => {
+  it('存量脚本按原日期顺序收编（V1 基线 + V2..V13，不能颠倒）', () => {
     // 按**版本号**排序（不能按文件名字典序：V10 < V2）
     const ordered = readdirSync(MIGRATION_DIR)
       .filter(file => file.endsWith('.sql'))
       .map(file => file)
       .sort((a, b) => Number(a.match(/^V(\d+)/)![1]) - Number(b.match(/^V(\d+)/)![1]))
     expect(ordered[0]).toBe('V1__baseline_schema.sql')
-    expect(ordered.at(-1)).toBe('V12__retired_module_catalog_convergence.sql')
+    expect(ordered.at(-1)).toBe('V13__retired_resource_policy_convergence.sql')
     // 历史脚本必须保持原日期序：V2..V10 的描述里带日期或语义顺序。
-    // V11/V12 是 2026-09-28 真机联调后新增的修复脚本，追加在尾部，不得插入历史序列中间
+    // V11/V12 是 2026-09-28 真机联调后新增的修复脚本，V13 是其后的退场资源收敛，
+    // 一律追加在尾部，不得插入历史序列中间
     // （Flyway 已应用的历史版本号一旦重排，存量库会报 checksum mismatch 或跳过迁移）。
     expect(ordered.slice(1)).toEqual([
       'V2__data_permission_migrations.sql',
@@ -212,6 +213,7 @@ describe('schema 契约 · 实体 ↔ Flyway 基线', () => {
       'V10__menu_canonical_paths.sql',
       'V11__is_published_column_default.sql',
       'V12__retired_module_catalog_convergence.sql',
+      'V13__retired_resource_policy_convergence.sql',
     ])
   })
 })

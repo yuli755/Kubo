@@ -23,7 +23,7 @@ import java.util.Set;
  *     mode: shadow                 # off | shadow | enforce
  *     enforce-resources:           # 逐资源灰度名单（见下方 enforceResources 说明）
  *       - wms.inventory
- *       - mes.order
+ *       - channel.purchase
  *     deny-unregistered: false     # enforce 下未注册资源是否默认拒绝（阶段 7 末尾改 true）
  *     factory-dimension-enabled: true   # 工厂维度是否已落地（D13-B 起默认 true，启动期仍有元模型闸）
  *     tenant-required: false       # 用户无租户归属时是否直接拒绝（回填完成后改 true）
