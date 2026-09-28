@@ -62,6 +62,53 @@ describe('p1 · 业务异常与旧 HTTP 链的切换边界', () => {
     expect(source).toContain('seen.add(current)')
   })
 
+  it('请求绑定/协议异常收敛进项目协议，且不做 Exception 兜底', () => {
+    const source = code('common/exception/RequestBindingExceptionAdvice.java')
+    // 与其余 advice 同一响应形态：HTTP 200 + 业务码，不真返回 4xx/5xx
+    expect(source).toContain('@RestControllerAdvice')
+    expect(source).toContain('@ResponseStatus(HttpStatus.OK)')
+    // 必须让位于两个 HIGHEST_PRECEDENCE 的 advice，否则会把 BusinessException 一并吞掉
+    expect(source).toContain('@Order(Ordered.LOWEST_PRECEDENCE)')
+    // 保持 backendHttpBoundary 既有纪律：不写 Exception 兜底，意外异常仍出真实 5xx
+    expect(source).not.toContain('@ExceptionHandler(Exception.class)')
+    // 覆盖此前会逃逸成 Spring 默认错误体的每一类
+    for (const handled of [
+      'BindException.class',
+      'MissingServletRequestParameterException.class',
+      'MethodArgumentTypeMismatchException.class',
+      'HttpMessageNotReadableException.class',
+      'HttpRequestMethodNotSupportedException.class',
+      'HttpMediaTypeNotSupportedException.class',
+    ])
+      expect(source).toContain(handled)
+    // 错误码语义要分得开：没传≠传错≠body 不是 JSON≠方法/类型不支持
+    for (const err of [
+      'Errors.PARAM_MISSING',
+      'Errors.PARAM_INVALID',
+      'Errors.JSON_DECODE_FAIL',
+      'Errors.REQUEST_METHOD_UNSUPPORTED',
+      'Errors.REQUEST_CONTENT_TYPE_UNSUPPORTED',
+    ])
+      expect(source).toContain(err)
+    // HttpMessageNotReadableException 混装两类错误，必须按 cause 分流，
+    // 否则「值填错」会被误报成「你发的不是 JSON」
+    expect(source).toContain('MismatchedInputException')
+  })
+
+  it('编译保留参数名元数据，@RequestParam 隐式命名不会在运行期炸成 500', () => {
+    // Spring Framework 6.1 删除了 LocalVariableTableParameterNameDiscoverer，
+    // 未写显式 name 的 @RequestParam/@PathVariable 完全依赖 -parameters。
+    // 缺它时：编译通过、单测通过、启动正常，请求一进来才 IllegalArgumentException → 500，
+    // 且在 Filter 链内抛出会绕过 @RestControllerAdvice（GUI-2 原始形态）。
+    // 该配置在 airpower 退役时被静默丢弃过，故在此钉死。
+    const pom = readFileSync(resolve('SPMS-Server/pom.xml'), 'utf8')
+    expect(pom).toContain('<parameters>true</parameters>')
+    expect(pom).toContain('maven-compiler-plugin')
+    // -parameters 没有任何标准 Maven 属性，只能落在插件 configuration 里；
+    // 只搬 maven.compiler.* 属性是不够的（正是当初漏掉它的原因）。
+    expect(pom).toMatch(/maven-compiler-plugin[\s\S]{0,2000}<parameters>true<\/parameters>/)
+  })
+
   it('p2 核心继承链自持替换：BaseController 与 RequestInterceptor 彻底脱离旧框架基类', () => {
     const baseController = code('base/BaseController.java')
     expect(baseController).not.toContain('extends CurdController')
