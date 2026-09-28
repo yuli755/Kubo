@@ -19,10 +19,10 @@
 | 业务闭环 | 采购/入库/销售/出库/移库 **46/46 通过**，含库存增减与总量守恒 |
 | 多角色扮演 | **27/27 通过**，含 RBAC fail-closed、菜单过滤、列级脱敏差分 |
 | 只读端点探针 | `SERVER_ERROR` **8 → 0**；`OK` 83 → 89 |
-| 本轮缺陷 | 发现 **16** 项，修复 **16** 项（其中 2 项是 `main` 已修、`dev` 丢失的**回归**） |
-| 提交 | 8 个语义聚焦提交（`36391014`…`e93816d8` + 本报告） |
+| 本轮缺陷 | 发现 **17** 项，修复 **17** 项（其中 2 项是 `main` 已修、`dev` 丢失的**回归**） |
+| 提交 | 9 个修复提交（`36391014`…`71319375`）+ 本报告 |
 
-> **一条贯穿性根因**：本轮 16 项缺陷里有 **4 项**同源 —— B0 退役 `cn.hamm:airpower` 父 POM 时，
+> **一条贯穿性根因**：本轮 17 项缺陷里有 **4 项**同源 —— B0 退役 `cn.hamm:airpower` 父 POM 时，
 > 只把「能用 `maven.compiler.*` 属性表达」的构建基线搬成了项目自持，漏掉了**没有标准 Maven 属性**
 > 或**只存在于依赖传递/父 POM 插件配置**里的部分。这类缺失的共同特征是
 > **编译期完全静默**，直到运行期甚至直到某个具体请求打进来才暴露。见 K-1 / K-2 / K-13。
@@ -378,9 +378,61 @@ K-7 / K-8 / K-9 三项合计造成 **8 个只读端点** HTTP 500
 另注：这 8 个都在**只读**路径上 —— 而本轮之前的探测脚本只 POST 写端点，
 **16 个 GET 端点从未被测过**，这也是它们长期潜伏的原因。
 
+### K-17 `403` 被用来表达「缺参数 / 数据不完整」（已修复 · `main` 同样带病）
+
+- **现象**：WMS 三个单据服务把两类完全不同的问题都报成 `FORBIDDEN`(403)：
+  ```
+  InputService  L245  FORBIDDEN.show("请传入入库仓库")
+  OutputService L223  FORBIDDEN.show("请传入出库来源库存信息")
+  MoveService   L214  FORBIDDEN.whenNull(storage, "移库单目标仓库未配置")
+  MoveService   L220  FORBIDDEN.whenNull(from,    "移库明细来源库存未配置")
+  ```
+- **危害**：403 的语义是**授权失败**。调用方与监控看到它会去查角色配置、权限目录、
+  令牌作用域 —— 而真正的问题在**请求体**或**数据完整性**上，排查方向被彻底带偏。
+  前端 `axios.ts` 的 403 分支还会渲染「没有权限访问」（L215），
+  用户得到的提示与真实原因完全无关。
+- **修复按「数据来源」区分两种语义**（这是本项最重要的判断，两处**不该**统一成一个码）：
+  - **读请求载荷的 → `PARAM_MISSING`(4001)**：`InputService.afterDetailFinishAdded` 的
+    `inputDetail.getStorage()`、`OutputService` 的 `outputDetail.getInventory()`。
+    这两个入参实体来自 `addFinish` 的**请求体**，而 `addFinish` 的校验分组
+    `WhenAddFinish` **只强制 `quantity`** —— 调用方确实可能漏传，名副其实是「缺参数」。
+    （对照：`InputService` L248 与 `OutputService` L214 都另外用 `detailService.get()`
+    取 `existDetail`，可见入参那个是**载荷**、不是库中副本。）
+  - **读库中已持久化数据的 → `DATA_NOT_FOUND`(404)**：`MoveService` 的
+    `bill.getStorage()` 与 `existDetail.getInventory()`，分别来自
+    `get(existDetail.getBillId())` 与 `detailService.get(detailId)` 取回的**库中单据**。
+    而 `MoveEntity.storage` 与 `MoveDetailEntity.inventory` 在 `WhenAdd`/`WhenUpdate`
+    分组下都是 `@NotNull`，正常写入路径不可能为空 → 触发即属**数据完整性**问题，
+    既不是授权失败(403)也不是调用方漏传(4001)。
+- **顺带清掉两处死代码**：`InputService` L246 与 `OutputService` L224 在 `show()` 之后
+  各有一个 `return;`。`ErrorCode.show(...)` 是 `default void` 且**恒抛** `BusinessException`
+  （`ErrorCode` L26），编译器无从得知才让作者补了防御性 `return`，实际**永不可达**。
+  房内其他位置（如 `FORBIDDEN.whenNull(...)`）也都不带 `return`，去掉后与既有风格一致。
+- **刻意未改的相邻调用**（语义不同，改了反而错）：
+  `InputService` L287 / `OutputService` L229-230、L247 的
+  `FORBIDDEN.whenNotEquals(..., "物料信息不匹配")`、
+  `FORBIDDEN.whenNull(inventory, "未找到指定的出库来源库存")`、
+  `MoveService` L224 的 `FORBIDDEN.whenNull(material, "来源库存物料信息缺失")`
+  —— 前者是业务规则/一致性校验，后者是库中数据缺关系，都不属上述两类。
+  其中「物料信息不匹配」是否应改为 `PARAM_INVALID`(4002) 值得单独评估，
+  但它同时承担「防止跨单据串改明细」的**安全语义**，改动需连带复核测试口径，见 §4 P2-9。
+- **验证**：`mvn -B clean test` → `BUILD SUCCESS`，**892 / 0 / 0 / 1 skipped**（与基线一致）。
+  已 grep 确认 `SPMS-Server/src/test` 下**无任何用例**断言这四条消息文本或依赖其 403 码；
+  业务全链路脚本 `bizscenario2.js` 走的正是这三条代码路径，修复后仍 **46/46**。
+  真机实测（脚本 `%TEMP%\k17check.js`，新建入库单 id=163 / 出库单各一张）：
+  ```
+  入库漏传 storage      → code=4001  「请传入入库仓库」            ✅（修复前为 403）
+  入库再漏传 quantity   → code=4002  「quantity: 数量不能为空」     ✅（K-10 的 advice 生效）
+  入库补齐 storage      → code=200   「添加完成数量成功」           ✅ 正常路径未破坏
+  出库漏传 inventory    → code=4001  「请传入出库来源库存信息」      ✅（修复前为 403）
+  出库补齐 inventory    → code=200   「添加完成数量成功」           ✅ 正常路径未破坏
+  ```
+  「补齐后仍 200」这一条是**必要**对照：只把 403 改成 4001 很容易顺手把校验写严，
+  导致原本能过的请求被拒；有了它才能证明改的只是**错误码语义**、不是行为。
+
 ---
 
-## 2. 修复清单（8 个提交）
+## 2. 修复清单（9 个提交）
 
 | # | 提交 | 类型 | 内容 | 对应缺陷 |
 | --- | --- | --- | --- | --- |
@@ -392,6 +444,9 @@ K-7 / K-8 / K-9 三项合计造成 **8 个只读端点** HTTP 500
 | 6 | `8bbcbe8a` | `fix(api)` | `RoleController.authorizePermission` 文案 | K-14 |
 | 7 | `cab18543` | `fix(web)` | `urlGetTreeList` → `getList` + 3 条契约测试（13 → 16） | K-11 |
 | 8 | `e93816d8` | `fix(web)` | `permissionEditor.vue` 父子级联 + 演示 mock 镜像树契约 + 1 条测试（16 → 17） | K-12、K-13 |
+| 9 | `71319375` | `fix(api)` | WMS 三服务：载荷缺字段 → `PARAM_MISSING`(4001)，库中数据不完整 → `DATA_NOT_FOUND`(404)，并清掉 2 处死 `return;` | K-17 |
+
+*（本报告自身为第 10 个提交 `aa6ba340` 及其后续修订。）*
 
 **新增文件**：`RequestBindingExceptionAdvice.java`、`V11__is_published_column_default.sql`、
 `V12__retired_module_catalog_convergence.sql`。
@@ -454,11 +509,12 @@ K-7 / K-8 / K-9 三项合计造成 **8 个只读端点** HTTP 500
 治理  16 个 GET 端点全部 200
 ```
 
-关键契约（本轮踩坑后固化，均已写入脚本注释）：
-- `InputService.afterDetailFinishAdded` L241-247 要求 `inputDetail.getStorage()` 非空；
-- `OutputService` L210-233 要求 `outputDetail.getInventory().getId()`，并校验
-  `inventory.material.id == detail.material.id`；
-- `MoveService` L201-224 从**库里的明细**读源库存、从 `bill.getStorage()` 读目标仓，
+关键契约（本轮踩坑后固化，均已写入脚本注释；刻意按**方法名**而非行号引用，避免行号漂移失效）：
+- `InputService.afterDetailFinishAdded` 要求载荷里 `inputDetail.getStorage()` 非空，
+  否则 `PARAM_MISSING「请传入入库仓库」`（见 K-17）；
+- `OutputService.afterDetailFinishAdded` 要求载荷里 `outputDetail.getInventory().getId()`，
+  并校验 `inventory.material.id == detail.material.id`；
+- `MoveService.afterDetailFinishAdded` 从**库里的明细**读源库存、从 `bill.getStorage()` 读目标仓，
   故 `addFinish` 载荷只需 `{id, quantity}`；
 - 状态机终值：**采购 5**，**销售/入库/出库/移库 4**（`SaleStatus.DONE = 4`，不是 5）；
 - 库存 Redis 锁：`lock:wms:inventory:storage:<id>:material:<id>` / `lock:wms:inventory:<inventoryId>`。
@@ -518,14 +574,7 @@ K-7 / K-8 / K-9 三项合计造成 **8 个只读端点** HTTP 500
 
 ### P0 —— 会造成静默错误结果，建议尽快处理
 
-1. **`403` 被误用于「缺参数」**（系统性，遍布 WMS 单据服务）
-   `InputService` L245、`OutputService` L223、`MoveService` L214/L220 都用
-   `FORBIDDEN.show("请传入入库仓库")` 表达「请求少传了字段」。
-   语义应是 **`PARAM_MISSING`(4001)**：`403` 会让调用方与监控误判为**权限问题**，
-   进而去查角色配置而不是查请求体。另 `InputService` L246 的 `return;` 在 `show()` 之后是**死代码**。
-   *（本轮已定位并记录，未改：涉及 4 处业务语义与相应测试口径，建议单独一个提交处理。）*
-
-2. **新增端点的权限行无法在生产落库**
+1. **新增端点的权限行无法在生产落库**
    `RequestInterceptor` 从 **DB** 查权限且 fail-closed（判空还在 bypass 之前），
    而写库的 `PermissionService.loadPermission()` **只被 `DevDataInitRunner` 调用**，
    受 `init.lock` 与 dev profile 双重限制。
@@ -534,14 +583,17 @@ K-7 / K-8 / K-9 三项合计造成 **8 个只读端点** HTTP 500
    启动期的幂等同步（或管理员可触发的 rescan 端点），并同时具备**删除**能力
    （见下条）。这也是 K-11 选择「不新增后端端点」的直接原因。
 
-3. **权限目录永不收敛**（K-6 的根因，本轮只用 V12 做了一次性清理）
+2. **权限目录永不收敛**（K-6 的根因，本轮只用 V12 做了一次性清理）
    `loadPermission()` 只 insert-or-update、从不 delete，且只在 dev 初始化时跑。
    建议：改为「扫描结果即真相」的幂等同步（含删除与角色关联清理），
    并加一个 DB↔代码对账的巡检（本轮的对账脚本 `permaudit.js` 可直接产品化）。
 
+> ✅ 原列于此的「`403` 被误用于缺参数」已在本轮修复，见 **K-17**（提交 `71319375`）。
+> 其残留的一小项（「物料信息不匹配」是否应改 `PARAM_INVALID`）下移至 P2-9。
+
 ### P1 —— 性能与稳定性
 
-4. **`Storage`/`StructureService.afterGetList` 的 O(N) 查询递归**
+3. **`Storage`/`StructureService.afterGetList` 的 O(N) 查询递归**
    现实现对**每个节点**递归调用 `getList` 查其子级：
    ```java
    list.forEach(item -> {
@@ -561,14 +613,14 @@ K-7 / K-8 / K-9 三项合计造成 **8 个只读端点** HTTP 500
    (b) 提供一条「取全量但仍施加数据权限谓词」的查询路径，再交给 `buildTreeList`。
    当前数据量极小（仓库 4、库位 3），故列为 P1 而非 P0。
 
-5. **`data_policy` 里仍有已退场资源的策略行**
+4. **`data_policy` 里仍有已退场资源的策略行**
    实测 93 行中含 `asset.device`（该模块已退场，菜单与权限已在 V12 清掉）。
    建议：V13 清理 `data_resource` / `data_policy` / `data_field_policy` 中
    指向已退场资源的行，并加对账巡检。
 
 ### P2 —— 一致性与可维护性
 
-6. **`queryExport` 口径不一致**
+5. **`queryExport` 口径不一致**
    14 个控制器返回 `200/code=501 当前接口不支持此操作`
    （`user`、`unit`、`role`、`personalToken`、`permission`、`participant`、`menu`、`file`、
    `department`、`dataResource`、`dataPolicy`、`dataFieldPolicy`、`config`、`coderule`），
@@ -576,24 +628,32 @@ K-7 / K-8 / K-9 三项合计造成 **8 个只读端点** HTTP 500
    建议：以 `/dataResource/export-gaps`（当前返回 **4 项**）为权威清单，
    核对前端是否仍在不支持导出的页面渲染导出按钮。
 
-7. **`DataResourceEntity` 重复声明 `@Id` 遮蔽 `BaseEntity`**
+6. **`DataResourceEntity` 重复声明 `@Id` 遮蔽 `BaseEntity`**
    `DataResourceEntity extends BaseEntity<DataResourceEntity>` 却又自己声明
    `@Id @GeneratedValue(IDENTITY) @Column(name="id", nullable=false) private Long id`（L33-36），
    **遮蔽**了 `BaseEntity.id` 的 `bigint UNSIGNED` `columnDefinition` 与 `@Meta`；
    其余 datapermission 实体同模式。这正是 K-4 外键符号性不匹配的**同类**成因。
    建议：删除重复声明，统一继承。
 
-8. **菜单↔前端视图缺对账守卫**
+7. **菜单↔前端视图缺对账守卫**
    `menuContract.spec.ts` 只校验 `src/demo/fixtures/menu.ts`，
    **不校验真实 DB 菜单与 `src/view/console/**` 的对应关系** —— K-5 的 5 个死链正是这样漏过的。
    建议：加一个对账用例（可用 V12 尾部那 4 条自检 SQL 的等价断言）。
 
-9. **文档过期**
+8. **文档过期**
    - `LOGIN.md` 仍记载已退场的 设备/MES/聊天室 种子数据；
    - `LOGIN.md` 与 `STARTUP.md` 都声称支持「手机号或邮箱 + 密码」登录，
      但代码只接受邮箱（`resolveLoginAccount` 对 `VIA_ACCOUNT_PASSWORD`/`VIA_EMAIL_CODE` 用 email，
      phone 只用于 `VIA_PHONE_CODE`）。实测手机号登录返回
      `code 4002 「请确认传入有效的邮箱」`。
+
+9. **「物料信息不匹配」的错误码待评估**（K-17 的残留项）
+   `InputService` L287、`OutputService` L230/L247 用
+   `FORBIDDEN.whenNotEquals(detail.getMaterial().getId(), ..., "物料信息不匹配")`。
+   从「调用方传了不一致的值」看应是 `PARAM_INVALID`(4002)；
+   但它同时承担**防止跨单据串改明细**的安全语义，403 在那个视角下也讲得通。
+   本轮刻意未改：需要先确定这条校验的**定位**（输入校验 vs 授权边界），
+   再连带复核相关测试口径与前端提示文案。建议单独评估。
 
 10. **`init.lock` 的 CWD 相对语义**（GUI-1 的遗留建议，本轮未处理）
     建议改为基于数据源的标志位（如 `config` 表 `INIT_DONE`），
@@ -617,6 +677,7 @@ K-7 / K-8 / K-9 三项合计造成 **8 个只读端点** HTTP 500
 | `roleplay2.js` | `%TEMP%` | 多角色扮演 + RBAC + 脱敏差分（27 断言） |
 | `probe.js readonly` | `%TEMP%` | 只读端点全量探测与分类 |
 | `bindingcheck.js` | `%TEMP%` | `RequestBindingExceptionAdvice` 的 10 条断言 |
+| `k17check.js` | `%TEMP%` | K-17 错误码语义验证（缺字段 4001 / 校验 4002 / 补齐后仍 200） |
 | `permaudit.js` | `%TEMP%` | 用 `/v3/api-docs` 反推存活权限身份，与 DB 对账 |
 | `apiexplore.js` | `%TEMP%` | OpenAPI 文档检索（`op`/`grep`/`tag`） |
 
