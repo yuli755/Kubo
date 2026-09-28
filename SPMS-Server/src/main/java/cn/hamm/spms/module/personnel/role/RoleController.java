@@ -32,7 +32,9 @@ public class RoleController extends BaseController<RoleEntity, RoleService, Role
     @PostMapping("authorizePermission")
     public ApiResponse<Void> authorizePermission(@RequestBody @Validated({WhenAuthorizePermission.class, WhenIdRequired.class}) RoleEntity role) {
         service.update(role);
-        return ApiResponse.success("授权菜单成功");
+        // 文案曾误抄自上面的 authorizeMenu，导致管理员授权「权限」时弹出「授权菜单成功」，
+        // 在两个弹窗连着用的场景下会让人以为保存到了错误的一侧。
+        return ApiResponse.success("授权权限成功");
     }
 
     @Override
