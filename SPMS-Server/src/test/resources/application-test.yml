@@ -16,6 +16,12 @@ spring:
   # 禁用缓存，避免 airpower RedisConfigurer bean 冲突
   cache:
     type: none
+  # 测试库是 H2（MODE=MySQL）+ schema-test.sql 内联建表；db/migration 下是 MySQL 方言
+  # （存储过程、information_schema 探测），在 H2 上跑不了也不该跑 —— 关掉。
+  # ⚠️ 生产 schema 变更**不允许**走 schema-test.sql：它只是测试子集，
+  #    真正的事实源是 db/migration（见 docs/database/Flyway-S0·基线与收编.md）。
+  flyway:
+    enabled: false
 
 # 禁用 Redis / MQTT（测试时使用内存 Map 代替）
 airpower:
@@ -40,10 +46,6 @@ kubo:
   data-permission:
     factory-dimension-enabled: false
 
-# 测试库是 H2（MODE=MySQL）+ schema-test.sql 内联建表；db/migration 下是 MySQL 方言
-# （存储过程、information_schema 探测），在 H2 上跑不了也不该跑 —— 关掉。
-# ⚠️ 生产 schema 变更**不允许**走 schema-test.sql：它只是测试子集，
-#    真正的事实源是 db/migration（见 docs/database/Flyway-S0·基线与收编.md）。
-spring:
-  flyway:
-    enabled: false
+# 注：spring.flyway.enabled=false 已上移合并进文件开头唯一的 spring: 块。
+# 此前本处又写了一个顶层 spring:，YAML 不允许重复键，SnakeYAML 直接抛
+# DuplicateKeyException，导致所有 @SpringBootTest 上下文加载失败（约 100 个测试报错）。

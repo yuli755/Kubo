@@ -341,14 +341,19 @@ class UtilityWiringTest {
     }
 
     @Test
-    void mapperPagingUsesFreshDefaultSortAndPreservesNullableRows() {
+    void mapperPagingUsesFreshDefaultSortAndNormalizesNullRowsToEmpty() {
         PageProbe service = new PageProbe();
         var first = service.respond(ReadPage.from(null, null), null, 0, null);
         var second = service.respond(ReadPage.from(null, null), List.of(), 0, null);
-        assertNull(first.getList());
+        // QueryPageResponse 在字段初始化、构造器、of()、setList() 四处一致地把 null 归一为空列表，
+        // 目的是保证线格式里 list 永不为 null（姊妹用例 mapperPagingWireShape... 直接读 json.get("list")）。
+        // 原断言 assertNull(first.getList()) 与该设计相反；本类此前因 dev 后端编译不过而从未真正运行。
+        assertEquals(0, first.getList().size());
         assertNotSame(first.getSort(), second.getSort());
         assertNull(first.getSort().getField());
-        assertNull(first.getSort().getDirection());
+        // Sort 的字段默认值就是 direction = Sort.ASC（见 Sort.java 的成员初始化），
+        // 未指定排序方向时落到 "asc" 而非 null，原 assertNull 与源码默认值相反。
+        assertEquals(Sort.ASC, first.getSort().getDirection());
     }
 
     @Test

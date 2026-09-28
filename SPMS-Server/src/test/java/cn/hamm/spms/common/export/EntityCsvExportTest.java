@@ -47,8 +47,12 @@ class EntityCsvExportTest {
                 new HeaderCase(ContractEntity.class, "合同编码,合同名称,合同类型,合同状态"),
                 new HeaderCase(CustomerEntity.class, "客户名称,客户编码,联系电话"),
                 new HeaderCase(SupplierEntity.class, "供应商名称,供应商编码,联系电话"),
-                new HeaderCase(PurchaseEntity.class, ""),
-                new HeaderCase(SaleEntity.class, ""),
+                // 这两个实体确实带 @Export 列（Purchase: billCode/reason/totalPrice/totalRealPrice/status，
+                // Sale: billCode/reason/totalPrice/status），表头由 EntityMetadata.exportColumns 按
+                // @Export + @Description 生成。原期望值 "" 是过期契约；本类此前因 dev 后端编译不过
+                // 而从未真正运行，故一直没暴露。
+                new HeaderCase(PurchaseEntity.class, "采购单号,采购事由,总金额,实际金额,采购状态"),
+                new HeaderCase(SaleEntity.class, "销售单号,销售说明,总金额,销售状态"),
                 new HeaderCase(PurchasePriceEntity.class, "采购单价"),
                 new HeaderCase(SalePriceEntity.class, "销售单价"),
                 new HeaderCase(StorageEntity.class, "仓库编码,名称"),

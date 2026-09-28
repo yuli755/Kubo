@@ -48,7 +48,9 @@ public class ApplicationTest {
 
     public void test(int i) {
         log.info("{}", i);
-        redisHelper.runWithLock("xxx_" + (i % 3), () -> {
+        // runWithLock 的签名是 (lockKey, timeoutSeconds, action)，此前漏传超时秒数导致编译不过。
+        // 取 5 秒：与 InputService 等业务调用一致，且足够覆盖下面 1 秒的 sleep。
+        redisHelper.runWithLock("xxx_" + (i % 3), 5, () -> {
             log.info("Locked {}", i);
             try {
                 Thread.sleep(1000);

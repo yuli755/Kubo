@@ -215,9 +215,13 @@ public final class HttpErrorContracts {
     }
 
     private static void guardParity() {
+        // ErrorCode.whenEmpty 的口径是「取 toString 后判 isBlank」，其源码注释明确写着
+        // 「不把空集合/0/false 自变成空值」——即 List.of() 的 toString 是 "[]"，非空白，不该抛错。
+        // 原判定把空集合也算进「应抛错」一侧，与源码契约相反，故移除该分支；
+        // List.of() 落到 else 分支断言 f == null，正是当空集合不触发 whenEmpty 的语义。
         for (Object value : new Object[]{null, "", " ", "\u3000", "x", 0, false, List.of()}) {
             Failure f = owned(error -> error.whenEmpty(value));
-            if (value == null || "".equals(value) || " ".equals(value) || "\u3000".equals(value) || (value instanceof List<?> l && l.isEmpty())) {
+            if (value == null || "".equals(value) || " ".equals(value) || "\u3000".equals(value)) {
                 check(f != null);
                 equal(4002, f.code());
             } else {
@@ -250,7 +254,7 @@ public final class HttpErrorContracts {
         @GetMapping("/contract/login-failed") public ApiResponse<?> loginFailed() { CustomError.USER_LOGIN_ACCOUNT_OR_PASSWORD_INVALID.show(); return null; }
         @GetMapping("/contract/not-found") public ApiResponse<?> notFound() { Errors.DATA_NOT_FOUND.show(); return null; }
         @GetMapping("/contract/options") public ApiResponse<?> options() { Errors.SERVICE_ERROR.show("bad enum", List.of(Map.of("key", 1, "label", "option"))); return null; }
-        @GetMapping("/contract/business") public ApiResponse<?> business() { throw new BusinessException(4036, "business disabled"); }
+        @GetMapping("/contract/business") public ApiResponse<?> business() { throw new BusinessException(4036, "business disabled", null); }
         @GetMapping("/contract/unexpected") public Object unexpected() { throw new IllegalStateException("not a business failure"); }
         @GetMapping("/contract/duplicate") public Object duplicate() { throw constraint("Duplicate entry 'x' for key 'idx'"); }
         @GetMapping("/contract/child-reference") public Object childReference() { throw constraint("Cannot add or update a child row"); }
