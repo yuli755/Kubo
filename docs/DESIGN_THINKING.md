@@ -32,7 +32,7 @@
 
 ---
 
-## 2. 需求 → 逻辑拆解 → 方案选型 → 风险预判（8 个真实案例）
+## 2. 需求 → 逻辑拆解 → 方案选型 → 风险预判（9 个真实案例）
 
 每个案例的固定结构：**需求原话**（用户/报告怎么说的）→ **逻辑拆解**（问题的真实形状）→
 **方案选型**（候选与取舍）→ **风险预判**（会怎么坏、拿什么守）→ **验证**（怎么证明修好了）。
@@ -343,6 +343,60 @@ All files 84.08% stmts / 79.22% branch（阈值 75%）、`build` 2443 modules / 
 
 ---
 
+### 案例 I：错误码分流 —— 先确认「后端怎么表达失败」，再写前端（本文 R9 / P1-2）
+
+**需求原话**：本文 §5 R9「前端缺 403/4002 的全局处理，`src/framework/http.ts` 仅有注释」、§6 P1-2「按码分流：403 → 无权限说明与申请入口；4002 → 表单定位」。
+
+**逻辑拆解**：动手写前端之前先问三件事，顺序错了就会写出漂亮的死代码。
+
+1. **后端到底怎么表达失败？** 读三个 advice（`BusinessExceptionAdvice` / `RequestBindingExceptionAdvice` /
+   `DataIntegrityViolationAdvice`）——全部标了 `@ResponseStatus(HttpStatus.OK)`，注释写明「沿用 HTTP 200 + 业务码，
+   不擅自改成真实 401/403」。也就是说 `axios.ts` 里 `switch (status)` 的 `case 403` / `case 422`
+   对后端业务错误是**死分支**，真正承接的是「HTTP 200 但 code≠200」那一支 —— 而那一支此前**只 reject、不提示**。
+2. **不信推断，真机抓取**（本机 8080，admin 与受限账号张三两个身份）：
+
+   | 探针 | 实测结果 |
+   | --- | --- |
+   | `POST /user/login {"email":"","password":"x"}` | **HTTP 200** `code=4002` `请确认传入有效的邮箱或手机号` |
+   | `POST /user/login`（密码错） | **HTTP 200** `code=200001` `用户账号或密码错误` |
+   | `POST /permission/getList`（张三，无该权限） | **HTTP 200** `code=403` `你无权访问 权限-不分页查询 (Permission_getList)` |
+   | 同一端点用 admin | **HTTP 200** `code=200` `获取成功` |
+
+   第三条是意外收获：**403 文案里带着权限码**。于是指引可以写成「请联系管理员为当前角色开通权限「Permission_getList」」——
+   用户截图给管理员，管理员直接搜到那一条授权，不必再猜"到底是哪个权限"。
+3. **用户需要知道的是"下一步做什么"，不是"失败了"**：403 → 开通哪条、找谁；4002 → 哪一项错了
+   （长表单里只弹一句文字，用户还得自己翻）。
+4. **加提示前先查会不会造成双份提示** → 查出 `RequestConfig.showError` / `customErrorHandler` 声明了却从没被读过，
+   且 `framework/http.ts` 的 `send()` 组装配置时没带 `showError`，`hideError()` / `throwError()` 是**空操作**。
+   先修通道，再加提示。
+
+**方案选型**：
+
+| 决策点 | 备选 | 选择与理由 |
+| --- | --- | --- |
+| 「码 → 文案」放哪 | 散在各调用点 / 拦截器里 switch / 独立纯逻辑模块 | **独立 `src/api/errorPolicy.ts`**：散在调用点会让同类错误在不同页面说法不一；写在拦截器里无法穷举测试（要挂 jsdom + mock axios）；纯函数可在 node 下逐码断言，也已纳入覆盖率 include |
+| 403 指引 | 通用一句「请联系管理员」 / 带权限码 | **能解析出权限码就带上**，解析不出退回通用话术（不硬编一个假码） |
+| 并发失败 | 每条都弹 / 同一「码+接口」窗口内一次 | **3s 去重**：列表页常并发 3~5 个请求，没权限时同时失败，逐条弹就是 5 条同样的红条糊屏。但**字段定位信号不去重** —— 弹窗可以省，把出错项滚到视野内不该省 |
+| 字段定位怎么传到表单 | 拦截器直接拿 formRef / 全局事件总线 / 模块级 ref 信箱 | **ref 信箱**（`src/stores/fieldError.ts`）：拦截器拿不到 formRef；事件总线无类型约束、容易漏 off；一个瞬时信号用模块级 `ref` 足够，测试可直接 import（Pinia 还得先 `setActivePinia`）。不用 Pinia 的判据是「它要不要活着穿过路由」 |
+| 静默口子 | 只按码静默 / 只按调用方意图静默 | **两者都要**：200001 由登录页自己呈现（按码）；`hideError()` 的调用点自己 catch（按意图）。少任何一个都会出现双份提示 |
+
+**风险预判**：
+- 文案里带后端原文有信息泄露面 → 500 类指引统一要求提供 **traceId**（而非堆栈）；数据库约束类消息由后端
+  `DataIntegrityViolationAdvice` 负责改写成用户可读文案，前端不再兜底拼接 SQL 片段。
+- 去重窗口太长会吞掉用户重试后的新错误 → 取 3s，并暴露 `resetNotifyDedupe()` 供「手动重试」清空。
+- 字段名解析错会把用户带到无关输入框 → 解析不出就不定位（宁缺勿错），消费方还要再校验该字段真在本表单的 `fields` 里。
+- `scrollToField` 依赖 `ElFormItem` 的 `prop` 与后端字段名同源（本项目确实同源：`prop` 就是实体属性名），
+  一旦有人改前端 key 命名就会静默失效 → 消费前的 `fields.some(...)` 校验能让它"不生效"而不是"跳错地方"。
+
+> **可复用的教训**：做前端错误处理之前，先确认后端用 **HTTP 状态码**还是**业务码**表达失败。
+> 这条前提错了，写得再漂亮的 `switch (status)` 都是死代码 —— 本仓的 `case 403` 就这样静静躺了很久，
+> 每个人都以为它在生效。判定方法很便宜：抓一次真实响应看 `HTTP status` 与 body 里的 `code` 是否一致。
+
+**验证**：新增/扩充 4 个 spec 共 **52 例**（errorPolicy 24 · fieldError 6 · httpOption 5 · axios 拦截器扩 10 等），
+真机抓取的四类响应码与文案作为夹具写进用例；`pnpm lint:ci` 0 error、`pnpm typecheck` 干净、`pnpm check` 全链复跑。
+
+---
+
 ## 3. 可复用的现成方案（先找轮子，再造轮子）
 
 本项目已有的可复用资产，按「用它而不是自己写」的优先级排列：
@@ -384,6 +438,9 @@ All files 84.08% stmts / 79.22% branch（阈值 75%）、`build` 2443 modules / 
 | **三态而非布尔** | `boolean done = flag != null && flag.isDone()` | `Boolean flag`（`null` = 行不存在） | 「明确说没有」与「还没这一行」是两件事，合并会引入过渡漏洞 | `DevDataInitGateTest` |
 | **常量化 + 棘轮** | 每处写死 `rgba(0,0,0,.02)` | `var(--kubo-shadow-sm)` + CI 扫描 | 暗色适配与全局改视觉都只需改一处 | `designTokenContract.spec.ts` |
 | **注释写「为什么」和「别改回去的理由」** | `// 设置阴影` | 写明载荷性约束（如 `@import` 提升与 `@use` 顺序冲突）与踩过的坑 | 没有理由的约束会被后人当冗余清掉 | 代码评审 |
+| **先确认失败的表达方式** | 用 `switch (httpStatus)` 处理后端业务错误 | 先抓一次真实响应：本仓业务失败是 **HTTP 200 + 业务码**，分流必须挂在 `code≠200` 那一支 | 前提错了整段代码是死的，而且"看起来在生效"（`case 403` 就这么躺了很久） | `errorPolicy.spec.ts` + 真机探针（案例 I） |
+| **提示要可操作** | `ElMessage.error('没有权限访问')` | `无权限：你无权访问 权限-不分页查询（请联系管理员为当前角色开通权限「Permission_getList」）` | 用户要的是"下一步做什么"；带上权限码，管理员搜一下就能开通 | `errorPolicy.spec.ts` 用真机文案作夹具 |
+| **选项要真的传下去** | `hideError()` 只改内部字段，`send()` 组装配置时不带它 | 下发 `showError`，并逐项断言最终 config | 名不副实的选项比没有选项更坏：调用方以为自己静默了，实际收到双份提示 | `httpOption.spec.ts` |
 
 ---
 
@@ -399,7 +456,7 @@ All files 84.08% stmts / 79.22% branch（阈值 75%）、`build` 2443 modules / 
 | R6 | `updateDetailQuantity` 吞掉所有异常 | 传入的 `detailCheck` 抛任何异常都被 `catch { continue; }` | `BillDetailQuantityFilterTest`（4 例） | ✅ 已处置 | 已改为 `Predicate<E> detailFilter`：返回 false 跳行，异常照常冒泡（提交 `3b3b7e35`） |
 | R7 | 错误码语义漂移 | 新代码用 403 表达输入错误 | 同文件先例注释 | 无自动化 | 见 §6 P2-1：补一条「FORBIDDEN 只用于授权边界」的源码扫描 |
 | R8 | 退场模块的历史表长期滞留 | `ddl-auto=update` 不删表：`bom`/`device`/`operation`/`picking`/`plan`/`routing`/`room`/`member`/`orders` 等仍在库里且仍有历史行 | V12/V13 清了目录，没清表 | 新人会以为这些域还在 | 见 §6 P2-2：出一份「遗留表清单 + 观察期后 DROP 的迁移」文档 |
-| R9 | 前端缺 403/4002 的全局处理 | 后端返回 403/4002 时前端只有通用提示 | `src/framework/http.ts` 仅有注释 | 用户看不到可操作的指引 | 见 §6 P1-2：按码分流（403 → 无权限说明页/申请入口；4002 → 表单定位） |
+| R9 | 前端缺 403/4002 的全局处理 | 后端返回 403/4002 时前端只有通用提示 | `errorPolicy.spec.ts`（24 例）+ axios 拦截器 10 例 | ✅ 已处置 | 已按码分流：403 带**权限码**的开通指引、4002 解析字段名并把出错项滚到视野内、并发失败 3s 去重（提交见 §8；案例 I） |
 | R10 | `pnpm check` 21 步链从未整体跑通 | 一次性全跑可能暴露步骤间依赖/端口冲突 | **本轮已整体跑通：20 步全绿，退出 0，210.4s** | ✅ 已处置 | 见案例 H：链路原先断在第 1/4/6/8 步（lint、pom:check、exports:check、覆盖率闸门），四处断点分别判定「代码错 vs 守卫错」后修通（提交 `bef31e7d` / `e305a657` / `fix(test) appConfig`） |
 
 ---
@@ -418,9 +475,12 @@ All files 84.08% stmts / 79.22% branch（阈值 75%）、`build` 2443 modules / 
    「数量按行消耗且全部完成后回写单据状态」「写库故障冒泡」；`mvn -o clean test` 911/0/1。
    *踩坑备忘*：测试实体必须给不同 id —— `BaseEntity` 的 `@EqualsAndHashCode` 按字段比较，
    两行 id 都为 null 时互相相等，Mockito 的 `verify(never())` 会把另一行的调用算成命中。
-2. **前端 403/4002 分流**（R9）
-   *验收*：`http.ts` 里按码分流有实现（不只是注释）；403 有明确的「无权限」界面与申请/联系入口；
-   4002 能把焦点定位到出错字段；`pnpm test` 有对应用例。
+2. **前端 403/4002 分流**（R9）—— ✅ **本轮已完成**（见案例 I）
+   *已满足的验收*：`src/api/errorPolicy.ts` 有按码分流的**实现**（不只是注释）；403 给出「开通哪条权限、找谁」
+   的可操作指引（权限码从后端真机文案里解析）；4002 解析出字段名 → `fieldError` 信箱 →
+   `KFormDialog` 用 EP 的 `scrollToField()` 把出错项滚到视野内；`pnpm test` 有 52 例对应断言。
+   *顺带修掉的死契约*：`showError` / `customErrorHandler` 此前声明了却没人读，`Http.send()` 也没下发
+   `showError` —— `hideError()` / `throwError()` 是空操作。不先修它，加全局提示就会让"自己 catch 的调用点"收到双份提示。
 3. **`pnpm check` 全链跑通**（R10）—— ✅ **本轮已完成**（见案例 H）
    *已满足的验收*：一条命令 **20 步全绿、退出码 0、总耗时 210.4s**（lint → airpower:check →
    airpower:backend → pom:check → deadcode:check → exports:check → typecheck → test:coverage →
@@ -465,15 +525,16 @@ All files 84.08% stmts / 79.22% branch（阈值 75%）、`build` 2443 modules / 
 | --- | --- | --- |
 | 后端单测/契约 | `$env:JAVA_HOME='D:\JAVA\JDK\jdk-18.0.2.1'; mvn -B -o clean test`（在 `SPMS-Server/`） | `Tests run: 911, Failures: 0, Errors: 0, Skipped: 1` + `BUILD SUCCESS` |
 | 前端类型 | `pnpm typecheck`（vue-tsc） | 无输出即通过 |
-| 前端测试 | `pnpm test` | `Test Files 67 passed (67)` / `Tests 731 passed (731)` |
-| 前端覆盖率闸门 | `pnpm test:coverage` | 退出 0；All files 84.08% stmts / **79.22% branch** / 84.07% funcs（阈值 lines 50 / funcs 65 / stmts 50 / **branch 75**） |
-| 前端构建 | `pnpm build` | `✓ built in ~34s`（2443 modules） |
-| **全链（20 步）** | `pnpm check` | **退出码 0，总耗时 ~210s**；任一步红即中断，只暴露第一个断点（定位用同名单步脚本，见案例 H） |
+| 前端测试 | `pnpm test` | `Test Files 70 passed (70)` / `Tests 770 passed (770)` |
+| 前端覆盖率闸门 | `pnpm test:coverage` | 退出 0；All files 85.14% stmts / **81.16% branch** / 85.23% funcs（阈值 lines 50 / funcs 65 / stmts 50 / **branch 75**） |
+| 前端构建 | `pnpm build` | `✓ built in ~39s`（2443 modules） |
+| **全链（20 步）** | `pnpm check` | **退出码 0，总耗时 ~203s**；任一步红即中断，只暴露第一个断点（定位用同名单步脚本，见案例 H） |
 | 部署预演 | `pnpm deploy:drill` | 19 项全通过 |
 | 迁移/DDL 一致性 | `pnpm migration:check`、`pnpm ddl:check` | 全绿 |
 | 真机（启动） | `Start-Process cmd.exe "/c set JAVA_HOME=...&& mvn -B spring-boot:run > log 2>&1"` | 端口 8080 就绪；日志含「权限目录已收敛」「演示数据已初始化（数据源标志位已置位）」 |
 | 真机（登录） | `POST /user/login {"email":"admin@hamm.cn","password":"Aa123456"}` | `code=200`，token 长度 83；手机号 `17666666666` 同样 200 |
 | 真机（数据） | `mysql -h 127.0.0.1 -uroot -proot kubo -e "..."` | `data_resource`=17、`data_policy`=65、`permission`=309、`role_permission_list`=370、孤儿 0 |
+| 真机（错误码） | 受限账号 `POST /permission/getList`；空账号 `POST /user/login` | 均为 **HTTP 200**：`code=403` `你无权访问 权限-不分页查询 (Permission_getList)`；`code=4002` `请确认传入有效的邮箱或手机号`（案例 I 的设计前提） |
 
 **踩坑备忘（省后来人的时间）**：
 - `mvn test` 与真机冒烟**不要并发**：`mvn clean` 会清 `target/`，运行中的后端会失联（本轮出现过
@@ -492,7 +553,19 @@ All files 84.08% stmts / 79.22% branch（阈值 75%）、`build` 2443 modules / 
   转换 + 覆盖率插桩算进 `testTimeout`（30s），在 `test:coverage` 叠加机器负载时随机超时。
   没有 `vi.resetModules()` 的顺序需求就用顶层静态导入；确实需要长超时的（如 `menuSmoke.probe` 55~67s）
   按仓库既有做法给该用例单独传超时，不要动全局值；
-- 写完新 spec 记得跑 `pnpm lint:ci`：`pnpm test` 不检查排版，而 `pnpm check` 的第 1 步就是它。
+- 写完新 spec 记得跑 `pnpm lint:ci`：`pnpm test` 不检查排版，而 `pnpm check` 的第 1 步就是它；
+- PowerShell 函数里**别用 `Write-Output` 打进度**：它会并进函数的返回值（调用方一旦 `| Out-Null`
+  或赋值给变量，进度行就全没了，看起来像"什么都没发生"）。要打印用 `Write-Host`，
+  或者把返回值与日志分成两条管道；
+- 跑 `pnpm check` 时**别并发别的重活**（后端 JVM、另一个 vitest、`mvn`）：`test:coverage` 的 worker 会被压到
+  `FATAL ERROR: AlignedAlloc Allocation failed - process out of memory`，pnpm 报
+  `exit 3221226505`（即 `0xC0000409`）。这**不是测试失败**，是进程被内存压死 ——
+  处置是先停掉后端与残留的 node/java 进程再单独重跑，而不是去改用例或调阈值；
+- 后台任务莫名以 `exit 2` 结束、且没写出日志文件时，别急着重跑：先看是不是同一时刻有别的重活在抢内存。
+  要让日志一定落盘，用 `cmd /c "pnpm check > log 2>&1"` 直接重定向，而不是等脚本结束再 `WriteAllText`；
+- 新增导出前先想清楚"谁会 import 它"：`pnpm exports:check` 会把只有测试引用的**类型**导出也判为死导出
+  （本轮 `BusinessErrorKind` / `ClassifiedBusinessError` / `BusinessErrorInput` / `FieldErrorNotice` 四个都被拦），
+  按仓库约定先收回 `export`，等真有消费者再放开。
 
 ---
 
@@ -516,5 +589,6 @@ All files 84.08% stmts / 79.22% branch（阈值 75%）、`build` 2443 modules / 
 | `bef31e7d` | 修通 `pnpm check` 断掉的三步：lint（11 errors）、`pom:check`（BOM 白名单缺 `com.mysql:mysql-connector-j` 导致的**假问题**）、`exports:check`（死导出 7 → 0） | 本文 R10 / P1-3 |
 | `e305a657` | 补 palette / errorHandler 纯逻辑测试 21 例，分支覆盖率 74.39% → 79.22%（不下调阈值）；修掉 `vitest.config.ts` 里过期的基线注释 | 本文 R10 / P1-3（案例 H 断点 ④） |
 | `ef639042` | `appConfig.spec.ts` 改静态导入，消除 coverage 插桩下的 30s 超时抖动 | 本文 R10 / P1-3（案例 H 抖动） |
+| `71f2a24a` | 业务错误按码分流：403 带权限码指引、4002 字段定位、并发 3s 去重；顺带修掉 `showError`/`customErrorHandler` 死契约 | 本文 R9 / P1-2（案例 I） |
 
 > 处置细节与验证证据见 `docs/TEST_REPORT_2026-09-K.md` §4.0 台账。
