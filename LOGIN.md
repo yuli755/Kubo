@@ -117,31 +117,42 @@ pnpm dev
 
 ## 🔍 初始化触发条件
 
-演示数据初始化**仅在开发模式下**执行，需同时满足：
+演示数据初始化**仅在开发模式下**执行，判据以**数据源**为准：
 
 1. ✅ `AppConfig.isDevMode = true`
-2. ✅ 运行目录不存在 `init.lock`，**或** `spring.jpa.hibernate.ddl-auto = create-drop`
+2. ✅ `config` 表的 `DEV_DATA_INIT_DONE` 明确为「未初始化」（置 `0`），
+   **或** 该配置行还不存在且没有任何遗留证据（运行目录无 `init.lock`、库里也没有种子用户），
+   **或** `spring.jpa.hibernate.ddl-auto = create-drop`（显式要求重建）
 
-初始化完成后在运行目录生成 `init.lock`，避免重复初始化。
+优先级：`create-drop` > 数据源标志位 > 遗留证据（`init.lock` 或库里已有 id=1 的种子用户）。
+也就是说：**把标志位显式改回 `0`，无论锁文件在不在、库里有没有老数据，都会重新播种**；
+而标志位行还不存在的老库，只要看到锁文件或种子用户就跳过，不会被升级过程重新播种一遍。
+
+初始化完成后把 `DEV_DATA_INIT_DONE` 置 `1`，**不再写文件**。也可以在「系统配置」页把这一项
+改回 `0` 来触发下次启动重新初始化。
+
+> **为什么不用文件**：`init.lock` 是相对运行目录的路径 —— 在 `SPMS-Server/` 下启动，与从仓库根用
+> `mvn -f SPMS-Server/pom.xml spring-boot:run` 启动，锁文件会落在两个目录、互不相认，同一份库可能
+> 被重复初始化（演示数据翻倍），也可能被别处留下的锁文件挡住（K 报告 §4 P2-10）。标志位放进库里
+> 之后，幂等性与「从哪启动」彻底无关。老环境遗留的 `init.lock` 仍会被读**一次**：命中即跳过初始化，
+> 并把状态迁进数据源。
 
 **权限目录同步不受这两道闸限制**：`syncPermissionCatalog()` 在 `DevDataInitRunner#run` 的最前面执行，
-生产环境（`isDevMode=false`）与已有 `init.lock` 的本地环境同样会同步 —— 否则新增端点会因权限行未落库
+生产环境（`isDevMode=false`）与已初始化过的本地环境同样会同步 —— 否则新增端点会因权限行未落库
 而对所有人（含超管）返回 403。
-
-> ⚠️ `init.lock` 是**相对运行目录**的路径：从 `SPMS-Server/` 启动，与从仓库根用
-> `mvn -f SPMS-Server/pom.xml spring-boot:run` 启动，锁文件会落在不同目录。删除前先确认后端进程的
-> 实际工作目录（K 报告 §4 P2-10 已记录，建议后续改为基于数据源的标志位，与运行目录彻底解耦）。
 
 ---
 
 ## ⚙️ 重新初始化数据
 
-### 方式 1: 删除锁文件
-```powershell
-cd D:\JAVA\Code_repository\SPMS-Web\SPMS-Server
-Remove-Item init.lock        # bash: rm init.lock
+### 方式 1: 把标志位改回未初始化
+```bash
+mysql -u root -proot kubo -e "UPDATE config SET config='0' WHERE flag='DEV_DATA_INIT_DONE';"
+# 或在前端「系统配置」页把「演示数据已初始化」关掉
 # 重启后端即重新初始化
 ```
+
+> 删除遗留的 `init.lock` 已**不再足够**：状态迁进数据源后，标志位才是唯一判据。
 
 ### 方式 2: 清空数据库
 ```bash

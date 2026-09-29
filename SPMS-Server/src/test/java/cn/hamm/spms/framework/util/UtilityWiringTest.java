@@ -288,14 +288,19 @@ class UtilityWiringTest {
 
     @Test
     void configFlagKeysTypesAndDefaultsRemainUnchanged() {
-        assertEquals(List.of(1, 2, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20),
+        // key 21 = DEV_DATA_INIT_DONE（K 报告 §4 P2-10：演示数据初始化标志位从相对运行目录的
+        // init.lock 文件迁到数据源）。新增配置项必须显式改这两行清单 —— 这条守卫的作用就是
+        // 逼一次「我知道我加了什么、默认值是什么」的确认，别让它变成随手改数字。
+        assertEquals(List.of(1, 2, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21),
                 java.util.Arrays.stream(ConfigFlag.values()).map(ConfigFlag::getKey).toList());
-        assertEquals(List.of("1", "1", "1", "1", "0", "0", "0", "0", "0", "1", "0", "0"),
+        assertEquals(List.of("1", "1", "1", "1", "0", "0", "0", "0", "0", "1", "0", "0", "0"),
                 java.util.Arrays.stream(ConfigFlag.values()).map(ConfigFlag::getDefaultValue).toList());
         for (ConfigFlag flag : ConfigFlag.values()) {
             assertSame(ConfigType.BOOLEAN, flag.getType());
             assertSame(flag, ConfigFlag.valueOf(flag.name()));
         }
+        // 初始化标志位必须默认「未初始化」：默认 1 等于全新库永远不初始化
+        assertEquals("0", ConfigFlag.DEV_DATA_INIT_DONE.getDefaultValue());
     }
 
     @Test

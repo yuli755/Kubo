@@ -58,7 +58,6 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -104,10 +103,26 @@ public class DevDataInitRunner implements CommandLineRunner {
             log.info("非开发者模式，无需初始化数据");
             return;
         }
-        // 判断运行目录是否存在 init.lock 文件，如存在，则不初始化数据
+        // 初始化标志位以**数据源**为准（K 报告 §4 P2-10）。
+        //
+        // 此前判据是运行目录下的 init.lock 文件，而它是相对路径：在 SPMS-Server/ 下启动，
+        // 与从仓库根用 `mvn -f SPMS-Server/pom.xml spring-boot:run` 启动，锁文件会落在两个
+        // 不同目录、互不相认 —— 同一份库可能因换了工作目录而重复初始化（演示数据翻倍），
+        // 也可能明明没初始化过却被别处留下的锁文件挡住。库是唯一的共享事实，标志位就该放在库里。
+        //
+        // 遗留的 init.lock 仍会被读**一次**：命中就把状态迁进数据源（此后不再写文件），
+        // 让老环境无感过渡；`ddl-auto=create-drop` 仍然是「强制重建」的显式开关。
         String ddlAuto = "spring.jpa.hibernate.ddl-auto";
-        if (new File(LOCK_FILE).exists() && !CREATE_DROP.equals(environment.getProperty(ddlAuto))) {
-            log.info("已存在 init.lock 文件，无需初始化数据");
+        boolean rebuildSchema = CREATE_DROP.equals(environment.getProperty(ddlAuto));
+        Boolean flagInDataSource = readDevDataInitFlag();
+        boolean legacyLockFileExists = new File(LOCK_FILE).exists();
+        if (!shouldInitialize(flagInDataSource, legacyLockFileExists, isLegacySeedPresent(), rebuildSchema)) {
+            log.info("演示数据已初始化（{}），无需重复初始化", Objects.isNull(flagInDataSource)
+                    ? "遗留证据命中：init.lock 或种子用户已在库里，本次把状态迁入数据源"
+                    : "数据源标志位已置位");
+            if (Objects.isNull(flagInDataSource)) {
+                markDevDataInitDone();
+            }
             return;
         }
         initRootUser();
@@ -120,12 +135,78 @@ public class DevDataInitRunner implements CommandLineRunner {
         initRootAuthorization();
         menuService.initMenu();
         initDevData();
-        try {
-            //noinspection ResultOfMethodCallIgnored
-            new File(LOCK_FILE).createNewFile();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        markDevDataInitDone();
+    }
+
+    /**
+     * 是否需要执行演示数据初始化（纯函数：判据可脱离容器单测，见 {@code DevDataInitGateTest}）
+     *
+     * <p>三态而非布尔，是为了区分「数据源明确说没初始化过」与「数据源还没这一行」：</p>
+     * <ul>
+     *     <li>标志位行存在 ⇒ <b>以它为准</b>。管理员在「系统配置」里显式置 0 就是要重新播种，
+     *     遗留证据（锁文件、种子用户）不得否决这个意图；</li>
+     *     <li>标志位行不存在（老库）⇒ 看遗留证据：`init.lock` <b>或</b> 种子用户已在库里，
+     *     任一命中都算已初始化。只看锁文件是不够的 —— 它是相对运行目录的路径，
+     *     换个目录启动就看不见，老库会被重复播种（演示数据翻倍）；</li>
+     *     <li>{@code create-drop} 是显式重建，优先级最高。</li>
+     * </ul>
+     *
+     * @param flagInDataSource     数据源里的 {@link ConfigFlag#DEV_DATA_INIT_DONE}；{@code null} = 该行尚不存在
+     * @param legacyLockFileExists 运行目录是否还留着旧版 init.lock（仅过渡期兼容）
+     * @param legacySeedPresent    库里是否已有种子用户（与 {@link #initRootUser()} 的幂等判据同源）
+     * @param rebuildSchema        {@code ddl-auto=create-drop}：显式要求重建
+     * @return 是否执行初始化
+     */
+    static boolean shouldInitialize(Boolean flagInDataSource, boolean legacyLockFileExists,
+                                    boolean legacySeedPresent, boolean rebuildSchema) {
+        if (rebuildSchema) {
+            return true;
         }
+        if (Objects.nonNull(flagInDataSource)) {
+            return !flagInDataSource;
+        }
+        return !(legacyLockFileExists || legacySeedPresent);
+    }
+
+    /**
+     * 读数据源里的初始化标志位
+     *
+     * @return {@code true}/{@code false} = 已明确表态；{@code null} = 配置行还不存在（老库）
+     */
+    private Boolean readDevDataInitFlag() {
+        ConfigEntity config = SystemServices.getConfigService().getOrNull(ConfigFlag.DEV_DATA_INIT_DONE.name());
+        return Objects.isNull(config) ? null : config.booleanConfig();
+    }
+
+    /**
+     * 遗留证据：种子用户（id=1）是否已在库里
+     *
+     * <p>与 {@link #initRootUser()} 的 {@code getMaybeNull(1L)} 判据同源 —— 那里靠它避免重复建用户，
+     * 这里靠它识别「这个库早就初始化过，只是还没有标志位行」。</p>
+     *
+     * @return 种子用户是否存在
+     */
+    private boolean isLegacySeedPresent() {
+        return Objects.nonNull(PersonnelServices.getUserService().getMaybeNull(1L));
+    }
+
+    /**
+     * 把初始化标志位写进数据源（缺行则按 {@link ConfigFlag} 的元数据补建，有行则置 1）
+     */
+    private void markDevDataInitDone() {
+        ConfigService configService = SystemServices.getConfigService();
+        ConfigFlag flag = ConfigFlag.DEV_DATA_INIT_DONE;
+        ConfigEntity config = configService.getOrNull(flag.name());
+        if (Objects.isNull(config)) {
+            configService.addAndGet(new ConfigEntity()
+                    .setConfig(ConfigService.STRING_ONE)
+                    .setType(flag.getType().getKey())
+                    .setName(flag.getLabel())
+                    .setFlag(flag.name())
+                    .setDescription(flag.getDescription()));
+            return;
+        }
+        configService.updateToDatabase(config.setConfig(ConfigService.STRING_ONE));
     }
 
 

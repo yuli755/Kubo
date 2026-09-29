@@ -27,6 +27,9 @@ public enum ConfigFlag {
     ORDER_ENABLE_SUBMIT_WORK(18, "订单报工模式", BOOLEAN, "1", "开启订单报工模式后，工序将无法进行报工，此项开启则表示为粗放型报工管理模式"),
     ORDER_AUTO_START_AFTER_AUDIT(19, "订单审核后自动开始", BOOLEAN, "0", "开启此项后，订单创建即开始进入生产环节"),
     PICKING_BILL_AUTO_AUDIT(20, "领料单自动审核", BOOLEAN, "0", "开启此项后，创建领料单则进入领料中状态"),
+    DEV_DATA_INIT_DONE(21, "演示数据已初始化", BOOLEAN, "0",
+            "开发模式的演示数据是否已写入，由 DevDataInitRunner 自动置位（取代相对运行目录的 init.lock 文件）；"
+                    + "置 0 后重启会在开发模式重新初始化演示数据，生产环境 isDevMode=false 时本项不起作用"),
     ;
 
     private final int key;
