@@ -189,18 +189,22 @@ describe('schema 契约 · 实体 ↔ Flyway 基线', () => {
     )
   })
 
-  it('存量脚本按原日期顺序收编（V1 基线 + V2..V13，不能颠倒）', () => {
+  it('存量脚本按原日期顺序收编（V1 基线 + V2..V15，不能颠倒）', () => {
     // 按**版本号**排序（不能按文件名字典序：V10 < V2）
     const ordered = readdirSync(MIGRATION_DIR)
       .filter(file => file.endsWith('.sql'))
       .map(file => file)
       .sort((a, b) => Number(a.match(/^V(\d+)/)![1]) - Number(b.match(/^V(\d+)/)![1]))
     expect(ordered[0]).toBe('V1__baseline_schema.sql')
-    expect(ordered.at(-1)).toBe('V13__retired_resource_policy_convergence.sql')
+    expect(ordered.at(-1), '最后一个迁移必须是下面这份清单的末项（新增脚本只能追加在尾部）')
+      .toBe('V15__operation_log_action_vocabulary.sql')
     // 历史脚本必须保持原日期序：V2..V10 的描述里带日期或语义顺序。
     // V11/V12 是 2026-09-28 真机联调后新增的修复脚本，V13 是其后的退场资源收敛，
+    // V14/V15 是 2026-09-30 那一轮（隐形过滤条件 P0 + 审计动作词表）新增的，
     // 一律追加在尾部，不得插入历史序列中间
     // （Flyway 已应用的历史版本号一旦重排，存量库会报 checksum mismatch 或跳过迁移）。
+    // ⇒ 新增迁移时：把文件名追加到这份清单末尾，并同步上面 `at(-1)` 的期望。
+    //   这条用例会红是**设计如此**——它要求你确认「我加的是尾部新脚本，不是改历史」。
     expect(ordered.slice(1)).toEqual([
       'V2__data_permission_migrations.sql',
       'V3__operation_log.sql',
@@ -214,6 +218,8 @@ describe('schema 契约 · 实体 ↔ Flyway 基线', () => {
       'V11__is_published_column_default.sql',
       'V12__retired_module_catalog_convergence.sql',
       'V13__retired_resource_policy_convergence.sql',
+      'V14__menu_unpublish_canonical_groups.sql',
+      'V15__operation_log_action_vocabulary.sql',
     ])
   })
 })

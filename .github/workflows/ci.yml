@@ -112,6 +112,15 @@ jobs:
       - name: Error code semantics (403 is not a catch-all failure code)
         run: pnpm errcode:check
 
+      # 前端拼出的每个端点都必须存在于后端路由表。基路径来自自定义 @Api、端点集合来自 @Extends 显式开关，
+      # 全后端零路径变量（一律 POST /{base}/{action}，参数在 body）—— 拼错就是真机 HTTP 404，
+      # 而 Spring 默认 404 响应体没有 code/message，页面只能说「请求失败」。
+      # 历史上已废掉三处：getTreeList（写成 getList 的悬空别名）、getDetail/{id}（编辑回填全挂）、
+      # setBillDetailsAllFinished（服务内部方法，不是接口）。演示 mock 与单测都拦不住：mock 对末段数字特判，
+      # 单测断言的是前端自己拼的字符串。
+      - name: API contract (frontend endpoints must exist in backend route table)
+        run: pnpm contract:check
+
       # 两类"文本级但没人管"的问题：中文被 U+FFFD 污染（不影响编译，只在页面上显形）、
       # Java 源码里的单反斜杠转义（影响编译，但沙箱没有 JDK —— 见 docs §18.2 与 §19.9）
       - name: Source text integrity (encoding / Java literals / gate self-test)
