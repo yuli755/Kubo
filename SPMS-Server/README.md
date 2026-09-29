@@ -11,9 +11,23 @@
 
 ## Kubo · 智方 (后端项目)
 
-**Kubo** 智能生产管理系统后端项目，基于 **Java 17 + Spring Boot 3 + MySQL 8 + JPA** 开发，依赖 **AirPower4J** 基础框架。
+**Kubo** 智能生产管理系统后端项目，基于 **Java 17 + Spring Boot 3.4.4 + MySQL 8 + JPA** 开发，
+底座完全自持（AirPower 依赖 0 残留，构建由官方 `spring-boot-dependencies` BOM 管理）。
 
-集成了 MES、WMS、ERP、QMS、IoTS 等核心生产管理模块，实现从采购、生产、仓储到销售全流程的信息化管理。
+当前已落地 6 个业务模块，覆盖从采购、仓储到销售全流程的信息化管理：
+
+| 模块 | 内容 |
+| --- | --- |
+| `wms` | 入库、出库、移库、库存 |
+| `channel` | 采购单、销售单、客户、供应商、采购/销售价格 |
+| `factory` | 仓库、产线/工位（树形结构） |
+| `asset` | 合同（参与方/附件）、物料 |
+| `personnel` | 用户、角色、部门 |
+| `system` | 菜单、权限目录、数据权限（行级+列级）、配置、编码规则、通知、操作日志 |
+
+> MES / ERP / QMS / IoT / 聊天室 / 设备台账等域已整体退场：菜单与权限身份由
+> `V12__retired_module_catalog_convergence.sql` 收敛，数据权限目录里的残留资源与策略由
+> `V13__retired_resource_policy_convergence.sql` 收敛。
 
 ## 快速开始
 

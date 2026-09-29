@@ -334,7 +334,8 @@ public class UserController extends BaseController<UserEntity, UserService, User
     }
 
     /**
-     * 解析登录账号（防爆破的账号维度）。账号密码 / 邮箱验证码登录以邮箱为维度，
+     * 解析登录账号（防爆破的账号维度）。账号密码登录取调用方传入的账号原值（邮箱或手机号，
+     * 见 {@link UserService#loginViaEmailAndPassword}）；邮箱验证码登录以邮箱为维度，
      * 手机验证码登录以手机号为维度；为空时守卫内部会跳过（由参数校验拦截）。
      *
      * @param userLoginType 登录方式

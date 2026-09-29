@@ -409,16 +409,29 @@ public class UserService extends BaseService<UserEntity, UserRepository> {
     }
 
     /**
-     * 邮箱密码登录
+     * 账号密码登录（账号 = 邮箱或手机号）
      *
-     * @param email    邮箱
+     * <p>为什么手机号也算账号：登录页「账号密码」页签的占位符与校验（{@code login.vue} 的
+     * 「账号 / 邮箱 / 手机号」+ {@code isNaturalNumber}）与 {@code LOGIN.md} 都把手机号当账号展示，
+     * 但此前这里只按邮箱查 —— 用户输入手机号会得到 {@code 200001 用户账号或密码错误}，
+     * 把「账号形态不支持」误报成「密码错」，是个查不出原因的死胡同（K 报告 §4 P2-8 实测复现）。</p>
+     *
+     * <p>口径：邮箱查不到再按手机号查。刻意<b>不做格式预判</b>（{@code PhoneRules.OPTIONAL_PHONE}
+     * 只覆盖手机号，座机/区号写法会被漏掉，而多查一次空结果的代价可以忽略）；{@code phone} 自
+     * {@code V8__user_email_phone_unique_null_default.sql} 起是唯一键，命中至多一行。两种形态都查不到
+     * 时仍统一返回 200001，不向外暴露「这个账号存在与否」。</p>
+     *
+     * @param account  邮箱或手机号（调用方传入的账号原值）
      * @param password 密码
      * @return 登录成功的用户
      */
-    public UserEntity loginViaEmailAndPassword(String email, String password) {
-        PARAM_INVALID.whenEmpty(email, "请确认传入有效的邮箱");
+    public UserEntity loginViaEmailAndPassword(String account, String password) {
+        PARAM_INVALID.whenEmpty(account, "请确认传入有效的邮箱或手机号");
         PARAM_INVALID.whenEmpty(password, "请确认传入有效的密码");
-        UserEntity existUser = repository.getByEmail(email);
+        UserEntity existUser = repository.getByEmail(account);
+        if (existUser == null) {
+            existUser = repository.getByPhone(account);
+        }
         USER_LOGIN_ACCOUNT_OR_PASSWORD_INVALID.whenNull(existUser);
         // 将用户传入的密码加密与数据库存储匹配
         String encodePassword = PasswordHasher.encode(password, existUser.getSalt());

@@ -70,10 +70,10 @@ pnpm dev                      # 启动开发服务器（默认 3000，/api 代�
 | 环境 | `spring.jpa.hibernate.ddl-auto` | 建表与迁移方式 |
 | --- | --- | --- |
 | `application-local.yml` | `update` | JPA/Hibernate 自动建业务表，Flyway 增量补充迁移脚本（开发用） |
-| `application.yml` / `application-production.yml` | `validate` | **不自动改表、校验结构**；由 Flyway 自动执行 `db/migration/` 下版本化迁移脚本（V1~V10） |
+| `application.yml` / `application-production.yml` | `validate` | **不自动改表、校验结构**；由 Flyway 自动执行 `db/migration/` 下版本化迁移脚本（V1~V13） |
 
 **生产上线或离线导入**：
-Flyway 会在应用启动时自动执行 `SPMS-Server/src/main/resources/db/migration/` 下的 V1~V10 脚本；
+Flyway 会在应用启动时自动执行 `SPMS-Server/src/main/resources/db/migration/` 下的 V1~V13 脚本；
 若需在部署前手动预刷库，可直接执行合并迁移脚本：
 
 ```bash
@@ -81,7 +81,7 @@ mysql -u root -p kubo < SPMS-Server/docs/database/migration/20260909_data_permis
 ```
 
 该脚本只建 `data_*` / `tenant` / `user_tenant` / `user_factory` 等增量表并回填归属列；
-`user`/`permission`/`bom`/`contract` 等业务表仍由 JPA 建（validate 只校验结构，不建表）。
+`user`/`permission`/`material`/`contract` 等业务表仍由 JPA 建（validate 只校验结构，不建表）。
 详情见 [WHY_NO_SQL.md](./WHY_NO_SQL.md) 与 [SPMS-Server/docs/README.md](./SPMS-Server/docs/README.md)。
 
 ---
