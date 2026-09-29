@@ -251,7 +251,7 @@ describe('f4 · 批 4 单据闭环（审核 / 驳回 / 作业）', () => {
     return { request, api }
   }
 
-  it('审核 / 驳回 / 作业 / 一键完成的端点与载荷与后端一致', async () => {
+  it('审核 / 驳回 / 作业的端点与载荷与后端一致（「一键完成」不是接口）', async () => {
     const { KMoveService } = await import('@/model/wms/move/KMoveService')
     const { request, api } = await spyRequest(KMoveService)
     const service = new KMoveService()
@@ -270,8 +270,15 @@ describe('f4 · 批 4 单据闭环（审核 / 驳回 / 作业）', () => {
     expect(api).toHaveBeenLastCalledWith('addFinish')
     expect(request).toHaveBeenLastCalledWith({ id: 31, quantity: 4 })
 
-    await service.setBillDetailsAllFinished({ id: 9 } as never)
-    expect(api).toHaveBeenLastCalledWith('setBillDetailsAllFinished')
+    /**
+     * 负向断言：`setBillDetailsAllFinished` 在后端只是 `AbstractBaseBillService` 的内部方法
+     * （最后一条明细完成时由 `BaseBillDetailService.addFinishQuantity` 调用），
+     * **没有对应的 @PostMapping**。前端曾经声明过同名方法与 `urlSetBillDetailsAllFinished`，
+     * 调用它只会得到 HTTP 404（响应体没有 code/message，页面只能说「请求失败」），
+     * 而且它与库存搬运本属同一事务，单独开端点等于允许不动库存就把单据改成已完成。
+     * 这里锁住「不许长回来」，与 `contract:check` 规则 C 互为双保险。
+     */
+    expect('setBillDetailsAllFinished' in service, '前端又声明了 setBillDetailsAllFinished：后端没有这个路由').toBe(false)
   })
 
   it('移库列表：审核要二次确认，驳回要填原因再确认（两步都不能省）', async () => {

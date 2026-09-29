@@ -5,7 +5,7 @@ import { InputEntity } from './InputEntity'
 /**
  * # 入库单服务（新底座）
  *
- * 四个单据动作（审核 / 驳回 / 添加完成数量 / 一键完成）由 `AbstractBillService` 提供，
+ * 三个单据动作（审核 / 驳回 / 添加完成数量）由 `AbstractBillService` 提供，
  * 这里只剩接口地址 —— 与旧 `InputService`（airpower `AbstractBaseBillService`）同 `baseUrl`，
  * 端点名逐字一致。
  *

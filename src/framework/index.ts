@@ -16,7 +16,7 @@
  * - `datetime`  时间工具
  * - `enums`     枚举字典/颜色/脱敏
  * - `format`    金额/数量格式化
- * - `bill`      单据服务基类（审核/驳回/完成数量/一键完成）
+ * - `bill`      单据服务基类（审核/驳回/完成数量）
  * - `cell`      单元格文本/颜色/对齐（表格与详情页共用一套渲染规则）
  * - `mask`      列级脱敏策略（与后端 ColumnMaskingService 逐分支对齐，契约由 maskContract.spec 守）
  */

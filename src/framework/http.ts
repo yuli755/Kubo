@@ -12,7 +12,7 @@
  * | `getPage` | `POST /{baseUrl}/getPage` |
  * | `getList` | `POST /{baseUrl}/getList` |
  * | `getTreeList` | `POST /{baseUrl}/getList`（后端无 `getTreeList` 端点，树形实体由 `getList` 直接返回嵌套树；详见 `urlGetTreeList` 的注释） |
- * | `getDetail` | `GET /{baseUrl}/getDetail/{id}` |
+ * | `getDetail` | `POST /{baseUrl}/getDetail`（body `{ id }`；后端**没有** `getDetail/{id}` 路由，详见方法注释） |
  * | `add` | `POST /{baseUrl}/add` |
  * | `update` | `POST /{baseUrl}/update` |
  * | `delete` | `POST /{baseUrl}/delete` |
@@ -280,10 +280,29 @@ export abstract class AbstractCurdService<E extends IIdentifiableEntity> extends
     return Array.isArray(data) ? data.map(item => fill(new EntityClass(), item)) : []
   }
 
-  /** 详情查询 */
-  async getDetail(id: number, apiUrl?: string): Promise<E> {
-    const url = apiUrl ?? `${this.urlGetDetail}/${id}`
-    const data = await this.api(url).requestRaw<unknown>({})
+  /**
+   * 详情查询。
+   *
+   * ⚠️ 契约是 `POST {baseUrl}/getDetail` + body `{ id }`，**不是** `getDetail/{id}`：
+   * 后端 `BaseController` 只声明了 `@PostMapping("getDetail")`，入参是
+   * `@RequestBody @Validated(WhenIdRequired.class) E source` —— id 在**请求体**里。
+   * 真机实测（2026-09，走 dev 代理 `127.0.0.1:3000/api` → `127.0.0.1:8080`）：
+   *
+   *     GET  /input/getDetail/1  → HTTP 404（Spring 默认错误体，没有 code/message）
+   *     POST /input/getDetail/1  → HTTP 404
+   *     POST /input/getDetail    → HTTP 200 {"code":200,"message":"获取成功",...}
+   *     GET  /material/getDetail/1 → HTTP 404     POST /material/getDetail → 200
+   *
+   * 影响面（症状都是"点开就空白"，列表页却正常，很难联想到 URL）：
+   * `KFormDialog` 的编辑回填、`useDetail` 的详情查询、销售/采购列表的「查看详情」。
+   *
+   * 演示模式为什么没暴露：`demo/mock/adapter.ts` 专门兼容了「路径末段是数字」的写法
+   * （它把 `getDetail/3` 拆成 action=`getDetail` + `payload.id=3`）—— **mock 通过 ≠ 真机通过**。
+   * 这与 `urlGetTreeList` 记录的 `getTreeList` 404 是同一类偏差的第二个实例，
+   * 所以本轮补了 `pnpm contract:check`：前端拼出的每个端点都必须存在于后端路由表。
+   */
+  async getDetail(id: number, apiUrl = this.urlGetDetail): Promise<E> {
+    const data = await this.api(apiUrl).requestRaw<unknown>({ id })
     return fill(new this.EntityClass(), data)
   }
 

@@ -72,11 +72,13 @@ describe('framework · 服务层 URL 与解析契约', () => {
     expect(response.list[0].detail.name).toBe('明细')
   })
 
-  it('详情：GET /demo/getDetail/{id}', async () => {
+  it('详情：POST /demo/getDetail，id 在请求体里（后端无 getDetail/{id} 路由）', async () => {
     requestMock.mockResolvedValue({ id: 9, name: '钢管' })
     const detail = await service.getDetail(9)
-    const [config] = requestMock.mock.calls[0] as [{ url: string }]
-    expect(config.url).toBe('/demo/getDetail/9')
+    const [config] = requestMock.mock.calls[0] as [{ url: string, data: unknown }]
+    expect(config.url).toBe('/demo/getDetail')
+    // id 必须在体内：后端是 `@RequestBody E source`，路径式 `getDetail/9` 真机是 404
+    expect(config.data).toEqual({ id: 9 })
     expect(detail).toBeInstanceOf(DemoEntity)
     expect(detail.name).toBe('钢管')
   })
