@@ -97,7 +97,12 @@ const props = withDefaults(defineProps<{
   disableAddChild?: (row: E) => boolean
   /** 该行是否禁止编辑；返回 true 时「编辑」按钮置灰 */
   disableEdit?: (row: E) => boolean
-  /** 是否显示导出按钮 */
+  /**
+   * 是否显示导出按钮。
+   *
+   * 通常**不必传**：未传时自动取 `useTable({ export: true })` 的 `canExport`
+   * （单一数据源，页面只配一处）。传 `false` 可强制隐藏。
+   */
   showExport?: boolean
   /** 不显示的列（按 `@KTable` 的字段名） */
   excludeColumns?: string[]
@@ -547,7 +552,7 @@ const emptyText = computed(() => {
       </div>
       <div class="k-table__toolbar-right">
         <ElButton
-          v-if="showExport"
+          v-if="showExport ?? table.canExport.value"
           v-permission="permissions?.export"
           :loading="isExporting"
           :icon="Download"

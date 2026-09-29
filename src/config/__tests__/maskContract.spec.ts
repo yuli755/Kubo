@@ -1770,9 +1770,11 @@ describe('mask contract · ORM 对账的证据落点（§19.36）', () => {
     const block = ddl.slice(ddl.indexOf(`CREATE TABLE IF NOT EXISTS \`${PARITY_TABLE}\``))
     const columns = [...readJavaCode(PARITY_ENTITY).matchAll(/@Column\(name = "([a-z_]+)"/g)].map(m => m[1])
     // 列数写死是有意的：加列时必须同时改迁移脚本、H2 手抄与这个数字，
-    // 少改一处就会在这里红 —— 换成"至少 12 列"就变成一条永远过的计数
+    // 少改一处就会在这里红 —— 换成"至少 11 列"就变成一条永远过的计数。
+    // 11 而非 12：id 列已统一继承 BaseEntity（K 报告 P2-6 删除子类遮蔽声明），
+    // 其 @Column 无显式 name（按 JPA 默认命名解析为 id），不落入本正则。
     expect(columns, '对账实体的 @Column 数量与门禁不符：新增/删除列要同时改迁移脚本、schema-test.sql 和这一处')
-      .toHaveLength(12)
+      .toHaveLength(11)
     for (const column of columns) {
       expect(block, `${PARITY_TABLE} 少了列 ${column}：MySQL 上"表存在但少列"是运行期 500，不是启动期报错`)
         .toContain(`\`${column}\``)

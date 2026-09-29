@@ -4,7 +4,9 @@
  * ============================================================================
  * 功能：
  *   1. --init-env : 一键由 .env.production.example 生成生产 .env，
- *                   自动利用 crypto.randomBytes 生成安全 64 位十六进制 JWT_SECRET 与强密码，
+ *                   **合并式**（已有键保留、缺键补齐、弱/占位敏感键重新随机），
+ *                   不再整文件覆盖 —— 开发机自有的 VITE_* 等键不会被静默丢掉；
+ *                   利用 crypto.randomBytes 生成安全 64 位十六进制 JWT_SECRET 与强密码，
  *                   实现真正的「零手动输入、零弱密码隐患」开箱即用。
  *   2. --check    : 静态深度体检 Dockerfile、SPMS-Server/Dockerfile、.dockerignore 与
  *                   docker-compose.prod.yml，验证分层缓存、非 root 用户、JRE 瘦身与探针完整性。
@@ -47,19 +49,95 @@ function initEnv() {
     process.exit(1)
   }
 
-  let content = readFileSync(examplePath, 'utf8')
-  const newJwtSecret = generateSecureSecret(32)
-  const newRootPass = generatePassword(22)
-  const newUserPass = generatePassword(22)
-  const newRedisPass = generatePassword(22)
+  /**
+   * 合并式生成（非整文件覆盖）：
+   * .env 常已存在且含有用户自有键（开发机的 VITE_APP_API_URL 等），整文件覆盖会静默丢掉它们；
+   * 而「存在但缺键」的半残文件又会让 deploy:drill 读到空值直接红。
+   * 语义：
+   *   - 已有键**保留原值**（自定义键原样带到文件尾部，带注释区隔）；
+   *   - 缺失键**从模板补齐**（敏感键一律随机生成，模板里的示例值不落盘）；
+   *   - 已有但**弱/占位的敏感键重新生成**（<20 位、含 ChangeMe、或与模板示例逐字相同）。
+   */
+  const template = readFileSync(examplePath, 'utf8')
+  const existing = existsSync(targetPath) ? readFileSync(targetPath, 'utf8') : ''
 
-  content = content.replace(/JWT_SECRET=.*/, `JWT_SECRET=${newJwtSecret}`)
-  content = content.replace(/MYSQL_ROOT_PASSWORD=.*/, `MYSQL_ROOT_PASSWORD=${newRootPass}`)
-  content = content.replace(/MYSQL_PASSWORD=.*/, `MYSQL_PASSWORD=${newUserPass}`)
-  content = content.replace(/REDIS_PASSWORD=.*/, `REDIS_PASSWORD=${newRedisPass}`)
+  function parseEnv(text) {
+    const map = new Map()
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue
+      }
+      const eq = trimmed.indexOf('=')
+      if (eq > 0) {
+        map.set(trimmed.slice(0, eq).trim(), trimmed.slice(eq + 1).trim())
+      }
+    }
+    return map
+  }
 
-  writeFileSync(targetPath, content, 'utf8')
-  console.log('✅ 已成功生成合规生产配置文件 .env：')
+  const current = parseEnv(existing)
+  const templateMap = parseEnv(template)
+  const randomizers = {
+    JWT_SECRET: () => generateSecureSecret(32),
+    MYSQL_ROOT_PASSWORD: () => generatePassword(22),
+    MYSQL_PASSWORD: () => generatePassword(22),
+    REDIS_PASSWORD: () => generatePassword(22),
+  }
+  const isWeak = {
+    JWT_SECRET: value => !/^[0-9a-f]{64}$/.test(value),
+    MYSQL_ROOT_PASSWORD: value => value.length < 20 || value.includes('ChangeMe'),
+    MYSQL_PASSWORD: value => value.length < 20 || value.includes('ChangeMe'),
+    REDIS_PASSWORD: value => value.length < 20 || value.includes('ChangeMe'),
+  }
+
+  let preservedCount = 0
+  let generatedCount = 0
+  let addedCount = 0
+  const output = []
+  for (const line of template.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    const eq = trimmed.startsWith('#') || !trimmed ? -1 : trimmed.indexOf('=')
+    if (eq <= 0) {
+      output.push(line)
+      continue
+    }
+    const key = trimmed.slice(0, eq).trim()
+    if (current.has(key)) {
+      const value = current.get(key)
+      const exampleValue = templateMap.get(key)
+      const weak = isWeak[key]?.(value) || value === exampleValue
+      if (weak && key in randomizers) {
+        output.push(`${key}=${randomizers[key]()}`)
+        generatedCount++
+      }
+      else {
+        output.push(`${key}=${value}`)
+        preservedCount++
+      }
+    }
+    else if (key in randomizers) {
+      output.push(`${key}=${randomizers[key]()}`)
+      generatedCount++
+    }
+    else {
+      output.push(line)
+      addedCount++
+    }
+  }
+
+  const templateKeys = new Set(templateMap.keys())
+  const customKeys = [...current.keys()].filter(key => !templateKeys.has(key))
+  if (customKeys.length > 0) {
+    output.push('')
+    output.push('# ── 自有键（不在生产模板内，合并保留）──')
+    for (const key of customKeys) {
+      output.push(`${key}=${current.get(key)}`)
+    }
+  }
+
+  writeFileSync(targetPath, `${output.join('\n')}\n`, 'utf8')
+  console.log(`✅ 已生成合规生产配置文件 .env（合并模式：保留 ${preservedCount} 键、随机 ${generatedCount} 键、补入 ${addedCount} 键${customKeys.length ? `、迁移自有键 ${customKeys.length}` : ''}）：`)
   console.log(`   - JWT_SECRET 已自动注入高强度随机密钥（64 位 hex）`)
   console.log(`   - MySQL 与 Redis 已自动注入随机强密码（零手动输入）`)
 }

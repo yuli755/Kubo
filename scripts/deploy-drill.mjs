@@ -9,8 +9,8 @@
  * compose 里不存在的服务……这类问题每次都到 up -d 那一刻才炸。
  *
  * 本脚本把部署链路在提交前完整「空跑」一遍（真文件、真插值、真渲染）：
- *   ① 环境生成演练：.env 缺失时自动走 docker:env 生成（零手动），并校验
- *      JWT_SECRET 强度、密码长度、DATA_PERMISSION_MODE 合法档位；
+ *   ① 环境生成演练：.env 缺失**或缺必需键**时自动走 docker:env 合并补齐（零手动），
+ *      并校验 JWT_SECRET 强度、密码长度、DATA_PERMISSION_MODE 合法档位；
  *   ② 编排演练：docker-compose.prod.yml 用 .env 真值完成 ${VAR:-def} 插值后解析，
  *      六服务齐全、健康检查完整、depends_on 引用有效、构建上下文存在、
  *      bind-mount 宿主路径真实存在（专抓「挂了幽灵路径」）；
@@ -61,8 +61,37 @@ function interpolate(text, env) {
 
 function readEnvFile() {
   const envPath = join(REPO, '.env')
-  if (!existsSync(envPath)) {
-    console.log('⚙️  .env 不存在，自动执行 docker:env 生成强随机环境（零手动）…')
+
+  function parseEnv(text) {
+    const env = {}
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue
+      }
+      const eq = trimmed.indexOf('=')
+      if (eq > 0) {
+        env[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
+      }
+    }
+    return env
+  }
+
+  // 生产编排与告警链路必需的键；缺任何一个，实机 up 都会插值成空串或回落占位地址
+  const requiredKeys = [
+    'JWT_SECRET',
+    'MYSQL_ROOT_PASSWORD',
+    'MYSQL_PASSWORD',
+    'REDIS_PASSWORD',
+    'DATA_PERMISSION_MODE',
+    'KUBO_ALERT_WEBHOOK_URL',
+  ]
+
+  let env = existsSync(envPath) ? parseEnv(readFileSync(envPath, 'utf8')) : {}
+  const missing = requiredKeys.filter(key => !env[key])
+
+  if (!existsSync(envPath) || missing.length > 0) {
+    console.log(`⚙️  .env ${!existsSync(envPath) ? '不存在' : `缺键 ${missing.join(', ')}`}，自动执行 docker:env 合并补齐（零手动）…`)
     const result = spawnSync('node', [join(REPO, 'scripts', 'docker-helper.mjs'), '--init-env'], {
       encoding: 'utf8',
     })
@@ -70,17 +99,8 @@ function readEnvFile() {
       fail(`docker:env 自动生成失败：${result.stderr || result.stdout}`)
       return null
     }
-  }
-  const env = {}
-  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) {
-      continue
-    }
-    const eq = trimmed.indexOf('=')
-    if (eq > 0) {
-      env[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
-    }
+    // 合并模式：已有的开发键（VITE_* 等）原样保留，只补缺键与弱敏感键
+    env = parseEnv(readFileSync(envPath, 'utf8'))
   }
   return env
 }
