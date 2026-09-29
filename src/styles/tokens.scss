@@ -78,6 +78,19 @@
   --kubo-shadow-sm: 0 1px 3px rgb(0 0 0 / 6%), 0 1px 2px rgb(0 0 0 / 4%);
   --kubo-shadow-base: 0 4px 12px rgb(0 0 0 / 8%);
   --kubo-shadow-lg: 0 8px 24px rgb(0 0 0 / 12%);
+  /* 浮层专用（命令面板 / 弹出层）：脱离文档流、下方是大片内容，需要比 lg 更深的落影才读得出
+     「浮在上面」。业务与框架组件一律取这四个 token，不要再写死 rgba 阴影值
+     （designTokenContract.spec.ts 会把写死的挡在 CI 上）。 */
+  --kubo-shadow-overlay: 0 20px 40px rgb(0 0 0 / 16%);
+
+  /* ── 描边环（用 box-shadow 画的 ring / hairline，不是投影层级，故单列一组） ──
+   * 这两个值都**不需要暗色覆盖**，因为它们锚定的不是页面底色而是「相对背景」：
+   * - ring-halo 取 --el-bg-color：状态点周围的留白光晕，本质是「把点从行背景里抠出来」，
+   *   跟着行背景走，明暗自动正确（写死白色在暗色下会刺眼）；
+   * - ring-inset-on-brand 用在品牌色/深色头部里的透明输入框，背景在两种主题下都是深色，
+   *   所以半透明白描边在明暗两侧都成立。 */
+  --kubo-ring-halo: 0 0 0 1.5px var(--el-bg-color);
+  --kubo-ring-inset-on-brand: 0 0 0 1px rgb(255 255 255 / 35%) inset;
 
   --kubo-spacing-1: 4px;
   --kubo-spacing-2: 8px;
@@ -126,6 +139,7 @@ html.dark {
   --kubo-shadow-sm: 0 1px 3px rgb(0 0 0 / 40%);
   --kubo-shadow-base: 0 4px 12px rgb(0 0 0 / 45%);
   --kubo-shadow-lg: 0 8px 24px rgb(0 0 0 / 55%);
+  --kubo-shadow-overlay: 0 20px 40px rgb(0 0 0 / 60%);
 
   /* 骨架/占位等中性底色改为暗色系，避免硬编码浅灰在暗色下刺眼 */
   --kubo-color-muted-bg: #262727;

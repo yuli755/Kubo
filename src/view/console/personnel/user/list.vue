@@ -318,7 +318,7 @@ function onSaved() {
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--el-border-radius-base);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  box-shadow: var(--kubo-shadow-sm);
 }
 
 .k-page__aside-header {

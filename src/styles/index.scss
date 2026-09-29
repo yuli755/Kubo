@@ -1,10 +1,29 @@
 /**
  * # 全局样式入口（V1 + V2 + V4 + V8）
  *
- * 在 `main.ts` 里唯一一次引入，顺序敏感：
- * 1. 设计 token 层（定义并映射 `--el-color-*` / `--kubo-*`）；
- * 2. Element Plus 官方暗色变量（`html.dark` 下的结构色覆盖）；
- * 3. 全局微交互与动效降级（hover/focus/active + reduced-motion）。
+ * 在 `main.ts` 里唯一一次引入。
+ *
+ * ## 这里的书写顺序与**实际生效顺序不一致，且不能改** —— 改动前请先读完本段
+ *
+ * 书写顺序是 tokens → motion → EP 暗色变量，但产物里的实际层叠顺序是
+ * **EP 暗色变量 → tokens → motion**。原因是 `@import` 会被打包器
+ * （Vite / postcss-import）**提升到 bundle 最前面**，与它在源文件里的位置无关。
+ *
+ * 这个提升是**载荷性的**，不是巧合：`tokens.scss` 与 EP 暗色 css-vars 都用
+ * `html.dark` 选择器（特异度同为 0,1,1），因此谁在后面谁赢。提升把 EP 放到前面，
+ * 才让 tokens 的 `html.dark` 块（暗色侧栏 `#0b1220`、主色 light-7/8/9 的对比度微调）
+ * 覆盖住 EP 的默认暗色值。已在构建产物中验证：EP 暗色块位于 index-*.css 的
+ * 第 1077/1138 字节附近，tokens 暗色块位于第 6109 字节附近。
+ *
+ * **为什么不干脆把 `@import` 挪到文件顶部**，让书写顺序与生效顺序一致？
+ * 因为 Sass 规定 `@use` 必须先于文件内所有其它规则，`@import` 写在 `@use` 之前
+ * 会直接编译报错（"@use rules must be written before any other rules"）。
+ * 也就是说当前这个"看起来像写错"的排列是语法强制的唯一合法写法。
+ *
+ * 各层职责：
+ * 1. `tokens.scss` —— 设计 token 层，定义 `--kubo-*` 并映射到 `--el-color-*`；
+ * 2. `motion.scss` —— 全局微交互与动效降级（hover/focus/active + reduced-motion）；
+ * 3. EP 暗色 css-vars —— `html.dark` 下的结构色兜底，被 tokens 的暗色块覆盖。
  */
 
 @use './tokens.scss';

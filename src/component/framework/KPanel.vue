@@ -61,7 +61,7 @@ withDefaults(defineProps<{
   border-radius: 10px;
   border: 1px solid var(--el-border-color-lighter);
   background: var(--el-bg-color);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  box-shadow: var(--kubo-shadow-sm);
   transition: all 0.2s ease;
 }
 

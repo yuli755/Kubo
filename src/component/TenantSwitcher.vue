@@ -64,7 +64,7 @@ async function onTenantChange(value: number | undefined) {
 
   :deep(.el-input__wrapper) {
     background: transparent;
-    box-shadow: 0 0 0 1px rgb(255 255 255 / 35%) inset;
+    box-shadow: var(--kubo-ring-inset-on-brand);
   }
 
   :deep(.el-input__inner) {

@@ -821,7 +821,7 @@ const emptyText = computed(() => {
   background: var(--el-fill-color-blank);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 10px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  box-shadow: var(--kubo-shadow-sm);
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;

@@ -166,7 +166,7 @@ watch(
   height: 7px;
   border-radius: 50%;
   display: inline-block;
-  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.8);
+  box-shadow: var(--kubo-ring-halo);
   flex-shrink: 0;
 }
 </style>

@@ -278,7 +278,7 @@ function onKeydown(e: KeyboardEvent) {
   background: var(--el-bg-color-overlay, #ffffff);
   border: 1px solid var(--el-border-color-lighter, #e2e8f0);
   border-radius: 12px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.16);
+  box-shadow: var(--kubo-shadow-overlay);
   overflow: hidden;
   display: flex;
   flex-direction: column;

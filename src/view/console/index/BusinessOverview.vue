@@ -202,7 +202,7 @@ function goResource(key: string) {
   &:hover {
     transform: translateY(-2px);
     border-color: var(--accent-color);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--kubo-shadow-base);
 
     &::before {
       width: 5px;
