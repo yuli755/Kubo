@@ -23,8 +23,11 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.spec.ts'],
     // 冷启动时模块链首次编译可能超过默认 5s（appConfig 首次 import airpower shim 实测 ~3s，
-    // CI 上依赖包未预热会更慢），抬高到 15s 消除平台相关的偶发超时。
-    testTimeout: 15000,
+    // CI 上依赖包未预热会更慢），曾抬到 15s；实测仍不够：65 个文件并行跑时 transform
+    // 争抢会让个别文件的首个动态 import 超过 15s（表现：全量跑 12~13 个失败、隔离跑全过，
+    // 失败集还不重叠），而 30s 后全量稳定。判据：失败原因全是 `Test timed out` 才归它管，
+    // 断言失败与超时无关，不要用这个开关掩盖真实回归。
+    testTimeout: 30000,
     // vitest 4 defaults to `forks`：每个 worker 是完整 Node 进程，Windows 提交限制（页面文件）
     // 紧张时 worker 会被 OOM 静默杀掉（表现：Worker exited unexpectedly + 用例数缺失）。
     // threads 共享主进程堆，jsdom 环境同样支持，代价更低也更稳。

@@ -78,7 +78,9 @@ export function getRouter(): Router {
  * `componentsMap` 由 `Console.vue` 用 `import.meta.glob` 递归收集 `/src/view` 下所有 `.vue` ——
  * 键是**绝对路径**（`/src/view/system/menu/list.vue`），与后端菜单里的 `component`
  * 拼出的键一致；拼错时组件是 `undefined`，vue-router 会静默渲染空白页，
- * 所以 `menuContract.spec.ts` 里有一条「每个菜单的 component 都能在 map 里找到」的断言。
+ * 所以 `menuContract.spec.ts` 里有一条「每个菜单的 component 都能在 map 里找到」的断言，
+ * 且这里对缺失键**跳过注册**（落到 404 + 告警），把静态断言管不到的「库里的菜单被手改」
+ * 也变成看得见的问题。
  */
 export function initVueRouter(
   menuList: MenuItem[],
@@ -99,9 +101,19 @@ export function initVueRouter(
       },
     }
     if (componentPath) {
+      const componentKey = `${componentsDirectory}${componentPath}.vue`
+      const loader = componentsMap[componentKey]
+      if (!loader) {
+        // 菜单指向的视图不存在（改名 / 删除 / 库里手改过 path）：注册一条 component=undefined
+        // 的路由会「匹配成功但渲染空白」，用户只看到一片白、控制台一片干净，查不出原因。
+        // 宁可不注册 —— 让它落到 catch-all 的 404 页（看得见的问题才是能修的问题），
+        // 同时留一条可诊断的告警把菜单名与缺失键都打出来。
+        console.warn(`[appRouter] 菜单「${menu.name}」指向的视图缺失：${componentKey}，已跳过注册（该地址将落到 404）`)
+        return
+      }
       router.addRoute(parentRouter, {
         ...routeRawData,
-        component: componentsMap[`${componentsDirectory}${componentPath}.vue`] as never,
+        component: loader as never,
       })
       return
     }

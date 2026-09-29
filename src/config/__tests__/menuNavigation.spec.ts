@@ -1,6 +1,6 @@
 import type { MenuItem } from '@/router/appRouter'
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * # 菜单导航链路（真实 router + 真实点击）
@@ -135,6 +135,29 @@ describe('菜单导航 · 路由注册与解析（真实 RouterUtil）', () => {
     const router = await createRegisteredRouter()
     const resolved = router.resolve('/console/not-a-real/page/list')
     expect(resolved.matched.at(-1)?.path ?? '', 'catch-all 兜底失效，未知地址会静默白屏').toContain('catchAll')
+  })
+
+  it('菜单指向已不存在的视图：跳过注册 + 告警，而不是渲染一片空白', async () => {
+    // 这条守的是「库里的菜单被手改 / 视图被删改名」—— 静态对账（menuContract.spec.ts）
+    // 只看代码里的种子，看不到运行期下发的菜单，所以必须在注册处兜住。
+    const { createAppRouter, initVueRouter } = await import('@/router/appRouter')
+    const { routes } = await import('@/config/routes')
+    const router = createAppRouter(routes)
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const ghostMenu = [{
+      id: 990001,
+      name: '已被删掉的页面',
+      path: '/console/ghost/list',
+      component: '/console/ghost/list',
+    }] as unknown as MenuItem[]
+    initVueRouter(ghostMenu, views, '/src/view', 'console')
+
+    expect(router.hasRoute('990001'), '视图缺失仍注册了路由（component=undefined 会渲染成空白页）').toBe(false)
+    expect(router.resolve('/console/ghost/list').matched.at(-1)?.path ?? '', '缺失视图没落到 404 页').toContain('catchAll')
+    expect(warn.mock.calls.flat().join(' '), '没留下可诊断的告警（菜单名与缺失键都要打出来）')
+      .toContain('/src/view/console/ghost/list.vue')
+    warn.mockRestore()
   })
 
   it('重复初始化不会重复注册（幂等），也不会把已注册页面挤掉', async () => {
