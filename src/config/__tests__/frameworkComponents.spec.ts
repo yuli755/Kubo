@@ -203,6 +203,108 @@ describe('f2 · KTable 由元数据驱动', () => {
   })
 })
 
+describe('f2 · KTable 的 hide 语义（默认隐藏，但用户能勾回来）', () => {
+  /**
+   * 一次钉住两件会真实发生的事：
+   *
+   * 1. **`@Table({ hide: true })` 曾被 KTable 整条无视。**
+   *    `columns` 只减「用户勾掉的键」、从不读 `col.hide`，而 `getTableConfigList` 是**刻意**
+   *    不剔除 hide 的（`framework/__tests__/metadata.spec.ts:62`：「hide 只是默认隐藏，
+   *    仍在列里（列选择器可恢复）」）⇒ 剔除动作本该归 KTable，但没人做。
+   *    真机后果：列级脱敏页把声明为 hide 的 `resource` 关联列渲染出来，该列又没标 `payload`，
+   *    单元格成了 `[object Object]`（Playwright 抓到的首行文本）。
+   * 2. **hide 是排版不是权限，所以必须可恢复。**
+   *    列选择器 `v-for="col in rawColumns"`（`KTable.vue:624`）仍要列得出 hide 列；
+   *    勾选动作最终就是往 `kubo:table:columns:<queryKey>` 写一份「被隐藏的键」数组（`toggleColumn`），
+   *    因此这里用「存档偏好优先于元数据默认、且双向都优先」来证明可恢复性。
+   *    ⚠️ 为什么不在浏览器里点复选框证明：Element Plus 的原生 `input.el-checkbox__original`
+   *    是隐藏的，Playwright 判 `element is not visible` 后 30s 超时（实测两次）。
+   *    状态断言比截图更稳，也更快。
+   *
+   * 「重置」按钮没有被本用例覆盖，但它与首屏走的是同一条赋值
+   * （`resetColumns()` = `hiddenColumnKeys.value = [...defaultHiddenColumnKeys.value]`），
+   * 而首屏这条已由 ① 证明 —— 所以重置的正确性靠代码同一性，不靠这里再点一次。
+   */
+  it('hide 列首屏不渲染；用户偏好（含「把它勾回来」）优先于元数据默认', async () => {
+    const KTable = (await import('@/component/framework/KTable.vue')).default
+    const { useTable } = await import('@/hook/kubo/useTable')
+
+    @Model({ label: '带隐藏列的实体' })
+    class HiddenColumnEntity extends BaseEntity {
+      @Table({ order: 100, minWidth: 160 })
+      @Field({ label: '名称' })
+      name!: string
+
+      /** 敏感列：默认不进表格，但列选择器里必须能勾回来 */
+      @Table({ order: 101, hide: true })
+      @Field({ label: '销售单价' })
+      salePrice!: number
+    }
+
+    class HiddenColumnService extends AbstractCurdService<HiddenColumnEntity> {
+      entityClass = HiddenColumnEntity
+      baseUrl = 'hidden-column'
+    }
+
+    vi.spyOn(HiddenColumnService.prototype, 'getPage').mockResolvedValue({
+      list: [{ id: 1, name: '甲', salePrice: 480 }],
+      total: 1,
+      pageCount: 1,
+      page: { pageNum: 1, pageSize: 20 },
+    } as never)
+
+    // queryKey 是 ['hidden-column'] ⇒ 存档键就是这一个（KTable.vue:171-173）
+    const STORAGE_KEY = 'kubo:table:columns:hidden-column'
+
+    /** `loadColumnPreferences()` 在 setup 期同步执行，所以存档必须在挂载前写好 */
+    async function mountTable(stored: string | null) {
+      if (stored === null) {
+        localStorage.removeItem(STORAGE_KEY)
+      }
+      else {
+        localStorage.setItem(STORAGE_KEY, stored)
+      }
+      const Host = defineComponent({
+        components: { KTable: KTable as unknown as Component },
+        setup() {
+          const table = useTable(HiddenColumnService, { queryKey: ['hidden-column'], defaultPageSize: 20 })
+          return { table }
+        },
+        template: '<KTable :table="table" />',
+      })
+      const wrapper = await mountWithQuery(Host)
+      await vi.waitFor(() => {
+        expect(wrapper.findAll('.el-table__row').length, '表格没有渲染出行').toBe(1)
+      }, { timeout: 8000 })
+      return wrapper
+    }
+
+    // ① 首屏（无存档）：hide 列不出现，且表体里不得出现对象兜底文本
+    const firstScreen = await mountTable(null)
+    const firstHeaders = firstScreen.findAll('.el-table__header th').map(th => th.text())
+    expect(firstHeaders.some(h => h.includes('名称')), `表头缺名称列：${firstHeaders.join('|')}`).toBe(true)
+    expect(firstHeaders.some(h => h.includes('销售单价')), 'hide 列首屏就渲染出来了').toBe(false)
+    expect(firstScreen.find('.el-table__body').text()).not.toContain('[object Object]')
+    firstScreen.unmount()
+
+    // ② 存档是空数组 = 用户把 hide 列勾回来了（toggleColumn 写的就是这种数组）：两列都在
+    const restored = await mountTable('[]')
+    const restoredHeaders = restored.findAll('.el-table__header th').map(th => th.text())
+    expect(restoredHeaders.some(h => h.includes('销售单价')), `勾回来的列又被元数据默认盖掉了：${restoredHeaders.join('|')}`).toBe(true)
+    expect(restoredHeaders.some(h => h.includes('名称'))).toBe(true)
+    restored.unmount()
+
+    // ③ 存档是「隐藏两列」：连没有 hide 声明的列也照用户的意思不渲染（存档双向优先，不与默认值求并）
+    const bothHidden = await mountTable('["name","salePrice"]')
+    const bothHeaders = bothHidden.findAll('.el-table__header th').map(th => th.text())
+    expect(bothHeaders.some(h => h.includes('名称') || h.includes('销售单价')), `存档没有生效：${bothHeaders.join('|')}`).toBe(false)
+    bothHidden.unmount()
+
+    localStorage.removeItem(STORAGE_KEY)
+    expect(capturedErrors.map(String)).toEqual([])
+  })
+})
+
 describe('f2 · useTable 请求契约', () => {
   it('分页请求体是 { filter, page.pageNum, page.pageSize, sort.direction }', async () => {
     const { Field, Model } = await import('@/framework')

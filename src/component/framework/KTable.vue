@@ -173,6 +173,19 @@ const storageColumnKey = computed(() => {
   return `kubo:table:columns:${qk}`
 })
 
+/**
+ * 元数据声明「默认隐藏」的列（`@Table({ hide: true })`）。
+ *
+ * `getTableConfigList` 刻意不剔除 hide 列（见 `framework/__tests__/metadata.spec.ts:62`：
+ * 「hide 只是默认隐藏，仍在列里（列选择器可恢复）」），剔除动作归这里。
+ * 曾经这里的 `columns` 只减用户勾掉的键、从不读 `col.hide`，于是 hide 的语义整条丢失：
+ * 列级脱敏页的 `resource` 关联列被声明为 hide，却照样渲染出来，
+ * 而它没有标 `payload`，单元格就成了 `[object Object]`（真机实测，Playwright 抓到的首行文本）。
+ */
+const defaultHiddenColumnKeys = computed<string[]>(
+  () => rawColumns.value.filter(col => col.hide).map(col => col.key),
+)
+
 const hiddenColumnKeys = ref<string[]>([])
 
 function loadColumnPreferences() {
@@ -181,6 +194,8 @@ function loadColumnPreferences() {
     if (saved) {
       const parsed = JSON.parse(saved)
       if (Array.isArray(parsed)) {
+        // 用户已经为这张表表达过偏好：完全以他勾的为准（包括把 hide 列勾出来），
+        // 不再叠加元数据默认值 —— 否则「显示某列」这个动作刷新一次就被抹掉。
         hiddenColumnKeys.value = parsed
         return
       }
@@ -189,7 +204,8 @@ function loadColumnPreferences() {
   catch {
     // ignore
   }
-  hiddenColumnKeys.value = []
+  // 没有偏好记录时用元数据默认：hide 的列不出现（列选择器里仍可勾回来）
+  hiddenColumnKeys.value = [...defaultHiddenColumnKeys.value]
 }
 
 loadColumnPreferences()
@@ -216,7 +232,8 @@ function toggleColumn(key: string, visible: boolean) {
 }
 
 function resetColumns() {
-  hiddenColumnKeys.value = []
+  // 「重置」= 回到元数据声明的默认，而不是「全部显示」
+  hiddenColumnKeys.value = [...defaultHiddenColumnKeys.value]
   try {
     localStorage.removeItem(storageColumnKey.value)
   }

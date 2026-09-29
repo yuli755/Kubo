@@ -11,9 +11,13 @@ import { RoleEntity } from '@/model/personnel/role/RoleEntity'
  * - 表单只暴露 `nickname / email / phone`（与旧 airpower 编辑器逐字段一致），
  *   其余字段（`realName` / `idCard` / `gender` / `bio`）保持"代码里有、界面没开口"的原状 ——
  *   换底座不该顺手改业务表单的可写字段；要放开时单独评估（尤其 `idCard` 受列级脱敏与写守卫约束）。
- * - 表格也不给 `idCard` 开列：airpower 的 `hide: true` + 列选择器在新底座里没有对应物
- *   （`getTableConfigList` 不过滤 `hide`，KTable 也没有列选择器），
- *   与其把身份证号硬塞进列表，不如让框架层直接不声明它 —— 需要看的时候走详情/权限申请。
+ * - 表格也不给 `idCard` 开列。**注意这里靠的不是 `hide: true`**：`@KTable({ hide: true })`
+ *   的语义是「默认隐藏，用户能在列选择器里勾回来」（`KTable` 的 `defaultHiddenColumnKeys`，
+ *   由 `framework/__tests__/metadata.spec.ts:62` 钉住），它是**排版**手段，不是权限控制 ——
+ *   任何能打开这张表的人都能把默认隐藏的列勾出来。身份证号要么受列级脱敏管、要么根本不进列表，
+ *   所以这里直接不声明该列，需要看的时候走详情/权限申请。
+ *   （历史注释曾说「`getTableConfigList` 不过滤 `hide`，KTable 也没有列选择器」：后半句早已过时，
+ *   前半句是刻意的 —— 过滤动作归 KTable，这样列选择器才列得出可恢复的项。）
  * - 编辑时的"整实体更新"语义不变：`KFormDialog` 编辑态回填的是**服务端详情整对象**，
  *   未在表单里出现的字段会原样带回，不会被写空。
  */

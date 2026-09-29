@@ -84,6 +84,28 @@ describe('f2 · 单元格文本', () => {
     expect(getCellText({ storage: [] }, { key: 'storage', payload: true })).toBe('-')
   })
 
+  /**
+   * 漏标 `payload: true` 是常态，不是意外：真机实测「数据权限 · 列级脱敏」页的 `resource`
+   * 关联列就渲染成了 `[object Object]`（Playwright 抓到的首行文本里原样出现）。
+   * 正解是给列标 `payload`，但框架层不能让「漏标」退化成不可读的字符串 ——
+   * `getCellText` 被表格 / 详情 / 导出三处共用，漏一处就是三处一起脏。
+   */
+  it('未标 payload 的关联列也不得吐 [object Object]（漏标注解时的兜底）', () => {
+    // 业务标识键优先：resource 列显示 resourceKey，而不是 #15
+    expect(getCellText({ resource: { id: 15, resourceKey: 'wms.inventory' } }, { key: 'resource' }))
+      .toBe('wms.inventory')
+    // name/code 仍是首选（与 payload 分支同一套规则）
+    expect(getCellText({ storage: { name: '主仓库', code: 'A01' } }, { key: 'storage' })).toBe('主仓库(A01)')
+    // 什么标签都没有时退到 id，至少能对上后端那一行
+    expect(getCellText({ owner: { id: 7 } }, { key: 'owner' })).toBe('#7')
+    // 连 id 都没有：宁可显示「没有值」，也不要显示 [object Object]
+    expect(getCellText({ meta: {} }, { key: 'meta' })).toBe('-')
+    expect(getCellText({ list: [{ id: 1 }, { name: '甲' }] }, { key: 'list' })).toBe('#1、甲')
+    // Date 保持旧行为（可读的字符串），不被对象兜底吃成 '-'
+    expect(getCellText({ at: new Date(2026, 8, 17, 10, 30, 0) }, { key: 'at' }))
+      .toContain('2026')
+  })
+
   it('金额列走金额格式化', () => {
     expect(getCellText({ price: '12.30' }, { key: 'price', money: true })).toBe('12.30')
     expect(getCellText({ price: 1234567.8 }, { key: 'price', money: true })).toBe('1,234,567.80')

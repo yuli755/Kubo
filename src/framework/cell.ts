@@ -34,19 +34,49 @@ function isEmpty(value: unknown): boolean {
   return value === null || value === undefined || value === ''
 }
 
+/**
+ * 关联列没标 `payload` 时，按这几个键找一个人能读的标签。
+ *
+ * 顺序有讲究：先业务标识（resourceKey/label/title），再人称字段。
+ * 找不到就退到 `#id`，再退到 `-`；**任何情况下都不返回 `[object Object]`** ——
+ * 那串字面量既不可读也不可搜，而本函数被表格 / 详情 / 导出三处共用，
+ * 一处吐 `[object Object]` 就是三个地方一起吐。
+ */
+const FALLBACK_LABEL_KEYS = ['resourceKey', 'label', 'title', 'nickname', 'realName'] as const
+
+/** 对象值 → 标签文本；实在取不到就返回空串，由调用方决定兜底 */
+function labelOfObject(value: object): string {
+  const payload = value as {
+    getPayloadLabel?: () => string
+    name?: string
+    code?: string
+    id?: number | string | null
+  } & Record<string, unknown>
+  if (typeof payload.getPayloadLabel === 'function') {
+    return payload.getPayloadLabel() || ''
+  }
+  if (payload.name) {
+    return payload.code ? `${payload.name}(${payload.code})` : payload.name
+  }
+  for (const key of FALLBACK_LABEL_KEYS) {
+    const candidate = payload[key]
+    if (typeof candidate === 'string' && candidate) {
+      return candidate
+    }
+  }
+  if (payload.id !== null && payload.id !== undefined) {
+    return `#${payload.id}`
+  }
+  return ''
+}
+
 /** 关联对象 / 关联对象数组 → 文本 */
 function payloadText(value: unknown): string {
   if (Array.isArray(value)) {
     return value.map(item => payloadText(item)).filter(text => text !== '-').join('、') || '-'
   }
   if (value && typeof value === 'object') {
-    const payload = value as { getPayloadLabel?: () => string, name?: string, code?: string }
-    if (typeof payload.getPayloadLabel === 'function') {
-      return payload.getPayloadLabel() || '-'
-    }
-    if (payload.name) {
-      return payload.code ? `${payload.name}(${payload.code})` : payload.name
-    }
+    return labelOfObject(value) || '-'
   }
   return String(value)
 }
@@ -98,6 +128,18 @@ export function getCellText(row: unknown, config: ICellConfig, dictionary?: IWeb
 
   if (Array.isArray(value))
     return value.length ? value.map(item => payloadText(item)).join('、') : '-'
+
+  if (value instanceof Date) {
+    // 旧行为是 String(date)（可读），保持不变：别让它掉进下面的对象兜底变成 '-'
+    return String(value)
+  }
+
+  if (typeof value === 'object') {
+    // 关联列忘了标 `payload` 时的兜底。真机实例：列级脱敏页的 `resource` 列渲染成
+    // `[object Object]`，而它本该显示 resourceKey。标 `payload: true` 仍是正解，
+    // 但漏标不该退化成不可读的字符串。
+    return payloadText(value)
+  }
 
   return String(value)
 }
