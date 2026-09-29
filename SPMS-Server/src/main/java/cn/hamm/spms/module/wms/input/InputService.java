@@ -43,7 +43,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
+import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
 import static cn.hamm.spms.common.exception.Errors.PARAM_MISSING;
 import static cn.hamm.spms.module.system.config.enums.ConfigFlag.INPUT_BILL_AUTO_AUDIT;
 
@@ -287,7 +287,10 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
                                     bill.getPurchase().getId(),
                                     inputDetailQuantity,
                                     ChannelServices.getPurchaseService(),
-                                    detail -> FORBIDDEN.whenNotEquals(
+                                    // 谓词用途：异常在 BaseBillDetailService#updateDetailQuantity 里被
+                                    // catch 后 continue（跳过不匹配的明细），码只在万一改为直抛时生效；
+                                    // 物料一致性属输入校验（非授权边界），统一 PARAM_INVALID(4002)
+                                    detail -> PARAM_INVALID.whenNotEquals(
                                             detail.getMaterial().getId(),
                                             existDetail.getMaterial().getId(),
                                             "物料信息不匹配"

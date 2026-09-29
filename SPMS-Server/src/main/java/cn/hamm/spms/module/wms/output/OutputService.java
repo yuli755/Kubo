@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
+import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
 import static cn.hamm.spms.common.exception.Errors.PARAM_MISSING;
 import static cn.hamm.spms.module.system.config.enums.ConfigFlag.OUTPUT_BILL_AUTO_AUDIT;
 
@@ -229,7 +230,9 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
         // 库存信息
         InventoryEntity inventory = inventoryService.get(outputDetail.getInventory().getId());
         FORBIDDEN.whenNull(inventory, "未找到指定的出库来源库存");
-        FORBIDDEN.whenNotEquals(inventory.getMaterial().getId(), materialId, "物料信息不匹配");
+        // 物料一致性是「调用方传的两个值互相对不上」的输入校验，不是授权边界 → PARAM_INVALID(4002)。
+        // 与上方 L224 同一条规矩：403 会让调用方与监控把参数错误误判成权限问题。
+        PARAM_INVALID.whenNotEquals(inventory.getMaterial().getId(), materialId, "物料信息不匹配");
 
         // 库存细粒度分布式排他锁：防止并发扣减超卖与销售单明细状态竞态
         String lockKey = "lock:wms:inventory:" + inventory.getId();
@@ -246,7 +249,10 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
                                     bill.getSale().getId(),
                                     outputDetailQuantity,
                                     ChannelServices.getSaleService(),
-                                    detail -> FORBIDDEN.whenNotEquals(
+                                    // 谓词用途：异常在 BaseBillDetailService#updateDetailQuantity 里被
+                                    // catch 后 continue（跳过不匹配的明细），码只在万一改为直抛时生效 —
+                                    // 统一 PARAM_INVALID(4002)，与上面那处可达校验同码
+                                    detail -> PARAM_INVALID.whenNotEquals(
                                             detail.getMaterial().getId(),
                                             materialId,
                                             "物料信息不匹配"));
