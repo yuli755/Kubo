@@ -146,10 +146,20 @@ describe('演示模式 · 控制台冒烟', () => {
     const menuNodes = wrapper.findAll('el-menu-item').length + wrapper.findAll('.el-menu-item').length
     expect(menuNodes, '侧栏一个菜单项都没渲染').toBeGreaterThan(20)
 
+    // 内容区也要有东西：路由页（airpower 组件）能渲染，而不是被错卡顶掉。
+    // 必须 waitFor：`routesReady` 放开 router-view 之后，路由页是 `import.meta.glob` 的懒加载 chunk，
+    // 渲染落地还要再走几个微任务；同步量一次只会量到 Transition 的空壳。
+    // 反向的坑更要记住：这行从前量到的其实是 catchAll 的 404 页（体积够大所以过了阈值），
+    // 也就是说「深链冷启动会先闪一下 404」这个真机缺陷，被本用例的绿色掩盖过一段时间。
+    await vi.waitFor(() => {
+      const content = wrapper.find('.k-shell__content').html()
+      expect(content, '内容区渲染的是 catchAll 的 404 页：动态路由没接上').not.toContain('很抱歉，没有找到')
+      expect(content.length, `内容区几乎是空的（len=${content.length}）：${content.slice(0, 300)}`)
+        .toBeGreaterThan(2000)
+    }, { timeout: 8000 })
+
     // 收尾：卸载组件，避免遗留的异步任务在环境销毁后继续跑
     wrapper.unmount()
-    // 内容区也要有东西：路由页（airpower 组件）能渲染，而不是被错卡顶掉
-    expect(wrapper.find('.k-shell__content').html().length).toBeGreaterThan(2000)
   })
 
   it('菜单数据本身自洽（每个菜单叶子都能被演示权限放行）', () => {

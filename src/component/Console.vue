@@ -18,6 +18,23 @@ const loadError = ref(false)
 const errorMessage = ref('')
 const errorTitle = ref('')
 const tenantReady = ref(false)
+/**
+ * 动态菜单路由是否已经注册完成。
+ *
+ * 本页的路由不是静态表，而是**运行时**从 `/user/getMyMenuList` 生成后 `initVueRouter` 注进去的。
+ * 在它跑完之前，任何 `/console/...` 深链都只能被 `config/routes.ts` 的 `:catchAll(.*)` 接住，
+ * 渲染出 `view/error.vue` 的 404；而 `tenantReady` 在第一个 await 之后就变 true，外壳随即挂出
+ * `<router-view>` —— 于是「深链冷启动」会先把 404 页画在 `v-loading` 遮罩底下，
+ * 等 `reloadCurrentRoute()` 再翻回真页面。
+ *
+ * 真机实测（Playwright）：冷缓存硬加载 `/console/factory/storage/list`，1.4s 时 DOM 里仍是
+ * 「很抱歉，没有找到」，约 5s 后自愈；同一地址热加载始终正常。症状只在冷启动出现、又只闪一下，
+ * 所以极容易被误判成「这个页面坏了」—— 排查时值得先等 5 秒再下结论。
+ * 遮罩是 90% 不透明白，用户看到的是隐约透出的 404 文案。
+ *
+ * 用这个开关把 `router-view` 压到路由注册完成之后再渲染，404 就没有机会被画出来。
+ */
+const routesReady = ref(false)
 const userStore = useUserStore()
 
 onErrorCaptured((error) => {
@@ -42,6 +59,9 @@ async function getMenuList() {
   menuList.value = applyMenuPermissions(await UserService.create(isLoading).getMyMenuList())
   initVueRouter(menuList.value, components, '/src/view', 'console')
   await reloadCurrentRoute()
+  // 必须排在 reloadCurrentRoute 之后：那时当前路由已经从 catchAll 换成真实页面，
+  // 再放开 router-view，用户看到的第一帧就是正确内容，而不是「404 → 真页面」的跳变。
+  routesReady.value = true
 }
 
 async function init() {
@@ -115,13 +135,17 @@ init()
   <!-- 新壳（KAppShell，P0 视觉焕新）：设计 token + Element Plus 自研布局 -->
   <KAppShell
     v-else
-    v-loading="isLoading"
+    v-loading="isLoading || !routesReady"
     :header-height="56"
     :menu-list="menuList"
     :user="currentUserInfo"
   >
     <!-- V3：路由过渡（淡入 + 轻微上移，只动 opacity/transform，合成器友好） -->
-    <router-view v-slot="{ Component }">
+    <!-- v-if 的理由见 routesReady 的注释：路由注册前渲染 router-view 等于先把 404 页画出来 -->
+    <router-view
+      v-if="routesReady"
+      v-slot="{ Component }"
+    >
       <Transition
         name="fade-slide"
         mode="out-in"
