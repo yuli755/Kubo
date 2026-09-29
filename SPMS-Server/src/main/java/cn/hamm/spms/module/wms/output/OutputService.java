@@ -38,7 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
+import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
 import static cn.hamm.spms.common.exception.Errors.PARAM_MISSING;
 import static cn.hamm.spms.module.system.config.enums.ConfigFlag.OUTPUT_BILL_AUTO_AUDIT;
@@ -227,9 +227,11 @@ public class OutputService extends AbstractBaseBillService<OutputEntity, OutputR
             PARAM_MISSING.show("请传入出库来源库存信息");
         }
 
-        // 库存信息
+        // 库存信息：调用方给的 id 查不到行 = 数据不存在（404），不是授权边界（403）。
+        // 与上方 L224 同一条规矩：403 会让监控把"引用了已删除的库存"统计成权限事故，
+        // 前端也会照着 403 给出"去找管理员开通权限"的错误指引。
         InventoryEntity inventory = inventoryService.get(outputDetail.getInventory().getId());
-        FORBIDDEN.whenNull(inventory, "未找到指定的出库来源库存");
+        DATA_NOT_FOUND.whenNull(inventory, "未找到指定的出库来源库存");
         // 物料一致性是「调用方传的两个值互相对不上」的输入校验，不是授权边界 → PARAM_INVALID(4002)。
         // 与上方 L224 同一条规矩：403 会让调用方与监控把参数错误误判成权限问题。
         PARAM_INVALID.whenNotEquals(inventory.getMaterial().getId(), materialId, "物料信息不匹配");

@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
+import static cn.hamm.spms.common.exception.Errors.SERVICE_ERROR;
 
 /**
  * <h1>单据 Service 基类</h1>
@@ -65,8 +66,10 @@ public abstract class AbstractBaseBillService<
      */
     public final void setBillDetailsAllFinished(long billId) {
         log.info("标记明细已全部完成 {}，单据ID:{}", EntityMetadata.description(getFirstParameterizedTypeClass()), billId);
+        // 取不到「明细全部完成」状态 = 该单据类型没配完成状态字典，属**服务端配置缺陷**（500），
+        // 不是调用方无权（403）：403 会把用户与监控一起引向"去查角色配置"这条错路。
         IDictionary status = getBillDetailsFinishStatus();
-        FORBIDDEN.whenNull(status, "没有找到单据的所有明细完成状态");
+        SERVICE_ERROR.whenNull(status, "没有找到单据的所有明细完成状态");
         updateToDatabase(getEntityInstance(billId).setStatus(status.getKey()));
         afterAllBillDetailFinished(billId);
         if (status.equals(getFinishedStatus())) {
@@ -82,8 +85,9 @@ public abstract class AbstractBaseBillService<
      */
     public final void setBillFinished(long billId) {
         log.info("标记单据已完成 {}，单据ID:{}", EntityMetadata.description(getFirstParameterizedTypeClass()), billId);
+        // 同上：没配终态字典是服务端问题，用 500 而不是 403
         IDictionary status = getFinishedStatus();
-        FORBIDDEN.whenNull(status, "标记完成失败，没有找到完成状态");
+        SERVICE_ERROR.whenNull(status, "标记完成失败，没有找到完成状态");
         beforeBillFinish(billId);
         updateToDatabase(getEntityInstance(billId).setStatus(status.getKey()));
         afterBillFinished(billId);

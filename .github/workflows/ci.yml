@@ -107,6 +107,11 @@ jobs:
       - name: Every HTTP endpoint has explicit @Permission
         run: pnpm auth:check
 
+      # 403 只承载「授权失败」（与已评审保留的业务规则拒绝）：查不到行、输入非法、服务端配置缺失
+      # 都不得用 FORBIDDEN —— 否则监控把它记成越权尝试，前端还会给"找管理员开权限"的假指引
+      - name: Error code semantics (403 is not a catch-all failure code)
+        run: pnpm errcode:check
+
       # 两类"文本级但没人管"的问题：中文被 U+FFFD 污染（不影响编译，只在页面上显形）、
       # Java 源码里的单反斜杠转义（影响编译，但沙箱没有 JDK —— 见 docs §18.2 与 §19.9）
       - name: Source text integrity (encoding / Java literals / gate self-test)

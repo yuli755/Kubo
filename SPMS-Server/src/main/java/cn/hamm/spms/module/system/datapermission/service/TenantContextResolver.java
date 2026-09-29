@@ -12,6 +12,7 @@ import org.springframework.util.StringUtils;
 import java.util.Set;
 
 import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
+import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
 
 /**
  * <h1>租户上下文解析器</h1>
@@ -112,10 +113,13 @@ public class TenantContextResolver {
             parsed = Long.parseLong(raw.trim());
         }
         catch (NumberFormatException ex) {
-            FORBIDDEN.show("非法的租户标识：" + raw);
+            // 头里传了非数字 = **输入不合法**（4002），不是授权边界（403）。
+            // 分开才有意义：403 会被监控与前端当成"越权尝试/去找管理员开权限"，
+            // 而这里绝大多数是调用方把头拼错了。真正的越权在 L84「无权访问该租户」那条上。
+            PARAM_INVALID.show("非法的租户标识：" + raw);
             return null;
         }
-        FORBIDDEN.when(parsed <= 0, "非法的租户标识：" + raw);
+        PARAM_INVALID.when(parsed <= 0, "非法的租户标识：" + raw);
         return parsed;
     }
 }

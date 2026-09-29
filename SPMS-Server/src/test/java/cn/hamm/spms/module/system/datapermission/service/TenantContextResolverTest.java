@@ -1,5 +1,7 @@
 package cn.hamm.spms.module.system.datapermission.service;
 
+import cn.hamm.spms.common.exception.Errors;
+import cn.hamm.spms.framework.error.BusinessException;
 import cn.hamm.spms.module.personnel.user.UserEntity;
 import cn.hamm.spms.module.system.datapermission.SystemPermissionIdentities;
 import cn.hamm.spms.module.system.datapermission.config.DataPermissionProperties;
@@ -128,9 +130,12 @@ class TenantContextResolverTest {
             given(userTenantService.tenantIds(7L)).willReturn(Set.of(5L));
             given(request.getHeader(TenantContextResolver.TENANT_HEADER)).willReturn("999999");
 
-            RuntimeException ex = assertThrows(RuntimeException.class, () -> resolver.resolve(user, request));
+            BusinessException ex = assertThrows(BusinessException.class, () -> resolver.resolve(user, request));
             assertEquals(true, ex.getMessage() != null && ex.getMessage().contains("999999"),
                     "拒绝原因应包含被拒绝的租户标识，便于排障");
+            // 码值本身也是契约：越权必须是 403 —— 监控据此计入越权尝试，
+            // 前端据此给「请联系管理员开通权限」的指引（见 web 侧 src/api/errorPolicy.ts）
+            assertEquals(Errors.FORBIDDEN.getCode(), ex.getCode(), "伪造他人租户属授权失败，必须是 403");
         }
 
         @Test
@@ -140,10 +145,15 @@ class TenantContextResolverTest {
             given(userTenantService.tenantIds(7L)).willReturn(Set.of(5L));
             given(request.getHeader(TenantContextResolver.TENANT_HEADER)).willReturn("abc;drop");
 
-            assertThrows(RuntimeException.class, () -> resolver.resolve(user, request));
+            // 拒绝之外还锁**码值**：头里传了非数字是「输入不合法」(4002)，不是「越权」(403)。
+            // 混成 403 的代价是双份的：监控把它计入越权尝试（值班的人去查角色配置），
+            // 前端照 403 给"请联系管理员开通权限"的假指引（用户照做也解决不了拼错的请求头）。
+            BusinessException nonNumeric = assertThrows(BusinessException.class, () -> resolver.resolve(user, request));
+            assertEquals(Errors.PARAM_INVALID.getCode(), nonNumeric.getCode(), "非数字租户头应为 4002（输入不合法）");
 
             given(request.getHeader(TenantContextResolver.TENANT_HEADER)).willReturn("-3");
-            assertThrows(RuntimeException.class, () -> resolver.resolve(user, request));
+            BusinessException nonPositive = assertThrows(BusinessException.class, () -> resolver.resolve(user, request));
+            assertEquals(Errors.PARAM_INVALID.getCode(), nonPositive.getCode(), "<=0 的租户头同样应为 4002");
         }
 
         @Test

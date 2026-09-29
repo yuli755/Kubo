@@ -47,7 +47,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
-import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
 import static cn.hamm.spms.module.system.config.enums.ConfigFlag.MOVE_BILL_AUTO_AUDIT;
 
 /**
@@ -226,9 +225,10 @@ public class MoveService extends AbstractBaseBillService<MoveEntity, MoveReposit
         InventoryEntity from = existDetail.getInventory();
         DATA_NOT_FOUND.whenNull(from, "移库明细来源库存未配置");
 
-        // 物料信息
+        // 物料信息：与上方 L227 同一口径 —— 库存行在、物料却为空是**数据缺口**（404），
+        // 不是调用方无权（403）；403 会把排障方向引到角色配置上去。
         MaterialEntity material = from.getMaterial();
-        FORBIDDEN.whenNull(material, "来源库存物料信息缺失");
+        DATA_NOT_FOUND.whenNull(material, "来源库存物料信息缺失");
 
         String lockKey = "lock:wms:inventory:storage:" + storage.getId() + ":material:" + material.getId();
         Runnable moveAction = () -> transactionHelper.run(() -> {
