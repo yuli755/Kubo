@@ -589,6 +589,8 @@ All files 84.08% stmts / 79.22% branch（阈值 75%）、`build` 2443 modules / 
 | 真机（登录） | `POST /user/login {"email":"admin@hamm.cn","password":"Aa123456"}` | `code=200`，token 长度 83；手机号 `17666666666` 同样 200 |
 | 真机（数据） | `mysql -h 127.0.0.1 -uroot -proot kubo -e "..."` | `data_resource`=17、`data_policy`=65、`permission`=309、`role_permission_list`=370、孤儿 0 |
 | 真机（错误码） | 受限账号 `POST /permission/getList`；空账号 `POST /user/login` | 均为 **HTTP 200**：`code=403` `你无权访问 权限-不分页查询 (Permission_getList)`；`code=4002` `请确认传入有效的邮箱或手机号`（案例 I 的设计前提） |
+| 真机（错误码·四类载荷） | `/permission/getList`（张三）、`/user/add`（重复邮箱 / 少传昵称）、`/material/getDetail`（不存在的 id） | 均 **HTTP 200**：`403 你无权访问 … (Permission_getList)`；`4031 邮箱已经存在，请勿重复添加用户`；`4002 nickname: 昵称不能为空`；`404 没有查询到ID为99999999的物料` —— 四条已**原样钉成用例**（`errorPolicy.spec.ts`「真机抓取的响应」，断言最终用户读到的整句话） |
+| 真机（未能复现项） | `POST /menu/getList` 带 `X-Tenant-Id: abc` 与 `-3` | 返回 `code=200 获取成功`：该开发环境未启用多租户解析，请求头没走到 `TenantContextResolver`。改码（403→4002）由 `TenantContextResolverTest` 的**双向码值断言**锁定，不以真机为准 |
 
 **踩坑备忘（省后来人的时间）**：
 - `mvn test` 与真机冒烟**不要并发**：`mvn clean` 会清 `target/`，运行中的后端会失联（本轮出现过

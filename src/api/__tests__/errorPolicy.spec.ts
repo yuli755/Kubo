@@ -240,6 +240,43 @@ describe('errorPolicy · 文案拼装', () => {
   })
 })
 
+describe('errorPolicy · 真机抓取的响应（2026-09，本机 8080，admin 与受限账号张三）', () => {
+  /**
+   * 这四条是**真载荷进 → 用户看到的那句话出**的端到端断言，不是构造数据：
+   * 后端所有业务失败都是 HTTP 200 + 业务码，所以"用户读到什么"完全由这一层决定。
+   * 抓法见 docs/DESIGN_THINKING.md 案例 I / J 的实测表。
+   */
+  it('403 越权：给出可搜到的权限码（张三调 /permission/getList）', () => {
+    const text = notificationText(classifyBusinessError({
+      code: 403,
+      message: '你无权访问 权限-不分页查询 (Permission_getList)',
+    }))
+    expect(text).toBe('无权限：你无权访问 权限-不分页查询 (Permission_getList)（请联系管理员为当前角色开通权限「Permission_getList」）')
+  })
+
+  it('4031 重复邮箱：说「数据已存在」并给出下一步，绝不说成无权限（/user/add）', () => {
+    const verdict = classifyBusinessError({ code: 4031, message: '邮箱已经存在，请勿重复添加用户' })
+    expect(verdict.kind).toBe('conflict')
+    expect(verdict.title).toBe('数据已存在')
+    const text = notificationText(verdict)
+    expect(text).toContain('不要重复添加')
+    expect(text, '曾经的假指引：让用户去找管理员开权限').not.toContain('开通权限')
+    expect(text).not.toContain('无权限')
+  })
+
+  it('4002 字段校验：解析出 nickname 并给出定位指引（/user/add 少传昵称）', () => {
+    const verdict = classifyBusinessError({ code: 4002, message: 'nickname: 昵称不能为空' })
+    expect(verdict.field).toBe('nickname')
+    expect(notificationText(verdict)).toBe('提交内容有误：nickname: 昵称不能为空（请检查「nickname」这一项）')
+  })
+
+  it('404 查不到行：提示可能是页面数据过期（/material/getDetail 传了不存在的 id）', () => {
+    const verdict = classifyBusinessError({ code: 404, message: '没有查询到ID为99999999的物料' })
+    expect(verdict.kind).toBe('notFound')
+    expect(notificationText(verdict)).toContain('刷新后重试')
+  })
+})
+
 describe('errorPolicy · 重复提示抑制', () => {
   it('同一「码 + 接口」在窗口内只提示一次，超过窗口后可以再提示', () => {
     resetNotifyDedupe()
