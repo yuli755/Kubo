@@ -95,4 +95,75 @@ describe('errorHandler · 全局错误兜底', () => {
     expect(reporter.mock.calls[0][0].message).toBe('plain string')
     expect(reporter.mock.calls[0][0].context).toBe('ws')
   })
+
+  it('unhandledrejection 的 reason 会被上报为 promise 来源（监听器真的会跑，不只是注册了）', () => {
+    const reporter = vi.fn()
+    setErrorReporter(reporter)
+    installGlobalErrorHandler(mockApp())
+
+    const event = new Event('unhandledrejection') as Event & { reason?: unknown }
+    event.reason = new Error('async boom')
+    window.dispatchEvent(event)
+
+    expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'async boom',
+      source: 'promise',
+    }))
+  })
+
+  it('window error：有 message 就用 message', () => {
+    const reporter = vi.fn()
+    setErrorReporter(reporter)
+    installGlobalErrorHandler(mockApp())
+
+    window.dispatchEvent(new ErrorEvent('error', { message: 'script boom' }))
+
+    expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'script boom',
+      source: 'window',
+    }))
+  })
+
+  it('window error：资源加载失败没有 message，退化为 resource-load-error 而不是空串', () => {
+    const reporter = vi.fn()
+    setErrorReporter(reporter)
+    installGlobalErrorHandler(mockApp())
+
+    // <img>/<script> 的加载失败走这条：只有 target，没有 message。
+    // 记成空串的话监控里会看到一堆「无内容错误」，等于没上报。
+    const resourceEvent = new Event('error') as Event & { message?: string }
+    resourceEvent.message = ''
+    window.dispatchEvent(resourceEvent)
+
+    expect(reporter).toHaveBeenCalled()
+    expect(reporter.mock.calls[0][0].message).toMatch(/^resource-load-error/)
+    expect(reporter.mock.calls[0][0].source).toBe('window')
+  })
+})
+
+/**
+ * 默认 reporter（尚未接入 Sentry/自建监控时的兜底）单独一组，并且**放在文件最后**：
+ * 它要靠 `vi.resetModules()` 拿到未被 `setErrorReporter` 改过的模块实例，
+ * 而 resetModules 会影响其后的 import，顺序反过来会干扰前面那些用例。
+ */
+describe('errorHandler · 默认 reporter 落 console', () => {
+  it('带来源标签，有 context 时追加 context，无 context 时不留空括号', async () => {
+    vi.resetModules()
+    const fresh = await import('@/utils/errorHandler')
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    fresh.reportError(new Error('boom'), 'login')
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0][0]).toBe('[Kubo][global-manual]')
+    expect(spy.mock.calls[0][1]).toBe('boom')
+    expect(spy.mock.calls[0][3]).toBe(' (context=login)')
+
+    spy.mockClear()
+    fresh.reportError('no context here')
+    expect(spy.mock.calls[0][0]).toBe('[Kubo][global-manual]')
+    expect(spy.mock.calls[0][1]).toBe('no context here')
+    expect(spy.mock.calls[0][3]).toBe('')
+
+    vi.restoreAllMocks()
+  })
 })
