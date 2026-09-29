@@ -1,6 +1,14 @@
 import type { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import {
+  BusinessCode,
+  classifyBusinessError,
+  notificationText,
+  notifyKey,
+  shouldNotify,
+} from '@/api/errorPolicy'
+import { publishFieldError } from '@/stores/fieldError'
 import { useUserStore } from '@/stores/user'
 
 // 链路追踪（可观测性 P1）：与后端 airpower 的 HttpConstant.Header.TRACE_ID 对齐 —— airpower 的
@@ -79,6 +87,63 @@ async function handleSessionExpired(): Promise<void> {
     window.location.replace('/login')
     // 浏览器里 replace 后本页即卸载，重置只为可测试/异常降级场景留口子
     sessionExpiredHandling = false
+  }
+}
+
+/**
+ * 业务错误（HTTP 200 + `code≠200`，以及网关直出的 403/422/500）的统一用户提示。
+ *
+ * ## 为什么必须有这一层
+ * 后端三个 advice 全部 `@ResponseStatus(HttpStatus.OK)`，业务失败一律是 **HTTP 200 + 业务码**。
+ * 因此按 HTTP status 分流的 `switch` 对它们是死分支，真正承接的是「code≠200」那一支 ——
+ * 而那一支此前**只 reject 不提示**：用户点「保存」后界面毫无反应，只能开控制台才知道失败了。
+ *
+ * ## 三个让路的口子（避免双份提示）
+ * 1. 调用方传了 `customErrorHandler` → 完全交给它；
+ * 2. 调用方传了 `showError: false`（`new Http(url).hideError()`）→ 只 reject，不弹；
+ * 3. 分类结果 `silent`（如登录失败 200001，登录页自己呈现）→ 不弹。
+ *
+ * ## 去重
+ * 一个列表页常并发 3~5 个请求，权限没开通时它们**同时**失败；逐条弹窗就是 5 条同样的红条糊屏。
+ * 同一「码 + 接口」在 {@link NOTIFY_DEDUPE_MS} 内只弹一次，但**字段定位信号仍照常发布**
+ * （弹窗可以去重，把出错字段滚到视野内不该被去重）。
+ */
+function notifyBusinessError(
+  error: ApiError,
+  option: { showError?: boolean, customErrorHandler?: (error: ApiError) => void } = {},
+): void {
+  if (option.customErrorHandler) {
+    option.customErrorHandler(error)
+    return
+  }
+  if (option.showError === false) {
+    return
+  }
+  const verdict = classifyBusinessError(error)
+  if (verdict.silent) {
+    return
+  }
+  publishFieldError(verdict.field, verdict.detail)
+  if (!shouldNotify(notifyKey(verdict.code, error.path))) {
+    return
+  }
+  ElMessage.error({
+    message: notificationText(verdict),
+    // 无权限要读完「找谁开通」，给更长的停留时间；其余保持默认节奏
+    duration: verdict.kind === 'forbidden' ? 6000 : 4000,
+    showClose: true,
+  })
+}
+
+/** 把 HTTP 层错误包装成与业务错误同构的对象，好让两条路径共用一套文案与去重 */
+function toApiError(status: number, data: ApiError | undefined, path: string, fallback: string): ApiError {
+  return {
+    code: status,
+    message: data?.message || fallback,
+    data: data?.data,
+    timestamp: data?.timestamp || new Date().toISOString(),
+    path,
+    traceId: data?.traceId,
   }
 }
 
@@ -161,6 +226,9 @@ function createAxiosInstance(): AxiosInstance {
           traceId: (res as { traceId?: string }).traceId,
         }
 
+        // 用户提示与字段定位（此前这一支只 reject，用户看到的是「点了没反应」）
+        notifyBusinessError(error, response.config as RequestConfig)
+
         return Promise.reject(error)
       }
 
@@ -211,18 +279,28 @@ function createAxiosInstance(): AxiosInstance {
           break
         }
 
-        case 403:
-          ElMessage.error(data?.message || '没有权限访问')
+        case 403: {
+          // HTTP 层直出的 403（网关 / Spring Security）没有业务码，但用户需要的指引与业务码 403 一样，
+          // 所以复用同一套分类文案与去重，不再单独写一句「没有权限访问」
+          const path = originalRequest?.url || ''
+          notifyBusinessError(
+            toApiError(BusinessCode.FORBIDDEN, data, path, '没有权限访问'),
+            originalRequest as RequestConfig | undefined,
+          )
           break
+        }
 
         case 404:
           ElMessage.error('请求的资源不存在')
           break
 
         case 422: {
-          // 参数校验错误
-          const validationMessage = data?.message || '参数校验失败'
-          ElMessage.error(validationMessage)
+          // 参数校验错误：走业务码 4002 的同一套文案，顺带解析出字段名以便表单定位
+          const path = originalRequest?.url || ''
+          notifyBusinessError(
+            toApiError(BusinessCode.PARAM_INVALID, data, path, '参数校验失败'),
+            originalRequest as RequestConfig | undefined,
+          )
           break
         }
 
@@ -230,9 +308,14 @@ function createAxiosInstance(): AxiosInstance {
           ElMessage.error('请求过于频繁，请稍后再试')
           break
 
-        case 500:
-          ElMessage.error(data?.message || '服务器内部错误')
+        case 500: {
+          const path = originalRequest?.url || ''
+          notifyBusinessError(
+            toApiError(BusinessCode.SERVICE_ERROR, data, path, '服务器内部错误'),
+            originalRequest as RequestConfig | undefined,
+          )
           break
+        }
 
         default:
           ElMessage.error(data?.message || `请求失败 (${status})`)

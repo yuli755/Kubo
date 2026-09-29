@@ -62,13 +62,18 @@ export class Http {
     return this
   }
 
-  /** 失败时抛出错误（默认行为，显式声明用于可读性） */
+  /**
+   * 失败时抛出错误，且**不弹全局提示**（调用方自己 catch 后决定怎么呈现）。
+   *
+   * 与 {@link hideError} 等价；保留两个名字是为了让调用点的意图更可读
+   * （「这个异常我自己处理」vs「这次失败不必打扰用户」）。
+   */
   throwError(): this {
     this.option.showError = false
     return this
   }
 
-  /** 不弹错误提示 */
+  /** 不弹全局错误提示（仍然 reject，调用方可以 catch） */
   hideError(): this {
     this.option.showError = false
     return this
@@ -81,6 +86,9 @@ export class Http {
       data: body === undefined ? undefined : toJson(body as object),
       headers: this.headers,
       timeout: this.option.timeout,
+      // showError 必须真的传下去：此前 `hideError()` / `throwError()` 只改了 Http 内部字段，
+      // 拦截器根本读不到 —— 两个方法是**空操作**，调用方自己 catch 之后仍会多弹一条全局提示。
+      showError: this.option.showError,
     } as never)
   }
 

@@ -16,6 +16,7 @@ import {
 } from 'element-plus'
 import { computed, nextTick, ref, watch } from 'vue'
 import { FeedbackUtil, getEnumItems, getFormConfigList, getModelName, WebValidator } from '@/framework'
+import { clearFieldError, fieldError } from '@/stores/fieldError'
 
 /**
  * # KFormDialog —— 自研表单弹窗（替代 airpower `ADialog` + `useEditor` 的组合）
@@ -376,6 +377,29 @@ watch(
   },
   { immediate: true },
 )
+
+/**
+ * 后端参数校验失败（HTTP 200 + `code=4002`）时的**字段定位**。
+ *
+ * 拦截器解析出字段名后发布到 `fieldError`（见 `src/stores/fieldError.ts`），这里订阅并把出错的
+ * 表单项滚到视野内。此前后端明明说了是哪个字段，前端却只在角落弹一句文字，长表单里用户还得自己找
+ * —— 「知道错了但不知道错在哪」是表单页最常见的挫败感。
+ *
+ * 三条纪律：
+ * - 只由**当前打开**的对话框消费（同一页面可能挂了多个 KFormDialog）；
+ * - 字段名必须真的在本表单的 `fields` 里，否则不滚（后端字段名与前端 key 偶有出入，
+ *   宁可不动也不要跳到无关的输入框）；
+ * - 消费后立刻清空信号，避免下次打开表单被旧信号误触发。
+ */
+watch(fieldError, async (notice) => {
+  if (!notice || !props.modelValue)
+    return
+  if (!fields.value.some(field => field.key === notice.field))
+    return
+  await nextTick()
+  formRef.value?.scrollToField(notice.field)
+  clearFieldError()
+})
 
 async function onSubmit() {
   const valid = await formRef.value?.validate().catch(() => false)

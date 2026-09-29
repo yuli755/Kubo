@@ -45,6 +45,9 @@ export default defineConfig({
         'src/directives/**/*.ts',
         'src/config/**/*.ts',
         'src/guard/**/*.ts',
+        // 请求层只把「业务码 → 该说什么」的纯逻辑纳入基线：它决定用户在界面上看到的每一句错误提示，
+        // 且能被穷举测试（见 api/__tests__/errorPolicy.spec.ts）。axios 实例本身是拦截器/重试胶水，不纳入。
+        'src/api/errorPolicy.ts',
         // 框架层只把"与后端逐分支对齐的纯逻辑"纳入基线（脱敏策略）；
         // 其余框架模块是元数据/HTTP/校验胶水，纳入会稀释阈值而不是提高质量
         'src/framework/mask.ts',

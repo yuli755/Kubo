@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import type { AxiosResponse } from 'axios'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetNotifyDedupe } from '@/api/errorPolicy'
+import { clearFieldError, fieldError } from '@/stores/fieldError'
 
 /**
  * `axios` 请求层契约测试（安全/健壮性主线的「锁」）。
@@ -250,5 +252,126 @@ describe('axios 请求层 · 401 刷新与登出', () => {
     expect(userStore.refreshToken).not.toHaveBeenCalled()
     expect(userStore.logout).not.toHaveBeenCalled()
     expect(locationReplace).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * 业务错误的用户提示（P1-2 / 风险表 R9）。
+ *
+ * 后端三个 advice 全部 `@ResponseStatus(HttpStatus.OK)`，业务失败一律是 **HTTP 200 + 业务码**，
+ * 所以按 HTTP status 分流的 `case 403` 对它们是死分支；真正承接的是「code≠200」那一支 ——
+ * 而那一支此前**只 reject 不提示**：用户点「保存」后界面毫无反应。
+ * 这组用例锁住新契约：要说、要说得可操作、该静默时静默、并发失败不刷屏、字段名要传给表单。
+ */
+describe('axios 请求层 · 业务错误的用户提示', () => {
+  /** 造一个直出 HTTP 错误的适配器（模拟网关 / Spring Security，而非后端业务码） */
+  function httpErrorAdapter(status: number, data: unknown): (config: any) => Promise<AxiosResponse> {
+    return async (config: any) => {
+      const err: any = new Error(`Request failed with status code ${status}`)
+      err.isAxiosError = true
+      err.config = config
+      err.response = { status, data, headers: {}, config }
+      throw err
+    }
+  }
+
+  beforeEach(() => {
+    resetNotifyDedupe()
+    clearFieldError()
+  })
+
+  it('4002 不再静默：弹出「标题：后端原文（该检查哪一项）」，并把字段名交给表单', async () => {
+    await expect(
+      request.post('/user/update', {}, {
+        adapter: adapterReturning({ code: 4002, message: 'email: 邮箱格式不正确' }),
+      }),
+    ).rejects.toMatchObject({ code: 4002 })
+
+    expect(elMessage.error).toHaveBeenCalledTimes(1)
+    expect(elMessage.error).toHaveBeenCalledWith(expect.objectContaining({
+      message: '提交内容有误：email: 邮箱格式不正确（请检查「email」这一项）',
+      showClose: true,
+    }))
+    // 字段定位信号已发布，KFormDialog 会把出错项滚到视野内
+    expect(fieldError.value?.field).toBe('email')
+  })
+
+  it('403 说清「找谁开通」，并给更长的停留时间（指引要读完）', async () => {
+    await expect(
+      request.get('/permission/list', { adapter: adapterReturning({ code: 403, message: '权限不足' }) }),
+    ).rejects.toBeDefined()
+
+    const arg = elMessage.error.mock.calls[0][0]
+    expect(arg.message).toContain('无权限：权限不足')
+    expect(arg.message).toContain('管理员')
+    expect(arg.duration).toBe(6000)
+  })
+
+  it('调用方要求静默（showError:false）时只 reject，不弹全局提示', async () => {
+    await expect(
+      request.get('/quiet', { showError: false, adapter: adapterReturning({ code: 500, message: '炸了' }) } as never),
+    ).rejects.toBeDefined()
+    expect(elMessage.error).not.toHaveBeenCalled()
+  })
+
+  it('调用方给了 customErrorHandler 就完全交给它（不出现双份提示）', async () => {
+    const handler = vi.fn()
+    await expect(
+      request.get('/custom', { customErrorHandler: handler, adapter: adapterReturning({ code: 4002, message: 'x: 不对' }) } as never),
+    ).rejects.toBeDefined()
+
+    expect(handler).toHaveBeenCalledTimes(1)
+    expect(handler.mock.calls[0][0]).toMatchObject({ code: 4002, message: 'x: 不对' })
+    expect(elMessage.error).not.toHaveBeenCalled()
+  })
+
+  it('登录失败（200001）保持静默：登录页自己呈现，全局不掺和', async () => {
+    await expect(
+      request.post('/user/login', {}, { adapter: adapterReturning({ code: 200001, message: '账号或密码不正确' }) }),
+    ).rejects.toBeDefined()
+    expect(elMessage.error).not.toHaveBeenCalled()
+  })
+
+  it('同一接口同一码连续失败只弹一次（列表页并发失败不该刷屏）', async () => {
+    const adapter = adapterReturning({ code: 403, message: '权限不足' })
+    await expect(request.get('/spam', { adapter })).rejects.toBeDefined()
+    await expect(request.get('/spam', { adapter })).rejects.toBeDefined()
+    await expect(request.get('/spam', { adapter })).rejects.toBeDefined()
+
+    expect(elMessage.error).toHaveBeenCalledTimes(1)
+  })
+
+  it('不同接口各自提示，不会互相吞掉', async () => {
+    await expect(request.get('/a', { adapter: adapterReturning({ code: 403, message: '权限不足' }) })).rejects.toBeDefined()
+    await expect(request.get('/b', { adapter: adapterReturning({ code: 403, message: '权限不足' }) })).rejects.toBeDefined()
+    expect(elMessage.error).toHaveBeenCalledTimes(2)
+  })
+
+  it('网关直出的 403（Security/反代）与业务码 403 共用同一套文案', async () => {
+    await expect(
+      request.get('/gateway', { adapter: httpErrorAdapter(403, { message: 'Forbidden' }) }),
+    ).rejects.toBeDefined()
+
+    expect(elMessage.error.mock.calls[0][0].message).toContain('无权限：Forbidden')
+    expect(elMessage.error.mock.calls[0][0].message).toContain('管理员')
+  })
+
+  it('状态码 422 走 4002 的文案并解析出字段名', async () => {
+    await expect(
+      request.post('/validate', {}, { adapter: httpErrorAdapter(422, { message: 'name: 长度超限' }) }),
+    ).rejects.toBeDefined()
+
+    expect(elMessage.error.mock.calls[0][0].message).toContain('提交内容有误：name: 长度超限')
+    expect(fieldError.value?.field).toBe('name')
+  })
+
+  it('状态码 500 也走统一文案（带 traceId 指引），不再是一句干巴巴的「服务器内部错误」', async () => {
+    await expect(
+      request.get('/boom', { adapter: httpErrorAdapter(500, { message: 'NPE' }) }),
+    ).rejects.toBeDefined()
+
+    const text = elMessage.error.mock.calls[0][0].message
+    expect(text).toContain('服务器处理失败：NPE')
+    expect(text).toContain('traceId')
   })
 })
