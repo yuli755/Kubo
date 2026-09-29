@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.system.tenant;
 
 import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.FilterIgnore;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -40,6 +41,11 @@ public class TenantEntity extends BaseEntity<TenantEntity> {
 
     @Description("状态")
     @Column(name = "status", nullable = false, columnDefinition = "int UNSIGNED default 1 comment '1=启用 0=停用'")
+    // 初始值只是 INSERT 缺省。本实体目前没有控制器（31 个 @Api 里没有 tenant），
+    // 但它是 BaseEntity 家族的一员，一旦有人加 /tenant/getList，这个 1 就会静默变成
+    // WHERE status=1 —— 「停用的租户在列表里消失」而不是「按状态筛选」。
+    // 形状见 DataResourceEntity 的类注释，机械守卫见 EntityFilterDefaultTest。
+    @FilterIgnore
     private Integer status = 1;
 
     @Description("到期时间")

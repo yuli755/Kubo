@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.system.tenant;
 
 import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.FilterIgnore;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -49,5 +50,10 @@ public class UserTenantEntity extends BaseEntity<UserTenantEntity> {
 
     @Description("是否默认租户")
     @Column(name = "is_default", nullable = false, columnDefinition = "bit(1) default 0 comment '是否默认租户'")
+    // 初始值只是 INSERT 缺省。「取某用户的默认租户」走的是
+    // UserTenantRepository#findByUserIdAndIsDefaultTrue，不经过 buildPredicates，
+    // 所以 @FilterIgnore 不影响它；影响的只是"拿本实体当 filter 查用户的全部租户"那条路，
+    // 而那条路一旦走通就会静默变成 WHERE is_default=0 —— 恰好把默认租户那一行滤掉。
+    @FilterIgnore
     private Boolean isDefault = false;
 }

@@ -1,6 +1,7 @@
 package cn.hamm.spms.base;
 
 import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.FilterIgnore;
 import cn.hamm.spms.framework.web.annotation.NullEnable;
 import cn.hamm.spms.framework.web.annotation.Search;
 import cn.hamm.spms.framework.web.annotation.SearchEmpty;
@@ -200,6 +201,14 @@ public class BaseService<
 
     /**
      * 加锁更新指定 ID 的数据
+     *
+     * <p><b>已知审计盲区（刻意保留，不要顺手补上）</b>：本方法不写操作审计。
+     * 它把同一个受管实例交给 {@code consumer} 就地改写，改前改后是<b>同一个对象引用</b> ——
+     * 直接拿它当 before/after 会得到两份完全相同的快照，Diff 页显示「没有变动」，
+     * 把真实改动报成没发生（假阴性，比不记录更坏）。要记录就得先做一次深拷贝，
+     * 而本方法的调用方全是库存增减这类高频路径，那些资源本来就不在 {@code @OperationLog}
+     * 名单里（名单口径见该注解的 javadoc）。真要审计这些改动，应该由发起它的单据侧记，
+     * 那里才有「为什么改」的上下文。</p>
      */
     public final void updateWithLock(long id, Consumer<E> consumer) {
         if (transactionHelper != null) {
@@ -243,21 +252,33 @@ public class BaseService<
 
     /**
      * 启用指定数据
+     *
+     * <p><b>审计口径（三个状态迁移动作共用）</b>：只记「变更前快照」，不记变更后。
+     * 理由是这里的写库入参是 {@code getEntityInstance(id).setIsDisabled(false)} —— 一个
+     * 只有 id 与该标志位的<b>稀疏实例</b>，把它当 after 快照会让 Diff 页把其余每个字段
+     * 都显示成「被删除」，是一次彻头彻尾的假信号（本项目纪律：假指引比不指引更坏）。
+     * 而状态迁移动作的语义完全由动作名承载：{@code DISABLE} + 变更前 {@code isDisabled=false}
+     * 已经说清了发生了什么，after 是确定的、无需再存一份。与 {@code beforeDelete} 同口径。</p>
+     *
+     * <p>记录点放在写库<b>之后</b>：写失败就不该留下「已启用」的证据。
+     * （{@code beforeDelete} 是写在删除之前，属既有口径，未在此改动。）</p>
      */
     public final void enable(long id) {
         E entity = get(id);
         beforeEnable(entity);
         updateToDatabase(getEntityInstance(id).setIsDisabled(false));
+        recordOperationLog(OperationLogRecorder.ACTION_ENABLE, id, entity, null);
         afterEnable(id);
     }
 
     /**
-     * 禁用指定数据
+     * 禁用指定数据（审计口径见 {@link #enable(long)}）
      */
     public final void disable(long id) {
         E entity = get(id);
         beforeDisable(entity);
         updateToDatabase(getEntityInstance(id).setIsDisabled(true));
+        recordOperationLog(OperationLogRecorder.ACTION_DISABLE, id, entity, null);
         afterDisable(id);
     }
 
@@ -420,6 +441,14 @@ public class BaseService<
 
     /**
      * 遍历实体属性生成 Criteria Predicate 列表
+     *
+     * <p>规则：非 null 即成条件；{@code @Transient} / {@code @OneToMany} / {@code @ManyToMany}
+     * 跳过；{@code @ManyToOne} 递归进 join；标了 {@link FilterIgnore} 的字段<b>永不</b>成条件。</p>
+     *
+     * <p>最后一条是必须的，不是洁癖：筛选体是反序列化出来的实体实例，带 Java 侧默认值的字段
+     * 会让「调用方没传这个条件」与「传了默认值」在服务端同形，条件于是从请求体、日志里都看不见。
+     * {@code isPublished} 曾因此给每次列表查询隐式加上 {@code is_published = 0}，把 V10 种下的
+     * 4 条已发布菜单连同子树一起藏掉（9 个页面在 UI 里不可达）。详见 {@link FilterIgnore}。</p>
      */
     protected List<Predicate> buildPredicates(
             From<?, ?> root,
@@ -435,6 +464,9 @@ public class BaseService<
         while (current != null && current != Object.class) {
             for (Field field : current.getDeclaredFields()) {
                 if (Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                if (field.isAnnotationPresent(FilterIgnore.class)) {
                     continue;
                 }
                 field.setAccessible(true);
@@ -789,12 +821,15 @@ public class BaseService<
     }
 
     /**
-     * 发布
+     * 发布（发布即冻结：此后 {@code update}/{@code delete} 都会被 {@code FORBIDDEN_EDIT} 拒绝）
+     *
+     * <p>正因为它是不可逆的，这一笔必须留痕 —— 审计口径见 {@link #enable(long)}。</p>
      */
     public final void publish(long id) {
         E entity = get(id);
         beforePublish(entity);
         updateToDatabase(getEntityInstance(id).setIsPublished(true));
+        recordOperationLog(OperationLogRecorder.ACTION_PUBLISH, id, entity, null);
     }
 
     protected void beforePublish(@NotNull E entity) {

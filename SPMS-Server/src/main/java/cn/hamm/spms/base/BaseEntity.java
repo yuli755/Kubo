@@ -1,6 +1,7 @@
 package cn.hamm.spms.base;
 
 
+import cn.hamm.spms.framework.web.annotation.FilterIgnore;
 import cn.hamm.spms.framework.web.annotation.Meta;
 import cn.hamm.spms.framework.web.annotation.ReadOnly;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -93,6 +94,17 @@ public class BaseEntity<E extends BaseEntity<E>> implements Serializable, CurdAc
     // —— V2__data_permission_migrations.sql 第 252 行的 INSERT INTO user_tenant 正是如此，
     // 导致「JPA 先建表、Flyway 后迁移」的库（STARTUP.md 规定的本地开发流程）后端起不来。
     // 补上默认值后，JPA 建出的列与 V1/V2 的 `is_published BIT(1) NOT NULL DEFAULT b'0'` 一致。
+    //
+    // @FilterIgnore 是另一码事，且是必须的：下面这行成员初始化让「筛选体没写 isPublished」与
+    // 「筛选体写了 isPublished=false」在服务端完全同形（Jackson 反序列化出的筛选实体带着这个
+    // 默认值），buildPredicates 便给每一次列表查询都隐式加上 `is_published = 0`。
+    // 后果实测：V10 以 is_published=1 种下的 4 条菜单不返回，其子菜单被 Trees.buildTreeList
+    // 连带丢弃，9 个页面（含用户/角色/部门管理与整个数据权限管理台）在 UI 里不可达；
+    // 而「发布」又等于「冻结」，于是任何资源发布一条记录 = 它从自己的列表页消失。
+    // 详见 FilterIgnore 的类注释与 V14__menu_unpublish_canonical_groups.sql。
+    // 注意 isDisabled 刻意**不**标：默认只看启用行是产品要的语义，各列表页的「显示已禁用」
+    // 开关显式传 isDisabled=true 即可。
+    @FilterIgnore
     @Column(name = "is_published", nullable = false,
             columnDefinition = "bit(1) NOT NULL default 0 comment '是否已发布'")
     private Boolean isPublished = false;
