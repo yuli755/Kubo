@@ -4,6 +4,7 @@ import cn.hamm.spms.framework.web.annotation.Description;
 import cn.hamm.spms.framework.web.annotation.Search;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.framework.util.TreeNode;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -32,6 +33,7 @@ import java.util.List;
 @Table(name = "permission")
 @Description("权限")
 @Schema(name = "PermissionEntity", description = "权限实体 - 权限树形结构管理")
+@OperationLog
 public class PermissionEntity extends BaseEntity<PermissionEntity> implements TreeNode<PermissionEntity> {
     @Description("权限标识")
     @Column(columnDefinition = "varchar(255) default '' comment '权限标识'", unique = true)

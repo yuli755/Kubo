@@ -5,6 +5,7 @@ import cn.hamm.spms.framework.web.annotation.Meta;
 import cn.hamm.spms.framework.util.TreeNode;
 import cn.hamm.spms.framework.web.annotation.Search;
 import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -32,6 +33,7 @@ import java.util.List;
 @DynamicUpdate
 @Table(name = "menu")
 @Description("菜单")
+@OperationLog
 public class MenuEntity extends BaseEntity<MenuEntity> implements TreeNode<MenuEntity> {
     @Description("名称")
     @Search

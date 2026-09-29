@@ -6,6 +6,7 @@ import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.module.asset.material.MaterialEntity;
 import cn.hamm.spms.module.channel.supplier.SupplierEntity;
 import cn.hamm.spms.module.system.datapermission.annotation.SensitiveField;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.ManyToOne;
@@ -32,6 +33,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @DynamicUpdate
 @Table(name = "purchase_price")
 @Description("采购价格")
+@OperationLog
 public class PurchasePriceEntity extends TenantAwareEntity<PurchasePriceEntity> implements IPurchasePriceAction {
     @Description("物料信息")
     @ManyToOne(fetch = EAGER)

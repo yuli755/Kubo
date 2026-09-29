@@ -39,6 +39,21 @@ public class OperationLogRecorder {
     public static final String ACTION_DELETE = "DELETE";
 
     /**
+     * 启用 / 禁用 / 发布：这三个是<b>状态迁移动作</b>，不是「改了一个字段」。
+     *
+     * <p>为什么要单独立动作而不是复用 {@link #ACTION_UPDATE}：{@code disable} 在多数资源上
+     * 就是「下线这条数据」的实际手段 —— 单据类资源被 {@code @Extends(exclude = Curd.Delete)}
+     * 挡掉了硬删除，用户能做的只有禁用。如果禁用记成 UPDATE，审计里就分不清
+     * 「把备注改了个字」和「把这条供应商停用了」，而后者才是需要追责的那一件。</p>
+     *
+     * <p>发布同理且更强：{@code publish} 之后记录被冻结（{@code BaseController} 拒绝再改再删），
+     * 「谁把它冻结的」必须可查。</p>
+     */
+    public static final String ACTION_ENABLE = "ENABLE";
+    public static final String ACTION_DISABLE = "DISABLE";
+    public static final String ACTION_PUBLISH = "PUBLISH";
+
+    /**
      * 一条操作审计事件（值对象：全部字段在业务线程上定稿，后台线程只做持久化）
      */
     public record OperationLogEvent(String resourceKey,
@@ -76,7 +91,8 @@ public class OperationLogRecorder {
      * 记一次操作审计（异步；失败与缺表都只影响证据、不影响业务）
      *
      * @param resourceKey 资源标识
-     * @param action      动作（{@link #ACTION_CREATE}/{@link #ACTION_UPDATE}/{@link #ACTION_DELETE}）
+     * @param action      动作（{@link #ACTION_CREATE}/{@link #ACTION_UPDATE}/{@link #ACTION_DELETE}/
+     *                    {@link #ACTION_ENABLE}/{@link #ACTION_DISABLE}/{@link #ACTION_PUBLISH}）
      * @param targetId    目标记录 ID
      * @param before      变更前实体（可为 null）
      * @param after       变更后实体（可为 null）

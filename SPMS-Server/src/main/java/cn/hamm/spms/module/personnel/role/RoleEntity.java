@@ -6,6 +6,7 @@ import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.system.menu.MenuEntity;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -31,6 +32,7 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.RoleCode;
 @DynamicUpdate
 @Table(name = "role")
 @Description("角色")
+@OperationLog
 public class RoleEntity extends TenantAwareEntity<RoleEntity> implements IRoleAction {
     @Description("角色名称")
     @Column(columnDefinition = "varchar(255) default '' comment '角色名称'", unique = true)

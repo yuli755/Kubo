@@ -6,6 +6,7 @@ import cn.hamm.spms.framework.web.annotation.Meta;
 import cn.hamm.spms.framework.web.annotation.ReadOnly;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.module.system.config.enums.ConfigType;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -36,6 +37,7 @@ import static com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY;
 @DynamicUpdate
 @Table(name = "config")
 @Description("配置信息")
+@OperationLog
 public class ConfigEntity extends BaseEntity<ConfigEntity> {
     @Description("配置标识")
     @Column(columnDefinition = "varchar(255) comment '规则字段'", unique = true)

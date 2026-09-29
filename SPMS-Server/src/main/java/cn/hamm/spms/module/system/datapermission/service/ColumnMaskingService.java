@@ -232,23 +232,12 @@ public class ColumnMaskingService {
 
     /**
      * 不可逆摘要（SHA-256 前 12 位十六进制）：同值同码可比对、不可还原
+     *
+     * <p>实现委托给 {@link MaskedValueDigest}，与操作审计快照里的敏感字段摘要共用同一口径 ——
+     * 两边各写一份 SHA-256 迟早会漂移（例如一边改了前缀），而这两个值是要放在一起比对的。</p>
      */
     private String digest(String value) {
-        try {
-            byte[] bytes = java.security.MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder();
-            for (byte b : bytes) {
-                hex.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
-                if (hex.length() >= 12) {
-                    break;
-                }
-            }
-            return "h:" + hex.substring(0, Math.min(12, hex.length()));
-        }
-        catch (java.security.NoSuchAlgorithmException ex) {
-            return "****";
-        }
+        return MaskedValueDigest.of(value);
     }
 
     /**

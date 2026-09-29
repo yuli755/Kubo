@@ -7,6 +7,7 @@ import cn.hamm.spms.framework.web.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.framework.util.PhoneRules;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -33,6 +34,7 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.CustomerCo
 @DynamicUpdate
 @Table(name = "customer")
 @Description("客户")
+@OperationLog
 public class CustomerEntity extends TenantAwareEntity<CustomerEntity> {
     @Description("客户名称")
     @NotNull(groups = {WhenUpdate.class, WhenAdd.class}, message = "客户名称不能为空")

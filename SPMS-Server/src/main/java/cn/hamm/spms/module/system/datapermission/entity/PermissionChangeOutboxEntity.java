@@ -1,6 +1,7 @@
 package cn.hamm.spms.module.system.datapermission.entity;
 
 import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.FilterIgnore;
 import cn.hamm.spms.base.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -48,10 +49,16 @@ public class PermissionChangeOutboxEntity extends BaseEntity<PermissionChangeOut
 
     @Description("投递状态")
     @Column(name = "status", nullable = false, length = 16)
+    // 初始值只是 INSERT 时的缺省，不是查询条件。死信盘点走的是
+    // PermissionChangeOutboxRepository#findByStatusOrderByIdDesc，不经过 buildPredicates，
+    // 所以这里加 @FilterIgnore 不影响它；影响的只是"万一有人拿本实体当 filter"的那条路，
+    // 而那条路一旦走通就会静默变成 WHERE status='PENDING' AND retry_count=0（永远查不到死信）。
+    @FilterIgnore
     private String status = "PENDING";
 
     @Description("重试次数")
     @Column(name = "retry_count", nullable = false)
+    @FilterIgnore
     private Integer retryCount = 0;
 
     @Description("下次重试时间")

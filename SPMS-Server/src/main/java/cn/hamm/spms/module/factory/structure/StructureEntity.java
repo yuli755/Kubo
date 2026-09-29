@@ -9,6 +9,7 @@ import cn.hamm.spms.framework.web.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
 import cn.hamm.spms.module.factory.structure.enums.StructureType;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -36,6 +37,7 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.StructureC
 @DynamicUpdate
 @Table(name = "structure")
 @Description("生产单元")
+@OperationLog
 public class StructureEntity extends TenantAwareEntity<StructureEntity> implements TreeNode<StructureEntity> {
     @Description("生产单元编码")
     @Column(columnDefinition = "varchar(255) default '' comment '生产单元编码'", unique = true)

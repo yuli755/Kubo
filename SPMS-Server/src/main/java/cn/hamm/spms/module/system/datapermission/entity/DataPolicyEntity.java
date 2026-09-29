@@ -1,7 +1,9 @@
 package cn.hamm.spms.module.system.datapermission.entity;
 
 import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.FilterIgnore;
 import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -15,6 +17,13 @@ import org.hibernate.annotations.DynamicUpdate;
 /**
  * <h1>数据权限策略</h1>
  *
+ * <p><b>四个带初始值的字段全部标了 {@code @FilterIgnore}</b>，理由与坑的形状见
+ * {@link DataResourceEntity} 的类注释：实体本身就是 filter 载体，字段初始化器会被
+ * {@code BaseService.buildPredicates} 当成查询条件。本实体一次踩了四个
+ * （{@code conditionJson="{}"}、{@code priority=0}、{@code enabled=true}、{@code versionNo=1L}），
+ * 真机实测库里 65 条策略、{@code POST /dataPolicy/getList {"filter":{}}} 回 0 行，
+ * 「行级数据策略」页整页空白。</p>
+ *
  * @author Hamm.cn
  */
 @EqualsAndHashCode(callSuper = true)
@@ -25,6 +34,7 @@ import org.hibernate.annotations.DynamicUpdate;
 @DynamicUpdate
 @Table(name = "data_policy", uniqueConstraints = @UniqueConstraint(name = "uk_data_policy_code", columnNames = "policy_code"))
 @Description("数据权限策略")
+@OperationLog
 public class DataPolicyEntity extends BaseEntity<DataPolicyEntity> {
 
     @Description("策略编码")
@@ -59,17 +69,21 @@ public class DataPolicyEntity extends BaseEntity<DataPolicyEntity> {
 
     @Description("条件表达式")
     @Column(name = "condition_json", nullable = false, columnDefinition = "json")
+    @FilterIgnore
     private String conditionJson = "{}";
 
     @Description("策略优先级")
     @Column(name = "priority", nullable = false)
+    @FilterIgnore
     private Integer priority = 0;
 
     @Description("是否启用")
     @Column(name = "enabled", nullable = false)
+    @FilterIgnore
     private Boolean enabled = true;
 
     @Description("配置版本")
     @Column(name = "version_no", nullable = false)
+    @FilterIgnore
     private Long versionNo = 1L;
 }

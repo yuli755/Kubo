@@ -15,6 +15,7 @@ import cn.hamm.spms.module.personnel.department.DepartmentEntity;
 import cn.hamm.spms.module.personnel.role.RoleEntity;
 import cn.hamm.spms.module.personnel.user.enums.UserGender;
 import cn.hamm.spms.module.system.datapermission.SystemPermissionIdentities;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
@@ -47,6 +48,7 @@ import static com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY;
 @DynamicUpdate
 @Table(name = "user")
 @Description("用户")
+@OperationLog
 public class UserEntity extends TenantAwareEntity<UserEntity> implements IUserAction {
     @Description("用户昵称")
     @Column(columnDefinition = "varchar(255) default '' comment '昵称'")

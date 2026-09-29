@@ -7,6 +7,7 @@ import cn.hamm.spms.framework.util.TreeNode;
 import cn.hamm.spms.framework.web.annotation.Search;
 import cn.hamm.spms.base.TenantAwareEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -36,6 +37,7 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.StorageCod
 @DynamicUpdate
 @Table(name = "storage")
 @Description("仓库")
+@OperationLog
 public class StorageEntity extends TenantAwareEntity<StorageEntity> implements TreeNode<StorageEntity> {
     @Description("仓库编码")
     @Column(columnDefinition = "varchar(255) default '' comment '仓库编码'", unique = true)

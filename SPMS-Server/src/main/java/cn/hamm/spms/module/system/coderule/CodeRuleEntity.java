@@ -7,6 +7,7 @@ import cn.hamm.spms.framework.web.annotation.ReadOnly;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.module.system.coderule.enums.CodeRuleField;
 import cn.hamm.spms.module.system.coderule.enums.SerialNumberUpdate;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -32,6 +33,7 @@ import org.hibernate.validator.constraints.Range;
 @DynamicUpdate
 @Table(name = "coderule")
 @Description("编码规则")
+@OperationLog
 public class CodeRuleEntity extends BaseEntity<CodeRuleEntity> {
     @Description("规则字段")
     @Column(columnDefinition = "int UNSIGNED default 0 comment '规则字段'", unique = true)

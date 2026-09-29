@@ -12,6 +12,7 @@ import cn.hamm.spms.module.asset.contract.enums.ContractStatus;
 import cn.hamm.spms.module.asset.contract.enums.ContractType;
 import cn.hamm.spms.module.asset.contract.participant.ParticipantEntity;
 import cn.hamm.spms.module.system.coderule.enums.CodeRuleField;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -35,6 +36,7 @@ import java.util.Set;
 @DynamicUpdate
 @Table(name = "contract")
 @Description("合同")
+@OperationLog
 public class ContractEntity extends TenantAwareEntity<ContractEntity> {
     @Description("合同编码")
     @Search

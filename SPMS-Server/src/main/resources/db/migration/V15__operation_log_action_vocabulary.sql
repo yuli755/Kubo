@@ -1,0 +1,22 @@
+-- ============================================================================
+-- operation_log.action 的动作词表扩容（V15）
+-- ============================================================================
+-- 为什么需要这个迁移：
+--   V3 建表时把 action 的 COMMENT 写成 '动作 CREATE / UPDATE / DELETE'，那时确实只有三个动作。
+--   现在 BaseService 的 enable / disable / publish 也各自记一笔审计（动作名 ENABLE / DISABLE / PUBLISH），
+--   原因是这三个是**状态迁移**而不是「改了个字段」：
+--     * 单据类资源被 @Extends(exclude = Curd.Delete) 挡掉硬删除，用户「下线一条数据」的
+--       实际手段就是禁用 —— 禁用若记成 UPDATE，审计里就分不清「改了备注」与「停用了供应商」；
+--     * publish 之后记录被冻结（update/delete 都被 FORBIDDEN_EDIT 拒绝），不可逆动作必须能追到人。
+--
+--   action 列本身是 VARCHAR(32) 且**没有 CHECK 约束**，写入新值不需要改表结构；
+--   这里唯一要做的是把 COMMENT 与 OperationLogEntity 上的 @Description 同步成新词表，
+--   否则下一个读库的人会以为只有三种动作，进而把 ENABLE/DISABLE/PUBLISH 当成脏数据清掉。
+--
+--   V3 已经应用过，按本项目纪律**不得回头改已应用的迁移文件**（改了会让 flyway 校验和失配），
+--   所以用一个新的迁移来承载这次注释变更。
+--
+-- 幂等：MODIFY COLUMN 用同一份类型/可空性重写，重复执行结果一致（CI 连跑两遍判据）。
+-- ============================================================================
+ALTER TABLE `operation_log`
+    MODIFY COLUMN `action` VARCHAR(32) NOT NULL COMMENT '动作 CREATE / UPDATE / DELETE / ENABLE / DISABLE / PUBLISH';

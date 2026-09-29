@@ -6,6 +6,7 @@ import cn.hamm.spms.framework.web.annotation.DesensitizeType;
 import cn.hamm.spms.framework.web.annotation.Search;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.module.personnel.user.UserEntity;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.ManyToOne;
@@ -32,6 +33,7 @@ import static jakarta.persistence.FetchType.EAGER;
 @DynamicUpdate
 @Table(name = "personal_token")
 @Description("私人令牌")
+@OperationLog
 public class PersonalTokenEntity extends BaseEntity<PersonalTokenEntity> {
     @Description("令牌名称")
     @Column(columnDefinition = "varchar(255) default '' comment '令牌名称'")

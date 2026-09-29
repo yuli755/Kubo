@@ -39,7 +39,7 @@ public class OperationLogEntity extends BaseEntity<OperationLogEntity> {
     @Column(name = "resource_key", nullable = false, length = 128)
     private String resourceKey;
 
-    @Description("动作（CREATE / UPDATE / DELETE）")
+    @Description("动作（CREATE / UPDATE / DELETE / ENABLE / DISABLE / PUBLISH）")
     @Column(name = "action", nullable = false, length = 32)
     private String action;
 

@@ -1,7 +1,9 @@
 package cn.hamm.spms.module.system.datapermission.entity;
 
 import cn.hamm.spms.framework.web.annotation.Description;
+import cn.hamm.spms.framework.web.annotation.FilterIgnore;
 import cn.hamm.spms.base.BaseEntity;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.ManyToOne;
@@ -16,6 +18,10 @@ import org.hibernate.annotations.DynamicUpdate;
 /**
  * <h1>数据字段权限策略</h1>
  *
+ * <p><b>三个带初始值的字段全部标了 {@code @FilterIgnore}</b>，理由见 {@link DataResourceEntity}
+ * 的类注释。真机实测库里 4 条列级策略、{@code POST /dataFieldPolicy/getList {"filter":{}}}
+ * 回 0 行，「列级脱敏策略」页整页空白。</p>
+ *
  * @author Hamm.cn
  */
 @EqualsAndHashCode(callSuper = true)
@@ -26,6 +32,7 @@ import org.hibernate.annotations.DynamicUpdate;
 @DynamicUpdate
 @Table(name = "data_field_policy", uniqueConstraints = @UniqueConstraint(name = "uk_data_field_policy", columnNames = {"resource_id", "field_name", "role_code"}))
 @Description("数据字段权限策略")
+@OperationLog
 public class DataFieldPolicyEntity extends BaseEntity<DataFieldPolicyEntity> {
 
     @Description("资源 ID")
@@ -67,13 +74,16 @@ public class DataFieldPolicyEntity extends BaseEntity<DataFieldPolicyEntity> {
 
     @Description("是否允许原值")
     @Column(name = "allow_plaintext", nullable = false)
+    @FilterIgnore
     private Boolean allowPlaintext = false;
 
     @Description("策略优先级")
     @Column(name = "priority", nullable = false)
+    @FilterIgnore
     private Integer priority = 0;
 
     @Description("是否启用")
     @Column(name = "enabled", nullable = false)
+    @FilterIgnore
     private Boolean enabled = true;
 }

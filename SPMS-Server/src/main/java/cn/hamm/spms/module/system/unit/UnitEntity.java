@@ -5,6 +5,7 @@ import cn.hamm.spms.framework.web.annotation.Description;
 import cn.hamm.spms.framework.web.annotation.Search;
 import cn.hamm.spms.base.BaseEntity;
 import cn.hamm.spms.common.annotation.AutoGenerateCode;
+import cn.hamm.spms.module.system.datapermission.annotation.OperationLog;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -29,6 +30,7 @@ import static cn.hamm.spms.module.system.coderule.enums.CodeRuleField.UnitCode;
 @DynamicUpdate
 @Table(name = "unit")
 @Description("单位")
+@OperationLog
 public class UnitEntity extends BaseEntity<UnitEntity> {
     @Description("单位名称")
     @Column(columnDefinition = "varchar(255) default '' comment '单位名称'", unique = true)
