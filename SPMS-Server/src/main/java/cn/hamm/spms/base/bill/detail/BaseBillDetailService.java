@@ -8,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
 
@@ -79,27 +79,34 @@ public class BaseBillDetailService<
     }
 
     /**
-     * 更新明细的数量
+     * 更新明细的数量（按 {@code detailFilter} 选中要消耗数量的明细行）
      *
-     * @param billId      单据 ID
-     * @param quantity    本次更新数量
-     * @param billService 单据 Service
-     * @param detailCheck 明细检查函数
+     * <p>回调是 {@link Predicate} 而不是 {@code Consumer}：调用方要表达的是
+     * 「<b>哪些行</b>参与本次数量消耗」（例如出库只反写物料匹配的销售明细），
+     * 这是**行筛选**，不是校验。曾经这里收 {@code Consumer} 并 {@code try { accept } catch { continue }}，
+     * 于是调用方只能靠**抛异常**来表达「这行不算」——异常被当成控制流吞掉，代价是
+     * 真实的故障（NPE、懒加载失败、数据权限拒绝）也会被静默降级成「跳过这一行」，
+     * 症状是数量莫名没有被反写、而日志里什么也没有。</p>
+     *
+     * <p>改成谓词后：返回 {@code false} = 跳过该行（正常业务分支），抛异常 = 真故障，照常冒泡。</p>
+     *
+     * @param billId       单据 ID
+     * @param quantity     本次更新数量
+     * @param billService  单据 Service
+     * @param detailFilter 明细行筛选谓词：{@code true} 表示该行参与本次数量消耗
      */
     public <B extends AbstractBaseBillEntity<B, ?>, BS extends AbstractBaseBillService<B, ?, ?, ?, ?>> void updateDetailQuantity(
             long billId,
             double quantity,
             @NotNull BS billService,
-            Consumer<E> detailCheck
+            @NotNull Predicate<E> detailFilter
     ) {
         List<E> details = getAllByBillId(billId);
         for (E detail : details) {
             if (quantity <= 0) {
                 break;
             }
-            try {
-                detailCheck.accept(detail);
-            } catch (Exception e) {
+            if (!detailFilter.test(detail)) {
                 continue;
             }
             if (detail.getIsFinished()) {

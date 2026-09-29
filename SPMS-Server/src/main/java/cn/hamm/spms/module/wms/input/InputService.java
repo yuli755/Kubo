@@ -43,7 +43,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
 import static cn.hamm.spms.common.exception.Errors.PARAM_MISSING;
 import static cn.hamm.spms.module.system.config.enums.ConfigFlag.INPUT_BILL_AUTO_AUDIT;
 
@@ -287,14 +286,10 @@ public class InputService extends AbstractBaseBillService<InputEntity, InputRepo
                                     bill.getPurchase().getId(),
                                     inputDetailQuantity,
                                     ChannelServices.getPurchaseService(),
-                                    // 谓词用途：异常在 BaseBillDetailService#updateDetailQuantity 里被
-                                    // catch 后 continue（跳过不匹配的明细），码只在万一改为直抛时生效；
-                                    // 物料一致性属输入校验（非授权边界），统一 PARAM_INVALID(4002)
-                                    detail -> PARAM_INVALID.whenNotEquals(
-                                            detail.getMaterial().getId(),
-                                            existDetail.getMaterial().getId(),
-                                            "物料信息不匹配"
-                                    )
+                                    // 行筛选（不是校验）：只反写物料匹配的采购明细，其余行跳过。
+                                    // 「这一行不是本次入库的物料」是正常业务分支，不该用抛异常表达；
+                                    // 真正的物料一致性校验在明细保存路径上做，不在这里。
+                                    detail -> Objects.equals(detail.getMaterial().getId(), existDetail.getMaterial().getId())
                             );
                         }
                     }
