@@ -572,6 +572,32 @@ K-7 / K-8 / K-9 三项合计造成 **8 个只读端点** HTTP 500
 
 ## 4. 未修项与建议（按优先级）
 
+> **处置状态（后续轮次更新）：下表 10 项已全部落地并验证。** 原文保留为历史记录，
+> 不逐条改写；每项的处置、提交与验证方式见 §4.0。
+
+### 4.0 处置台账（本轮全部关闭）
+
+| # | 原建议 | 处置 | 提交 | 验证 |
+| --- | --- | --- | --- | --- |
+| P0-1 | 权限目录同步解耦（生产新增端点全员 403） | `syncPermissionCatalog()` 移出 dev 初始化闸门；去掉方法上的 `@Transactional`（CGLIB 代理会破坏 `BaseService.repository` 字段注入，实测 `/permission/getList` 500 NPE），过期清理走 `transactionHelper.run(...)` | `08f400cf` | `mvn test` + 真机 `/permission/getList` 200；日志「扫描 305 项，库内 309 项，无过期项」 |
+| P0-2 | 权限目录永不收敛（只增不删） | 改为「扫描结果即真相」的幂等同步，含过期权限与角色关联清理 | `08f400cf` | `PermissionCatalogSyncTest`；真机 `permission`=309、`role_permission_list`=370 |
+| P1-3 | `Storage`/`Structure` 树 O(N) 查询递归 | 采纳建议 (a)：新增 `queryChildrenByParentIds`，`attachChildren` 逐层 BFS（深度 D 只需 D 次查询），仍走数据权限谓词，未绕过 `buildPredicates` | `74b36f07` | `mvn test` + 真机 `/storage/getList`、`/structure/getList` 200 |
+| P1-4 | `data_policy` 残留退场资源 | V13 迁移按 FK 顺序清 `data_field_policy` → `data_policy` → `data_resource`，幂等 + 尾部自检 SQL（孤儿数/总数，不用 id 快照——id 快照断言曾造成假阳性） | `1000f0a5` | 真机 DB：`data_resource`=17、`data_policy`=65、孤儿 0；`flyway_schema_history` v13 success=1 |
+| P2-5 | `queryExport` 口径不一致 | KTable 导出按钮改单一真源 `showExport ?? table.canExport.value`（此前 `v-if="showExport"` 与 `useTable({export})` 两个真源，只写 `permissions.export` 的页面按钮永不显示）；以 `/dataResource/export-gaps` 为权威清单核对 | `25d63e66` | `maskContract.spec.ts` + 全量 vitest |
+| P2-6 | `DataResourceEntity` 重复 `@Id` 遮蔽 `BaseEntity` | 7 个 datapermission 实体删除重复声明，统一继承（K-4 外键符号性不匹配的同类成因） | `5c793247` | `mvn test` + `pnpm ddl:check` |
+| P2-7 | 菜单↔前端视图缺对账守卫 | 双层：静态对账（`menuContract.spec.ts`：后端种子 ↔ 演示夹具 ↔ 磁盘视图）+ **运行期守卫**（`initVueRouter` 对缺失组件跳过注册并 `console.warn`，落 catch-all 404 而非静默空白）；另修组件路径前导斜杠归一化——缺斜杠会拼出 `/src/viewdashboard.vue` 这种永不命中的键 | `269aecd4`、`fe9ac477` | 新增 `menuNavigation.spec.ts` 幽灵菜单用例（未注册 + 落 catchAll + 告警含缺失键）与归一化契约用例；`appRouter.spec.ts` 8/8 |
+| P2-8 | 文档过期（含手机号登录承诺） | 判定失实方是**代码**而非文档：登录页占位符「账号 / 邮箱 / 手机号」与 `isNaturalNumber` 校验本就接受手机号，故给 `loginViaEmailAndPassword` 补 `getByPhone` 回落（刻意不做格式预判，`PhoneRules` 只覆盖手机号）；LOGIN/STARTUP/README 全面重写（退场种子、密码行号 L720/L727、`PasswordHasher.encode`、不存在的 `start-redis.bat`、V1~V10 → V1~V13、MES/ERP/QMS/IoT 模块清单、写死的初始行数） | `81e10e59` | 真机登录矩阵 6 例：邮箱 200 / 两个手机号 200 / 错误密码 200001 / 不存在账号 200001（不泄露存在性）/ 空账号 4002 |
+| P2-9 | 「物料信息不匹配」错误码定位 | 定位为**输入一致性校验**而非授权边界（越权由行级数据权限与所有权守卫负责）→ `FORBIDDEN`(403) 改 `PARAM_INVALID`(4002)，与同文件 L224 口径一致；另两处是传给 `updateDetailQuantity` 的跳行谓词（异常被 `catch` 后 `continue`，永不冒泡），一并改码统一口径并加注释 | `1bd91800` | `mvn test` + 真机 `/output|/input|/inventory|/move getList` 全 200 |
+| P2-10 | `init.lock` 的 CWD 相对语义 | 采纳建议：标志位迁入数据源 `ConfigFlag.DEV_DATA_INIT_DONE`，不再写文件；判据抽成纯函数 `shouldInitialize(...)` 且为**三态**（数据源明确表态 > 遗留证据），遗留证据除 `init.lock` 外还含「种子用户已在库里」，堵住「过渡期首次就从别的目录启动」的重复播种漏洞 | `3762b206` | `DevDataInitGateTest` 7 例（真值表 + 默认值 + 源码契约）；真机跨目录实测：改名锁文件后从仓库根启动 → 行数与基线完全一致（未翻倍）、`DEV_DATA_INIT_DONE`=1、不再写锁文件；二次启动日志「数据源标志位已置位」 |
+
+> 原「已获授权范围外」的 `.env` 供给亦已落地：`initEnv` 改**合并模式**（保留自有键、只补缺失
+> 模板键、弱密钥重生成），`deploy:drill` 由 7 项失败转为 19 项全通过（提交 `25d63e66`）。
+> 仍未处理：`P2-token-scope`、`P3-legal-page`（用户明确推迟）、SSRF DNS rebinding（已接受）、
+> 56 个已归档独有提交的 triage。
+>
+> 本轮另有一项非 K 条目的工程化改动：阴影全面 token 化 + `designTokenContract.spec.ts` CI 棘轮
+> （提交 `25a56937`），存量 8 处写死的 `box-shadow` 清零，其中 2 处是守卫抓出来的。
+
 ### P0 —— 会造成静默错误结果，建议尽快处理
 
 1. **新增端点的权限行无法在生产落库**
