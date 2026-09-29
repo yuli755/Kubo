@@ -7,7 +7,11 @@
  *    `user/getMyMenuList` —— 让控制台初始化流程（`Console.vue`）在无后端时也能跑通：
  *    有用户、有租户、有全部权限、有完整菜单树；
  * 2. **看板/报表类**：`dashboard/overview`、`dataResource/runtime-status`、
- *    `dataResource/deny-log` —— 给安全态势看板与数据权限页喂形状正确的数据；
+ *    `dataResource/deny-logs`、`dataResource/operation-logs` —— 给安全态势看板、
+ *    数据权限页与操作审计页喂形状正确的数据。**这里的动作段必须与
+ *    `src/api/system.ts` 里的真实路径逐字一致**（`deny-logs` 不是 `deny-log`）：
+ *    拼错不会报错，只会静默落到「未命中」分支返回空对象，页面显示成「没有记录」，
+ *    演示时看不出区别 —— 由 `demoPreview.spec.ts` 的报表端点断言兜住。
  * 3. **资源 CRUD**：`{resource}/getPage|getDetail|add|update|delete|…` —— 由
  *    `./specs` 的生成器按资源名产出行数据。
  *
@@ -18,7 +22,7 @@ import type { Row } from './specs'
 import { demoTenants, demoUserInfo } from '../fixtures/identity'
 import { demoMenuTree } from '../fixtures/menu'
 import { demoPermissions, demoPermissionTree } from '../fixtures/permissions'
-import { demoDenyLogs, demoOverview, demoRuntimeStatus } from '../fixtures/systemData'
+import { demoDenyLogs, demoOperationLogs, demoOverview, demoRuntimeStatus } from '../fixtures/systemData'
 import { buildRow, totalOf } from './specs'
 
 /** 读取嵌套字段（`filter.xxx` 这类）时的安全取值 */
@@ -155,7 +159,6 @@ const WRITE_ACTIONS = new Set([
   'stop',
   'enforce',
   'addFinish',
-  'setBillDetailsAllFinished',
   'addOrderDetail',
   'addDetail',
   'updateDetail',
@@ -245,8 +248,11 @@ function resolveReport(resourcePath: string, action: string): { hit: boolean, da
     if (action === 'runtime-status') {
       return { hit: true, data: demoRuntimeStatus() }
     }
-    if (action === 'deny-log') {
+    if (action === 'deny-logs') {
       return { hit: true, data: demoDenyLogs() }
+    }
+    if (action === 'operation-logs') {
+      return { hit: true, data: demoOperationLogs() }
     }
     if (action === 'enforce-readiness') {
       return { hit: true, data: [] }

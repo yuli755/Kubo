@@ -220,6 +220,46 @@ describe('演示模式 · URL 解析与降级', () => {
     expect(res.data.code).toBe(200)
   })
 
+  /**
+   * 报表端点的动作段必须与 `src/api/system.ts` 逐字一致。
+   *
+   * 曾经 `engine.ts` 写的是 `deny-log`（少了 s），而前端请求的是 `/dataResource/deny-logs`：
+   * 未命中不会报错，只会静默降级成空对象，`useDenyLogReport()` 把「演示模式没有这份数据」
+   * 显示成「没有拒绝事件」—— 造好的 fixture 成了死代码，演示时看不出任何异常。
+   * 操作审计页（`/console/system/log/list`）改成读 `operation-logs` 后同理，故一并锁住。
+   */
+  it('看板/报表端点被 mock 命中且非空（拼错动作段会静默降级成空数据）', async () => {
+    const overview = await request('/dashboard/overview')
+    expect(Array.isArray(overview.data.data) && (overview.data.data as unknown[]).length > 0, 'dashboard/overview 未被命中').toBe(true)
+
+    const runtime = await request('/dataResource/runtime-status')
+    expect(runtime.data.data, 'dataResource/runtime-status 未被命中').toHaveProperty('globalMode')
+
+    const denyLogs = await request('/dataResource/deny-logs')
+    expect(Array.isArray(denyLogs.data.data) && (denyLogs.data.data as unknown[]).length > 0, 'dataResource/deny-logs 未被命中（注意是复数 logs）').toBe(true)
+
+    const operationLogs = await request('/dataResource/operation-logs')
+    expect(Array.isArray(operationLogs.data.data) && (operationLogs.data.data as unknown[]).length > 0, 'dataResource/operation-logs 未被命中：操作审计页在演示模式下会空').toBe(true)
+
+    // 六种动作各造一行，且快照是**字符串**（后端就是这么给的，前端再 JSON.parse）。
+    // 这个清单必须与后端 OperationLogRecorder.ACTION_* 一致；
+    // 跨层对账在 src/config/__tests__/backendRegressionPhase3.spec.ts 里机械执行。
+    const rows = operationLogs.data.data as Array<{ resourceKey: string, action: string, beforeSnapshot: string | null, afterSnapshot: string | null }>
+    for (const action of ['CREATE', 'UPDATE', 'DELETE', 'ENABLE', 'DISABLE', 'PUBLISH']) {
+      expect(rows.some(row => row.action === action), `演示审计数据缺 ${action} 一行：列表页筛选下拉与详情页对应的空态/Diff 看不到`).toBe(true)
+    }
+    const created = rows.find(row => row.action === 'CREATE')!
+    expect(created.beforeSnapshot, 'CREATE 不该有变更前快照').toBeNull()
+    expect(typeof created.afterSnapshot).toBe('string')
+    const deleted = rows.find(row => row.action === 'DELETE')!
+    expect(deleted.afterSnapshot, 'DELETE 不该有变更后快照').toBeNull()
+
+    // 脱敏字段在审计快照里必须是摘要，不能是明文（后端 OperationLogSnapshot.isNeverPlaintext）
+    const material = rows.find(row => row.resourceKey === 'asset.material' && row.action === 'CREATE')!
+    expect(material.afterSnapshot).toContain('"purchasePrice":"h:')
+    expect(material.afterSnapshot, '演示审计里出现了明文价格：与后端脱敏行为不符').not.toMatch(/"(purchasePrice|salePrice)":\s*\d/)
+  })
+
   it('导出类请求返回 Blob（避免浏览器把 JSON 当文件下载）', async () => {
     const res = await request('/wms/input/export', { responseType: 'blob' })
     expect(res.data).toBeInstanceOf(Blob)

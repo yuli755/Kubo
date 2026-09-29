@@ -199,9 +199,6 @@ const System = {
      */
     delete: `Config_${Crud.delete}`,
   },
-  Log: {
-    getDetail: `Log_${Crud.getDetail}`,
-  },
   Unit: {
     add: `Unit_${Crud.add}`,
     update: `Unit_${Crud.update}`,

@@ -300,13 +300,9 @@ const RESOURCE_SPECS: Record<string, ResourceSpec> = {
     statusPool: [1, 2],
     namePool: ['入库单编号规则', '出库单编号规则', '移库单编号规则'],
   },
-  log: {
-    label: '操作日志',
-    codePrefix: 'LOG',
-    statusPool: [1, 2],
-    namePool: ['登录成功', '修改用户信息', '审核入库单', '导出库存'],
-    total: 240,
-  },
+  // 注：`log`（操作日志）演示规格已随「请求日志模块」删除 —— 后端从来没有实现过
+  // `@Api("log")`，操作日志页现在读的是 `dataResource/operation-logs`（真实存在的审计接口，
+  // 演示数据在 `fixtures/systemData.ts` 的 `demoOperationLogs()`）。
   // 注：`app`（开放应用）与 `notify`（通知）两个演示规格已随「open 域 / 通知模块」删除
   // （后端 `module/` 下也没有对应模块），2026-09 清理时一并删掉 —— 留着只会让 mock 生成
   // 出没有任何页面消费的假数据。

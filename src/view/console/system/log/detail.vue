@@ -1,42 +1,38 @@
 <script lang="ts" setup>
+import type { OperationLogItem } from '@/api/system/types'
 import type { IJson } from '@/framework'
-import type { LogEntity } from '@/model/system/log/LogEntity'
 import { ElEmpty, ElTable, ElTableColumn, ElTabPane, ElTabs, ElTag, ElTree } from 'element-plus'
 import { computed } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
-import { ClipboardUtil } from '@/framework'
-import { useDetail } from '@/hook/kubo/useDetail'
-import { LogService } from '@/hook/system/useLog'
+import { ClipboardUtil, DateTimeFormatter } from '@/framework'
 
 /**
- * # 操作日志详情（F4 批 6 · 新底座）
+ * # 操作审计详情（变更前后对比）
  *
- * 请求体与响应体都是**JSON 字符串**，这里解析成树展示 —— 与旧实现同一套 `getTreeData`，
- * 差别只在「数据从哪来」与「谁控制显隐」：
+ * ## 为什么这里不发请求
+ * 列表页拿到的 `OperationLogItem` 已经**带着** `beforeSnapshot` / `afterSnapshot` 全文
+ * （`GET /dataResource/operation-logs` 一次返回完整字段），所以详情只是同一份数据的另一种排版。
+ * 后端没有「按 id 取单条审计」的路由 —— 旧页面按 id 重新拉详情，是因为它对接的是一个
+ * **后端从未实现**的请求日志模块（`log/getDetail` 只会 404）。少一次请求，也少一处会烂的约定。
  *
- * - 旧：`DialogUtil.show(Detail, row)` 把**列表里那一行**当数据源（命令式 + 快照）；
- * - 新：`useDetail(LogService, { id })` 按 id 重新拉（列表里的 `request`/`response`
- *   在列表接口里是被裁掉的，日志详情只能重新查），显隐由父页面 `v-model` 控制。
+ * ## 三个页签的分工
+ * - 字段变更 Diff：默认页签，只列**有变化**的标量字段（`before` → `after`）；
+ * - 变更前 / 变更后快照：原文按树展开，点叶子可复制 —— 排查「谁把它改回去的」时要看全量。
  *
- * 解析失败不抛错：`safeParse` 返回一条错误说明 —— 日志查看器不该因为一条脏数据白屏。
+ * ## 快照为空是正常的，不是坏了
+ * `CREATE` 没有 before、`DELETE` 没有 after（后端 `OperationLogSnapshot` 只序列化标量字段）。
+ * 这时对应页签显示空态说明，而不是渲染一棵空树让人以为取数失败。
  */
 const props = defineProps<{
   /** 显隐（父页面 `v-model`） */
   modelValue?: boolean
-  /** 日志 id（null 表示未选择） */
-  id?: number | null
+  /** 列表里选中的那一条审计（null 表示未选择） */
+  item?: OperationLogItem | null
 }>()
 
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void
 }>()
-
-const detail = useDetail(LogService, {
-  queryKey: ['system:log'],
-  id: computed(() => props.id ?? null),
-})
-
-const log = computed<LogEntity | undefined>(() => detail.entity.value)
 
 interface ITreeData {
   key: string
@@ -51,14 +47,13 @@ function getTreeData(source: IJson, prefix = ''): ITreeData[] {
     const value = source[key]
     const id = `${prefix}${index}`
     if (value !== null && typeof value === 'object') {
-      const result: ITreeData = { key: id, label: key, value: '', children: getTreeData(value as IJson, `${id}-`) }
-      return result
+      return { key: id, label: key, value: '', children: getTreeData(value as IJson, `${id}-`) }
     }
     return { key: id, label: key, value: String(value ?? ''), children: [] }
   })
 }
 
-function safeParse(jsonString?: string): IJson {
+function safeParse(jsonString?: string | null): IJson {
   if (!jsonString) {
     return {}
   }
@@ -70,45 +65,72 @@ function safeParse(jsonString?: string): IJson {
   }
 }
 
-const requestTree = computed(() => getTreeData(safeParse(log.value?.request)))
-const responseTree = computed(() => getTreeData(safeParse(log.value?.response)))
+const log = computed<OperationLogItem | null>(() => props.item ?? null)
+const beforeJson = computed(() => safeParse(log.value?.beforeSnapshot))
+const afterJson = computed(() => safeParse(log.value?.afterSnapshot))
+const beforeTree = computed(() => getTreeData(beforeJson.value))
+const afterTree = computed(() => getTreeData(afterJson.value))
+
+/** CREATE 没有变更前快照、DELETE 没有变更后快照 —— 空态要照实说，不要让人以为取数失败 */
+const hasBefore = computed(() => Object.keys(beforeJson.value).length > 0)
+const hasAfter = computed(() => Object.keys(afterJson.value).length > 0)
 
 interface IDiffItem {
   field: string
-  requestVal: string
-  responseVal: string
-  status: 'modified' | 'added' | 'same'
+  beforeVal: string
+  afterVal: string
+  status: 'added' | 'removed' | 'modified'
 }
 
+/**
+ * 字段变更 Diff：对 `before` / `after` 两份快照取键的并集，只留**有变化**的标量字段。
+ *
+ * 只比标量是跟着后端走的：`OperationLogSnapshot` 本来就只序列化标量字段，
+ * 快照里出现的对象/数组是序列化残留，比了也只会得到一整段 JSON 文本的差异，没有可读性。
+ */
 const diffList = computed<IDiffItem[]>(() => {
-  const req = safeParse(log.value?.request)
-  const res = safeParse(log.value?.response)
-  if (!req || typeof req !== 'object' || !res || typeof res !== 'object') {
-    return []
-  }
-
-  const keys = Array.from(new Set([...Object.keys(req), ...Object.keys(res)]))
+  const before = beforeJson.value
+  const after = afterJson.value
+  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
   return keys
-    .filter(k => k !== 'error' && typeof req[k] !== 'object' && typeof res[k] !== 'object')
-    .map((field) => {
-      const rVal = req[field] !== undefined ? String(req[field]) : '-'
-      const respVal = res[field] !== undefined ? String(res[field]) : '-'
-      let status: IDiffItem['status'] = 'same'
-      if (req[field] === undefined && res[field] !== undefined) {
+    .filter(key => key !== 'error' && typeof before[key] !== 'object' && typeof after[key] !== 'object')
+    .map<IDiffItem>((key) => {
+      const beforeRaw = before[key]
+      const afterRaw = after[key]
+      const beforeVal = beforeRaw === undefined ? '-' : String(beforeRaw ?? '')
+      const afterVal = afterRaw === undefined ? '-' : String(afterRaw ?? '')
+      let status: IDiffItem['status'] = 'modified'
+      if (beforeRaw === undefined && afterRaw !== undefined) {
         status = 'added'
       }
-      else if (req[field] !== undefined && res[field] !== undefined && String(req[field]) !== String(res[field])) {
-        status = 'modified'
+      else if (beforeRaw !== undefined && afterRaw === undefined) {
+        status = 'removed'
       }
-      return {
-        field,
-        requestVal: rVal,
-        responseVal: respVal,
-        status,
-      }
+      return { field: key, beforeVal, afterVal, status }
     })
-    .filter(item => item.status !== 'same')
+    .filter(item => item.status !== 'modified' || item.beforeVal !== item.afterVal)
 })
+
+/**
+ * 动作词表，必须与 `list.vue` 及后端 `OperationLogRecorder.ACTION_*` 一致
+ * （由 `src/config/__tests__/backendRegressionPhase3.spec.ts` 机械对账）。
+ */
+const ACTION_LABEL: Record<string, string> = {
+  CREATE: '新增',
+  UPDATE: '修改',
+  DELETE: '删除',
+  ENABLE: '启用',
+  DISABLE: '停用',
+  PUBLISH: '发布',
+}
+const ACTION_TYPE: Record<string, 'danger' | 'info' | 'success' | 'warning'> = {
+  CREATE: 'success',
+  UPDATE: 'warning',
+  DELETE: 'danger',
+  ENABLE: 'success',
+  DISABLE: 'info',
+  PUBLISH: 'warning',
+}
 
 const treeProps = { label: 'label', children: 'children' }
 
@@ -126,7 +148,7 @@ async function copy(value: string) {
 <template>
   <KDialog
     :model-value="!!modelValue"
-    :title="log?.action ? `请求详情 · ${log.action}` : '请求详情'"
+    :title="log ? `操作审计 · ${ACTION_LABEL[log.action] ?? log.action} · ${log.targetLabel ?? `#${log.targetId ?? '-'}`}` : '操作审计'"
     confirm-text="关闭"
     hide-cancel
     min-height="60%"
@@ -134,137 +156,173 @@ async function copy(value: string) {
     @update:model-value="close"
     @confirm="close(false)"
   >
-    <div
-      v-if="log"
-      class="log-detail__meta"
-    >
-      <ElTag
-        size="small"
-        type="info"
-        effect="plain"
-      >
-        用户：{{ log.userId ?? '-' }}
-      </ElTag>
-      <ElTag
-        size="small"
-        type="info"
-        effect="plain"
-      >
-        IP：{{ log.ip ?? '-' }}
-      </ElTag>
-      <ElTag
-        size="small"
-        type="info"
-        effect="plain"
-      >
-        版本：{{ log.version ?? '-' }}
-      </ElTag>
-      <ElTag
-        size="small"
-        :type="((log.updateTime ?? 0) - (log.createTime ?? 0)) > 500 ? 'warning' : 'success'"
-        effect="plain"
-      >
-        耗时：{{ (log.updateTime ?? 0) - (log.createTime ?? 0) }}ms
-      </ElTag>
-    </div>
-
-    <ElTabs type="border-card">
-      <ElTabPane label="请求">
-        <ElTree
-          :data="requestTree"
-          :props="treeProps"
-          node-key="key"
-          default-expand-all
+    <template v-if="log">
+      <div class="log-detail__meta">
+        <ElTag
+          size="small"
+          :type="ACTION_TYPE[log.action] ?? 'info'"
+          effect="plain"
         >
-          <template #default="{ node, data }">
-            <span class="log-detail__node">
-              <span class="log-detail__key">{{ node.label }}</span>
-              <span class="log-detail__value">{{ (data as ITreeData).value }}</span>
-            </span>
-          </template>
-        </ElTree>
-      </ElTabPane>
-
-      <ElTabPane label="响应">
-        <ElTree
-          :data="responseTree"
-          :props="treeProps"
-          node-key="key"
-          default-expand-all
+          {{ ACTION_LABEL[log.action] ?? log.action }}
+        </ElTag>
+        <ElTag
+          size="small"
+          type="info"
+          effect="plain"
         >
-          <template #default="{ node, data }">
-            <span
-              class="log-detail__node log-detail__node--copyable"
-              @click="copy((data as ITreeData).value)"
-            >
-              <span class="log-detail__key">{{ node.label }}</span>
-              <span class="log-detail__value">{{ (data as ITreeData).value }}</span>
-            </span>
-          </template>
-        </ElTree>
-      </ElTabPane>
-
-      <ElTabPane label="字段变更 Diff">
-        <div
-          v-if="diffList.length > 0"
-          class="log-detail__diff"
+          资源：{{ log.resourceKey }}
+        </ElTag>
+        <ElTag
+          size="small"
+          type="info"
+          effect="plain"
         >
-          <ElTable
-            :data="diffList"
-            size="small"
-            stripe
-            border
+          时间：{{ DateTimeFormatter.FULL_DATE_TIME.formatMilliSecond(log.createTime) }}
+        </ElTag>
+        <ElTag
+          size="small"
+          type="info"
+          effect="plain"
+        >
+          操作者：{{ log.userId ?? '-' }}
+        </ElTag>
+        <ElTag
+          size="small"
+          type="info"
+          effect="plain"
+        >
+          租户：{{ log.tenantId ?? '-' }}
+        </ElTag>
+        <ElTag
+          size="small"
+          type="info"
+          effect="plain"
+        >
+          目标 ID：{{ log.targetId ?? '-' }}
+        </ElTag>
+      </div>
+
+      <ElTabs type="border-card">
+        <ElTabPane :label="`字段变更 Diff（${diffList.length}）`">
+          <div
+            v-if="diffList.length > 0"
+            class="log-detail__diff"
           >
-            <ElTableColumn
-              prop="field"
-              label="变动字段"
-              width="160"
-            />
-            <ElTableColumn
-              label="类型"
-              width="100"
+            <ElTable
+              :data="diffList"
+              size="small"
+              stripe
+              border
             >
-              <template #default="{ row }">
-                <ElTag
-                  v-if="row.status === 'added'"
-                  size="small"
-                  type="success"
-                >
-                  新增字段
-                </ElTag>
-                <ElTag
-                  v-else-if="row.status === 'modified'"
-                  size="small"
-                  type="warning"
-                >
-                  内容变更
-                </ElTag>
-              </template>
-            </ElTableColumn>
-            <ElTableColumn
-              prop="requestVal"
-              label="请求提交值"
-            />
-            <ElTableColumn
-              prop="responseVal"
-              label="响应结果值"
-            />
-          </ElTable>
-        </div>
-        <ElEmpty
-          v-else
-          description="无标量字段差异（纯读取或未产生数据变动）"
-          :image-size="60"
-        />
-      </ElTabPane>
-    </ElTabs>
+              <ElTableColumn
+                prop="field"
+                label="变动字段"
+                width="180"
+              />
+              <ElTableColumn
+                label="类型"
+                width="100"
+              >
+                <template #default="{ row }">
+                  <ElTag
+                    v-if="(row as IDiffItem).status === 'added'"
+                    size="small"
+                    type="success"
+                  >
+                    新增字段
+                  </ElTag>
+                  <ElTag
+                    v-else-if="(row as IDiffItem).status === 'removed'"
+                    size="small"
+                    type="danger"
+                  >
+                    字段消失
+                  </ElTag>
+                  <ElTag
+                    v-else
+                    size="small"
+                    type="warning"
+                  >
+                    内容变更
+                  </ElTag>
+                </template>
+              </ElTableColumn>
+              <ElTableColumn
+                prop="beforeVal"
+                label="变更前"
+              />
+              <ElTableColumn
+                prop="afterVal"
+                label="变更后"
+              />
+            </ElTable>
+          </div>
+          <ElEmpty
+            v-else
+            description="标量字段没有差异（纯新增/删除，或本次修改只动了非快照字段）"
+            :image-size="60"
+          />
+        </ElTabPane>
+
+        <ElTabPane label="变更前快照">
+          <ElTree
+            v-if="hasBefore"
+            :data="beforeTree"
+            :props="treeProps"
+            node-key="key"
+            default-expand-all
+          >
+            <template #default="{ node, data }">
+              <span
+                class="log-detail__node log-detail__node--copyable"
+                @click="copy((data as ITreeData).value)"
+              >
+                <span class="log-detail__key">{{ node.label }}</span>
+                <span class="log-detail__value">{{ (data as ITreeData).value }}</span>
+              </span>
+            </template>
+          </ElTree>
+          <ElEmpty
+            v-else
+            description="这条是新增（CREATE），没有变更前快照"
+            :image-size="60"
+          />
+        </ElTabPane>
+
+        <ElTabPane label="变更后快照">
+          <ElTree
+            v-if="hasAfter"
+            :data="afterTree"
+            :props="treeProps"
+            node-key="key"
+            default-expand-all
+          >
+            <template #default="{ node, data }">
+              <span
+                class="log-detail__node log-detail__node--copyable"
+                @click="copy((data as ITreeData).value)"
+              >
+                <span class="log-detail__key">{{ node.label }}</span>
+                <span class="log-detail__value">{{ (data as ITreeData).value }}</span>
+              </span>
+            </template>
+          </ElTree>
+          <ElEmpty
+            v-else
+            description="这条是删除（DELETE），没有变更后快照"
+            :image-size="60"
+          />
+        </ElTabPane>
+      </ElTabs>
+    </template>
   </KDialog>
 </template>
 
 <style scoped>
 .log-detail__meta {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 12px;
   color: var(--el-text-color-secondary);
   font-size: 13px;

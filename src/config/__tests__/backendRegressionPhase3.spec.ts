@@ -10,6 +10,45 @@ function code(file: string) {
     .replace(/^\s*\/\/.*$/gm, '')
 }
 
+/** 前端源码根（与 `root` 分开：那边是后端 java，这边是 vue/ts） */
+function web(file: string) {
+  return readFileSync(resolve('src', file), 'utf8')
+}
+
+/**
+ * 取一个对象字面量常量的键集合。
+ *
+ * 为什么用正则而不是 import：`list.vue` / `detail.vue` 是 SFC，vitest 里直接 import
+ * 会把整棵组件树拖进来；而这里要断言的只是「词表有没有列全」，读源码就够。
+ */
+function keysOf(source: string, name: string): string[] {
+  const start = source.indexOf(`const ${name}`)
+  if (start < 0) {
+    throw new Error(`找不到 const ${name}：文件结构变了，守卫要跟着改（不能默默通过）`)
+  }
+  const open = source.indexOf('{', start)
+  const close = source.indexOf('\n}', open)
+  const body = source.slice(open + 1, close)
+  return [...body.matchAll(/^\s*['"]?(\w+)['"]?\s*:/gm)].map(match => match[1])
+}
+
+/**
+ * 取一个顶层函数的函数体。
+ *
+ * 必须按函数切而不是整文件扫：`systemData.ts` 里 `wms.inventory` 是**合法**出现的
+ * （`demoOverview` 的概览计数、`demoRuntimeStatus` 的资源开关、`demoDenyLogs` 的
+ * 拒绝日志都在讲库存），只有 `demoOperationLogs()` 不许出现它——库存没标
+ * `@OperationLog`，审计演示里出现它就是谎报覆盖面。整文件 `not.toContain` 会打在正确文本上。
+ */
+function bodyOf(source: string, fnName: string): string {
+  const start = source.indexOf(`export function ${fnName}(`)
+  if (start < 0) {
+    throw new Error(`找不到 export function ${fnName}：文件结构变了，守卫要跟着改（不能默默通过）`)
+  }
+  const close = source.indexOf('\n}', start)
+  return source.slice(start, close)
+}
+
 describe('p3 · 后端业务核心能力全量回归', () => {
   describe('1. 登录与防暴力破解（Login / Brute Force / Token Revocation）', () => {
     it('密码散列契约：使用 SHA-1 双向加盐散列，统一 40 位小写十六进制', () => {
@@ -134,6 +173,71 @@ describe('p3 · 后端业务核心能力全量回归', () => {
       expect(csvText).toContain('value == \'=\' || value == \'+\' || value == \'-\' || value == \'@\'')
       expect(csvText).toContain('value == \'\\t\' || value == \'\\r\' || value == \'\\n\'')
       expect(csvText).toContain('return "\'" + value;')
+    })
+  })
+
+  /**
+   * 5. 操作审计动作词表跨层对账
+   *
+   * 后端 `OperationLogRecorder.ACTION_*` 是这套词表的唯一事实源，前端有三处副本：
+   * `log/list.vue`（标签 + 颜色 + 筛选下拉）、`log/detail.vue`（标签 + 颜色）、
+   * `demo/fixtures/systemData.ts`（演示数据）。副本不会自动跟着长，
+   * 而漏一项的症状是**静默的**：表格里那一列退化成裸英文码（`DISABLE`），
+   * 筛选下拉根本选不出来，演示模式也看不到对应的空态/Diff。
+   * 这类「后端加常量、前端忘改」的漂移只能靠机械对账，靠人记不住。
+   */
+  describe('5. 操作审计动作词表跨层对账（OperationLogRecorder.ACTION_* ↔ 前端三处副本）', () => {
+    const RECORDER = 'module/system/datapermission/service/OperationLogRecorder.java'
+
+    function backendActions(): string[] {
+      const source = code(RECORDER)
+      const actions = [...source.matchAll(/public static final String ACTION_\w+\s*=\s*"(\w+)"/g)]
+        .map(match => match[1])
+      // 自检：正则没抓到东西时，下面所有 toContain 都会「通过」——那是最坏的假阴性
+      expect(actions.length, `没从 ${RECORDER} 抓到任何 ACTION_* 常量，正则失效了`).toBeGreaterThanOrEqual(3)
+      expect(actions).toContain('CREATE')
+      return [...new Set(actions)].sort()
+    }
+
+    it('后端 ACTION_* 全集是 CREATE/UPDATE/DELETE/ENABLE/DISABLE/PUBLISH', () => {
+      expect(backendActions()).toEqual(['CREATE', 'DELETE', 'DISABLE', 'ENABLE', 'PUBLISH', 'UPDATE'])
+    })
+
+    it('list.vue 与 detail.vue 的 ACTION_LABEL / ACTION_TYPE 都覆盖后端全集', () => {
+      const actions = backendActions()
+      for (const file of ['view/console/system/log/list.vue', 'view/console/system/log/detail.vue']) {
+        const source = web(file)
+        for (const name of ['ACTION_LABEL', 'ACTION_TYPE']) {
+          const keys = keysOf(source, name)
+          for (const action of actions) {
+            expect(keys, `${file} 的 ${name} 缺 ${action}：审计页那一列会显示成裸英文码`).toContain(action)
+          }
+        }
+      }
+    })
+
+    it('list.vue 的动作筛选下拉由词表驱动（不硬编码 ElOption，否则新动作选不出来）', () => {
+      const source = web('view/console/system/log/list.vue')
+      expect(source).toContain('v-for="(label, key) in ACTION_LABEL"')
+    })
+
+    it('演示数据覆盖六种动作，且脱敏字段在快照里是摘要不是明文', () => {
+      const actions = backendActions()
+      // 只切 demoOperationLogs() 的函数体：同文件里 wms.inventory 在概览/运行时开关/拒绝日志中是合法出现的
+      const fixture = bodyOf(web('demo/fixtures/systemData.ts'), 'demoOperationLogs')
+      const demoActions = [...fixture.matchAll(/action: '(\w+)'/g)].map(match => match[1])
+      for (const action of actions) {
+        expect(demoActions, `演示审计缺 ${action} 一行：演示模式下看不到该动作对应的界面状态`).toContain(action)
+      }
+      // MaterialEntity.purchasePrice / salePrice 标了 @SensitiveField ⇒ 快照存 MaskedValueDigest。
+      // 注意这里读的是**源码文本**（TS 对象字面量，键不带引号），不是 JSON.stringify 之后的形状；
+      // 运行时形状由 src/demo/__tests__/demoPreview.spec.ts 断言（那边键带引号）。
+      expect(fixture).toContain('purchasePrice: \'h:')
+      expect(fixture, '演示审计里出现明文价格：与后端 OperationLogSnapshot.isNeverPlaintext 的行为不符')
+        .not
+        .toMatch(/(?:purchasePrice|salePrice):\s*\d/)
+      // 库存没标 @OperationLog（每次移库都写会刷爆审计表），审计演示不能谎报覆盖面
+      expect(fixture, '演示审计出现 wms.inventory：后端没给它标 @OperationLog').not.toContain('wms.inventory')
     })
   })
 })

@@ -2114,7 +2114,7 @@ describe('mask contract · F3 数据层收敛（system + personnel + wms + facto
       }
     }
     expect(offenders, 'system 模块视图仍直接 import @/model/*Service：F3 已迁但被回退').toEqual([])
-    for (const hook of ['useUnit', 'useCodeRule', 'useConfig', 'useMenu', 'usePermission', 'useLog', 'useDataResource', 'useDataPolicy', 'useDataFieldPolicy']) {
+    for (const hook of ['useUnit', 'useCodeRule', 'useConfig', 'useMenu', 'usePermission', 'useDataResource', 'useDataPolicy', 'useDataFieldPolicy']) {
       expect(read(join(ROOT, 'src', 'hook', 'system', `${hook}.ts`)), `${hook} 没转发 Service 类：视图又得回头 import @/model`)
         .toMatch(/export\s*\{[^}]*Service[^}]*\}\s*from\s*['"]@\/model\//)
     }
