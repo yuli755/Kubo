@@ -110,7 +110,7 @@ async function handleSessionExpired(): Promise<void> {
  */
 function notifyBusinessError(
   error: ApiError,
-  option: { showError?: boolean, customErrorHandler?: (error: ApiError) => void } = {},
+  option: { showError?: boolean, customErrorHandler?: (error: ApiError) => void, authorizationKnown?: boolean } = {},
 ): void {
   if (option.customErrorHandler) {
     option.customErrorHandler(error)
@@ -119,7 +119,8 @@ function notifyBusinessError(
   if (option.showError === false) {
     return
   }
-  const verdict = classifyBusinessError(error)
+  // authorizationKnown：HTTP 层直出的 403 没有业务文案，不能让"措辞判断"把它降级
+  const verdict = classifyBusinessError({ ...error, authorizationKnown: option.authorizationKnown })
   if (verdict.silent) {
     return
   }
@@ -285,7 +286,7 @@ function createAxiosInstance(): AxiosInstance {
           const path = originalRequest?.url || ''
           notifyBusinessError(
             toApiError(BusinessCode.FORBIDDEN, data, path, '没有权限访问'),
-            originalRequest as RequestConfig | undefined,
+            { ...(originalRequest as RequestConfig | undefined), authorizationKnown: true },
           )
           break
         }

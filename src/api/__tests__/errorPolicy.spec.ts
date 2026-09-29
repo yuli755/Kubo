@@ -4,10 +4,12 @@ import {
   classifyBusinessError,
   extractFieldName,
   extractPermissionCode,
-  FORBIDDEN_CODE_MAX,
-  FORBIDDEN_CODE_MIN,
   isForbiddenCode,
+  isLegacyForbiddenFamily,
   isParamCode,
+  LEGACY_FORBIDDEN_FAMILY_MAX,
+  LEGACY_FORBIDDEN_FAMILY_MIN,
+  mentionsAuthorization,
   notificationText,
   NOTIFY_DEDUPE_MS,
   notifyKey,
@@ -25,23 +27,95 @@ import {
  */
 
 describe('errorPolicy · 码表归类', () => {
-  it('403 与 4031..4039 都是授权失败，给出「找谁开通」的可操作指引', () => {
-    for (const code of [403, FORBIDDEN_CODE_MIN, 4035, FORBIDDEN_CODE_MAX]) {
-      const verdict = classifyBusinessError({ code, message: '权限不足' })
-      expect(verdict.kind, `code=${code}`).toBe('forbidden')
-      expect(verdict.title).toBe('无权限')
-      expect(verdict.detail).toBe('权限不足')
-      expect(verdict.silent).toBe(false)
-      expect(verdict.hint, '只说「不行」而不说「怎么办」等于没说').toContain('管理员')
+  it('403 是授权失败，给出「找谁开通哪条权限」的可操作指引', () => {
+    const verdict = classifyBusinessError({ code: 403, message: '权限不足' })
+    expect(verdict.kind).toBe('forbidden')
+    expect(verdict.title).toBe('无权限')
+    expect(verdict.detail).toBe('权限不足')
+    expect(verdict.silent).toBe(false)
+    expect(verdict.hint, '只说「不行」而不说「怎么办」等于没说').toContain('管理员')
+  })
+
+  it('4031..4039 是语义混杂的遗留区间，逐码说各自的下一步', () => {
+    // 键与后端 Errors 常量一一对应：FORBIDDEN_EXIST / _DELETE_USED / _UPLOAD_MAX_SIZE / _DISABLED / DATABASE_CONCURRENT_ERROR
+    const cases: [number, string, string][] = [
+      [4031, '数据已存在', '不要重复添加'],
+      [4034, '数据正在使用中', '先解除'],
+      [4035, '文件超过大小限制', '压缩'],
+      [4036, '数据已被禁用', '启用'],
+      [4037, '应用已被禁用', '管理员'],
+      [4039, '系统繁忙', '稍后重试'],
+    ]
+    for (const [code, title, hintPart] of cases) {
+      const verdict = classifyBusinessError({ code, message: '后端原文' })
+      expect(verdict.title, `code=${code}`).toBe(title)
+      expect(verdict.hint, `code=${code}`).toContain(hintPart)
+      expect(verdict.silent, `code=${code}`).toBe(false)
     }
   })
 
-  it('授权码区间的边界外不算无权限（4030 / 4040 落到 unknown）', () => {
+  it('回归锁：文件过大（4035）绝不能让用户去找管理员开权限', () => {
+    // 曾经的实现按数字区间把 4031..4039 一律归成「无权限」，于是"文件太大"会配上
+    // "请联系管理员开通权限"的假指引 —— 用户照着做也解决不了问题，还白跑一趟
+    const text = notificationText(classifyBusinessError({ code: 4035, message: '上传的文件大小超过最大限制' }))
+    expect(text).not.toContain('开通权限')
+    expect(text).not.toContain('角色授权')
+    expect(text).toContain('压缩')
+  })
+
+  it('4032 的文案在说权限时（所有权校验）仍归为无权限，不被"修改未被允许"盖掉', () => {
+    // 真机同源：PersonalTokenController 用 FORBIDDEN_EDIT.whenNotEquals(owner, currentUser, "你没有权限修改此令牌")
+    const verdict = classifyBusinessError({ code: 4032, message: '你没有权限修改此令牌' })
+    expect(verdict.kind).toBe('forbidden')
+    expect(verdict.title).toBe('无权限')
+    expect(verdict.hint).toContain('管理员')
+    expect(mentionsAuthorization('你没有权限修改此令牌')).toBe(true)
+    expect(mentionsAuthorization('添加失败，数据已存在')).toBe(false)
+  })
+
+  it('4032 没有权限措辞时按码给"修改未被允许"（业务规则拒绝）', () => {
+    const verdict = classifyBusinessError({ code: 4032, message: '当前状态不允许修改' })
+    expect(verdict.kind).toBe('denied')
+    expect(verdict.title).toBe('修改未被允许')
+  })
+
+  it('403 也可能只是状态机拒绝：文案没提权限就不能让用户去找管理员开权限', () => {
+    // 真机同源：BaseBillController「该单据状态下无法编辑」、AbstractBaseBillService「该单据状态无法审核」、
+    // PersonalTokenService「令牌数量已达上限」都用 FORBIDDEN(403) 表达**前置条件失败**，不是授权边界
+    for (const message of ['该单据状态无法审核', '该单据状态下无法编辑', '私人令牌数量已达上限']) {
+      const verdict = classifyBusinessError({ code: 403, message })
+      expect(verdict.kind, message).toBe('denied')
+      expect(verdict.title, message).toBe('操作未被允许')
+      expect(verdict.hint, message).not.toContain('开通权限')
+      expect(notificationText(verdict), message).not.toContain('角色授权')
+    }
+  })
+
+  it('403 的文案提到权限时（含数据权限拒绝）仍按授权失败给指引', () => {
+    const authorized = [
+      '你无权访问 权限-不分页查询 (Permission_getList)',
+      '数据权限不足，请缩小查询范围后重试',
+      '你没有权限修改此令牌',
+    ]
+    for (const message of authorized) {
+      expect(classifyBusinessError({ code: 403, message }).kind, message).toBe('forbidden')
+    }
+  })
+
+  it('authorizationKnown 让 HTTP 层直出的 403 不被措辞判断降级（网关只回一个 Forbidden）', () => {
+    const verdict = classifyBusinessError({ code: 403, message: 'Forbidden', authorizationKnown: true })
+    expect(verdict.kind).toBe('forbidden')
+    expect(verdict.title).toBe('无权限')
+    expect(classifyBusinessError({ code: 403, message: 'Forbidden' }).kind, '没有该标志时按措辞判断').toBe('denied')
+  })
+
+  it('家族区间边界：4030 / 4040 落在区间外，且区间内也不算真·授权码', () => {
+    expect(isLegacyForbiddenFamily(LEGACY_FORBIDDEN_FAMILY_MIN)).toBe(true)
+    expect(isLegacyForbiddenFamily(LEGACY_FORBIDDEN_FAMILY_MAX)).toBe(true)
+    expect(isLegacyForbiddenFamily(LEGACY_FORBIDDEN_FAMILY_MIN - 1)).toBe(false)
+    expect(isLegacyForbiddenFamily(LEGACY_FORBIDDEN_FAMILY_MAX + 1)).toBe(false)
     expect(isForbiddenCode(403)).toBe(true)
-    expect(isForbiddenCode(FORBIDDEN_CODE_MIN)).toBe(true)
-    expect(isForbiddenCode(FORBIDDEN_CODE_MAX)).toBe(true)
-    expect(isForbiddenCode(FORBIDDEN_CODE_MIN - 1)).toBe(false)
-    expect(isForbiddenCode(FORBIDDEN_CODE_MAX + 1)).toBe(false)
+    expect(isForbiddenCode(LEGACY_FORBIDDEN_FAMILY_MIN), '区间内不是授权码').toBe(false)
     expect(classifyBusinessError({ code: 4030 }).kind).toBe('unknown')
   })
 
@@ -58,6 +132,15 @@ describe('errorPolicy · 码表归类', () => {
     expect(isParamCode(4001)).toBe(true)
     expect(isParamCode(4002)).toBe(true)
     expect(isParamCode(403)).toBe(false)
+  })
+
+  it('业务码 401 说「登录状态已失效」而不是"请求失败"（HTTP-401 的刷新流程不会触发）', () => {
+    const verdict = classifyBusinessError({ code: 401, message: '获取你的身份信息失败，请重新登录后再试' })
+    expect(verdict.kind).toBe('credential')
+    expect(verdict.title).toBe('登录状态已失效')
+    expect(verdict.silent, '要提示，但不像登录失败那样交给页面自己呈现').toBe(false)
+    expect(verdict.hint, '后端原文已含"重新登录"，不再重复一遍').toBeUndefined()
+    expect(classifyBusinessError({ code: 401 }).hint, '后端没给文案时才补指引').toBe('请重新登录后再试')
   })
 
   it('404 与 500 各给各的下一步（刷新重试 / 带 traceId 找管理员）', () => {

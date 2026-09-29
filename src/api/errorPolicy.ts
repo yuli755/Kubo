@@ -38,6 +38,13 @@ export const BusinessCode = {
   PARAM_INVALID: 4002,
   /** 无权限（授权边界，不是输入错误） */
   FORBIDDEN: 403,
+  /**
+   * 需要登录（`Errors.UNAUTHORIZED`，"获取你的身份信息失败，请重新登录后再试"）。
+   *
+   * 注意：它以**业务码**形式出现在 HTTP 200 里时，axios 的 HTTP-401 刷新/登出流程**不会**触发，
+   * 所以必须在这里给出"请重新登录"的指引，否则会退化成一句无信息的"请求失败"。
+   */
+  UNAUTHORIZED: 401,
   /** 数据不存在 */
   DATA_NOT_FOUND: 404,
   /** 服务端内部错误 */
@@ -46,9 +53,28 @@ export const BusinessCode = {
   USER_LOGIN_ACCOUNT_OR_PASSWORD_INVALID: 200001,
 } as const
 
-/** 细粒度权限码区间：`FORBIDDEN_*`(4031..4039)，见后端 `Errors` */
-export const FORBIDDEN_CODE_MIN = 4031
-export const FORBIDDEN_CODE_MAX = 4039
+/**
+ * 后端「403 家族」的数字区间：`FORBIDDEN_*` / `DATABASE_CONCURRENT_ERROR`(4031..4039)。
+ *
+ * ## 为什么区间**不等于**授权失败（读 `Errors` 枚举才发现的坑）
+ * 后端把 4031..4039 归在注释「403 无权限代码」下面，但它们的**语义各不相同**：
+ *
+ * | 码 | 后端常量 | 真实含义 |
+ * | --- | --- | --- |
+ * | 4031 | `FORBIDDEN_EXIST` | 数据已存在（冲突） |
+ * | 4032/4033 | `FORBIDDEN_EDIT`/`_DELETE` | 修改/删除被业务规则拒绝（**也可能**是所有权校验） |
+ * | 4034 | `FORBIDDEN_DELETE_USED` | 数据正在使用中（前置条件） |
+ * | 4035 | `FORBIDDEN_UPLOAD_MAX_SIZE` | 上传文件过大（请求载荷） |
+ * | 4036/4037/4038 | `FORBIDDEN_DISABLED*` | 记录/应用已禁用、当前状态不允许禁用 |
+ * | 4039 | `DATABASE_CONCURRENT_ERROR` | 系统繁忙（可重试） |
+ *
+ * 若按数字区间一律归成「无权限，请联系管理员开通权限」，用户在"文件太大"或"数据已存在"时
+ * 会被告知去找管理员开权限 —— 那是**假指引**，比不指引更坏（用户会照着做，且白跑一趟）。
+ * 所以：**只有 403 本身**默认按授权失败处理，4031..4039 逐码给语义；
+ * 唯一的例外是后端文案本身就在说权限（如 `你没有权限修改此令牌`，来自所有权校验），那时才归为无权限。
+ */
+export const LEGACY_FORBIDDEN_FAMILY_MIN = 4031
+export const LEGACY_FORBIDDEN_FAMILY_MAX = 4039
 
 /**
  * 同一「码 + 路径」的重复提示抑制窗口（毫秒）。
@@ -60,7 +86,15 @@ export const FORBIDDEN_CODE_MAX = 4039
 export const NOTIFY_DEDUPE_MS = 3000
 
 /** 错误类别：决定标题、提示语气与是否交给调用方自己处理 */
-type BusinessErrorKind = 'forbidden' | 'param' | 'notFound' | 'server' | 'credential' | 'unknown'
+type BusinessErrorKind
+  = 'forbidden'
+    | 'denied'
+    | 'conflict'
+    | 'param'
+    | 'notFound'
+    | 'server'
+    | 'credential'
+    | 'unknown'
 
 /** 分类结果 */
 interface ClassifiedBusinessError {
@@ -85,6 +119,14 @@ interface BusinessErrorInput {
   code: number
   message?: string
   data?: unknown
+  /**
+   * 调用方已确定这是**授权失败**（而非业务规则拒绝），文案不参与判断。
+   *
+   * 用途：HTTP 层直出的 403（网关 / Spring Security）根本没有业务文案，只有 `Forbidden` 这类
+   * 状态短语 —— 按措辞判断会把它降级成"操作未被允许"，丢掉"找管理员开通"的正确指引。
+   * 业务码路径不要传这个标志，让文案说话。
+   */
+  authorizationKnown?: boolean
 }
 
 /** 这些码由具体页面自己呈现，全局不弹（弹了就是双份提示） */
@@ -92,10 +134,52 @@ const SILENT_CODES = new Set<number>([
   BusinessCode.USER_LOGIN_ACCOUNT_OR_PASSWORD_INVALID,
 ])
 
-/** 403 与 4031..4039 都算授权失败 */
+/**
+ * 4031..4039 的**逐码语义**（键与后端 `Errors` 常量一一对应，见上方区间常量的注释表）。
+ *
+ * 每码给「标题 + 下一步」，而不是共用一句"无权限"：
+ * 冲突要说"别重复添加"，文件过大要说"压缩后重传"，系统繁忙要说"稍后重试"。
+ */
+const LEGACY_FORBIDDEN_SEMANTICS: Record<number, { kind: BusinessErrorKind, title: string, hint: string }> = {
+  4031: { kind: 'conflict', title: '数据已存在', hint: '请改用查询或编辑现有记录，不要重复添加' },
+  4032: { kind: 'denied', title: '修改未被允许', hint: '按提示调整后重试；若认为不该受限，请联系管理员确认' },
+  4033: { kind: 'denied', title: '删除未被允许', hint: '按提示调整后重试；若认为不该受限，请联系管理员确认' },
+  4034: { kind: 'conflict', title: '数据正在使用中', hint: '先解除引用它的单据或档案，再执行删除' },
+  4035: { kind: 'param', title: '文件超过大小限制', hint: '请压缩或拆分文件后重新上传' },
+  4036: { kind: 'denied', title: '数据已被禁用', hint: '请先启用该记录，或联系管理员确认是否应保留' },
+  4037: { kind: 'denied', title: '应用已被禁用', hint: '请联系管理员启用该应用后重试' },
+  4038: { kind: 'denied', title: '当前状态不允许禁用', hint: '请先处理依赖它的数据，再执行禁用' },
+  4039: { kind: 'server', title: '系统繁忙', hint: '请稍后重试；反复出现请把 traceId 告知管理员' },
+}
+
+/**
+ * 后端文案里是否在讲**权限**。
+ *
+ * 403 家族同时承载两类失败，而它们的下一步完全不同：
+ * - 授权失败（`你无权访问 … (Permission_getList)`、`数据权限不足…`、`你没有权限修改此令牌`）→ 找管理员开通；
+ * - 状态机/业务规则拒绝（`该单据状态无法审核`、`令牌数量已达上限`）→ 用户自己调整数据或流程。
+ * 判据只能取文案：状态机类文案里不会出现"权限"二字。
+ */
+const AUTHORIZATION_WORDING = /权限|无权|未授权|不允许访问/
+
+/** 文案里明确在说权限 → 按授权失败处理（哪怕码是 403x） */
+export function mentionsAuthorization(message: string): boolean {
+  return AUTHORIZATION_WORDING.test(message)
+}
+
+/**
+ * 是否为**真正的授权失败码**。
+ *
+ * 只认 403：4031..4039 是语义混杂的遗留区间（见 {@link LEGACY_FORBIDDEN_FAMILY_MIN} 的注释表），
+ * 把它们算进来就会给"文件过大"配上"去找管理员开权限"的假指引。
+ */
 export function isForbiddenCode(code: number): boolean {
   return code === BusinessCode.FORBIDDEN
-    || (code >= FORBIDDEN_CODE_MIN && code <= FORBIDDEN_CODE_MAX)
+}
+
+/** 是否落在遗留「403 家族」区间（4031..4039） */
+export function isLegacyForbiddenFamily(code: number): boolean {
+  return code >= LEGACY_FORBIDDEN_FAMILY_MIN && code <= LEGACY_FORBIDDEN_FAMILY_MAX
 }
 
 /** 4001 / 4002 都算「调用方给的东西不对」 */
@@ -162,17 +246,45 @@ export function classifyBusinessError(input: BusinessErrorInput): ClassifiedBusi
   if (SILENT_CODES.has(code)) {
     return { kind: 'credential', code, title: '登录未通过', detail, silent: true }
   }
-  if (isForbiddenCode(code)) {
-    const permissionCode = extractPermissionCode(detail)
+  // 403 与 403x 家族：后端把「授权失败」与「业务规则/状态机拒绝」**都**渲染成 403 家族
+  // （前者如 `你无权访问 权限-不分页查询 (Permission_getList)`、`数据权限不足…`；
+  //   后者如 `该单据状态无法审核`、`令牌数量已达上限`、`该明细已标记完成…`）。
+  // 只有**文案**能区分二者：状态机类文案里不会出现"权限"二字。
+  // 分不清就按"操作未被允许"处理 —— 宁可少给一句指引，也不要让用户白跑一趟去找管理员开权限。
+  if (isForbiddenCode(code) || isLegacyForbiddenFamily(code)) {
+    if (input.authorizationKnown === true || mentionsAuthorization(detail)) {
+      const permissionCode = extractPermissionCode(detail)
+      return {
+        kind: 'forbidden',
+        code,
+        title: '无权限',
+        detail,
+        // 可操作：说清"找谁、开通哪一条"，而不是只说"不行"
+        hint: permissionCode
+          ? `请联系管理员为当前角色开通权限「${permissionCode}」`
+          : '当前角色未被授予该操作，请联系管理员在角色授权里开通后重试',
+        silent: false,
+      }
+    }
+    const legacy = LEGACY_FORBIDDEN_SEMANTICS[code]
+    if (legacy) {
+      return {
+        kind: legacy.kind,
+        code,
+        title: legacy.title,
+        detail,
+        hint: legacy.hint,
+        // 文案里若带了字段名，顺手给表单定位
+        field: extractFieldName(detail),
+        silent: false,
+      }
+    }
     return {
-      kind: 'forbidden',
+      kind: 'denied',
       code,
-      title: '无权限',
+      title: '操作未被允许',
       detail,
-      // 可操作：说清"找谁、开通哪一条"，而不是只说"不行"
-      hint: permissionCode
-        ? `请联系管理员为当前角色开通权限「${permissionCode}」`
-        : '当前角色未被授予该操作，请联系管理员在角色授权里开通后重试',
+      hint: '按提示调整后重试；若认为不该受限，请联系管理员确认',
       silent: false,
     }
   }
@@ -185,6 +297,17 @@ export function classifyBusinessError(input: BusinessErrorInput): ClassifiedBusi
       detail,
       hint: field ? `请检查「${field}」这一项` : '请检查提交内容后重试',
       field,
+      silent: false,
+    }
+  }
+  if (code === BusinessCode.UNAUTHORIZED) {
+    return {
+      kind: 'credential',
+      code,
+      title: '登录状态已失效',
+      detail,
+      // 后端原文里通常已经写了"请重新登录"，再挂一条同样的指引就是把同一句话说两遍
+      hint: /登录/.test(detail) ? undefined : '请重新登录后再试',
       silent: false,
     }
   }
