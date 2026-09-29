@@ -53,8 +53,21 @@ const BOOT_BOM_GROUPS = new Set([
   'jakarta.validation',
 ])
 
-/** Boot 3.4.4 明确管理的精确坐标；不放宽成整个 com.fasterxml / org.projectlombok 家族。 */
-const BOOT_BOM_COORDINATES = new Set(['com.fasterxml.jackson.core:jackson-databind', 'org.projectlombok:lombok'])
+/**
+ * Boot 3.4.4 明确管理的精确坐标；不放宽成整个 com.fasterxml / org.projectlombok / com.mysql 家族。
+ *
+ * 加进来的判据是**读过 BOM 本身**，不是"构建好像能过"：
+ * `~/.m2/repository/org/springframework/boot/spring-boot-dependencies/3.4.4/*.pom` 里
+ * `<groupId>com.mysql</groupId><artifactId>mysql-connector-j</artifactId><version>${mysql.version}</version>`
+ * 确实存在，且 `<mysql.version>9.1.0</mysql.version>`（本地仓库也有 9.1.0 的 jar）。
+ * 缺这一条时 `pnpm pom:check` 会把一个**本来就正确**的依赖报成"没人替它定版本"，
+ * 而 `pnpm check` 的第 4 步就此断链（20 步链一直跑不到底的原因之一）。
+ */
+const BOOT_BOM_COORDINATES = new Set([
+  'com.fasterxml.jackson.core:jackson-databind',
+  'org.projectlombok:lombok',
+  'com.mysql:mysql-connector-j',
+])
 
 /**
  * 退场期间允许残留的 airpower 依赖（每删掉一个就把这里改小）。
@@ -137,7 +150,10 @@ for (const dependency of dependencyDeclarations.filter(item => !item.managed && 
 // ────────────────────────────── 报告 ──────────────────────────────
 const hasParent = /<parent>/.test(pom)
 notes.push(`父 POM：${hasParent ? '有（应为无 —— B0 已摘除）' : '无（自持构建基线，B0 已生效）'}`)
-notes.push(`白名单内不写版本的依赖：${versionlessDeps.length} 个（${[...new Set(versionlessDeps.map(d => d.groupId))].join(', ')}）`)
+// 文案必须与判据一致：这里列的是**所有**不写版本的依赖，其中白名单外的会另外报成 problem。
+// 旧文案写"白名单内不写版本的依赖"却把白名单外的也列进来，于是「报告说都在白名单内、
+// 紧接着又说某个不在白名单里」自相矛盾，排查时极易被带偏。
+notes.push(`不写 <version> 的依赖：${versionlessDeps.length} 个（${[...new Set(versionlessDeps.map(d => d.groupId))].join(', ')}）；其中白名单外 ${offendingDeps.length} 个`)
 notes.push(`本 POM 定义属性：${[...propertyKeys].join(', ')}`)
 notes.push(`残留 cn.hamm 依赖：${hammArtifacts.join(', ') || '无'}`)
 

@@ -94,7 +94,8 @@ describe('appRouter · native vue-router 实现', () => {
     expect(router.hasRoute('21'), '缺前导斜杠就拼不出组件键，页面会静默空白或 404').toBe(true)
   })
 
-  it('initVueRouter 缺 name 抛错', () => {    const router = createAppRouter([
+  it('initVueRouter 缺 name 抛错', () => {
+    const router = createAppRouter([
       { path: '/', component: Dummy },
       { path: '/console', name: 'console', component: Dummy },
     ])

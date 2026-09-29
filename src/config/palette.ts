@@ -39,7 +39,7 @@
  */
 
 /** 一个模块的强调色与其浅色底（图标前景 / 图标背景） */
-export interface ModuleAccent {
+interface ModuleAccent {
   /** 图标与强调文字色 */
   color: string
   /** 图标底衬色（同色相的 50 号浅底） */
@@ -115,7 +115,7 @@ export function resolveCssToken(name: string, fallback: string): string {
 }
 
 /** 状态色种类，与 Element Plus 的 `--el-color-*` 一一对应 */
-export type StatusKind = 'danger' | 'info' | 'success' | 'warning'
+type StatusKind = 'danger' | 'info' | 'success' | 'warning'
 
 /** EP 默认状态色兜底值（tokens.scss 声明「状态色沿用 EP 默认」，故与 EP 一致） */
 const STATUS_FALLBACK: Record<StatusKind, string> = {
@@ -148,7 +148,7 @@ export function chartTextColor(): string {
 }
 
 /** 库位占用档位，从空到危险 */
-export type OccupancyLevel = 'danger' | 'empty' | 'idle' | 'low' | 'normal'
+type OccupancyLevel = 'danger' | 'empty' | 'idle' | 'low' | 'normal'
 
 /**
  * 占用档位的**唯一**定义：阈值上界 + 语义色 + 中文标签。
@@ -202,13 +202,6 @@ export function occupancyColor(occupancy: number): string {
 }
 
 /** 图例用：档位 + 标签 + 当前主题下的实际颜色 */
-export function occupancyLegend(): { color: string, label: string, level: OccupancyLevel }[] {
-  return OCCUPANCY_LEVELS.map(entry => ({
-    level: entry.level,
-    label: entry.label,
-    color: resolveCssToken(`--kubo-occupancy-${entry.level}`, OCCUPANCY_FALLBACK[entry.level]),
-  }))
-}
 
 /**
  * ECharts `visualMap.inRange.color` 用的连续色带，由低到高。

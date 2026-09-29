@@ -28,7 +28,8 @@ import { useRouter } from 'vue-router'
 import { chartTextColor, occupancyColor, occupancyRamp, resolveCssToken } from '@/config/palette'
 import { init } from '@/utils/echarts'
 
-export interface ISlotInfo {
+// 只在本 SFC 内使用：不导出（`pnpm exports:check` 会把没人 import 的导出判为死代码）
+interface ISlotInfo {
   id: string
   code: string
   zone: string

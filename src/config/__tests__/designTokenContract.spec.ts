@@ -39,8 +39,13 @@ function walk(dir: string, out: string[] = []): string[] {
   return out
 }
 
-/** 写死的阴影：box-shadow 的值里直接出现 rgb/rgba/#hex，而不是 var(--kubo-shadow-*) */
-const HARDCODED_SHADOW = /box-shadow\s*:\s*[^;]*(rgba?\(|#[0-9a-fA-F]{3,8})/g
+/**
+ * 写死的阴影：box-shadow 的值里直接出现 rgb/rgba/#hex，而不是 var(--kubo-shadow-*)
+ *
+ * 冒号后不再写 `\s*`：`[^;]*` 已经能吃掉空白，两个量词并存会产生可交换的匹配路径
+ * （eslint 的 regexp/no-super-linear-backtracking 会判为多项式回溯风险）。
+ */
+const HARDCODED_SHADOW = /box-shadow\s*:[^;]*(rgba?\(|#[0-9a-fA-F]{3,8})/g
 
 describe('设计 token · 阴影不允许写死字面值', () => {
   it('src/**/*.vue 里的 box-shadow 全部取 --kubo-shadow-* token', () => {

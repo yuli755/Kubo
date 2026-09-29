@@ -4,7 +4,8 @@ import type { UseTableReturn } from '@/hook/kubo/useTable'
 import { ElRadioButton, ElRadioGroup } from 'element-plus'
 import { computed, watch } from 'vue'
 
-export interface IStatusOption {
+// 只在本 SFC 内使用（defineProps 的类型参数）：不导出，避免多一个没人 import 的公共类型
+interface IStatusOption {
   label: string
   value: number | null
   color?: string
