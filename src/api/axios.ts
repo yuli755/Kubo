@@ -130,8 +130,9 @@ function notifyBusinessError(
   }
   ElMessage.error({
     message: notificationText(verdict),
-    // 无权限要读完「找谁开通」，给更长的停留时间；其余保持默认节奏
-    duration: verdict.kind === 'forbidden' ? 6000 : 4000,
+    // 无权限要读完「找谁开通」，接口未开放要读完「重试没用、该找谁确认」，都给更长的停留时间；
+    // 其余保持默认节奏
+    duration: verdict.kind === 'forbidden' || verdict.kind === 'unsupported' ? 6000 : 4000,
     showClose: true,
   })
 }

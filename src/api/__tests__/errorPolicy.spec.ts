@@ -7,6 +7,7 @@ import {
   isForbiddenCode,
   isLegacyForbiddenFamily,
   isParamCode,
+  isUnsupportedCode,
   LEGACY_FORBIDDEN_FAMILY_MAX,
   LEGACY_FORBIDDEN_FAMILY_MIN,
   mentionsAuthorization,
@@ -274,6 +275,34 @@ describe('errorPolicy · 真机抓取的响应（2026-09，本机 8080，admin �
     const verdict = classifyBusinessError({ code: 404, message: '没有查询到ID为99999999的物料' })
     expect(verdict.kind).toBe('notFound')
     expect(notificationText(verdict)).toContain('刷新后重试')
+  })
+
+  /**
+   * 真机抓取：`POST /input/delete {"id":1}` → HTTP **200** + `{ code: 501, message: '当前接口不支持此操作' }`。
+   * `InputController` 标了 `@Extends(exclude = {Curd.Delete})`，端点仍注册着，只是运行时被
+   * `BaseController.checkApiAvailable` 拒绝。同类：purchase / move / output / sale / supplier 的 delete。
+   */
+  it('501 接口未开放：说清「不是权限、不是故障、重试没用」（/input/delete，@Extends 排除了删除）', () => {
+    const verdict = classifyBusinessError({ code: 501, message: '当前接口不支持此操作' })
+    expect(verdict.kind).toBe('unsupported')
+    expect(verdict.silent, '必须弹：点了按钮却什么都不说，用户会一直点下去').toBe(false)
+    const text = notificationText(verdict)
+    expect(text).toBe('此操作在当前模块不可用：当前接口不支持此操作（该模块未开放此接口，重试不会成功；如确需此功能请联系管理员确认）')
+    // 曾经的兜底路径：落到 unknown，只剩一句"请求失败：当前接口不支持此操作"，
+    // 用户既不知道是权限问题还是故障，也不知道该不该重试
+    expect(text, '不得退化成无信息的泛化失败').not.toBe('请求失败：当前接口不支持此操作')
+    expect(text, '不是授权失败，不能给"开权限"的假指引').not.toContain('开通权限')
+    expect(text, '不是服务端故障，不能给"稍后重试"的假指引').not.toContain('稍后重试')
+  })
+
+  it('501 与 403 家族不混：isUnsupportedCode 只认 501，4031..4039 仍走各自语义', () => {
+    expect(isUnsupportedCode(501)).toBe(true)
+    expect(isUnsupportedCode(403)).toBe(false)
+    expect(isUnsupportedCode(500)).toBe(false)
+    expect(isUnsupportedCode(4034)).toBe(false)
+    // 反向：501 不得被 403 家族或"服务端错误"吃掉
+    expect(isLegacyForbiddenFamily(501)).toBe(false)
+    expect(classifyBusinessError({ code: 501 }).kind).toBe('unsupported')
   })
 })
 

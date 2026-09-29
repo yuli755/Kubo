@@ -47,6 +47,21 @@ export const BusinessCode = {
   UNAUTHORIZED: 401,
   /** 数据不存在 */
   DATA_NOT_FOUND: 404,
+  /**
+   * 接口未开放（`Errors.API_SERVICE_UNSUPPORTED`，枚举原文"请求的接口暂未实现"）。
+   *
+   * ## 它不是 404，也不是 403，更不是 500
+   * 后端每个资源的端点集合由 `@Extends(value = {...}, exclude = {...})` 显式开关
+   * （基路径来自自定义 `@Api("input")`，全后端零路径变量，一律 `POST /{base}/{action}`）。
+   * 被 `exclude` 掉的端点**仍然注册着**，只是 `BaseController.checkApiAvailable` 在运行时抛这个码。
+   * 真机核实（2026-09）：`input` / `purchase` / `move` / `output` / `sale` / `supplier` 的 `delete`
+   * 都返回 HTTP 200 + `{ code: 501, message: "当前接口不支持此操作" }`。
+   *
+   * 所以三件事都不成立：路由存在（不是 404）、跟角色授权无关（不是 403，找管理员开权限也没用）、
+   * 服务端没坏（不是 500，重试不会成功）。它是**产品决定**：这个模块刻意不提供该能力
+   * （如入库单不允许物理删除，要留审计痕迹）。用户能做的下一步是"别再试"，不是"再试一次"。
+   */
+  API_UNSUPPORTED: 501,
   /** 服务端内部错误 */
   SERVICE_ERROR: 500,
   /** 登录账号或密码不正确（由登录页自己呈现，不走全局提示） */
@@ -92,6 +107,7 @@ type BusinessErrorKind
     | 'conflict'
     | 'param'
     | 'notFound'
+    | 'unsupported'
     | 'server'
     | 'credential'
     | 'unknown'
@@ -185,6 +201,16 @@ export function isLegacyForbiddenFamily(code: number): boolean {
 /** 4001 / 4002 都算「调用方给的东西不对」 */
 export function isParamCode(code: number): boolean {
   return code === BusinessCode.PARAM_MISSING || code === BusinessCode.PARAM_INVALID
+}
+
+/**
+ * 是否为「该模块未开放此接口」（`@Extends` 排除 → 运行时 501）。
+ *
+ * 与 403 的区别是**下一步完全不同**：403 让用户找管理员开权限，501 让用户别再试。
+ * 若把它并进 403 家族，用户会照着假指引白跑一趟（管理员那边根本没有对应的授权项可开）。
+ */
+export function isUnsupportedCode(code: number): boolean {
+  return code === BusinessCode.API_UNSUPPORTED
 }
 
 /**
@@ -318,6 +344,18 @@ export function classifyBusinessError(input: BusinessErrorInput): ClassifiedBusi
       title: '数据不存在',
       detail,
       hint: '可能已被删除或页面数据已过期，请刷新后重试',
+      silent: false,
+    }
+  }
+  if (isUnsupportedCode(code)) {
+    return {
+      kind: 'unsupported',
+      code,
+      title: '此操作在当前模块不可用',
+      detail,
+      // 后端原文"当前接口不支持此操作"没有说清"为什么"与"该怎么办"，这里补上：
+      // 不是权限问题（找管理员开通也没用）、不是故障（重试不会成功），是模块刻意没开这个能力
+      hint: '该模块未开放此接口，重试不会成功；如确需此功能请联系管理员确认',
       silent: false,
     }
   }
