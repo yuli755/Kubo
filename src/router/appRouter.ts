@@ -77,7 +77,7 @@ export function getRouter(): Router {
  *
  * `componentsMap` 由 `Console.vue` 用 `import.meta.glob` 递归收集 `/src/view` 下所有 `.vue` ——
  * 键是**绝对路径**（`/src/view/system/menu/list.vue`），与后端菜单里的 `component`
- * 拼出的键一致；拼错时组件是 `undefined`，vue-router 会静默渲染空白页，
+ * （补上前导斜杠后）拼出的键一致；拼错时组件是 `undefined`，vue-router 会静默渲染空白页，
  * 所以 `menuContract.spec.ts` 里有一条「每个菜单的 component 都能在 map 里找到」的断言，
  * 且这里对缺失键**跳过注册**（落到 404 + 告警），把静态断言管不到的「库里的菜单被手改」
  * 也变成看得见的问题。
@@ -101,7 +101,12 @@ export function initVueRouter(
       },
     }
     if (componentPath) {
-      const componentKey = `${componentsDirectory}${componentPath}.vue`
+      // 组件路径归一化：`menu.component` 在库里历史上有的带前导斜杠、有的不带（手改/老数据），
+      // 不归一化就会拼出 `/src/viewdashboard.vue` 这种**永远匹配不上**的键。
+      // 归一化之前，这种菜单会被注册成 `component: undefined` 的路由 —— 匹配成功、渲染空白、
+      // 控制台干净（正是下面那道守卫要消灭的症状）；归一化之后它才可能命中真实视图。
+      const normalizedPath = componentPath.startsWith('/') ? componentPath : `/${componentPath}`
+      const componentKey = `${componentsDirectory}${normalizedPath}.vue`
       const loader = componentsMap[componentKey]
       if (!loader) {
         // 菜单指向的视图不存在（改名 / 删除 / 库里手改过 path）：注册一条 component=undefined

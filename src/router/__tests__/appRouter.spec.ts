@@ -79,8 +79,22 @@ describe('appRouter · native vue-router 实现', () => {
     expect(router.getRoutes().filter(r => r.name === '1')).toHaveLength(1)
   })
 
-  it('initVueRouter 缺 name 抛错', () => {
+  it('component 不带前导斜杠也能命中组件表（库里两种写法都真实存在）', () => {
+    // 归一化不是洁癖：`menu.component` 少一个前导斜杠时，拼出的键是 `/src/viewdashboard.vue`
+    // —— 永远匹配不上。归一化之前它会注册成 `component: undefined` 的路由（匹配成功、渲染空白、
+    // 控制台干净）；归一化 + 缺失守卫之后，要么正常命中，要么明确 404 并告警。
     const router = createAppRouter([
+      { path: '/', component: Dummy },
+      { path: '/console', name: 'console', component: Dummy },
+    ])
+    initVueRouter(
+      [{ id: 21, name: '无前导斜杠', path: '/no-slash', component: 'no-slash-page' }],
+      { '/src/view/no-slash-page.vue': () => Promise.resolve(Dummy) },
+    )
+    expect(router.hasRoute('21'), '缺前导斜杠就拼不出组件键，页面会静默空白或 404').toBe(true)
+  })
+
+  it('initVueRouter 缺 name 抛错', () => {    const router = createAppRouter([
       { path: '/', component: Dummy },
       { path: '/console', name: 'console', component: Dummy },
     ])
