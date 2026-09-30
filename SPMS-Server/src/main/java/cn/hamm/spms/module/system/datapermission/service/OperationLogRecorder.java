@@ -63,7 +63,26 @@ public class OperationLogRecorder {
                                     String beforeSnapshot,
                                     String afterSnapshot,
                                     Long userId,
-                                    Long tenantId) {
+                                    Long tenantId,
+                                    Long occurredAt) {
+
+        /**
+         * 兼容构造器：不显式给发生时刻时按「现在」定稿。
+         *
+         * <p>留这个重载是为了不把既有的 8 参调用点（含单测）全量改一遍，同时让新代码
+         * 仍然走「时间戳在业务线程上定稿」这条契约。</p>
+         */
+        public OperationLogEvent(String resourceKey,
+                                 String action,
+                                 Long targetId,
+                                 String targetLabel,
+                                 String beforeSnapshot,
+                                 String afterSnapshot,
+                                 Long userId,
+                                 Long tenantId) {
+            this(resourceKey, action, targetId, targetLabel, beforeSnapshot, afterSnapshot,
+                    userId, tenantId, System.currentTimeMillis());
+        }
     }
 
     private final ObjectProvider<OperationLogRepository> repositoryProvider;
@@ -127,7 +146,10 @@ public class OperationLogRecorder {
                 OperationLogSnapshot.of(before),
                 OperationLogSnapshot.of(after),
                 userId,
-                tenantId);
+                tenantId,
+                // 发生时刻必须在业务线程上取：persist() 跑在单线程队列上，积压时
+                // 「落库时刻」会晚于「操作时刻」，审计表的时间就不准了。
+                System.currentTimeMillis());
     }
 
     /**
@@ -146,6 +168,10 @@ public class OperationLogRecorder {
                     .setTargetLabel(event.targetLabel())
                     .setBeforeSnapshot(event.beforeSnapshot())
                     .setAfterSnapshot(event.afterSnapshot());
+            // createTime 不能留空：operation_log 走的是本类的 repository.save，绕过了
+            // BaseService 里唯一的赋值点（BaseService.java:553），列默认值 0 会让
+            // 审计表的「时间」全部渲染成 1970-01-01 —— 审计表唯一的时间证据失效。
+            entity.setCreateTime(event.occurredAt());
             entity.setUserId(event.userId());
             entity.setTenantId(event.tenantId());
             repository.save(entity);

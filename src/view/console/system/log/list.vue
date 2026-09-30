@@ -187,12 +187,18 @@ async function refresh() {
         />
         <ElTableColumn
           label="时间"
-          width="200"
+          width="170"
         >
           <template #default="{ row }">
-            <span :title="DateTimeUtil.getFriendlyDateTime((row as OperationLogItem).createTime)">
+            <span
+              v-if="(row as OperationLogItem).createTime"
+              :title="DateTimeUtil.getFriendlyDateTime((row as OperationLogItem).createTime)"
+            >
               {{ DateTimeFormatter.FULL_DATE_TIME.formatMilliSecond((row as OperationLogItem).createTime) }}
             </span>
+            <!-- createTime 为 0/null 时不能走格式化：那会渲染成 1970-01-01 08:00:00（东八区 epoch 0），
+                 看起来像「有个真实时间」，其实是缺值。历史行（后端修复前写入的）就属于这种。 -->
+            <span v-else class="log-list__muted">-</span>
           </template>
         </ElTableColumn>
         <ElTableColumn
@@ -211,7 +217,7 @@ async function refresh() {
         </ElTableColumn>
         <ElTableColumn
           label="资源"
-          width="180"
+          min-width="160"
         >
           <template #default="{ row }">
             <code class="log-list__code">{{ (row as OperationLogItem).resourceKey }}</code>
@@ -219,7 +225,7 @@ async function refresh() {
         </ElTableColumn>
         <ElTableColumn
           label="目标"
-          min-width="200"
+          min-width="160"
         >
           <template #default="{ row }">
             {{ (row as OperationLogItem).targetLabel ?? '-' }}
