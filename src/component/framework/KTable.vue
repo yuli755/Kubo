@@ -36,6 +36,7 @@ import {
   watch,
 } from 'vue'
 import { getCellColor, getCellText, getColumnAlign, getDictionary, getEnumItems, getSearchConfigList, getTableConfigList } from '@/framework'
+import { estimateActionColumnWidth } from './tableActionWidth'
 
 /**
  * # KTable —— 自研表格（替代 airpower `ATable`）
@@ -325,6 +326,8 @@ const selection = shallowRef<E[]>([])
 interface IElTableInstance {
   toggleRowSelection: (row: unknown, selected?: boolean) => void
   clearSelection: () => void
+  /** ElTable 的根元素（`.el-table`），量树表高度用 */
+  $el?: HTMLElement
 }
 const tableRef = ref<IElTableInstance>()
 
@@ -430,36 +433,83 @@ function isDeleteDisabled(row: E): boolean {
 
 const hasRowActions = computed(() => !props.hideActions)
 
-const tableHeight = computed(() => props.height ?? undefined)
+/**
+ * 树表自动高度：让 Element Plus 用**自己的**内部滚动 + 原生吸顶表头。
+ *
+ * 为什么不能给表头做 sticky（已实测否决）：`.el-table__header-wrapper` 往上四层祖先
+ * `.el-card__body`(overflow:auto)、`.el-card`(hidden)、`.el-table`(hidden)、`.k-table__body`(hidden)
+ * **全是滚动容器**，`position: sticky` 只会相对最近的那一层解析，而那几层自己不滚（高度随内容长），
+ * 于是注入 sticky 后计算样式确实是 `sticky`，309 行的权限树滚 600px 表头 top 照样从 279 变成 -321。
+ * 覆盖这四处 overflow 会波及全部 26 个 KTable 使用点和 `KSelector.vue` 对话框里的表格，不划算。
+ *
+ * 传进去的必须是**数字**：EP 的 `parseHeight` 只认数字或 `/^\d+(?:px)?$/`，
+ * `calc(100vh - 320px)` 会被当成 auto，等于没传。
+ * 页面显式给了 `height` 就一律听页面的（`KSelector` 之类窄容器里的表格不该吃视口高度）。
+ */
+const MIN_TREE_TABLE_HEIGHT = 360
+const treeAutoHeight = ref<number | undefined>(undefined)
 
-/** 动态计算操作列宽度，保障按钮单行展示不折叠挤压 */
+function measureTreeHeight() {
+  if (!isTree.value || props.height !== undefined) {
+    treeAutoHeight.value = undefined
+    return
+  }
+  const el = tableRef.value?.$el
+  if (!el?.getBoundingClientRect) {
+    return
+  }
+  // 56 = `.k-shell__footer` 35 + `.k-shell__content` 下内边距 20 + 1px 余量
+  const available = Math.round(window.innerHeight - el.getBoundingClientRect().top - 56)
+  treeAutoHeight.value = Math.max(MIN_TREE_TABLE_HEIGHT, available)
+}
+
+const tableHeight = computed(() => props.height ?? treeAutoHeight.value ?? undefined)
+
+onMounted(() => {
+  if (isTree.value && props.height === undefined) {
+    void nextTick(measureTreeHeight)
+    window.addEventListener('resize', measureTreeHeight)
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', measureTreeHeight)
+})
+
+/**
+ * 操作列宽度：按**按钮文字**估宽，不再按按钮个数拍档位。
+ *
+ * 估宽算法与 `KDetailTable` 共用 `./tableActionWidth`（两份实现必然漂移）。
+ * 原实现是 `count<=1→90, <=2→140, <=3→190, <=4→230, else min(count*58, 360)`，
+ * 对 2 字标签严重超配 —— 实测采购单 5 个按钮（查看/审核/驳回/再来一单/编辑）的文字只需要
+ * 174px，操作列却占 290px；合同页更是 348px。1131px 的可用宽度里被操作列吃掉 26%~31%，
+ * 这正是采购/销售/合同三页横向滚动的最大单一成因（数据列本身的内容宽都远小于列宽）。
+ * 改后复测：采购单操作列 290 → 230、`.k-table__actions` 内容宽 205.2（= 230 − 24 内边距）。
+ *
+ * 现在 = Σ 按钮文字宽 + (n-1)×8px 间距 + 24px 单元格左右内边距，并夹在 [90, 360]。
+ * 配套把样式里 `.el-button + .el-button` 的 12px 兄弟外边距清零（间距统一交给 `gap`），
+ * 否则两套间距叠加，实测每个间隔 23.3px 而不是 8px。
+ *
+ * 计数口径与按钮渲染口径保持一致：`actions` + 树表的「添加子级」+ 未隐藏的编辑/启停/删除。
+ * `v-permission` 可能让某个按钮对当前用户不渲染，这里仍按全部计入（宁宽勿窄，
+ * 与改动前的行为一致）。
+ */
 const actionsColumnWidth = computed(() => {
-  let count = (props.actions?.length ?? 0)
+  const labels: string[] = (props.actions ?? []).map(action => action.label)
   if (isTree.value) {
-    count++
+    labels.push('添加子级')
   }
   if (!props.hideEdit) {
-    count++
+    labels.push('编辑')
   }
   if (!props.hideEnable) {
-    count++
+    // 启用/禁用 都是两个字，取任一即可
+    labels.push('启用')
   }
   if (!props.hideDelete) {
-    count++
+    labels.push('删除')
   }
-  if (count <= 1) {
-    return 90
-  }
-  if (count <= 2) {
-    return 140
-  }
-  if (count <= 3) {
-    return 190
-  }
-  if (count <= 4) {
-    return 230
-  }
-  return Math.min(count * 58, 360)
+  return estimateActionColumnWidth(labels, { gap: 8 })
 })
 
 /** 空态文案 */
@@ -989,7 +1039,14 @@ const emptyText = computed(() => {
   align-items: center;
   justify-content: center;
   flex-wrap: nowrap;
-  gap: 4px;
+  gap: 8px;
+}
+
+/* Element Plus 给相邻按钮加了 12px 兄弟外边距，与上面的 gap 叠加后实测每个间隔 23.3px，
+   操作列因此比按钮文字真正需要的宽出约 50px（采购单 5 个按钮：文字 174px、列宽 290px）。
+   间距统一由 gap 管，这里清零，`actionsColumnWidth` 的估宽才和真实渲染对得上。 */
+.k-table__actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .k-table__pagination {

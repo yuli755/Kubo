@@ -4,6 +4,7 @@ import type { IIdentifiableEntity, ITableColumn } from '@/framework'
 import { ElButton, ElEmpty, ElTable, ElTableColumn } from 'element-plus'
 import { computed, useSlots } from 'vue'
 import { getCellColor, getCellText, getColumnAlign, getDictionary, getTableConfigList } from '@/framework'
+import { estimateActionColumnWidth } from './tableActionWidth'
 
 /**
  * # KDetailTable —— 内存明细表（单据明细 / 参与方 / 附件这类"不在服务端分页里的数组"）
@@ -64,7 +65,7 @@ const props = withDefaults(defineProps<{
   showIndex?: boolean
   /** 行操作列标题 */
   actionLabel?: string
-  /** 行操作列宽 */
+  /** 行操作列宽；不传则按按钮文字估（见下 `resolvedActionWidth`） */
   actionWidth?: number | string
   /** 表格高度（不传则自适应内容） */
   maxHeight?: string | number
@@ -72,7 +73,6 @@ const props = withDefaults(defineProps<{
   emptyText: '暂无明细',
   showIndex: true,
   actionLabel: '操作',
-  actionWidth: 160,
 })
 
 const emit = defineEmits<{
@@ -91,6 +91,23 @@ function hasCellSlot(key: string): boolean {
 
 const columns = computed<ITableColumn[]>(() =>
   getTableConfigList(props.entity).filter(column => !(props.exclude ?? []).includes(column.key)),
+)
+
+/**
+ * 操作列宽：页面显式传了 `actionWidth` 就听页面的，否则按按钮文字估。
+ *
+ * 改前默认写死 160px，而采购单明细抽屉里那一列只有一个「作业」按钮（文字 30px），
+ * 实测整个明细表 Σ 列宽 1306 vs 抽屉内可用 1120 ⇒ 横向溢出 186px，这 100px 白扔的
+ * 操作列宽是其中最大的一块。
+ *
+ * 间距传 12 而不是 `KTable` 的 8：这里的按钮直接排在单元格里，没有
+ * `.k-table__actions` 那种 `display:flex; gap` 容器，用的是 Element Plus 自己的
+ * `.el-button + .el-button { margin-left: 12px }`。
+ * 下限 60：2 字按钮 30px 文字 + 24px 单元格内边距 = 54，表头「操作」要 48。
+ */
+const resolvedActionWidth = computed(() =>
+  props.actionWidth
+  ?? estimateActionColumnWidth((props.rowActions ?? []).map(action => action.label), { gap: 12, min: 60 }),
 )
 
 function cellText(row: E, column: ITableColumn): string {
@@ -145,7 +162,7 @@ function cellStyle(row: E, column: ITableColumn): CSSProperties {
     <ElTableColumn
       v-if="rowActions?.length"
       :label="actionLabel"
-      :width="actionWidth"
+      :width="resolvedActionWidth"
       fixed="right"
       align="center"
     >
