@@ -2,7 +2,7 @@
 import type { DepartmentEntity } from '@/model/personnel/department/DepartmentEntity'
 import type { RoleEntity } from '@/model/personnel/role/RoleEntity'
 import { RefreshLeft, Search } from '@element-plus/icons-vue'
-import { ElButton, ElInput, ElMessage, ElTag, ElTree } from 'element-plus'
+import { ElButton, ElCheckbox, ElInput, ElMessage, ElTag, ElTree } from 'element-plus'
 import { computed, onMounted, ref, watch } from 'vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import KPanel from '@/component/framework/KPanel.vue'
@@ -10,6 +10,7 @@ import KSelector from '@/component/framework/KSelector.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { useMaskPolicy } from '@/composables/useMaskPolicy'
 import { Permissions } from '@/config/permissions'
+import { DISABLED_FILTER_DEFAULT, useDisabledVisibility } from '@/hook/kubo/useDisabledVisibility'
 import { useTable } from '@/hook/kubo/useTable'
 import { KDepartmentService } from '@/hook/personnel/useDepartment'
 import { KRoleService } from '@/hook/personnel/useRole'
@@ -34,7 +35,18 @@ import { KUserService } from '@/hook/personnel/useUser'
 const { blockedSubmit, maskedFieldsIn, load } = useMaskPolicy('personnel.user', ['idCard', 'phone', 'email'])
 onMounted(() => load())
 
-const table = useTable(KUserService, { queryKey: ['personnel:user'] })
+const table = useTable(KUserService, {
+  queryKey: ['personnel:user'],
+  defaultFilter: DISABLED_FILTER_DEFAULT,
+})
+
+/**
+ * 「包含已停用」开关：不然后端那条刻意的隐形 WHERE（`is_disabled = 0`）会让被停用的用户
+ * 从列表里彻底消失，停用一个账号就成了单向不可逆的操作。三态约定、状态为什么派生自
+ * `filter.isDisabled` 而不是另开 ref、以及搜索会重置开关这个取舍，全部记在
+ * `@/hook/kubo/useDisabledVisibility` 的文件头（角色页共用同一套）。
+ */
+const { includeDisabled, onIncludeDisabledChange } = useDisabledVisibility(table)
 
 /** 部门树（筛选用；与部门页共享同一接口，但缓存键分开，避免把"筛选树"和"部门页"的查询搅在一起） */
 const departmentTree = useTable(KDepartmentService, { queryKey: ['personnel:department', 'userFilter'], tree: true })
@@ -209,7 +221,19 @@ function onSaved() {
         :table="table"
         @add="openCreate"
         @edit="openEdit"
-      />
+      >
+        <!-- 放在工具条左侧（「新增」之后）：它是一个改变"能看到哪些行"的筛选，
+             语义上和左栏部门树同类，不该混进右侧的导出/刷新那组表格操作里 -->
+        <template #toolbar-left>
+          <ElCheckbox
+            :model-value="includeDisabled"
+            class="k-page__include-disabled"
+            @change="onIncludeDisabledChange"
+          >
+            包含已停用
+          </ElCheckbox>
+        </template>
+      </KTable>
     </KPanel>
 
     <KFormDialog

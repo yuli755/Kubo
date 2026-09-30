@@ -1,11 +1,13 @@
 <script lang="ts" setup>
 import type { RoleEntity } from '@/model/personnel/role/RoleEntity'
+import { ElCheckbox } from 'element-plus'
 import { ref } from 'vue'
 import KFormDialog from '@/component/framework/KFormDialog.vue'
 import KPanel from '@/component/framework/KPanel.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { Permissions } from '@/config/permissions'
 import { WebValidator } from '@/framework'
+import { DISABLED_FILTER_DEFAULT, useDisabledVisibility } from '@/hook/kubo/useDisabledVisibility'
 import { useTable } from '@/hook/kubo/useTable'
 import { KRoleService } from '@/hook/personnel/useRole'
 import RoleMenuEditor from './component/menuEditor.vue'
@@ -34,7 +36,18 @@ const roleExtraRules = {
   name: [WebValidator.show('不允许带管理员三个字').ifContain('管理员')],
 }
 
-const table = useTable(KRoleService, { queryKey: ['personnel:role'] })
+const table = useTable(KRoleService, {
+  queryKey: ['personnel:role'],
+  defaultFilter: DISABLED_FILTER_DEFAULT,
+})
+
+/**
+ * 「包含已停用」开关。角色和用户一样开了 `Curd.Enable/Disable`
+ * （`SPMS-Server/src/main/java/cn/hamm/spms/module/personnel/role/RoleController.java:21`），
+ * 也就一样会踩后端那条刻意的隐形 WHERE（`is_disabled = 0`）：停用后角色从列表消失、无处恢复。
+ * 三态约定与取舍见 `@/hook/kubo/useDisabledVisibility` 文件头。
+ */
+const { includeDisabled, onIncludeDisabledChange } = useDisabledVisibility(table)
 
 const editorVisible = ref(false)
 const editingId = ref<number | null>(null)
@@ -96,7 +109,16 @@ function onSaved() {
         :table="table"
         @add="openCreate"
         @edit="openEdit"
-      />
+      >
+        <template #toolbar-left>
+          <ElCheckbox
+            :model-value="includeDisabled"
+            @change="onIncludeDisabledChange"
+          >
+            包含已停用
+          </ElCheckbox>
+        </template>
+      </KTable>
     </KPanel>
 
     <KFormDialog
