@@ -1,7 +1,7 @@
-# SPMS 真机测试报告 · 2026-09 · N4（round 13–15）
+# SPMS 真机测试报告 · 2026-09 · N4（round 13–15）+ N-15（round 22–23）
 
 > 承接 `docs/TEST_REPORT_2026-09-N.md`（round 1–4）、`docs/TEST_REPORT_2026-09-N2.md`（round 5–8）与 `docs/TEST_REPORT_2026-09-N3.md`（round 9–12）。
-> 本轮走查**主数据创建链 + 系统治理闭环（角色/菜单授权/权限授权/挂用户/登录取证）**，并修复三个真实缺陷（N-13 菜单授权计数器、N-14 表单默认值、N-2 遗留 lint）。
+> 本轮走查**主数据创建链 + 系统治理闭环（角色/菜单授权/权限授权/挂用户/登录取证）**，并修复四个真实缺陷（N-13 菜单授权计数器、N-14 表单默认值、**N-15 合同生效参与方闸门**、N-2 遗留 lint）。
 > 本模型无图像输入：所有判定来自 DOM 量测（`getBoundingClientRect` / `getComputedStyle` / `__vueParentComponent` 遍历）与真实网络响应，截图仅供人复核。
 
 ## 0. 判定表
@@ -9,6 +9,7 @@
 | --- | --- | --- | --- | --- |
 | **N-13** | 角色·菜单授权「已选 N 项」计数器钉死、清空按钮不消失（树勾选/保存正确） | 🐞 **真缺陷（P1）** | 已修 `checkedIds()` 去副作用 + 守卫 | 见 §2 |
 | **N-14** | 新增合同/物料时 `@KForm({ defaultValue })` 全部落空（合同类型/起止时间空 → 保存被 requiredNumber 拦截） | 🐞 **真缺陷（P1）** | 已修 `resetForm()` 回退元数据默认值 + 守卫 | 见 §3 |
+| **N-15** | 后端 `ContractService.enforce` 只查状态不查参与方，0 方合同被直接生效（status 1→2） | 🐞 **真缺陷（P1）** | 已修后端参与方闸门 + 单测 | 见 §7 |
 | 治理闭环 | 角色→菜单授权→权限授权→挂用户→登录取证 全链路 | ✅ **打通** | 证据见 §4 | — |
 | N-2 | `system/log/list.vue:201` lint `vue/max-attributes-per-line` | 🧹 遗留风格 | 已修（换行排版） | 见 §2 |
 | — | 全量 vitest 并行跑偶发 EnvironmentTeardownError | ⚪ 测试基建竞态 | 非改动引入；单独重跑全过 | §5 |
@@ -123,10 +124,48 @@ next[field.key] = instance[field.key] ?? field.defaultValue ?? '';
 - N-5 零权限用户落 404（路由设计，已守卫）；N-9 `PurchaseService.java:220` 日志打 null 单号（DB 正确）；采购明细弹窗写操作不刷新外层列表（低）。
 - 全量 vitest 并行竞态属测试基建，未根治（CI 单进程口径不受影响）。
 
+## 7. N-15 · 合同生效后端未校验参与方数量（P1，已修）
+### 7.1 现象
+`ContractService.enforce(id)` 只查合同状态（`INVALID` 才可生效），**不查参与方数量**。API 探针实证：
+`POST /contract/enforce {"id":1}`（0 参与方）→ HTTP 200 `{"code":200,"message":"生效合同成功"}`，合同 status 被直接 1→2。
+业务上合同未确认参与方便已生效，属领域闸门缺失。
+
+### 7.2 根因
+`enforce()` 逻辑：状态检查 → `setStatus(EFFECTIVE)`，中间缺「参与方至少两方且角色去重 ≥2」的校验。
+
+### 7.3 修复（`SPMS-Server/.../asset/contract/ContractService.java`）
+```java
+// enforce() 状态检查之后、setStatus 之前：
+FORBIDDEN.when(distinctParticipantRoles(exist.getParticipantList()) < 2, "参与方至少有两方，请先确认");
+
+// 新增纯函数（与 enforce 的两条 FORBIDDEN 逐位对齐，供单测直接驱动）：
+public boolean canEnforce(@NotNull ContractEntity entity) {
+    return ContractStatus.INVALID.equalsKey(entity.getStatus())
+        && distinctParticipantRoles(entity.getParticipantList()) >= 2;
+}
+
+// 新增私有 helper：null/空→0；role 为 null 过滤；按 role 去重计数
+private int distinctParticipantRoles(Set<ParticipantEntity> participants) { ... }
+```
+`stop()` 保持仅 EFFECTIVE 可终止（对称不放大）。
+
+### 7.4 单测
+新建 `ContractEnforceGateTest.java`（仿 `BillStateMachineGateTest` 纯函数风格，无 Spring/Mockito，
+因 `BaseService.get(long)` 是 `public final` 无法 spy）：**6 用例全过**——
+① 0 参与方拒；② null 列表拒；③ 1 方拒；④ 同角色 2 方（去重 1）拒；⑤ 2 不同角色通过；⑥ 已生效再生效拒。
+
+### 7.5 live 复验（重启前后端后）
+- **负例**：合同 id=1（0 参与方，状态=未生效）点「生效」→ 前端 `onEnforce` 守卫直接 toast「参与方至少有两方，请先确认」（不发请求）；
+  绕过前端直接打后端 `POST /contract/enforce {"id":1}` → **HTTP 200 `{"code":403,"message":"参与方至少有两方，请先确认"}`**，状态保持未生效。
+- **正例**：给合同 id=1 关联 2 个不同角色参与方（甲方 role1 + 乙方 role2）→ 点「生效」→ `confirmWarning`「没有上传任何附件，是否继续生效合同？」→ 确认 →
+  toast「已生效」→ 状态变**生效中**；详情弹窗「合同参与方（2）」tab 列出两参与方（名称/电话/邮箱/证件脱敏）。
+- 0 console error / 0 pageerror。
+- 证据截图：docs/evidence/34（生效中）、35（详情·参与方 2）。
+
 ## 8. 回归与提交
-- 后端 `mvn -B -o clean test`：**927 tests, 0 failures, 0 errors, 1 skipped, BUILD SUCCESS**（与基线一致）。
+- 后端 `mvn -B -o clean test`：**933 tests（927 基线 + 6 N-15 新增）, 0 failures, 0 errors, 1 skipped, BUILD SUCCESS**。
 - 前端守卫 vitest：defaultCheckedKeysGuard 3 + formDefaultValueGuard 3 + dialogWiring 6 = **12 passed**。
 - `pnpm check` 全门（lint→airpower→typecheck→coverage→perms/auth/errcode/contract/text/ddl/migration/monitoring/canary/docker/drill→build→demo→size）：
   **22 步全绿**。其中首屏发现 N-2 遗留 lint 与 N-3 遗留 unused-export 并顺手修复；产物体积（gzip）首屏 290.8 KB / 总量 715.4 KB，低于闸门 450 / 900 KB。
 - **重启前后端真机复验 PASS**：admin 登录 → 合同列表 row1 `CON2026100001 | 其他合同 | 真机测试合同 R16 | 未生效 | 2026-10-01 | 2027-10-01 剩余 365 天`（生效 en / 终止 dis 正确）；角色·菜单授权弹窗 `已选 34 项` → 清空 → `已选 0 项` + 清空按钮隐藏（N-13 修复持久）。0 console error / 0 pageerror。
-- 证据截图：docs/evidence/15–33（本提交含 15–33）。
+- 证据截图：docs/evidence/15–35（本提交含 15–35）。

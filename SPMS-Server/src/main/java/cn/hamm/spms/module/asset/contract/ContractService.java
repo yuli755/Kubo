@@ -12,6 +12,7 @@ import cn.hamm.spms.common.CsvFormulaSanitizer;
 import cn.hamm.spms.module.asset.contract.enums.ContractStatus;
 import cn.hamm.spms.module.asset.contract.mapper.ContractMapper;
 import cn.hamm.spms.module.asset.contract.mapper.ContractReadShadowService;
+import cn.hamm.spms.module.asset.contract.participant.ParticipantEntity;
 import cn.hamm.spms.module.system.datapermission.enums.DataPermissionAction;
 import cn.hamm.spms.module.system.datapermission.service.DataPermissionSpecification;
 import cn.hamm.spms.module.system.datapermission.service.ExportColumnMasker;
@@ -25,6 +26,8 @@ import org.springframework.stereotype.Service;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 import static cn.hamm.spms.common.exception.Errors.FORBIDDEN;
 
@@ -169,13 +172,32 @@ public class ContractService extends BaseService<ContractEntity, ContractReposit
     /**
      * 生效合同
      *
+     * <p>领域闸门：合同必须处于「未生效」状态，且参与方至少有两方（角色去重后 ≥2）。
+     * 前端 {@code list.vue} 的 toast 只是提前说明，真正的判据在这里 —— 否则直接调
+     * {@code POST /contract/enforce} 就能把 0 参与方的合同生效（N-15 实测现场）。</p>
+     *
      * @param id 合同 ID
      */
     public void enforce(long id) {
         ContractEntity exist = get(id);
         FORBIDDEN.when(ContractStatus.INVALID.notEqualsKey(exist.getStatus()), "该合同状态无法生效");
+        FORBIDDEN.when(distinctParticipantRoles(exist.getParticipantList()) < 2, "参与方至少有两方，请先确认");
         exist.setStatus(ContractStatus.EFFECTIVE.getKey());
         updateToDatabase(exist);
+    }
+
+    /**
+     * 生效闸门的纯函数判定（供领域层与单元测试共用）。
+     *
+     * <p>状态必须为「未生效」且参与方角色去重后 ≥2；与 {@link #enforce(long)} 的
+     * 两条 FORBIDDEN 判据逐位对齐，防止测试与实现漂移。</p>
+     *
+     * @param entity 合同实体
+     * @return 是否可以生效
+     */
+    public boolean canEnforce(@NotNull ContractEntity entity) {
+        return ContractStatus.INVALID.equalsKey(entity.getStatus())
+                && distinctParticipantRoles(entity.getParticipantList()) >= 2;
     }
 
     /**
@@ -188,5 +210,22 @@ public class ContractService extends BaseService<ContractEntity, ContractReposit
         FORBIDDEN.when(ContractStatus.EFFECTIVE.notEqualsKey(exist.getStatus()), "该合同状态无法终止");
         exist.setStatus(ContractStatus.TERMINATED.getKey());
         updateToDatabase(exist);
+    }
+
+    /**
+     * 统计参与方角色去重后的数量（null 参与方列表按 0 处理，role 为 null 的参与方不计入）。
+     *
+     * @param participants 参与方列表（可为 null）
+     * @return 不同角色数量
+     */
+    private long distinctParticipantRoles(Set<ParticipantEntity> participants) {
+        if (participants == null || participants.isEmpty()) {
+            return 0;
+        }
+        return participants.stream()
+                .map(ParticipantEntity::getRole)
+                .filter(Objects::nonNull)
+                .distinct()
+                .count();
     }
 }
