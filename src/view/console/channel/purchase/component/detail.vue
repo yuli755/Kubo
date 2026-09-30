@@ -7,7 +7,7 @@ import { computed, ref } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import { Permissions } from '@/config/permissions'
-import { FeedbackUtil, getCellText, getEnumLabel, getTableConfig } from '@/framework'
+import { FeedbackUtil, getCellText, getEnumLabel, getFieldLabel, getTableConfig } from '@/framework'
 import { KPurchaseService } from '@/hook/channel/usePurchase'
 import { useDetail } from '@/hook/kubo/useDetail'
 import { PurchaseDetailEntity as PurchaseDetail } from '@/model/channel/purchase/PurchaseDetailEntity'
@@ -45,7 +45,9 @@ const bill = computed<PurchaseEntity | undefined>(() => detail.entity.value)
 const headerFields = ['billCode', 'status', 'reason', 'totalPrice', 'totalRealPrice', 'createTime', 'rejectReason'] as const
 
 function fieldLabel(key: string): string {
-  return getTableConfig(Purchase, key)?.label ?? key
+  // 头部字段未必是列表列（status / createTime 等没有 @KTable），必须查 @KField 的 getFieldLabel；
+  // 查 getTableConfig 会拿不到配置而退回原始英文键名（N-11）。
+  return getFieldLabel(Purchase, key)
 }
 
 function fieldText(key: string): string {

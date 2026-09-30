@@ -6,7 +6,7 @@ import { ElAlert, ElDescriptions, ElDescriptionsItem, ElTag } from 'element-plus
 import { computed } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KDialog from '@/component/framework/KDialog.vue'
-import { getCellText, getEnumLabel, getTableConfig } from '@/framework'
+import { getCellText, getEnumLabel, getFieldLabel, getTableConfig } from '@/framework'
 import { KSaleService } from '@/hook/channel/useSale'
 import { useDetail } from '@/hook/kubo/useDetail'
 import { SaleDetailEntity as SaleDetail } from '@/model/channel/sale/SaleDetailEntity'
@@ -38,7 +38,9 @@ const bill = computed<SaleEntity | undefined>(() => detail.entity.value)
 const headerFields = ['billCode', 'status', 'customerName', 'reason', 'totalPrice', 'createTime', 'rejectReason'] as const
 
 function fieldLabel(key: string): string {
-  return getTableConfig(Sale, key)?.label ?? key
+  // 头部字段未必是列表列（status / createTime 等没有 @KTable），必须查 @KField 的 getFieldLabel；
+  // 查 getTableConfig 会拿不到配置而退回原始英文键名（N-11）。
+  return getFieldLabel(Sale, key)
 }
 
 function fieldText(key: string): string {

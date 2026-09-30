@@ -2,7 +2,7 @@
 import { ElDescriptions, ElDescriptionsItem } from 'element-plus'
 import { computed } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
-import { getCellText, getTableConfig } from '@/framework'
+import { getCellText, getFieldLabel, getTableConfig } from '@/framework'
 import { KSupplierService } from '@/hook/channel/useSupplier'
 import { useDetail } from '@/hook/kubo/useDetail'
 import { SupplierEntity as Supplier } from '@/model/channel/supplier/SupplierEntity'
@@ -38,7 +38,9 @@ const supplier = computed(() => detail.entity.value as unknown as Record<string,
 const fields = ['code', 'name', 'phone'] as const
 
 function fieldLabel(key: string): string {
-  return getTableConfig(Supplier, key)?.label ?? key
+  // 头部字段未必是列表列，必须查 @KField 的 getFieldLabel；
+  // 查 getTableConfig 会拿不到配置而退回原始英文键名（N-11）。
+  return getFieldLabel(Supplier, key)
 }
 
 function fieldText(key: string): string {

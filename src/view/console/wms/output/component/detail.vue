@@ -7,7 +7,7 @@ import { computed, ref } from 'vue'
 import KDetailTable from '@/component/framework/KDetailTable.vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import { Permissions } from '@/config/permissions'
-import { getCellText, getEnumLabel, getTableConfig } from '@/framework'
+import { getCellText, getEnumLabel, getFieldLabel, getTableConfig } from '@/framework'
 import { useDetail } from '@/hook/kubo/useDetail'
 import { KOutputService } from '@/hook/wms/useOutput'
 import { OutputDetailEntity as OutputDetail } from '@/model/wms/output/OutputDetailEntity'
@@ -90,7 +90,9 @@ const moveVisible = ref(false)
 const finishing = ref<OutputDetailEntity | null>(null)
 
 function fieldLabel(key: string): string {
-  return getTableConfig(Output, key)?.label ?? key
+  // 头部字段未必是列表列（status / createTime 等没有 @KTable），必须查 @KField 的 getFieldLabel；
+  // 查 getTableConfig 会拿不到配置而退回原始英文键名，页面上就显示 billCode / status（N-11）。
+  return getFieldLabel(Output, key)
 }
 
 function fieldText(key: string): string {
