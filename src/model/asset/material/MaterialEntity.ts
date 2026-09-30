@@ -31,7 +31,13 @@ export class MaterialEntity extends BaseEntity {
   @KSearch()
   name!: string
 
-  @KTable({ order: 90, minWidth: 160, force: true, copy: true })
+  /**
+   * ### 物料编码
+   *
+   * 定宽 180（实测 75px）。原 `minWidth: 160` 与名称、规格型号一起瓜分剩余宽度，
+   * 实测编码 193 / 规格 169，内容只有 75 / 55px。列宽口径见 `src/framework/types.ts`。
+   */
+  @KTable({ order: 90, width: 180, force: true, copy: true })
   @KForm({ placeholder: '不输入按编码规则自动生成', maxLength: 32 })
   @KField({ label: '物料编码' })
   @KSearch()
@@ -49,7 +55,7 @@ export class MaterialEntity extends BaseEntity {
   @KSearch({ width: 130 })
   useType!: number
 
-  @KTable({ order: 60, minWidth: 140 })
+  @KTable({ order: 60, width: 140 })
   @KForm({ maxLength: 64 })
   @KField({ label: '规格型号' })
   spc!: string

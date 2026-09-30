@@ -25,7 +25,12 @@ export class SalePriceEntity extends BaseEntity {
   @KField({ label: '客户' })
   customer!: CustomerEntity
 
-  @KTable({ order: 92, minWidth: 140, force: true, copy: true, formatter: (row: never) => materialPart(row, 'code') })
+  /**
+   * 列宽口径见 `src/framework/types.ts`：编码/名称类定宽，只有「物料名称」留 `minWidth` 当弹性列。
+   * 原先四列全是 `minWidth`，剩余宽度被平均瓜分 —— 实测物料编码 175 / 物料名称 223 /
+   * 客户名称 199 / 客户编码 199，而内容只有 75 / 138 / 56 / 75px。
+   */
+  @KTable({ order: 92, width: 170, force: true, copy: true, formatter: (row: never) => materialPart(row, 'code') })
   @KField({ label: '物料编码' })
   materialCode!: string
 
@@ -33,18 +38,18 @@ export class SalePriceEntity extends BaseEntity {
   @KField({ label: '物料名称' })
   materialName!: string
 
-  @KTable({ order: 80, minWidth: 160, copy: true, formatter: (row: never) => customerPart(row, 'name') })
+  @KTable({ order: 80, width: 170, copy: true, formatter: (row: never) => customerPart(row, 'name') })
   @KField({ label: '客户名称' })
   customerName!: string
 
-  @KTable({ order: 70, minWidth: 160, copy: true, formatter: (row: never) => customerPart(row, 'code') })
+  @KTable({ order: 70, width: 170, copy: true, formatter: (row: never) => customerPart(row, 'code') })
   @KField({ label: '客户编码' })
   customerCode!: string
 
   materialId!: number
 
   @KForm({ requiredNumber: true, number: true, precision: 2 })
-  @KTable({ align: 'right', width: 150, order: -1, money: true, force: true })
+  @KTable({ align: 'right', width: 140, order: -1, money: true, force: true })
   @KField({ label: '销售单价' })
   price!: number
 }

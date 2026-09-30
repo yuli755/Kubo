@@ -17,13 +17,19 @@ import { Field as KField, Form as KForm, Model as KModel, Search as KSearch, Tab
   addChildPermission: 'add',
 })
 export class DepartmentEntity extends BaseEntity implements ITree, IPayload {
-  @KTable({ order: 100, minWidth: 160, force: true, copy: true })
+  @KTable({ order: 100, minWidth: 180, force: true, copy: true })
   @KForm({ requiredString: true })
   @KField({ label: '部门名称' })
   @KSearch()
   name!: string
 
-  @KTable({ order: 90, minWidth: 220, copy: true })
+  /**
+   * ### 部门编码
+   *
+   * 定宽 180（实测 30px）。原 `minWidth: 220` 让三列瓜分剩余宽度，
+   * 实测名称 319 / 编码 437，内容只有 42 / 30px。列宽口径见 `src/framework/types.ts`。
+   */
+  @KTable({ order: 90, width: 180, copy: true })
   @KForm({ placeholder: '如不填写,则后端自动生成...', maxLength: 32 })
   @KField({ label: '部门编码' })
   @KSearch()
@@ -43,6 +49,9 @@ export class DepartmentEntity extends BaseEntity implements ITree, IPayload {
   @KType(DepartmentEntity)
   parent!: this
 
+  /** 基础数据表统一补「创建时间」列，理由同 `StorageEntity.createTime`。 */
+  @KTable({ order: -90, width: 170, datetime: true })
+  @KField({ label: '创建时间' })
   declare createTime: number
 
   declare isDisabled: boolean

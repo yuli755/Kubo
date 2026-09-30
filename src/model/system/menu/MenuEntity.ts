@@ -18,7 +18,17 @@ import {
   label: '菜单',
 })
 export class MenuEntity extends BaseEntity implements IMenu {
+  /**
+   * ### 列宽口径（见 `src/framework/types.ts`）
+   *
+   * 三个文本列原先都没有 `@KTable` 宽度 ⇒ 一律吃 KTable 的 `min-width: 120` 默认值，
+   * 剩余宽度被平均瓜分：实测菜单名称 263（内容 91px）、菜单路径 261（内容 **352px，被截断**）、
+   * 组件地址 261（内容 150px）。路径是唯一真正需要弹性的列（`/console/system/datapermission/fieldPolicy`
+   * 这种深路径），因此改为：名称定宽、路径与组件地址按 `minWidth` 弹性分配（3:2），
+   * 路径拿到约 350px 正好够，组件地址约 230px 也够。
+   */
   @KTable({
+    width: 170,
     force: true,
   })
   @KSearch()
@@ -31,6 +41,7 @@ export class MenuEntity extends BaseEntity implements IMenu {
   name!: string
 
   @KTable({
+    minWidth: 300,
     copy: true,
     force: true,
   })
@@ -50,6 +61,7 @@ export class MenuEntity extends BaseEntity implements IMenu {
   icon!: string
 
   @KTable({
+    minWidth: 200,
     copy: true,
   })
   @KForm()

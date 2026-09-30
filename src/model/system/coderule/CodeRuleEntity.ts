@@ -18,10 +18,19 @@ import { SerialNumberUpdateEnum } from '@/model/system/coderule/SerialNumberUpda
   label: '编码规则',
 })
 export class CodeRuleEntity extends BaseEntity {
+  /**
+   * ### 列宽（口径见 `src/framework/types.ts`）
+   *
+   * 本页 4 个文本列原先都没声明宽度 ⇒ 一律吃 `min-width: 120` 并平分剩余宽度，
+   * 实测编码所属字段 182/84、规则前缀 181/23、规则模板 181/60、下一个编码 181/105，
+   * 而 `序列号初始长度` 却定宽 160 装一个 8px 的数字。改为：只有「规则模板」留弹性，
+   * 其余按内容定宽，序列号初始长度收到 130（刚好放得下 7 字表头）。
+   */
   @KForm({
     requiredNumber: true,
   })
   @KTable({
+    width: 150,
     force: true,
   })
   @KField({
@@ -36,6 +45,7 @@ export class CodeRuleEntity extends BaseEntity {
     defaultValue: '',
   })
   @KTable({
+    width: 120,
     force: true,
   })
   @KField({
@@ -51,7 +61,7 @@ export class CodeRuleEntity extends BaseEntity {
     defaultValue: 4,
   })
   @KTable({
-    width: 160,
+    width: 130,
     force: true,
   })
   @KField({
@@ -60,6 +70,7 @@ export class CodeRuleEntity extends BaseEntity {
   snLength!: number
 
   @KTable({
+    minWidth: 180,
     force: true,
   })
   @KForm({
@@ -92,7 +103,9 @@ export class CodeRuleEntity extends BaseEntity {
   })
   snType!: number
 
-  @KTable()
+  @KTable({
+    width: 170,
+  })
   @KField({
     label: '下一个编码',
   })

@@ -30,13 +30,21 @@ export class PurchasePriceEntity extends BaseEntity {
   @KField({ label: '物料' })
   material!: MaterialEntity
 
+  /**
+   * 供应商关联字段：**只给表单/详情用，不挂 `@KTable`**。
+   *
+   * 曾经挂着 `@KTable({ order: 60, formatter: supplierPart(row, 'name') })`，
+   * 与下面专门的 `supplierName` 列渲染出**同一个字符串**，列表里并排出现「供应商 / 供应商名称」
+   * 两列一模一样的内容（实测各 163px，内容 69 / 70px）。
+   * 对照 `material` 的处理方式（同样不挂列，由 `materialCode` / `materialName` 两列展示），
+   * 关联字段本身不进表格才是这套实体的一致写法。
+   */
   @KForm({ requiredPayload: true })
   @KType(SupplierEntity)
-  @KTable({ order: 60, minWidth: 160, formatter: (row: never) => supplierPart(row, 'name') })
   @KField({ label: '供应商' })
   supplier!: SupplierEntity
 
-  @KTable({ order: 92, minWidth: 140, force: true, copy: true, formatter: (row: never) => materialPart(row, 'code') })
+  @KTable({ order: 92, width: 170, force: true, copy: true, formatter: (row: never) => materialPart(row, 'code') })
   @KField({ label: '物料编码' })
   materialCode!: string
 
@@ -44,16 +52,16 @@ export class PurchasePriceEntity extends BaseEntity {
   @KField({ label: '物料名称' })
   materialName!: string
 
-  @KTable({ order: 80, minWidth: 160, copy: true, formatter: (row: never) => supplierPart(row, 'name') })
+  @KTable({ order: 80, width: 170, copy: true, formatter: (row: never) => supplierPart(row, 'name') })
   @KField({ label: '供应商名称' })
   supplierName!: string
 
-  @KTable({ order: 70, minWidth: 140, copy: true, formatter: (row: never) => supplierPart(row, 'code') })
+  @KTable({ order: 70, width: 170, copy: true, formatter: (row: never) => supplierPart(row, 'code') })
   @KField({ label: '供应商编码' })
   supplierCode!: string
 
   @KForm({ requiredNumber: true, number: true, precision: 2 })
-  @KTable({ align: 'right', width: 150, order: -1, money: true, force: true })
+  @KTable({ align: 'right', width: 140, order: -1, money: true, force: true })
   @KField({ label: '采购单价' })
   price!: number
 }

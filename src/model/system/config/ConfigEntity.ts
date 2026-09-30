@@ -18,8 +18,15 @@ import { ConfigType } from '@/model/system/config/ConfigType'
   label: '配置',
 })
 export class ConfigEntity extends BaseEntity {
+  /**
+   * ### 配置名称
+   *
+   * 唯一的弹性列（口径见 `src/framework/types.ts`）：标识/类型/系统配置/参数都定宽，
+   * 剩余宽度全给名称。原先名称与参数一起吃弹性宽度，实测名称 255 / 内容 126。
+   */
   @KTable({
     copy: true,
+    minWidth: 180,
     order: 88,
   })
   @KForm({
@@ -36,9 +43,15 @@ export class ConfigEntity extends BaseEntity {
   })
   description!: string
 
+  /**
+   * ### 配置标识
+   *
+   * 定宽 260（实测内容 210px，形如 `PICKING_BILL_AUTO_AUDIT`）。原 300 是按最长标识拍的，
+   * 多出的 40px 在只有 5 列的页面上就是把名称列挤窄的那 40px。
+   */
   @KTable({
     copy: true,
-    width: 300,
+    width: 260,
     order: 99,
   })
   @KSearch()

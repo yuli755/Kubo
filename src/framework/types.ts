@@ -60,12 +60,59 @@ export interface IFieldConfig<K extends EnumKey = EnumKey> extends IBaseField {
   dictionary?: IWebEnumConstructor<K>
 }
 
-/** `@Table` 配置 */
+/**
+ * `@Table` 配置
+ *
+ * ## 列宽口径（改任何实体列宽前先读这段）
+ *
+ * KTable 只把这里的 `width` / `minWidth` 透传给 Element Plus，**不做任何按内容自适应**：
+ * 没声明 `width` 的列一律吃 `min-width: 120` 默认值，然后和其它弹性列**平分**剩余宽度。
+ * 2026-09 全量量测过一遍（viewport 1440×900，可用表宽 1131~1142px），后果是两类症状：
+ *
+ * - **空壳列**：字典表只有 2~3 个业务列时，每列被拉到 300~500px，而内容只有 30~90px
+ *   （`unit` 单位名称 448/84、`storage` 仓库编码 495/52、`department` 部门编码 437/30）。
+ * - **截断列**：列一多就挤不下，长文本被 `show-overflow-tooltip` 砍掉
+ *   （`menu` 菜单路径 261/352、`permission` 权限名称 293/374、`policy` 策略编码 200/292）。
+ *
+ * 因此约定：
+ *
+ * | 列类型 | 声明 | 依据 |
+ * | --- | --- | --- |
+ * | 序号 `#` | 56（KTable 内置，不用管） | — |
+ * | 名称（**唯一**弹性列） | `minWidth: 180` | 一个表只留一列吃剩余宽度，其余定宽 |
+ * | 编码 / 单据号 | `width: 180` | 实测 75~105px，14 位单号 + 复制按钮 |
+ * | 电话（已脱敏） | `width: 150` | 实测 82px |
+ * | 枚举 / 状态 / 类型 | `width: 110~130` | 实测 48~126px（标签色块有内边距） |
+ * | 排序号等小整数 | `width: 100` | 实测 8~15px，留够表头 |
+ * | 金额 | `width: 140`，`align: 'right'` | 千分位 + 两位小数 |
+ * | 布尔「启用」 | `width: 90~100` | 「已禁用」三字 |
+ * | 时间 | `width: 170`，`datetime: true` | `YYYY-MM-DD HH:mm:ss` |
+ * | 长文本（路径/JSON/动作列表） | `minWidth: 200~300` 弹性 | 宁可它撑开，别截断 |
+ * | 裸 id / 外键 id / JSON blob | `hide: true` | 默认不显示，列选择器里仍可勾回 |
+ *
+ * **预算**：Σ 可见数据列声明宽度 ≤ **900px**（+ 序号 56 + 操作列 ≤190 ≈ 1146，
+ * 正好是 1440 视口下的可用宽度）。超了就优先 `hide` 低价值列，而不是让表格横向滚动。
+ * 守卫见 `src/config/__tests__/tableLayout.spec.ts`（读的是装饰器注册表本身，不是正则扒源码）。
+ *
+ * **表头标签 ≤ 8 个汉字**；括号里的解释属于表单/详情，用 `label` 覆盖列标题即可
+ * （`metadata.ts` 的 `label: item.label || getFieldLabel(...)`：`@Table({ label })` 优先，
+ * 缺省才回落 `@Field` 的 label），例如 `@KField({ label: '归属列（可按维度登记）' })`
+ * 配 `@KTable({ label: '归属列' })`。
+ *
+ * **字典表**（≤4 个业务列）至少要凑齐「名称 / 编码 / 创建时间」三列，
+ * 否则两列会被拉成 400px+ 的空壳。基类字段挂列按 `BaseEntity` 头注的「列表列不进基类」
+ * 约定，在实体上重声明（先例：`RoleEntity.isDisabled`、`InputEntity.createTime`）。
+ */
 export interface ITableColumn extends IBaseField {
   /** 列标题（缺省取 `@Field` 的 label） */
   label?: string
+  /** 定宽（px 或 CSS 长度）。除名称列外一律用定宽，见上方「列宽口径」 */
   width?: number | string
-  /** 最小宽度（Element Plus `min-width`；列多时靠它撑开而不是挤成省略号） */
+  /**
+   * 最小宽度（Element Plus `min-width`；列多时靠它撑开而不是挤成省略号）。
+   * 只有「唯一弹性列」该用它 —— 多列同时用 `minWidth` 会平分剩余宽度，
+   * 于是每列都变宽一点、每列又都不够宽（这正是 2026-09 量测出的两类症状）。
+   */
   minWidth?: number | string
   /** 排序权重，越大越靠前 */
   order?: number

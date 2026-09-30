@@ -19,11 +19,19 @@ import { DataPermissionSubjectType } from './DataPermissionSubjectType'
   label: '行级数据策略',
 })
 export class DataPolicyEntity extends BaseEntity {
+  /**
+   * ### 列宽与默认隐藏（口径见 `src/framework/types.ts`）
+   *
+   * 本页原先声明宽合计 1426px，可用只有 1131px ⇒ 横向滚动，而撑宽它的三列内容几乎是空的：
+   * `数据资源ID` 100/5、`主体ID` 110/5、`条件树JSON` 260/9 —— 全是裸外键 ID 与 JSON blob，
+   * 属于「排查时才看」的信息 ⇒ `hide: true` 默认不显示（列选择器仍可勾回，`hide` 不是权限控制）。
+   * 腾出的宽度给唯一真正被截断的 `策略编码`（实测 200 宽 / 292px 内容），改成弹性列。
+   */
   @KSearch()
   @KTable({
     copy: true,
     force: true,
-    width: 200,
+    minWidth: 280,
   })
   @KForm({
     requiredString: true,
@@ -35,6 +43,7 @@ export class DataPolicyEntity extends BaseEntity {
 
   @KTable({
     width: 100,
+    hide: true,
   })
   @KForm({
     requiredNumber: true,
@@ -46,7 +55,7 @@ export class DataPolicyEntity extends BaseEntity {
 
   @KSearch()
   @KTable({
-    width: 120,
+    width: 130,
   })
   @KForm({
     requiredString: true,
@@ -59,6 +68,7 @@ export class DataPolicyEntity extends BaseEntity {
 
   @KTable({
     width: 110,
+    hide: true,
   })
   @KForm({
     number: true,
@@ -70,7 +80,7 @@ export class DataPolicyEntity extends BaseEntity {
   subjectId!: number
 
   @KTable({
-    width: 110,
+    width: 120,
   })
   @KForm({
     placeholder: '留空或 default 表示通配全部角色',
@@ -98,6 +108,7 @@ export class DataPolicyEntity extends BaseEntity {
   @KTable({
     width: 260,
     copy: true,
+    hide: true,
   })
   @KForm({
     textarea: true,

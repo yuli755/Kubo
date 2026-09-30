@@ -26,15 +26,25 @@ import { SaleStatusEnum } from './SaleStatusEnum'
   addChildPermission: 'add',
 })
 export class SaleEntity extends AbstractBaseBillEntity<SaleDetailEntity> {
-  @KTable({ order: 99, minWidth: 180, force: true, copy: true })
+  @KTable({ order: 99, width: 150, force: true, copy: true })
   @KForm({ placeholder: '不填写按编码规则自动生成' })
   @KField({ label: '销售单号' })
   @KSearch()
   declare billCode: string
 
+  /**
+   * 列宽口径见 `src/framework/types.ts`。改前本页 `sum=1496` vs 可用 `1142`，横向溢出 354px，
+   * 是全仓最严重的一页；四个文本列同时用 `minWidth` 平分剩余宽度，于是每列都宽一点、每列又都不够宽。
+   * 改后只留「客户名称」一个弹性列，其余按内容定宽，Σ 可见列 = 850 ≤ 856（1142 - 56 序号 - 230 操作）。
+   *
+   * 「客户编码」默认 `hide`：它与「客户名称」是同一个 `CustomerEntity` 的两个投影，列表上并排两列
+   * 只为多显示一个人类不读的内部编码。`hide` 只是布局取舍不是权限控制 —— 列选择器里能勾回来，
+   * 详情抽屉与编辑器也都仍展示。
+   */
   @KTable({
     order: 90,
-    minWidth: 140,
+    width: 140,
+    hide: true,
     copy: true,
     formatter: (row: never) => customerPart(row, 'code'),
   })
@@ -43,7 +53,7 @@ export class SaleEntity extends AbstractBaseBillEntity<SaleDetailEntity> {
 
   @KTable({
     order: 85,
-    minWidth: 180,
+    minWidth: 160,
     copy: true,
     formatter: (row: never) => customerPart(row, 'name'),
   })
@@ -54,17 +64,17 @@ export class SaleEntity extends AbstractBaseBillEntity<SaleDetailEntity> {
   @KField({ label: '客户' })
   customerId!: number
 
-  @KTable({ minWidth: 220, order: 60 })
+  @KTable({ width: 160, order: 60 })
   @KForm({ textarea: true, maxLength: 80 })
   @KField({ label: '销售说明' })
   reason!: string
 
-  @KTable({ width: 150, order: 50, money: true, force: true, align: 'right' })
+  @KTable({ width: 120, order: 50, money: true, force: true, align: 'right' })
   @KForm({ number: true, precision: 2, suffixText: '元' })
   @KField({ label: '总金额' })
   totalPrice!: number
 
-  @KTable({ width: 110, order: -80, force: true, color: true })
+  @KTable({ width: 100, order: -80, force: true, color: true })
   @KSearch({ width: 120 })
   @KField({ label: '销售状态', dictionary: SaleStatusEnum })
   status!: number
@@ -79,11 +89,11 @@ export class SaleEntity extends AbstractBaseBillEntity<SaleDetailEntity> {
 
   // ── 基类（`BaseEntity` / `AbstractBaseBillEntity`）的字段在 K 注册表里没有条目，
   //    `declare` 重声明只为挂 `@K*`：K 列表要显示创建时间，K 详情要能看到驳回原因。
-  @KTable({ order: -90, width: 170, datetime: true })
+  @KTable({ order: -90, width: 160, datetime: true })
   @KField({ label: '创建时间' })
   declare createTime: number
 
-  @KTable({ order: -91, width: 170, datetime: true, hide: true })
+  @KTable({ order: -91, width: 160, datetime: true, hide: true })
   @KField({ label: '更新时间' })
   declare updateTime: number
 

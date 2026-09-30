@@ -19,8 +19,18 @@ import { DataPermissionMaskType } from './DataPermissionMaskType'
   label: '列级脱敏策略',
 })
 export class DataFieldPolicyEntity extends BaseEntity {
+  /**
+   * ### 列宽与默认隐藏（口径见 `src/framework/types.ts`）
+   *
+   * 本页原先声明宽合计 1206px，可用 1142px ⇒ 横向滚动；同时 `脱敏类型` 实测 110 宽 / 126px 内容
+   * 被截断，而 `数据资源ID`（110/16）与 `遮蔽表达式`（120/5）几乎不占内容 ⇒ 两列默认隐藏，
+   * 腾出的宽度给 `脱敏类型`（110→140）和弹性的 `字段名`。
+   * `角色编码（default 为通配）` 这个 12 字标题本身就把列撑到 110，用 `@KTable({ label })`
+   * 只缩短列标题，通配说明留在 `@KForm` 的 placeholder 里（表单本来就有）。
+   */
   @KTable({
     width: 110,
+    hide: true,
   })
   @KForm({
     requiredNumber: true,
@@ -44,7 +54,7 @@ export class DataFieldPolicyEntity extends BaseEntity {
 
   @KSearch()
   @KTable({
-    width: 140,
+    minWidth: 160,
     copy: true,
   })
   @KForm({
@@ -56,7 +66,8 @@ export class DataFieldPolicyEntity extends BaseEntity {
   fieldName!: string
 
   @KTable({
-    width: 110,
+    width: 120,
+    label: '角色编码',
   })
   @KForm({
     placeholder: '留空或 default 表示通配全部角色',
@@ -81,7 +92,7 @@ export class DataFieldPolicyEntity extends BaseEntity {
   actionName!: string
 
   @KTable({
-    width: 110,
+    width: 140,
   })
   @KForm({
     requiredString: true,
@@ -94,6 +105,7 @@ export class DataFieldPolicyEntity extends BaseEntity {
 
   @KTable({
     width: 120,
+    hide: true,
   })
   @KForm({
     placeholder: '脱敏表达式（例如自定义掩码规则）',
