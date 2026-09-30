@@ -1,7 +1,7 @@
-# SPMS 真机测试报告 · 2026-09 · N4（round 13–15）+ N-15（round 22–23）+ R24-25（round 24–25）
+# SPMS 真机测试报告 · 2026-09 · N4（round 13–15）+ N-15（round 22–23）+ R24-25（round 24–25）+ R26（round 26）
 
 > 承接 `docs/TEST_REPORT_2026-09-N.md`（round 1–4）、`docs/TEST_REPORT_2026-09-N2.md`（round 5–8）与 `docs/TEST_REPORT_2026-09-N3.md`（round 9–12）。
-> 本轮走查**主数据创建链 + 系统治理闭环（角色/菜单授权/权限授权/挂用户/登录取证）+ 采购→入库→库存→销售→出库全业务闭环**，并修复四个真实缺陷（N-13 菜单授权计数器、N-14 表单默认值、**N-15 合同生效参与方闸门**、N-2 遗留 lint）。
+> 本轮走查**主数据创建链 + 系统治理闭环（角色/菜单授权/权限授权/挂用户/登录取证）+ 采购→入库→库存→销售→出库全业务闭环 + 移库闭环与未覆盖系统页**，并修复四个真实缺陷（N-13 菜单授权计数器、N-14 表单默认值、**N-15 合同生效参与方闸门**、N-2 遗留 lint）。
 > 本模型无图像输入：所有判定来自 DOM 量测（`getBoundingClientRect` / `getComputedStyle` / `__vueParentComponent` 遍历）与真实网络响应，截图仅供人复核。
 
 ## 0. 判定表
@@ -221,3 +221,44 @@ private int distinctParticipantRoles(Set<ParticipantEntity> participants) { ... 
 
 ### 9.7 本轮改动
 - 无代码改动（纯真机验证 + 证据落盘）；全量回归见 §8。
+
+## 10. R26 · 移库闭环 + 未覆盖系统页走查（round 26，端到端 PASS）
+> round 26 补走仓储移库闭环与全部未覆盖系统治理页。全程 0 console error / 0 pageerror（各页仅 1 条无内容 warning）。
+
+### 10.1 移库闭环（`/console/wms/move/list`）
+| # | 步骤 | DOM 量测结果 |
+| --- | --- | --- |
+| 1 | 新增移库单 | 弹窗「移库单」，移库单号占位「不填写按编码规则自动生成」 |
+| 2 | 选目标仓库 | 选 `西部2仓(SRG0006)`（7 仓可勾） |
+| 3 | 从库存挑明细 | 「选择库存」弹窗（维度 按仓库/按生产单元 + 仓库树）选 `键盘 MA20260002 东部2仓(SRG0003) 100台` 行「选择」→ 移动数量 100 预填 → 确定 |
+| 4 | 保存 | toast「新增成功」→ `MV202610010001 | 审核中` |
+| 5 | 审核 | 确认 → 状态→**移动中**；查看详情「移库单明细」提示「可点击操作列「作业」登记实际移动数量」 |
+| 6 | 作业 | 「添加完成数量」100 → 添加完成 → 状态→**已完成** → 刷新列表 row1 `MV202610010001 | 已完成` |
+
+**库存联动验证**（`/console/wms/inventory/list`）：总库存件数 246（移库不增减总量）；`键盘 MA20260002` 西部2仓 0→**100 台**（目标）、东部2仓 100→**0 台**（来源）✔ 移库库存联动通过。
+
+### 10.2 未覆盖系统页走查（全部 0 console error）
+| 菜单 | 路由 | 量测 |
+| --- | --- | --- |
+| 采购价 | `/console/channel/purchasePrice/list` | 1 条；采购单价 `2***0`（字段级脱敏，见 fieldPolicy） |
+| 销售价 | `/console/channel/salePrice/list` | 1 条；销售单价 `2***9`（脱敏） |
+| 编号规则 | `/console/system/coderule/list` | 22 条；CON `yyyymm` 每月更新、MV/OUT `yyyymmdd` 每日更新 → 印证 MV202610010001 编码递增 |
+| 系统配置 | `/console/system/config/list` | 13 条；PURCHASE/MOVE/INPUT/OUTPUT/SALE_BILL_AUTO_AUDIT 均 是（布尔） |
+| 操作日志 | `/console/system/log/list` | 27 条；表头 #/时间/动作/资源/目标/操作者/租户/快照/操作，行「查看变更」 |
+| 数据资源 | `/console/system/datapermission/resource/list` | 17 条 ENABLED；动作 QUERY,DETAIL,CREATE,UPDATE,DELETE,EXPORT；工具「一键复制当前批次配置/一键放量就绪体检/一键切换 ENFORCE」 |
+| 数据策略 | `/console/system/datapermission/policy/list` | 65 条；`personnel_user_delete` 等 系统(放行全部)/优先级100/启用是 |
+| 字段脱敏 | `/console/system/datapermission/fieldPolicy/list` | 4 条；`salePrice/purchasePrice/price` default 列表查询 **部分遮蔽(留首尾)** → 印证采购价/销售价脱敏显示 |
+| 仓库管理 | `/console/factory/storage/list` | 7 条（华中新仓 R16 SRG0007…东部大仓 SRG0001），树形「添加子级」 |
+| 库位结构 | `/console/factory/structure/list` | 3 条（笔记本电脑产线 ST0001/工位1/工位2 单人工位） |
+| 计量单位 | `/console/system/unit/list` | 3 条（台 UT0001/千克 R16 UT0002/联调探针单位 UNIT-PROBE-1） |
+| 权限管理 | `/console/system/permission/list` | API 权限树：系统状态 Status/权限变更死信 system:data-permission:outbox/迁移归属 ownership/绕过 bypass/超级 system:root/数据资源 DataResource |
+| 菜单管理 | `/console/system/menu/list` | 树结构：工作台(1)、仓储管理 WMS(20) 下 入库/出库/移库/库存(1-4)、渠道管理(30) 下 客户/供应商/采购单(1-3)、资产管理 等 |
+
+**字段脱敏闭环**：fieldPolicy 定义 `purchasePrice`/`salePrice` 为「部分遮蔽(留首尾)」→ 采购价页显示 `2***0`、销售价页 `2***9`，与 fieldPolicy 配置逐位对证。
+
+### 10.3 证据截图（docs/evidence）
+- `41-r26-inventory-after-move.png`：移库后库存（键盘 西部2仓 100 / 东部2仓 0，总量 246）
+- `42-r26-move-completed.png`：移库列表 MV202610010001 已完成
+
+### 10.4 本轮改动
+- 无代码改动（纯真机验证 + 证据落盘）。
