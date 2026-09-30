@@ -38,11 +38,16 @@ const isSubmitting = ref(false)
 const filterKeyword = ref('')
 const checkedCount = ref(0)
 
-/** 已勾选的菜单 id：来自角色详情的 `menuList`（后端 getDetail 会带出来） */
+/**
+ * 已勾选的菜单 id：来自角色详情的 `menuList`（后端 getDetail 会带出来）。
+ * 注意：这里不能给 `checkedCount` 赋值 —— 本函数在模板里被 `:default-checked-keys`
+ * 绑定，**每次渲染都会执行**；一旦带副作用，就把「清空 / 全选 / 手工勾选」之后
+ * `onCheckChange()` 更新的计数器永久钉死在 `menuList.length`（真机实测：树勾选
+ * 状态正常变化、已选 N 项纹丝不动，且保存的授权结果不受影响）。计数器的初始值
+ * 由 `loadTree()` 设置，之后只靠 `onCheckChange()` 更新。
+ */
 function checkedIds(): number[] {
-  const ids = (props.role?.menuList ?? []).map(item => item.id)
-  checkedCount.value = ids.length
-  return ids
+  return (props.role?.menuList ?? []).map(item => item.id)
 }
 
 function onCheckChange() {

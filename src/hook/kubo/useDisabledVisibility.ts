@@ -66,7 +66,7 @@ interface IFilterTable {
   search: (nextFilter?: Record<string, unknown>) => void
 }
 
-export interface IDisabledVisibility {
+interface IDisabledVisibility {
   /** 开关当前状态（派生自 `filter.isDisabled === null`，不是独立状态） */
   includeDisabled: ComputedRef<boolean>
   /** `ElCheckbox` 的 `@change` 处理器（EP 传的是 `boolean | string | number`） */

@@ -230,7 +230,11 @@ function resetForm() {
   const instance = new Ctor() as Record<string, unknown>
   const next: Record<string, unknown> = {}
   for (const field of fields.value) {
-    next[field.key] = instance[field.key] ?? ''
+    // 实体类字段大多用 `!` 声明（无初始化器），`new Ctor()[field.key]` 恒为 undefined，
+    // 此时必须落到 `@Form({ defaultValue })` 元数据 —— 否则合同类型/起止时间这类默认值
+    // 在「新增」时永远为空，requiredNumber 字段直接拦住保存，默认值声明形同虚设。
+    // 顺序：实例上已有值（成员初始化器/编辑回填）> 元数据默认值 > 空字符串。
+    next[field.key] = instance[field.key] ?? field.defaultValue ?? ''
   }
   // 预置字段（如 parentId）覆盖实体默认值：值可能是 0，所以要按 key 存在与否判断而不是真值
   for (const [key, value] of Object.entries(props.preset ?? {})) {

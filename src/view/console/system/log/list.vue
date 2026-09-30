@@ -198,7 +198,10 @@ async function refresh() {
             </span>
             <!-- createTime 为 0/null 时不能走格式化：那会渲染成 1970-01-01 08:00:00（东八区 epoch 0），
                  看起来像「有个真实时间」，其实是缺值。历史行（后端修复前写入的）就属于这种。 -->
-            <span v-else class="log-list__muted">-</span>
+            <span
+              v-else
+              class="log-list__muted"
+            >-</span>
           </template>
         </ElTableColumn>
         <ElTableColumn
