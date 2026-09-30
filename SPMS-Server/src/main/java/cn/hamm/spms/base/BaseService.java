@@ -520,8 +520,16 @@ public class BaseService<
      * 构建 Spring Data Sort
      */
     protected org.springframework.data.domain.Sort buildSpringSort(@Nullable Sort sort) {
-        String field = (sort != null && StringUtils.hasText(sort.getField())) ? sort.getField() : "id";
-        boolean isAsc = sort != null && sort.isAsc();
+        boolean hasField = sort != null && StringUtils.hasText(sort.getField());
+        String field = hasField ? sort.getField() : "id";
+        // 调用方没给排序字段（前端 useTable 未传 sort → getPage 兜底成 new Sort()）时，
+        // direction 仍带着 Sort 的 ASC 默认值。此处必须与上面的 field 兜底对称：
+        // 「没表达排序意见」不能翻译成「按 id 升序」，否则新建/刚审核的单据会沉到最后一页，
+        // 用户在列表里找不到自己的单据（真机实测：PC202609300004 落在 10/10 行、
+        // IN202609300007 不在 17 条 type=3 的第 1 页）。缺省一律按 id 倒序 = 最新在前。
+        // 显式给了字段的调用方不受影响，菜单树依赖的 new Sort().setField(ORDER_FIELD_NAME)
+        // 仍然保持 ASC 默认。
+        boolean isAsc = hasField && sort.isAsc();
         org.springframework.data.domain.Sort springSort = isAsc
                 ? org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Order.asc(field))
                 : org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Order.desc(field));
