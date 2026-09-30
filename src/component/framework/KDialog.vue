@@ -17,21 +17,35 @@ import { computed } from 'vue'
  * - **声明式**：页面 `v-model="visible"` + `@confirm` 使用。
  *
  * ## confirm 走哪条路（重要，踩过坑）
- * **只 `emit`，不再手动调 `props.onConfirm`**。原因：`@confirm="h"` 与 `:on-confirm="h"`
- * 在 Vue 里是同一个东西（都会进 `vnode.props.onConfirm`），`emit('confirm')` 会把它派发到 ——
- * 两种写法本来就同一条路。若再手动 `props.onConfirm?.()` 就会**回调两次**；
- * 若改成"有监听就 emit、没监听才调 prop"，则外层用 `:on-confirm` 传处理器时
- * `vnode.props.onConfirm` 也非空 → 判定失效、回调一次都不走（弹窗点了确定却没反应）。
+ * **只 `emit`，不再手动调 `props.onConfirm`**。若再手动调一次，外层用 `@confirm` 时就会
+ * **回调两次**；若改成"有监听就 emit、没监听才调 prop"，那这个判定本身就靠不住
+ * （见下面第 2 条：连字符写法会把处理器塞进 props，看着像"有监听"其实不是监听）。
+ *
+ * ### 两种接线契约（本项目并存，别混）
+ * 1. **emit-only 型** —— 组件只 `emit('confirm', data)`，自己不碰 `props.onConfirm`。
+ *    本组件、`KSelector`、`wms/inventory/component/selector.vue` 都是这一型。
+ *    ⇒ 外层**必须写 `@confirm` / `@cancel`**。`@confirm="h"` 编译成驼峰键 `onConfirm`，
+ *    `emit('confirm')` 恰好按 `toHandlerKey('confirm') = 'onConfirm'` 去 `vnode.props`
+ *    里找，能命中。
+ * 2. **props-call 型** —— 组件内部自己写 `@confirm="() => props.onConfirm?.(data)"`，
+ *    把 KDialog 的 emit 接住再转调 props（如 `bill/BillRejectDialog.vue:29`、
+ *    `bill/BillAddFinishDialog.vue:32`）。这一型对外暴露的就是 `IDialogActionProps`
+ *    这份 props 契约，所以外层写 `:on-confirm="h"` 是**对的**：Vue 解析 props 时会对
+ *    原始键做 camelize，`on-confirm` → `onConfirm` → 落进 `props.onConfirm`。
+ *
+ * ⚠️ 把第 2 型的写法用到第 1 型组件上会**静默失效**：`:on-confirm="h"` 编译成连字符键
+ * `on-confirm`，而 `emit('confirm')` 只找驼峰键 `onConfirm`（emit 不会 camelize
+ * `vnode.props` 的键），于是处理器被当成普通 attr 收下、永远不被调用，且**不报错**，
+ * 表现为「弹窗点了确定但页面没反应」。批 0 的测试抓过一次；出库「确认出库」与移库
+ * 挑选库存又各栽一次（`wms/output/component/addFinishEditor.vue`、
+ * `wms/move/component/editor.vue`，均已改为 `@confirm`）。
+ * ⇒ 记忆口诀：**看组件内部有没有 `props.onConfirm?.()` —— 有就写 `:on-confirm`，
+ * 没有就写 `@confirm`。**
  *
  * 数据回传由**用它的组件**决定（弹窗内容在它手里）：
  * ```vue
  * <KDialog @confirm="props.onConfirm?.(rejectReason)" />
  * ```
- *
- * ⚠️ 外层**必须写 `@confirm` / `@cancel`**，不要写 `:on-confirm="handler"`。
- * 后者在编译产物里是 kebab 键 `on-confirm`，而 `emit('confirm')` 只在 `vnode.props`
- * 里找 `onConfirm` / camelize 后的键 —— 找不到就**静默不派发**，表现为
- * 「弹窗点了确定但页面没反应」，且不报错（批 0 的测试就是这么抓出来的）。
  */
 const props = withDefaults(defineProps<IDialogActionProps & {
   /** 显隐（命令式打开时不传，默认即打开） */

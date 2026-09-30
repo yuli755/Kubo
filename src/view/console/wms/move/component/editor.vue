@@ -83,7 +83,11 @@ function openInventoryPicker() {
   inventoryPicking.value = true
 }
 
-function onInventoryPicked(picked: InventoryEntity) {
+// `InventorySelector` 单选时 emit 一行实体、多选时 emit 数组；移库只走单选。
+// 但 `@confirm` 的形参类型是 props 契约 `IDialogActionProps.onConfirm` 的 `unknown`
+// 与 emit 声明的交集，所以这里必须收 `unknown` 再显式收窄（出库侧同构，见 3de9287b）。
+function onInventoryPicked(pickedRaw: unknown) {
+  const picked = (Array.isArray(pickedRaw) ? pickedRaw[0] : pickedRaw) as InventoryEntity | undefined
   inventoryPicking.value = false
   if (!picked) {
     return
@@ -259,11 +263,17 @@ function beforeSubmit(payload: Record<string, unknown>) {
     @confirm="onStoragePicked"
   />
 
+  <!--
+    必须写 @confirm / @cancel，不能写 :on-confirm / :on-cancel（与上面 KSelector 同一条规则）。
+    selector.vue 的 pick() 走 emit('confirm', row)：@confirm 编译成驼峰键 onConfirm，
+    :on-confirm 编译成连字符键 on-confirm，emit 只查驼峰键 ⇒ 选中的库存会被静默丢弃，
+    且选择器关不掉（它的 visible 依赖宿主回写 modelValue）。出库侧同构缺陷已修，见 3de9287b。
+  -->
   <InventorySelector
     v-if="inventoryPicking"
     :param="inventorySeed"
-    :on-cancel="() => inventoryPicking = false"
-    :on-confirm="onInventoryPicked as never"
+    @cancel="inventoryPicking = false"
+    @confirm="onInventoryPicked"
   />
 
   <MoveDetailEditor
