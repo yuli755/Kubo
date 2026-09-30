@@ -19,13 +19,19 @@ import { installGlobalErrorHandler, setErrorReporter } from '@/utils/errorHandle
 import { reportErrorToServer } from '@/utils/errorReportClient'
 import { installRouterErrorHandler } from '@/utils/routerErrorHandler'
 // V1+V2：设计 token 层 + Element Plus 暗色变量（顺序敏感，必须在本文件其它样式之后引入）
+// 这里的「其它样式」包括 element-plus 的组件样式：它们随 L2 的 `from 'element-plus'`
+// 一起被拉进来（落点是 `src/types/element-plus-aggregate.ts`，那是全项目唯一的 EP 样式入口），
+// 因此一定早于本行 ⇒ token 层能覆盖 EP 默认值。
 import '@/styles/index.scss'
 
-// element-plus 命令式 API 与指令的样式需显式引入（按需导入下 resolver 不会注入它们）：
-// ElMessage / ElMessageBox 函数式调用 + v-loading 指令（ElNotification 项目未使用，不引入）
-import 'element-plus/es/components/message/style/css'
-import 'element-plus/es/components/message-box/style/css'
-import 'element-plus/es/components/loading/style/css'
+// 曾经在这里单独补过 message / message-box / loading 三个组件的样式
+// （理由当时写的是「命令式 API 与指令 resolver 不会注入」）。那个理由只对了一半：
+// resolver 不注入的真正条件是**该组件被手写 import 过**，而本项目 60+ 处都是手写导入，
+// 于是 table / pagination / form / checkbox / popover / card / dropdown / avatar / link
+// 全都裸渲染，只有恰好被别的文件在模板里裸用过的组件才侥幸拿到样式。
+// 现在样式统一钉在 `src/types/element-plus-aggregate.ts` 的样式区（含这三者），
+// 这里不再零散补 —— 两处都补，等于没有单一事实来源。
+// 守卫：`src/config/__tests__/elementPlusAggregate.spec.ts`。
 
 const app = createApp(App)
 

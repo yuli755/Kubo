@@ -31,7 +31,90 @@
  * ## 维护
  * 新增 element-plus 组件 / 命令式 API / 类型时，需在此追加对应子路径 re-export，
  * 否则 TS 与运行时会报缺失导出。已逐一核验下列每个子路径的具名导出名（见 PR 注释）。
+ *
+ * **并且必须同时追加下面样式区里对应的 `style/css` 导入** —— 少一行，那个组件就是
+ * 「有 DOM 无样式」的裸渲染（守卫见 `src/config/__tests__/elementPlusAggregate.spec.ts`）。
  */
+
+/**
+ * # 组件样式区（本模块是**唯一**的 EP 样式入口，别处不要再零散补）
+ *
+ * ## 为什么样式必须由本模块负责
+ * `vite.config.mts` 用 `unplugin-vue-components` + `ElementPlusResolver` 做按需导入，
+ * resolver 的样式注入**只对它自己在模板里自动解析出来的组件生效**。而本项目源码里
+ * 几乎所有 `.vue`/`.ts` 都是**手写** `import { ElTable, ... } from 'element-plus'`
+ * （60+ 处）—— 手写导入的标识符已在作用域内，resolver 直接跳过，**样式一行都不会注入**。
+ *
+ * 于是样式能否加载取决于一件与本页无关的偶然事实：*别的*某个文件恰好在模板里
+ * 裸用了同名组件。实测（2026-09，`/console/asset/material/list` 冷加载）：
+ *
+ * | 组件 | 渲染出的类名 | EP 样式 | 现场症状 |
+ * |------|--------------|---------|----------|
+ * | ElPagination | `.el-pagination` `.el-pager` `.el-pagination__sizes` | **缺失** | `display: block` 而非 flex，整条分页器被压成 `151x216` 竖排块，外层 `.k-table__pagination` 被撑到 **222px** 高（正常约 40px） |
+ * | ElTable | `.el-table__cell` `.el-table--border` `.el-table--striped` `.el-table-fixed-column--right` | **缺失** | `.el-table` 只剩 3 条规则（全部来自项目自己的 scss），边框/斑马纹/固定列/表头背景全靠 KTable 的 scoped 样式硬撑 |
+ * | ElForm | `.el-form--inline` `.el-form-item__label` `.el-form-item__content` | **缺失** | 搜索区标签与输入框失去 EP 的行内布局 |
+ * | ElCheckbox / ElPopover | `.el-checkbox__inner` `.el-popover` | **缺失** | 列选择器弹层与勾选框裸渲染 |
+ * | ElCard / ElLink / ElAvatar / ElDropdown | `.el-card__header` `.el-link__inner` `.el-avatar--circle` `.el-dropdown-menu__item` | **缺失** | KPanel 卡片头、正文链接、顶栏头像与下拉菜单裸渲染 |
+ * | ElButton / ElInput / ElSelect / ElTag / ElMenu … | — | 已加载 | 恰好有文件在模板里裸用，resolver 替它们注入了 |
+ *
+ * 「偶然被别的文件带出来」不是可维护的契约。本模块是 `vite.config.mts` 里
+ * `/^element-plus$/` 与 `/^element-plus\/es$/` 两个 alias 的共同落点，
+ * **所有**裸 `element-plus` 导入都经过它 ⇒ 把样式钉在这里，手写导入与自动解析
+ * 两条路径就都拿到样式，且只此一份。
+ *
+ * ## 层叠顺序（与 `src/styles/index.scss` 的约定一致，别调换）
+ * `main.ts` 先 import 本模块（L2）、后 import `@/styles/index.scss`（L22），
+ * 所以 EP 组件样式**先**进 bundle，项目 token 层（`--kubo-*` → `--el-color-*`）
+ * 与 motion 层随后覆盖它 —— 正是 `index.scss` 头部写明的期望顺序。
+ *
+ * ## 体积
+ * 这 38 个组件的 theme-chalk 合计约 205KB raw / **28.2KB gzip**（实测）。
+ * `pnpm size` 按 **gzip** 计量（`infra/scripts/check-bundle-size.mjs:62`），
+ * 首屏预算 450KB、总体 900KB ⇒ 全量钉死样式的代价约 3~4% 预算，
+ * 换掉的是「样式看运气」的结构性缺陷。若将来要收缩，收缩口径应是
+ * 「按路由拆样式」，不是「删掉某一行让它退回偶然加载」。
+ *
+ * 子路径写 `.../style/css`（Vite 解析到 `style/css.mjs`），
+ * 两个 alias 都用 `$` 精确锚定，**不会**把这类子路径重定向回本模块（否则自指死循环）。
+ */
+import 'element-plus/es/components/alert/style/css'
+import 'element-plus/es/components/avatar/style/css'
+import 'element-plus/es/components/breadcrumb/style/css'
+import 'element-plus/es/components/button/style/css'
+import 'element-plus/es/components/card/style/css'
+import 'element-plus/es/components/check-tag/style/css'
+import 'element-plus/es/components/checkbox/style/css'
+import 'element-plus/es/components/config-provider/style/css'
+import 'element-plus/es/components/date-picker/style/css'
+import 'element-plus/es/components/descriptions/style/css'
+import 'element-plus/es/components/dialog/style/css'
+import 'element-plus/es/components/drawer/style/css'
+import 'element-plus/es/components/dropdown/style/css'
+import 'element-plus/es/components/empty/style/css'
+import 'element-plus/es/components/form/style/css'
+import 'element-plus/es/components/icon/style/css'
+import 'element-plus/es/components/image/style/css'
+import 'element-plus/es/components/input/style/css'
+import 'element-plus/es/components/input-number/style/css'
+import 'element-plus/es/components/link/style/css'
+import 'element-plus/es/components/loading/style/css'
+import 'element-plus/es/components/menu/style/css'
+import 'element-plus/es/components/message/style/css'
+import 'element-plus/es/components/message-box/style/css'
+import 'element-plus/es/components/pagination/style/css'
+import 'element-plus/es/components/popover/style/css'
+import 'element-plus/es/components/progress/style/css'
+import 'element-plus/es/components/radio/style/css'
+import 'element-plus/es/components/result/style/css'
+import 'element-plus/es/components/scrollbar/style/css'
+import 'element-plus/es/components/select/style/css'
+import 'element-plus/es/components/switch/style/css'
+import 'element-plus/es/components/table/style/css'
+import 'element-plus/es/components/tabs/style/css'
+import 'element-plus/es/components/tag/style/css'
+import 'element-plus/es/components/tooltip/style/css'
+import 'element-plus/es/components/tree/style/css'
+import 'element-plus/es/components/upload/style/css'
 
 export { ElAlert } from 'element-plus/es/components/alert/index.mjs'
 export { ElAvatar } from 'element-plus/es/components/avatar/index.mjs'

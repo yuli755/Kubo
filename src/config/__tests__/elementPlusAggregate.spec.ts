@@ -108,3 +108,94 @@ describe('element-plus 聚合入口 · 导入必须能解析', () => {
     expect(duplicated).toEqual([])
   })
 })
+
+/**
+ * 组件目录名：`element-plus/es/components/<dir>/…`（**不含** `…/style/css`）
+ *
+ * 单独抽出来是因为下面两条用例都要用同一份解析，而正则写两遍一定会写歪一遍。
+ *
+ * 不写死 `/index.mjs` 是刻意的：`provideGlobalConfig` 走的是
+ * `element-plus/es/components/config-provider/src/hooks/use-global-config.mjs`（深子路径），
+ * 写死 index.mjs 就会漏掉它 —— 而它的 `config-provider.css` 正是 `--el-*` 变量的落点，
+ * 少一行整个主题变量层都塌。第一次跑这条用例就是这么红的（orphanStyle 报 config-provider）。
+ */
+function aggregateComponentDirs(source: string): Set<string> {
+  const dirs = new Set<string>()
+  for (const match of source.matchAll(/element-plus\/es\/components\/([a-z0-9-]+)\/(?!style\/)/g)) {
+    dirs.add(match[1])
+  }
+  return dirs
+}
+
+function aggregateStyleDirs(source: string): Set<string> {
+  const dirs = new Set<string>()
+  for (const match of source.matchAll(/import\s*'element-plus\/es\/components\/([a-z0-9-]+)\/style\/css'/g)) {
+    dirs.add(match[1])
+  }
+  return dirs
+}
+
+describe('element-plus 聚合入口 · re-export 的组件必须连样式一起钉住', () => {
+  /**
+   * ## 这条用例守的是什么
+   *
+   * `ElementPlusResolver` 只给**它自己在模板里自动解析出来的**组件注入 `style/css`。
+   * 项目里 60+ 处都是手写 `import { ElTable, ... } from 'element-plus'`，
+   * 标识符已在作用域内 ⇒ resolver 跳过 ⇒ **样式一行都不注入**。
+   * 于是"这个组件有没有样式"取决于一件与本页无关的偶然事实：
+   * 别的某个文件恰好在模板里裸用过同名组件。
+   *
+   * 实测后果（2026-09，`/console/asset/material/list` 冷加载，修复前）：
+   * EP theme-chalk 只加载了 22 个 css，缺 table / pagination / form / checkbox / popover /
+   * card / link / avatar / dropdown ⇒ `.el-pagination` 拿到 `display: block`，
+   * 整条分页器被压成 `151x216` 的竖排块，外层 `.k-table__pagination` 被撑到 **222px** 高
+   * （正常约 40px）；`.el-table__cell` 的 CSS 规则数为 **0**（表格边框/斑马纹/固定列全靠
+   * KTable 的 scoped 样式硬撑）。修复后 51 个 css 全到位，分页器回到 `flex / 448x32`。
+   *
+   * 所以把不变量钉死：**聚合入口里 re-export 了某个组件目录，就必须同时 import 它的 style/css**。
+   * 聚合入口是两个 alias（`/^element-plus$/`、`/^element-plus\/es$/`）的共同落点，
+   * 所有裸 `element-plus` 导入都经过它 ⇒ 手写与自动解析两条路径都拿到样式，且只此一份。
+   */
+  it('每个 re-export 的组件目录都有对应的 style/css 导入（少一行就是裸渲染）', () => {
+    const source = readFileSync(AGGREGATE, 'utf8')
+    const components = aggregateComponentDirs(source)
+    const styled = aggregateStyleDirs(source)
+
+    // 自检：扫出来的目录数不能是个位数，否则说明正则写歪了（守卫自己先要有反向自检）
+    expect(components.size, '解析到的组件目录数异常，正则大概写歪了').toBeGreaterThanOrEqual(30)
+    expect(components, '聚合入口理应包含这两个目录').toContain('table')
+    expect(components, '聚合入口理应包含这两个目录').toContain('pagination')
+    expect(styled.size, '样式区一条都没解析到，正则大概写歪了').toBeGreaterThanOrEqual(30)
+
+    const missingStyle = [...components].filter(dir => !styled.has(dir)).sort()
+    expect(
+      missingStyle,
+      '这些组件被 re-export 了但没钉样式：手写 import 它们的页面会「有 DOM 无样式」裸渲染'
+      + '（分页器会变竖排、表格没有边框）。请到 src/types/element-plus-aggregate.ts 的样式区按字母序补上 '
+      + 'import \'element-plus/es/components/<dir>/style/css\'',
+    ).toEqual([])
+
+    const orphanStyle = [...styled].filter(dir => !components.has(dir)).sort()
+    expect(
+      orphanStyle,
+      '样式区钉了却没 re-export 的组件：要么是把组件删了忘删样式，要么是拼错了目录名（拼错会静默加载不到 CSS）',
+    ).toEqual([])
+  })
+
+  it('样式入口只此一份：源码别处不得再零散 import EP 组件样式', () => {
+    const files = walk(join(ROOT, 'src')).filter(file => !file.endsWith('element-plus-aggregate.ts'))
+    const scattered: string[] = []
+    for (const file of files) {
+      const source = stripComments(readFileSync(file, 'utf8'))
+      for (const match of source.matchAll(/import\s*'element-plus\/es\/components\/[a-z0-9-]+\/style\/css'/g)) {
+        scattered.push(`${relative(ROOT, file)} → ${match[0]}`)
+      }
+    }
+    expect(
+      scattered,
+      'EP 组件样式必须统一钉在 src/types/element-plus-aggregate.ts 的样式区。'
+      + '两处都补 = 没有单一事实来源，正是当年 main.ts 只补了 message/message-box/loading 三个、'
+      + '而 table/pagination/form 等九个组件裸渲染却没人发现的原因',
+    ).toEqual([])
+  })
+})
