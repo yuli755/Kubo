@@ -207,11 +207,17 @@ async function onConfirm() {
     </ElForm>
   </KDialog>
 
+  <!-- ⚠️ 这里必须写 @confirm / @cancel，不能写 :on-confirm / :on-cancel。
+       selector.vue 的 pick() 是 `emit('confirm', row)`，而 Vue 的 emit 只按
+       vnode.props.onConfirm（@confirm 编译出的键）查处理器；`:on-confirm` 编译成
+       连字符键 "on-confirm"，只会被塞进已声明的 props，emit 永远找不到它 ——
+       选中的库存会被静默丢弃，选择器也关不掉（visible 依赖宿主回写 modelValue）。
+       与 KDialog.vue 头注释「外层必须写 @confirm / @cancel」同一条铁律。 -->
   <InventorySelector
     v-if="inventoryPicking"
     :param="inventorySeed"
-    :on-cancel="() => inventoryPicking = false"
-    :on-confirm="onInventoryPicked as never"
+    @cancel="inventoryPicking = false"
+    @confirm="onInventoryPicked"
   />
 </template>
 
