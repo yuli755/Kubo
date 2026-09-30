@@ -24,6 +24,20 @@ describe('validators · airpower ValidateUtil 复刻', () => {
       expect(isEmail('user.name@sub.example.com')).toBe(true)
     })
 
+    it('接受下划线本地名（与框架 ValidateUtil / 后端同源，真机走查 R31 修复）', () => {
+      // 系统内置 WMS_OPERATOR 仓储专员账号即下划线邮箱（wms_1790583398729@kubo.test），
+      // 原登录页校验拒绝下划线导致此类用户无法登录；修复后应与框架/后端判定一致。
+      expect(isEmail('wms_1790583398729@kubo.test')).toBe(true)
+      expect(isEmail('first_last@example.com')).toBe(true)
+      expect(isEmail('a_b.c@example.com')).toBe(true)
+    })
+
+    it('接受 local part 中的 +、%、-（框架同源允许）', () => {
+      expect(isEmail('user+tag@example.com')).toBe(true)
+      expect(isEmail('user%tag@example.com')).toBe(true)
+      expect(isEmail('user-name@example.com')).toBe(true)
+    })
+
     it('拒绝无点域名、空本地名、含空格', () => {
       expect(isEmail('a@b')).toBe(false)
       expect(isEmail('@b.com')).toBe(false)

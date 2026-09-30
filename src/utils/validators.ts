@@ -11,9 +11,17 @@
  *     `regexp/no-super-linear-backtracking` 回溯告警。
  */
 
-/** 邮箱（airpower `ValidateUtil.isEmail`，语义一致） */
+/**
+ * 邮箱（与 `src/framework/validate.ts` 的 `ValidateUtil.isEmail`、后端
+ * `WebhookUrlGuard.EMAIL` 同源：local part 允许 `\w`（含下划线）与 `.`/`%`/`+`/`-`）。
+ *
+ * 真机走查发现：原实现 `[a-z0-9]+(?:\.[a-z0-9]+)*` 拒绝下划线，而用户编辑弹窗
+ * （框架 `ValidateUtil.isEmail`）与后端均接受下划线 → 下划线邮箱用户（如 WMS_OPERATOR
+ * 仓储专员 `wms_1790583398729@kubo.test`）创建后无法通过登录页登录（形成死锁）。
+ * 统一为宽松同源模式，`+`/`-`/`%` 与 `.` 序列（点可连续）与原框架语义一致。
+ */
 export function isEmail(value: string): boolean {
-  return /^[a-z0-9]+(?:\.[a-z0-9]+)*@[a-z0-9]+(?:\.[a-z0-9]+)+$/i.test(value)
+  return /^[\w.%+-]+@[\w.-]+\.[a-z]{2,}$/i.test(value)
 }
 
 /** 手机号（airpower `ValidateUtil.isMobilePhone`：`+` 国家码整体可选，语义一致） */

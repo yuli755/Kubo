@@ -1,4 +1,4 @@
-# SPMS 真机测试报告 · 2026-09 · N4（round 13–15）+ N-15（round 22–23）+ R24-25（round 24–25）+ R26（round 26）
+# SPMS 真机测试报告 · 2026-09 · N4（round 13–15）+ N-15（round 22–23）+ R24-25（round 24–25）+ R26（round 26）+ R27-31（round 27–31）
 
 > 承接 `docs/TEST_REPORT_2026-09-N.md`（round 1–4）、`docs/TEST_REPORT_2026-09-N2.md`（round 5–8）与 `docs/TEST_REPORT_2026-09-N3.md`（round 9–12）。
 > 本轮走查**主数据创建链 + 系统治理闭环（角色/菜单授权/权限授权/挂用户/登录取证）+ 采购→入库→库存→销售→出库全业务闭环 + 移库闭环与未覆盖系统页**，并修复四个真实缺陷（N-13 菜单授权计数器、N-14 表单默认值、**N-15 合同生效参与方闸门**、N-2 遗留 lint）。
@@ -262,3 +262,72 @@ private int distinctParticipantRoles(Set<ParticipantEntity> participants) { ... 
 
 ### 10.4 本轮改动
 - 无代码改动（纯真机验证 + 证据落盘）。
+
+---
+
+## 11. R27-31 · 采购驳回→编辑→重提闭环 + 分页/低库存/库位热力图 + 多角色 RBAC 门禁（round 27–31）
+
+> round 27-31 补走采购单**驳回→编辑→重新提交**审计闭环、入库分页翻页、低库存预警核对、库位热力图筛选，
+> 以及**多角色登录与 RBAC 403 门禁**。并**修复 1 处真实缺陷**：登录页 `isEmail` 拒绝下划线邮箱，
+> 与框架编辑器/后端判定分歧，导致系统内置的下划线邮箱用户无法经密码页登录（R-31，P1，见 §11.5）。
+
+### 11.1 采购 驳回→编辑→重新提交 闭环（`/console/channel/purchase/list`，PASS）
+| # | 步骤 | DOM 量测结果 |
+| --- | --- | --- |
+| 1 | 再来一单（copy-create） | PC202610010001 行点「再来一单」→ 预填同供应商 Apple 中国/物料 真机测试物料 R15/数量 2，采购事由自动加前缀 `[再来一单] R24真机闭环-采购新建` → toast「新增成功」→ 列表 row1 = `PC202610010002 \| 审核中`（24,690.00） |
+| 2 | 驳回（两步） | 行内「驳回」→ 弹窗「驳回采购单的原因」（ElAlert + textarea maxlength 200 + show-word-limit 0/200 计数）→ 填「R27真机闭环-驳回测试原因」→ 确定 → 二次 confirmWarning「是否确认驳回选择的采购单」→ toast「驳回成功」→ **状态→已驳回** |
+| 3 | 驳回态门禁 | 已驳回行：审核/驳回 disabled、**编辑 enabled**（`list.vue` `:disable-edit="!PurchaseStatusEnum.REJECTED.equalsKey(row.status)"`——驳回态可编辑以重新提交）、再来一单 enabled |
+| 4 | 编辑-重新提交 | 点「编辑」→ 弹窗 prefill 明细 → 事由覆盖为「R27真机闭环-驳回后重新提交」→ 保存 → toast「保存成功」→ **状态→审核中** |
+| 5 | 查看详情 | 「采购详情」含 ElAlert「**单据已被驳回：R27真机闭环-驳回测试原因**」+ 采购单号 PC202610010002/状态 审核中/总金额 24,690.00/实际金额 0.00/驳回原因 R27真机闭环-驳回测试原因；明细 MA20260004 采购单价 12,345.00（协议专属价）数量 2 已采购数量 2 |
+| 6 | 搜索/筛选/重置 | 已驳回 radio → 0 条（单已重新提交非驳回态，正确）；搜索 PC202610010002 → 1 条 审核中；重置 → 12 条/清空搜索/radio 回全部 |
+
+**说明**：驳回弹窗「确定」按钮由 `:disable-confirm="rejectReason === ''"`（v-model 绑定）控制，
+浏览器合成事件只改 DOM 不改 Vue ref → 按钮不放开；真机需 real keystrokes（Playwright `pressSequentially`）才触发。非缺陷。
+
+### 11.2 入库分页翻页（`/console/wms/input/list`，PASS）
+- 共 172 条、20/页；row1 `IN202610010002 移动入库 已完成`、row2 `IN202610010001 采购入库 已完成`。
+- 分页器：页码 1(active) 2-6,9（省略号），`btn-prev`/`btn-next` 均 enabled。
+- 点 `btn-next` → **第 2 页 active**，20 行（IN202609280007 … IN202609160073），上一页/下一页仍均 enabled。翻页渲染正确。
+
+### 11.3 低库存预警 + 库位热力图（`/console/wms/inventory/list`，PASS + 1 观察项）
+- 库存统计条：`在库物料 SKU：6 种 / 总库存件数：246 件 / 低库存预警（< 10 件）：2 项`。
+- 精确核对 2 行 qty<10：`MA20260004 真机测试物料 R15 @ 华中新仓 R16(SRG0007) 0 台`（销售出库回写）、`MA20260002 键盘 @ 东部2仓(SRG0003) 0 台`（移库转出）——与预警项数逐一对证。
+- **观察项（非缺陷）**：`.stat-pill.is-warning` 虽带 onClick handler 但 `cursor:auto`、点击无任何反应（仍 6 行、无弹窗）——低库存预警为**被动展示指标**，非可交互 drilldown 入口。
+- **库位热力图**：2.5D 货架立面 + ECharts 热力色阶；统计 总监控储位 72/库区平均利用率 50%/满载高危>80% 15/空闲低位<20% 15；状态筛选（全量/饱和高载≥80%/正常周转/空闲闲置≤20%）为 `el-radio-button` 组。**点「饱和高载」→ is-active 生效，非匹配 slot-cell 加 `is-low is-filtered-out` class + opacity 0.15**——筛选真实生效（非仅 radio 状态切换）。
+
+### 11.4 多角色登录 / RBAC 403 门禁（PASS）
+- **受限角色 R16（testr16@hamm.cn，RO0001，0 权限）**：登录成功 → 见全 34 菜单（RO0001 授权了全部菜单，菜单可见性≠数据权限）→ 导航 `/console/personnel/user/list` → **表格 0 条 + toast「无权限：你无权访问 用户-分页查询」** —— **403 后端 API 级授权门禁生效，独立于菜单可见性**。
+- **WMS 仓储专员（wms_1790583398729@kubo.test，WMS_OPERATOR，62 权限）**：登录成功 → 菜单**仅 5 项**（仓储管理 WMS 父 + 入库单/出库单/移库单/库存查询），与 `role_menu_list`（role19 = menu 139-143）逐项对应——**角色菜单授权真实收窄**。
+
+### 11.5 R-31 · 登录页 isEmail 拒绝下划线邮箱（P1，真缺陷，已修）
+**现象**：系统内置 WMS_OPERATOR 仓储专员账号 `wms_1790583398729@kubo.test`（下划线邮箱）在登录页填写账号/密码后，
+登录按钮仍 `disabled`，表单报「请输入正确的账号、邮箱或手机号」——无法经密码页登录（只能脚本/直连 API）。
+
+**根因（两处邮箱校验器分歧）**：
+- 登录页 `src/utils/validators.ts:16`：`isEmail = /^[a-z0-9]+(?:\.[a-z0-9]+)*@.../` —— **拒绝下划线**；
+- 框架编辑器 `src/framework/validate.ts:34`：`ValidateUtil.isEmail = /^[\w.%+-]+@.../`（`\w` 含 `_`）—— **允许下划线**；
+  用户编辑弹窗（KFormDialog + `ifNotEmail`）用它校验，能创建下划线邮箱用户；
+- 后端 `WebhookUrlGuard.EMAIL`（`/^[A-Za-z0-9._%+-]+@.../`）亦允许下划线。
+
+**影响**：编辑器能创建下划线邮箱用户，但登录页拒绝其登录 → **形成死锁**；受限角色无法以 UI 正常登录。
+
+**修复（`src/utils/validators.ts`）**：`isEmail` 改为与框架/后端同源的宽松模式
+`/^[\w.%+-]+@[\w.-]+\.[a-z]{2,}$/i`，并更新函数头注释说明真机发现与统一依据。
+**回归单测（`src/utils/__tests__/validators.spec.ts`）**：新增「接受下划线本地名」与「接受 `+`/`%`/`-`」两组用例
+（原 12 tests → 现覆盖下划线/符号，全过）。
+
+**真机复验**：以 `wms_1790583398729@kubo.test` + `Aa123456` 登录 → **立即登录按钮 enabled、无表单错误**，
+提交后进入 `/console/index`，菜单恰为仓储 5 项。修复生效。
+
+### 11.6 证据截图（docs/evidence）
+- `43-r27-input-page2.png`：入库列表第 2 页
+- `44-r27-heatmap-filter.png`：库位热力图「饱和高载」筛选生效
+- `45-r27-r16-403-user.png`：受限角色 R16 访问用户页 403「无权限」
+- `46-r27-purchase-detail.png`：采购详情（驳回原因保留 + 重新提交审核中）
+- `47-r27-inventory-lowstock.png`：库存低库存预警 2 项
+- `48-r27-wms-login-fixed.png`：WMS 仓储专员下划线邮箱登录（修复后按钮可用）
+
+### 11.7 本轮改动
+- 修复 `src/utils/validators.ts` isEmail 下划线分歧（R-31，P1）。
+- 新增 `src/utils/__tests__/validators.spec.ts` 下划线/符号用例。
+- 其余为纯真机验证 + 证据落盘。全量回归见 §8。
