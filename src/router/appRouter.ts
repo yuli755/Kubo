@@ -64,6 +64,42 @@ export function createAppRouter(routes: RouteRecordRaw[]): Router {
   return router
 }
 
+/** 登录后的默认落地地址（受限角色未授权工作台时会被回退到其首个可导航菜单） */
+export const DEFAULT_HOME_PATHS = ['/console/index', '/console', '/home'] as const
+
+/**
+ * 取菜单树里**第一个能渲染真实页面**的路径（深度优先）。
+ *
+ * 受限角色（如 WMS 仓储专员）未授权「工作台」时，登录后默认落到 `/console/index` 会命中
+ * catch-all 的 404 页（工作台路由没被注册）。这里从已授权菜单里挑一个真实可导航地址作回退，
+ * 让登录后看到的不是 404，而是其有权访问的第一个页面。
+ *
+ * 判定「可导航」与 `initVueRouter.registerRoute` 保持一致：
+ * - 带 `redirect` 的节点只是跳板（会再跳到别处），不算真实页面，跳过；
+ * - 分组节点（有 children 但无 path）不注册路由，递归进子树找；
+ * - 叶子节点（有 path）即真实页面。
+ *
+ * @param menuList 已授权的菜单树（`/user/getMyMenuList` 下发，`Console.vue` 已持有）
+ * @param fallback  整棵树都没有可导航节点时的兜底（默认仍是工作台，至少行为可预期）
+ */
+export function firstNavigableMenuPath(menuList: MenuItem[], fallback = '/console/index'): string {
+  for (const item of menuList) {
+    if (item.redirect) {
+      continue
+    }
+    if (item.path && !item.children?.length) {
+      return item.path
+    }
+    if (item.children?.length) {
+      const child = firstNavigableMenuPath(item.children, '')
+      if (child) {
+        return child
+      }
+    }
+  }
+  return fallback
+}
+
 /** 获取全局路由实例 */
 export function getRouter(): Router {
   if (!appRouter) {

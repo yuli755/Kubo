@@ -10,6 +10,7 @@
  */
 
 import type { IJson, ITransformerConstructor } from './types'
+import { looksMasked } from './mask'
 import { getTypeConfig } from './metadata'
 
 /** 判断是否「可继续下钻」的纯对象 */
@@ -117,8 +118,22 @@ export function fill<T extends object>(instance: T, json: unknown): T {
   return instance
 }
 
-/** 反向：去掉方法，只保留可序列化字段 */
+/**
+ * 反向：去掉方法，只保留可序列化字段。
+ *
+ * 嵌套层级（depth ≥ 1）里的<b>脱敏占位值</b>（`h:xxxx` / `1****0`）一律剔除：
+ * 明细里嵌套的物料/仓库等 `@ManyToOne` 引用，后端只按 id 绑定、从不回写其余字段；
+ * 若把掩码原样带回，后端 `SensitiveFieldDeserializer` 遇到数值列会当场拒收
+ * 整条单据（新增/更新都过不了反序列化），字符串列噪声则交给
+ * `SensitiveWriteProtection` 恢复链路。掩码携零信息，剔除零损失。
+ * 顶层字段（depth 0，本次要写的本体）不动 —— 顶层掩码数值的拒收是后端
+ * 刻意保留的安全姿态，且各页面对自有受限字段已有 `blockedSubmit`/提示条口径。
+ */
 export function toJson(instance: unknown): IJson {
+  return toJsonAt(instance, 0)
+}
+
+function toJsonAt(instance: unknown, depth: number): IJson {
   const result: IJson = {}
   if (!isPlainObject(instance)) {
     return result
@@ -127,7 +142,21 @@ export function toJson(instance: unknown): IJson {
     if (typeof value === 'function') {
       continue
     }
-    result[key] = Array.isArray(value) ? value.map(item => (isPlainObject(item) ? toJson(item) : item)) : value
+    if (depth > 0 && looksMasked(value)) {
+      continue
+    }
+    if (Array.isArray(value)) {
+      result[key] = value.map(item => (isPlainObject(item) ? toJsonAt(item, depth + 1) : item))
+    }
+    else if (value instanceof Date) {
+      result[key] = value
+    }
+    else if (isPlainObject(value)) {
+      result[key] = toJsonAt(value, depth + 1)
+    }
+    else {
+      result[key] = value
+    }
   }
   return result
 }

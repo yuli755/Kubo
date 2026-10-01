@@ -5,7 +5,7 @@ import { authApi } from '@/api/system'
 import KAppShell from '@/component/KAppShell.vue'
 import { UserEntity } from '@/model/personnel/user/UserEntity'
 import { UserService } from '@/model/personnel/user/UserService'
-import { getRouter, initVueRouter, reloadCurrentRoute } from '@/router/appRouter'
+import { DEFAULT_HOME_PATHS, firstNavigableMenuPath, getRouter, initVueRouter, reloadCurrentRoute } from '@/router/appRouter'
 import { usePermissionStore } from '@/stores/permission'
 import { useUserStore } from '@/stores/user'
 import { reportError } from '@/utils/errorHandler'
@@ -59,6 +59,16 @@ async function getMenuList() {
   menuList.value = applyMenuPermissions(await UserService.create(isLoading).getMyMenuList())
   initVueRouter(menuList.value, components, '/src/view', 'console')
   await reloadCurrentRoute()
+  // 受限角色（如 WMS 仓储专员）未授权工作台：登录默认落在 `/console/index` 会命中
+  // catch-all 的 404 页。路由注册完毕后若当前仍是工作台 404，回退到其首个可导航授权菜单，
+  // 让登录后看到的是可用页面，而不是一片「很抱歉，没有找到你想访问的资源」。
+  // 只在「默认落地地址」命中 catchAll 时回退，手动输入的不存在地址仍照常显示 404，不受影响。
+  const current = getRouter().currentRoute.value
+  const onWorkbenchFallback = (current.matched.at(-1)?.path ?? '').includes('catchAll')
+    && (DEFAULT_HOME_PATHS as readonly string[]).includes(current.path)
+  if (onWorkbenchFallback) {
+    await getRouter().replace(firstNavigableMenuPath(menuList.value))
+  }
   // 必须排在 reloadCurrentRoute 之后：那时当前路由已经从 catchAll 换成真实页面，
   // 再放开 router-view，用户看到的第一帧就是正确内容，而不是「404 → 真页面」的跳变。
   routesReady.value = true

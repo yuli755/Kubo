@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
-import { createAppRouter, getRouter, initVueRouter } from '@/router/appRouter'
+import { createAppRouter, firstNavigableMenuPath, getRouter, initVueRouter } from '@/router/appRouter'
 
 /**
  * `appRouter` 契约测试：锁关键语义 —— 标题设置、`getRouter` 守卫、按菜单 id 去重、
@@ -102,6 +102,31 @@ describe('appRouter · native vue-router 实现', () => {
     expect(() => initVueRouter([{ id: 1, name: '', path: '/x', component: 'x' }], {}))
       .toThrow('路由初始化失败，缺少参数')
     void router
+  })
+
+  it('firstNavigableMenuPath：跳过 redirect 跳板与分组，返回首个真实页面', () => {
+    const menuList = [
+      { id: 1, name: '跳板', path: '/old', redirect: '/console/index' },
+      { id: 2, name: '分组', children: [
+        { id: 3, name: '子分组', children: [
+          { id: 4, name: '入库单', path: '/console/wms/input/list' },
+        ] },
+      ] },
+      { id: 5, name: '出库单', path: '/console/wms/output/list' },
+    ]
+    expect(firstNavigableMenuPath(menuList as never)).toBe('/console/wms/input/list')
+  })
+
+  it('firstNavigableMenuPath：全树无导航节点时回退 fallback', () => {
+    const onlyRedirects = [
+      { id: 1, name: '跳板', path: '/old', redirect: '/console/index' },
+      { id: 2, name: '空分组', children: [{ id: 3, name: '子空分组', children: [] }] },
+    ]
+    expect(firstNavigableMenuPath(onlyRedirects as never, '/console/index')).toBe('/console/index')
+  })
+
+  it('firstNavigableMenuPath：空菜单回退 fallback', () => {
+    expect(firstNavigableMenuPath([])).toBe('/console/index')
   })
 
   // 放最后：`resetModules` 会让后续 `import` 拿到**新的模块实例**，

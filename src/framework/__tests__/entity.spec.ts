@@ -1,3 +1,4 @@
+import type { IJson } from '@/framework/types'
 import { describe, expect, it } from 'vitest'
 import { DateTimeFormatter, DateTimeUtil } from '@/framework/datetime'
 import { fill, RootEntity, RootModel, toJson, Transformer } from '@/framework/entity'
@@ -74,6 +75,31 @@ describe('framework · 实体与序列化', () => {
     expect(json).toMatchObject({ id: 1, code: 'RK001' })
     expect(typeof (json as { copy?: unknown }).copy).toBe('undefined')
     expect(Transformer.toJson(bill)).toEqual(json)
+  })
+
+  it('toJson() 剔除嵌套层级里的脱敏占位值，顶层掩码保留', () => {
+    // R-34 场景：受限角色选中的物料带着 h: 摘要价，随明细整对象回传会被后端
+    // SensitiveFieldDeserializer 当场拒收；嵌套 @ManyToOne 引用只按 id 绑定，剔除零损失
+    const bill = Object.assign(new BillEntity(), {
+      code: 'RK001',
+      note: 'h:顶层掩码照常保留', // 顶层掩码的拒收/恢复是后端刻意策略，前端不代办
+      details: [Object.assign(new DetailEntity(), {
+        name: '铝板',
+        material: { id: 11, code: 'MA01', purchasePrice: 'h:41d06a0e9908', salePrice: '**', name: '铝板' },
+      })],
+      mainDetail: Object.assign(new DetailEntity(), {
+        name: '主',
+        storage: { id: 3, code: 'SRG****001' },
+      }),
+    })
+    const json = toJson(bill)
+    const detail = (json.details as IJson[])[0]
+    expect((detail.material as IJson)).toEqual({ id: 11, code: 'MA01', name: '铝板' })
+    expect((json.mainDetail as IJson).storage).toEqual({ id: 3 })
+    expect(json.note).toBe('h:顶层掩码照常保留')
+    // Date 实例必须是例外：松散的 isPlainObject 会把 Date 也当对象，递归进去就被掏空
+    const stamped = Object.assign(new BillEntity(), { bizDate: new Date(2026, 8, 17) })
+    expect((toJson(stamped).bizDate as Date).getFullYear()).toBe(2026)
   })
 
   it('fill() 容忍 null/undefined 与缺失字段', () => {

@@ -331,3 +331,131 @@ private int distinctParticipantRoles(Set<ParticipantEntity> participants) { ... 
 - 修复 `src/utils/validators.ts` isEmail 下划线分歧（R-31，P1）。
 - 新增 `src/utils/__tests__/validators.spec.ts` 下划线/符号用例。
 - 其余为纯真机验证 + 证据落盘。全量回归见 §8。
+
+---
+
+## 12. R32-34 · 受限角色全链路闭环：落地页 404 与嵌套脱敏值写回（round 32）
+
+> round 32 以 **WMS 仓储专员（WMS_OPERATOR，62 权限，受限字段角色）** 真机走完
+> **登录 → 落地 → 新增入库单 → 审核 → 作业确认入库 → 库存联动** 全闭环，
+> 定位并修复 **2 处真实缺陷（R-32 P2、R-34 P1）**，另有 1 项经核查判定为测量假象（R-33，非缺陷）。
+
+### 12.1 R-32 · 受限角色登录后 404（P2，真缺陷，已修）
+
+**现象**：`wms_1790583398729@kubo.test`（WMS_OPERATOR）登录成功后，被送到 `/console/index`，
+但该角色未授权「工作台」菜单 → 路由未注册 → 命中 catch-all，整屏是
+「很抱歉，没有找到你想访问的资源」。**功能不受损，但受限角色一进来就看见 404，观感即故障。**
+
+**根因**：登录成功固定跳工作台，而 `initVueRouter` 只按**已授权菜单树**注册路由；
+两者没有交集时，默认落地地址本身就是未注册路径。
+
+**修复（复用已有数据，不加新状态）**：`Console.vue` 本已持有 `menuList` **■**
+`src/router/appRouter.ts` 新增纯函数 `firstNavigableMenuPath(menuList, fallback)`（深度优先，
+跳过带 `redirect` 的跳板节点与无 path 的分组节点，与 `registerRoute` 的注册语义逐位对齐）
+和常量 `DEFAULT_HOME_PATHS`；`src/component/Console.vue` 在 `reloadCurrentRoute()` 之后、
+`routesReady` 之前判断：**仅当**当前路由仍是 catch-all **且** 路径属于默认落地地址集合时，
+`replace(firstNavigableMenuPath(menuList))`。
+
+> 设计要点：判定条件严格限定「默认落地地址 + catch-all」，
+> 因此用户手输一个不存在地址**照常显示 404**，不吞掉真实错误；
+> 回退候选直接取自已下发的权限菜单树，不新增接口、不新增 store 状态。
+
+**真机复验**：WMS 账号重新登录 → 落地 **`/console/wms/move/list`（移库单，标题正常）**，
+无 404 文案；admin 登录仍落 `/console/index` 工作台（0 console error）。
+证据 `56-r32-wms-landing-first-menu.png`。
+**说明（非缺陷）**：回退目标是菜单树 DFS 首个可导航节点，实际为「移库单」而非渲染顺序首位的
+「入库单」——下发树序与侧栏展示序不同，二者都是该角色有权访问的真实页面。
+
+### 12.2 R-33 · 「移库单新增按钮可见」疑点（核查后关闭，非缺陷）
+
+上一轮用 `evaluate` 合成 click 探测到 WMS 角色移库单页「新增」按钮可点，疑似越权。
+本轮改为：① `getBoundingClientRect` + `getComputedStyle` 量测——该按钮 `display:none`；
+② 用页面 token 直连 `POST /user/getMyPermissionList` → 62 条权限中含全套 `Input_*`，
+**不含任何 `Move_add`/`Output_add`**；③ 真实 `browser_click` 无反应。
+**结论**：前端 `v-permission` 门禁与后端 `role_permission_list` 完全一致，
+此前是「对 `display:none` 元素派发合成事件仍会触发 handler」造成的**测量假象**。
+新增判定规则：*程序化 DOM click 不等于受信事件，权限门禁的否定性断言必须用真实点击 + 后端权限清单双证。*
+
+### 12.3 R-34 · 受限角色保存单据被自家脱敏值拒收（P1，真缺陷，已修）
+
+**现象**：WMS 角色新增入库单，填好物料/仓库/数量点「保存」→
+toast「**提交内容有误：字段[purchasePrice]对当前角色受限，无法以脱敏占位值提交；请重新加载后再提交，或联系管理员开通该字段的编辑权限**」，
+单据**完全无法新增**。
+
+**根因（跨层协作缺陷，单看任一层都"没错"）**：
+1. 该角色字段策略把 `purchasePrice` 读侧脱敏为 `h:41d06a0e9908`（HASH）；
+2. `src/view/console/wms/input/component/detailEditor.vue:61-70` `onMaterialPicked`
+   把选择器返回的**完整物料对象**整只塞进 `form.value.material`（明细的 material 是 `@ManyToOne`
+   引用，后端只按 id 绑定，其余字段从不回写）；
+3. `src/framework/http.ts:86` 用 `toJson` 序列化整个请求体，而旧 `toJson`（`src/framework/entity.ts:121-133`）
+   **只递归数组元素，嵌套 plain object 原样透传** → 嵌套掩码值原封发给后端；
+4. 后端序列化层拒收（**刻意姿态，不改**）：`SensitiveFieldDeserializer.deserialize` 识别
+   `looksLikeMaskedPlaceholder` → `handleMaskedPlaceholder` 把**非文本列**（数值 `purchasePrice`）直接
+   `PARAM_INVALID.show(...)`；`SensitiveWriteProtection.rejectMaskedOnAdd` 对新增一律拒掩码
+   （数值列置 null 会被 `@NotNull(WhenUpdate)` 伪装成「采购单价不能为空」，哨兵值又会静默污染金额，
+   故后端选择"宁可让受限角色这条记录改不动"）。
+
+同一缺陷潜伏在 出库单/移库单/采购单 的明细选择器，以及**所有"编辑已有单据再保存"**路径（加载的明细自带掩码）。
+
+**修复（通用序列化层，一处覆盖全部；后端一字未动）**：`src/framework/entity.ts` 把 `toJson`
+重写为 `toJsonAt(instance, depth)`——递归进入嵌套 plain Object，**`depth > 0` 时剔除 `looksMasked(value)` 的键**；
+**顶层（depth 0）字段一律保留**（顶层掩码数值被拒是后端刻意的写保护姿态，各页面对自有受限字段
+已有 blockedSubmit 提示口径，不应由框架静默抹掉）；`instanceof Date` 直接保留
+（本文件 `isPlainObject` 极宽松，否则 Date 会被递归成 `{}`）；数组元素按 `depth + 1` 递归。
+
+> **为什么修在框架而不是页面**：判定复用 `src/framework/mask.ts:123 looksMasked`，
+> 它与后端 `MaskedWriteGuard.looksLikeMaskedPlaceholder` 的口径由
+> `src/config/__tests__/maskContract.spec.ts`（94 tests）**契约锁定**；
+> 修在 `http.ts` 唯一的序列化收口处，`entity`/`plain object`/`数组`三类请求体共用同一规则，
+> 免去每个编辑器各写一份 `delete row.material.purchasePrice`。
+> 剔除是零信息损失（掩码本身不携带业务值），后端只按 `id` 绑定引用。
+> **可选后续演进**（评估后暂缓）：后端对"仅作外键引用的嵌套对象"跳过写护栏，
+> 需要反序列化器感知级联语义，复杂度与风险都明显更高，不建议。
+
+**单测**：`src/framework/__tests__/entity.spec.ts` 新增「toJson() 剔除nesting层级里的脱敏占位值，顶层掩码保留」——
+`details[].material.purchasePrice:'h:41d06a0e9908'` / `salePrice:'**'` 被剔、`{id,code,name}` 保留、
+`mainDetail.storage {id:3, code:'SRG****001'} → {id:3}`、顶层 `note:'h:…'` 保留、Date 保原型。
+`pnpm vitest run src/framework/__tests__ src/composables/__tests__ src/directives/__tests__ src/config/__tests__/maskContract.spec.ts`
+→ **14 files / 194 tests passed**。
+
+### 12.4 WMS 受限角色入库全闭环真机复验（修复后，端到端 PASS）
+
+| # |  steps | DOM 量测结果 |
+| --- | --- | --- |
+| 1 | 登录落地 | 见 §12.1，落 `/console/wms/move/list`，无 404 |
+| 2 | 入库单新增 | 弹窗「入库单」→手动选择→「入库明细」→选物料 `MA20260004 真机测试物料 R15`→选仓库 `华中新仓 R16(SRG0007)`→数量 1→确定 |
+| 3 | **保存** | toast「**新增成功**」→ 列表 172→**173** 条，row1 `IN202610010003 \| 普通入库 \| 审核中`（**R-34 修复生效，同一操作此前被 400 拒收**） |
+| 4 | 审核 | 确认弹窗「是否确认审核选择的入库单？」→ toast「审核成功」→ 状态→**入库中** |
+| 5 | 作业确认入库 | 查看→toolbar「作业」→「确认入库」→「全部入库（1）」+「选择」目标仓库→`华中新仓 R16(SRG0007)`→确认→toast「**明细入库成功**」 |
+| 6 | 状态闭环 | 刷新列表 → row1 状态 **已完成** |
+| 7 | 库存联动 | `/console/wms/inventory/list`：`MA20260004 @ 华中新仓 R16(SRG0007)` = **1 台**（入库前 0）；统计条 SKU 6 种 / 总库存 **246→247 件** / 低库存预警仍 2 项 ✔ |
+
+**admin 回归（明文全权角色，证明修复对其完全惰性）**：admin 登录落 `/console/index` 工作台（无 404），
+入库单页新增 `MA20260001 MacBook Pro M4 Max` @ `SRG0007` 数量 1 → toast「新增成功」→
+列表 173→**174** 条 `IN202610010004`。顶层字段不受影响 ⇒ 无回归。
+
+### 12.5 交互层经验（本轮新增，写入门禁）
+- **KSelector 勾选必须用真实点击**：对 `.el-checkbox` 派发合成 click 勾不上（组件读原生 change），
+  真实 `browser_click` 才出「1 项已选」。
+- `el-input-number` 的 `+` 键可用 `mousedown→mouseup→click` 三连合成触发。
+- `page.goto` 会清掉 MutationObserver，每次导航后须重新挂 toast 采集器。
+- 会销毁导航上下文的 click（提交/跳转）在同一个 evaluate 里 `await` 结果会抛
+  「Execution context was destroyed」，属预期，改为 click 后即返回、下一次调用再读状态。
+
+### 12.6 证据截图（docs/evidence）
+- `49-r32-workbench-404-wms.png`：受限角色落地 `/console/index` 命中 404（修复前）
+- `50-r32-wms-inventory-ok.png`：WMS 角色库存查询页正常渲染（数据权限收窄）
+- `51-r32-wms-sidebar-menus.png`：WMS 角色侧栏仅 5 项菜单
+- `52-r34-masked-purchasePrice-reject.png`：R-34 修复前保存被拒 toast（purchasePrice 脱敏占位值）
+- `53-r34-wms-input-created-173.png`：修复后 WMS 新增入库单成功，共 173 条
+- `54-r34-wms-inventory-plus1.png`：确认入库后库存 0→1 台、总量 246→247
+- `55-r34-admin-regression-input-174.png`：admin 回归新增成功，共 174 条
+- `56-r32-wms-landing-first-menu.png`：R-32 修复后 WMS 登录落到首个授权页（移库单）
+
+### 12.7 本轮改动
+- `src/router/appRouter.ts`：新增 `DEFAULT_HOME_PATHS` + `firstNavigableMenuPath()`（R-32）。
+- `src/component/Console.vue`：默认落地命中 catch-all 时回退首个授权页（R-32）。
+- `src/router/__tests__/appRouter.spec.ts`：回退选择器单测（跳板/分组/兜底）。
+- `src/framework/entity.ts`：`toJson` 改深度感知、剔除嵌套脱敏占位值（R-34）。
+- `src/framework/__tests__/entity.spec.ts`：嵌套脱敏剔除 + 顶层保留 + Date 保原型。
+- 后端与脱敏策略**零改动**；其余为真机验证 + 证据落盘。全量回归见 §8。
