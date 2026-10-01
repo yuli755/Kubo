@@ -74,6 +74,20 @@ function refreshAccessToken(): Promise<void> {
   return refreshPromise
 }
 
+/**
+ * 会话确凿失效的统一收口：清状态 + 带来源回登录页。
+ *
+ * 两个入口共用（此前只有第一个）：
+ * 1. HTTP 401 且刷新失败/重试仍 401（见响应错误拦截器）；
+ * 2. **业务码 401**（HTTP 200 + `code=401`）——后端三个 advice 全部
+ *    `@ResponseStatus(HttpStatus.OK)`，鉴权失败（`Errors.UNAUTHORIZED`、
+ *    `RequestInterceptor` 的「登录状态已失效」）都是这种形态，按 HTTP status
+ *    分流的 switch 对它们是死分支。此前只 toast 不跳转：stale token 冷启动时
+ *    Console 初始化首个请求就业务码 401，用户永远停在「控制台初始化失败」错卡上，
+ *    「重试/返回首页」再点一百次也回不来（真机复现 2026-10-01，报告 §13/R-35）。
+ *
+ * 携带 `?redirect=` 是为了重新登录后能回到原页面（login.vue 的 safeRedirect 收口）。
+ */
 async function handleSessionExpired(): Promise<void> {
   if (sessionExpiredHandling) {
     return
@@ -84,10 +98,17 @@ async function handleSessionExpired(): Promise<void> {
   }
   finally {
     // replace 不留历史，避免「后退」回到过期页面
-    window.location.replace('/login')
+    const back = encodeURIComponent(`${window.location.pathname}${window.location.search}`)
+    window.location.replace(`/login?redirect=${back}`)
     // 浏览器里 replace 后本页即卸载，重置只为可测试/异常降级场景留口子
     sessionExpiredHandling = false
   }
+}
+
+/** 认证接口自身的 401 是业务结果，绝不触发刷新/登出（否则密码输错也登出，登录页死循环） */
+function isAuthEndpoint(url: string | undefined): boolean {
+  const path = url || ''
+  return ['/user/login', '/user/refresh', '/user/logout'].some(prefix => path.startsWith(prefix))
 }
 
 /**
@@ -231,6 +252,14 @@ function createAxiosInstance(): AxiosInstance {
         // 用户提示与字段定位（此前这一支只 reject，用户看到的是「点了没反应」）
         notifyBusinessError(error, response.config as RequestConfig)
 
+        // R-35：业务码 401（HTTP 200）同样代表会话失效 —— 后端鉴权失败全走这条形态，
+        // 只 toast 不跳转会把用户锁死在假会话里（见 handleSessionExpired 注释）。
+        // 与 HTTP 401 不同：后端没有给出「刷新」的机会，直接收口登出 + 回登录页。
+        // 登录/登出/刷新接口自身的 401（如密码错误）是业务结果，不能触发登出跳转。
+        if (res.code === BusinessCode.UNAUTHORIZED && !isAuthEndpoint(response.config.url)) {
+          void handleSessionExpired()
+        }
+
         return Promise.reject(error)
       }
 
@@ -256,10 +285,7 @@ function createAxiosInstance(): AxiosInstance {
         case 401: {
           // 认证接口自身（/user/login* /user/refresh /user/logout）的 401 是业务
           // 结果，不走刷新/登出流程：否则密码输错也会触发刷新 + 登出跳转，登录页变死循环。
-          const url = originalRequest?.url || ''
-          const isAuthEndpoint = ['/user/login', '/user/refresh', '/user/logout']
-            .some(prefix => url.startsWith(prefix))
-          if (isAuthEndpoint) {
+          if (isAuthEndpoint(originalRequest?.url)) {
             break
           }
           if (!originalRequest?._retry) {

@@ -177,7 +177,8 @@ describe('axios 请求层 · 401 刷新与登出', () => {
     Object.defineProperty(window, 'location', {
       configurable: true,
       writable: true,
-      value: { replace: locationReplace, href: 'http://localhost/' },
+      // R-35 起 redirect 收口要读 pathname+search 拼来源，替身必须给全
+      value: { replace: locationReplace, href: 'http://localhost/', pathname: '/', search: '' },
     })
     userStore.refreshToken = vi.fn(async () => {})
     userStore.logout = vi.fn(async () => {})
@@ -227,13 +228,14 @@ describe('axios 请求层 · 401 刷新与登出', () => {
     expect(await b).toBe('retried')
   })
 
-  it('刷新失败 → 登出并 replace 到 /login，原请求 reject', async () => {
+  it('刷新失败 → 登出并 replace 到 /login（带来源 redirect），原请求 reject', async () => {
     userStore.refreshToken = vi.fn(async () => {
       throw new Error('refresh rejected')
     })
     await expect(request.get('/dead', { adapter: flaky401Adapter(1) })).rejects.toBeDefined()
     expect(userStore.logout).toHaveBeenCalledTimes(1)
-    expect(locationReplace).toHaveBeenCalledWith('/login')
+    // R-35：回登录页要带来源，重新登录后可回到原页面
+    expect(locationReplace).toHaveBeenCalledWith('/login?redirect=%2F')
   })
 
   it('刷新成功但重试仍 401 → 判定会话终结，不再无限刷新', async () => {
@@ -242,7 +244,7 @@ describe('axios 请求层 · 401 刷新与登出', () => {
     // 只刷新一次；第二次 401 走兜底登出
     expect(userStore.refreshToken).toHaveBeenCalledTimes(1)
     expect(userStore.logout).toHaveBeenCalledTimes(1)
-    expect(locationReplace).toHaveBeenCalledWith('/login')
+    expect(locationReplace).toHaveBeenCalledWith('/login?redirect=%2F')
   })
 
   it('登录接口自身的 401（密码错误）不触发刷新/登出/跳转', async () => {
@@ -252,6 +254,45 @@ describe('axios 请求层 · 401 刷新与登出', () => {
     expect(userStore.refreshToken).not.toHaveBeenCalled()
     expect(userStore.logout).not.toHaveBeenCalled()
     expect(locationReplace).not.toHaveBeenCalled()
+  })
+
+  /**
+   * R-35（真机复现 2026-10-01）：后端三个 advice 全部 @ResponseStatus(HttpStatus.OK)，
+   * 鉴权失败（token 过期/被吊销）是 **HTTP 200 + 业务码 401** —— 按 HTTP status 分流的
+   * 刷新/登出流程对它完全失效。此前只 toast 不跳转：stale token 冷启动的用户永远停在
+   * Console 的「控制台初始化失败」错卡上，怎么重试都回不到登录页。
+   */
+  it('业务码 401（HTTP 200）→ 登出并带来源回登录页，不给人留在假会话里', async () => {
+    await expect(
+      request.post('/user/getMyTenantList', {}, {
+        adapter: adapterReturning({ code: 401, message: '获取你的身份信息失败，请重新登录后再试' }),
+      }),
+    ).rejects.toMatchObject({ code: 401 })
+    // 收口是 fire-and-forget（拦截器要先 reject 原请求），等一个宏任务让 finally 落地
+    await new Promise(r => setTimeout(r, 0))
+    expect(userStore.logout).toHaveBeenCalledTimes(1)
+    expect(locationReplace).toHaveBeenCalledWith('/login?redirect=%2F')
+  })
+
+  it('登录接口自身的业务码 401 是业务结果，不触发登出/跳转（与 HTTP 401 同一豁免）', async () => {
+    await expect(
+      request.post('/user/login', {}, { adapter: adapterReturning({ code: 401, message: '身份信息获取失败' }) }),
+    ).rejects.toMatchObject({ code: 401 })
+    await new Promise(r => setTimeout(r, 0))
+    expect(userStore.logout).not.toHaveBeenCalled()
+    expect(locationReplace).not.toHaveBeenCalled()
+  })
+
+  it('并发业务码 401 只登出跳转一次（错卡并发失败不该连环 replace）', async () => {
+    const adapter401 = () => adapterReturning({ code: 401, message: '登录状态已失效，请重新登录' })
+    // 必须同时发起：串行 await 的话首个收口的 finally 已复位标志，第二个会再收口一次
+    await Promise.allSettled([
+      request.get('/a', { adapter: adapter401() }),
+      request.get('/b', { adapter: adapter401() }),
+    ])
+    await new Promise(r => setTimeout(r, 0))
+    expect(userStore.logout).toHaveBeenCalledTimes(1)
+    expect(locationReplace).toHaveBeenCalledTimes(1)
   })
 })
 

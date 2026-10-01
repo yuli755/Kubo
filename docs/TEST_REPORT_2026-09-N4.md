@@ -459,3 +459,125 @@ toast「**提交内容有误：字段[purchasePrice]对当前角色受限，无�
 - `src/framework/entity.ts`：`toJson` 改深度感知、剔除嵌套脱敏占位值（R-34）。
 - `src/framework/__tests__/entity.spec.ts`：嵌套脱敏剔除 + 顶层保留 + Date 保原型。
 - 后端与脱敏策略**零改动**；其余为真机验证 + 证据落盘。全量回归见 §8。
+
+## 13. R35 · 会话失效不回登录页：前端兜底体系对标与收口（round 33）
+
+> 本轮由一个真实使用反馈驱动：**「某个页面无法正常加载时，不会返回登录页面」**。
+> 以已上线项目 `law-firm-platform`（Vue3 + Element Plus，同为中后台）的前端兜底设计为基准，
+> 把 SPMS 的四类「页面加载不正常」场景逐一在真机上跑出来，修掉其中确凿的一处（R-35），
+> 并给出可落地的兜底体系统一方案。
+
+### 13.1 四类失效场景真机矩阵（Playwright，dev：vite 3000 + 后端 8080）
+
+| 场景 | 注入方式 | 修复前实测 | 结论 |
+| --- | --- | --- | --- |
+| **A 无 token 深链** | 清空 `Authorization` 后**全页**导航 `/console/wms/input/list` | `authGuard` 拦下 → `/login?redirect=%2Fconsole%2Fwms%2Finput%2Flist` | **无缺陷**（`src/guard/authGuard.ts:17-34` + `src/view/login.vue:42,93` 回跳链路本就通） |
+| **B 陈旧 token 深链** | `localStorage.Authorization = 'Bearer …STALE…'` 后全页导航 | `authGuard` **只看 token 存在即放行** → `POST /api/user/getMyTenantList` 返回 **HTTP 200 + 业务码 401** → axios 只 toast → `Console.init()` catch → 整屏「控制台初始化失败」错卡，**重试/返回首页永远再失败，从不回登录页** | **R-35 真缺陷（P1），已修** |
+| **C 懒加载 chunk 失败** | 路由拦截把 `…/wms/move/list.vue` 永久 `abort()`（等价发版后旧 index.html 引用已替换的 chunk） | 第 1 次失败 → `router.onError` → **自动刷新一次**（`sessionStorage['kubo:router-error-reload']` 已写入）→ 第 2 次仍失败 → 错卡「控制台初始化失败 / Failed to fetch dynamically imported module」；网络恢复后点「重试」**页面自愈**（标题回到「移库单」） | **兜底有效**（`src/utils/routerErrorHandler.ts`），无需改动 |
+| **D 后端宕机** | 路由拦截 `abort()` 全部 `/api/**`（等价网络层全失败） | 错卡「控制台初始化失败 / **网络连接失败**」，**token 未被清掉**（正确：网络故障 ≠ 会话失效），网络恢复后点「重试」→ 列表 20 行正常 | **兜底有效**，行为正确 |
+
+> **场景 C 值得记录的机制细节**：chunk 失败的报错最终**不是**由 `router.onError` 展示，而是被
+> `Console.vue` 的 `init()` catch 接管——因为 `getMenuList()` 内部 `await reloadCurrentRoute()`
+> （`src/component/Console.vue:61`）把导航错误变成了 init 的同步异常。`router.onError` 仍然负责
+> 「自动刷新一次」这一段（时间窗 10s 内最多一次，防坏部署把用户困在无限刷新里）。
+> 两层兜底**串起来了**，所以用户看到的是「闪一下 → 一张可重试的错卡」，而不是白屏。
+
+### 13.2 R-35 · 业务码 401 无人收口（P1，真缺陷，已修）
+
+**根因（跨层口径不一致）**：后端三个 `@RestControllerAdvice` 全部标注
+`@ResponseStatus(HttpStatus.OK)`，鉴权失败因此**以 HTTP 200 + 业务码 401 的形态**返回
+（`Errors.UNAUTHORIZED`「获取你的身份信息失败，请重新登录后再试」、
+`RequestInterceptor.java:156,224`「登录状态已失效，请重新登录」、`AccessTokenUtil`）。
+而前端 axios 的登出流程**只挂在 HTTP 状态码 401 的 `case 401:` 分支上**——对本项目而言
+那条分支几乎是**死代码**（既然后端永远返回 200），真正的会话失效路径反而没人处理。
+`src/api/errorPolicy.ts:42-47` 的注释其实**早就写下了这个缺口**，只是一直没人来补。
+
+**修复（`src/api/axios.ts`，三处，后端零改动）**：
+1. 响应成功拦截器的 `code !== 200/0` 分支补上收口：
+   ```ts
+   if (res.code === BusinessCode.UNAUTHORIZED && !isAuthEndpoint(response.config.url)) {
+     void handleSessionExpired()
+   }
+   return Promise.reject(error)
+   ```
+   `void` fire-and-forget（原请求照常 reject，页面各自的 catch 逻辑不受影响），
+   登出与跳转由 `sessionExpiredHandling` 标志统一防重入。
+2. 抽出 `isAuthEndpoint(url)`（`/user/login`、`/user/refresh`、`/user/logout` 前缀白名单）——
+   **登录/登出接口自身返回 401 是业务语义**（密码错、重复登出），绝不能触发「会话失效」递归跳登录；
+   HTTP 401 分支原本内联的同类判断也改为复用这个函数（口径只有一处）。
+3. `handleSessionExpired()` 的跳转从裸 `/login` 改为
+   **`/login?redirect=<当前 path + query>`**，与 `authGuard` 完全同口径。
+
+> **设计取向：为什么收口在 axios 而不是守卫或组件**
+> 「会话失效」的唯一权威信号是**服务端应答**，而 axios 是服务端应答的唯一入口。
+> 收口在这里 ⇒ 任何一次业务请求（不管来自哪个页面、哪个 store）失效都会**同一条路径**登出并带回跳上下文，
+> 不必在每个 `catch` 里补 `if (is401) router.push('/login')`；
+> 守卫侧（`authGuard`）只负责「本地根本没有 token」这种可静态判定的情形，两层职责不再互相期待。
+> 附带收益：`Console.vue` 那张错卡的「返回首页」死链问题（会话失效时点了也只是再撞一次 401）
+> 自然消失——用户在看到错卡之前就已经被送到登录页了。
+
+**单测（`src/api/__tests__/axios.spec.ts`，26 tests 全绿）**：新增 3 例
+① HTTP 200 + 业务码 401 打在 `/user/getMyTenantList` → `logout` 恰 1 次 + `location.replace('/login?redirect=%2F')`；
+② `/user/login` 自身返回业务码 401 → **不登出、不跳转**；
+③ `Promise.allSettled` **并发**打两个业务 401 → 登出/跳转各恰 1 次
+（**关键**：串行 `await` 会让 `finally` 复位 `sessionExpiredHandling`，第二次也照样放行，测不出防重入）。
+
+**真机复验**：
+- 场景 B 修复后：stale token 全页导航 → 自动 `location.replace('/login?redirect=%2Fconsole%2Fwms%2Finput%2Flist')`；
+  用 WMS 账号重新登录 → **准确回到原页面**「入库单」（标题、URL 均正确）。
+  证据 `57`（修复前死循环错卡）/ `58`（已跳登录且带 redirect）/ `59`（重登回到原页）。
+- 会话**中途**失效（页面已渲染，直接把 store 里的 token 换坏再点「刷新」）：
+  → 自动清 token + 跳登录带 redirect。证据 `60`。
+
+### 13.3 与 `law-firm-platform` 的兜底设计对标
+
+基准：`D:\JAVA\Code_repository\law-firm-platform\law-firm-web\src`
+（`utils/request.js`、`router/permission.js`、`utils/lazyLoad.js`）。
+
+| 兜底维度 | law-firm 做法 | SPMS 修复前 | SPMS 修复后 |
+| --- | --- | --- | --- |
+| 业务码 401 | `request.js`：`ElMessageBox.confirm` → `resetState()` → `push('/login?redirect=…')` | **完全没人处理**（死循环错卡） | axios 收口 → 登出 + `replace('/login?redirect=…')`（**不弹窗**：本项目失效即失效，确认框只是多一次点击） |
+| HTTP 401 | `request.js` 同分支处理 | 有分支但**近乎死代码**（后端永远 200） | 保留，且与业务码共用 `isAuthEndpoint` 白名单 |
+| 路由/权限初始化失败 | `permission.js`：catch → `ElMessage('登录已过期…')` + `resetState()` + `next('/login?redirect')` | 只有静态守卫，**运行时初始化失败无出口** | 会话类失败有出口；其余失败保留可重试错卡 |
+| 懒加载失败 | `lazyLoadWithErrorHandling(importFunc, path)` → 渲染降级 `ElResult`（重新加载/返回首页）+ `__ERROR_TRACKER__.captureException` | `router.onError` → 刷新一次（10s 时间窗）→ init 错卡 | 维持（实测可自愈，见场景 C）；**降级组件列为可选演进** |
+| 导航进度反馈 | NProgress 顶部进度条 | **无**（冷启动 1.4–5s 期间零反馈） | 未改，列为建议 D3 |
+| 目标回跳上下文 | 所有失效路径都带 `redirect` | 登录页支持读，但会话失效路径**丢掉**了上下文 | 三类路径统一带 `redirect` |
+| 网络/服务类错误文案 | 403/404/413/500 逐码文案兜底 + 全局 `ElLoading` 计数 | 有 `errorPolicy.ts` 分类（33 tests） | 维持，文案分层列为建议 D5 |
+
+**对标结论**：law-firm 的做法**更朴素但覆盖面完整**——它的核心不是某个技巧，而是
+「**所有会话失效信号在 HTTP 层汇聚成一个动作**」。SPMS 的分层（守卫/axios/errorPolicy/错误边界/路由错误兜底）
+**每一层单独看都比它强**，缺的恰恰是层与层之间那条「会话失效」的连线。
+本轮补的就是这根线，**没有新增一层**。
+
+### 13.4 可行性设计建议（按性价比排序，均未实施）
+
+| 编号 | 建议 | 做法 | 成本 | 收益 / 风险 |
+| --- | --- | --- | --- | --- |
+| **D1** | **会话失效单一事件源** | 新建 `src/utils/session.ts`：`expireSession(reason, source)` + `onSessionExpired(cb)`；axios 只**发事件**，登录跳转/提示文案由**唯一订阅方**（壳层）决定 | 小（≈1 文件 + 3 处调用改线） | 收益：现在「登出 + 跳转」写死在 axios 里，测试要 stub `location`；发事件后可分别单测。风险：低 |
+| **D2** | **清理死掉的 refreshToken 路径**（或后端补真端点） | `src/api/system.ts:59-63` 已注明后端**没有** `/user/refresh`，`useUserStore().refreshToken()` 必抛 ⇒ HTTP-401 分支先试刷新是**纯浪费一次往返**。二选一：删掉刷新分支只留登出；或后端补 `POST /user/refresh` 做滑动续期，把「会话失效」从用户可见路径上移走 | 删：极小<br>补：后端中等 | 收益：少一条不可测分支 / 直接消灭这类失效。风险：补端点需同步 token 策略与 Redis TTL |
+| **D3** | **顶部进度条**（NProgress 或 2KB 自研） | 挂在 `router.beforeEach/afterEach` + `Console.init()` 起止；只动 `transform` | 小 | 收益：冷启动 1.4–5s 期间不再「看起来像坏了」，直接压这类工单。风险：几乎没有（记得 `prefers-reduced-motion` 时降级为纯进度） |
+| **D4** | **把 console 初始化上提为路由守卫** | 现状 `Console.vue` 的 `init()`（租户/用户/权限/菜单四连）**在组件 setup 里**跑，深链冷启动必然先渲染一帧外壳/404 再纠正。改为 `beforeResolve` 在 `/` 父路由上解析，失败即可在**导航阶段**决定去登录页或错误页 | 中（涉及 `routesReady`、R-32 落地页回退逻辑一并迁移） | 收益：消除「先闪 404/空壳再纠正」整类观感问题，兜底决策点唯一。风险：中——与 R-32 的 `firstNavigableMenuPath` 回退耦合，需连带回归 |
+| **D5** | **错卡文案分类** | 场景 D 实测文案是「控制台初始化失败 / 网络连接失败」，用户分不清是**服务挂了**还是**自己断网**。按 `errorPolicy` 分三档标题：服务不可用（含自动重试倒计时）/ 网络异常 / 权限异常 | 小 | 收益：降低无效报障。风险：低 |
+| **D6** | **chunk 失败降级组件**（对标 `lazyLoad.js`） | 包裹 `import.meta.glob` 的 loader，失败除刷新外提供可点降级块 | 小 | 收益**有限**：场景 C 实测「刷新一次 + 可重试错卡」已能自愈，属锦上添花。**优先级最低** |
+| **D7** | `error-report` 免鉴权/失败静默 | 会话失效瞬间的 `/api/error-report` 也会带上坏 token；目前返回 200 无副作用，建议在 `isAuthEndpoint` 口径外再显式忽略上报接口的 401 | 极小 | 收益：避免噪音。风险：低 |
+
+**推荐落地顺序**：D2（删，10 分钟）→ D3（观感收益最大）→ D1（结构收敛，为 D4 铺路）→ D5 → D4 → D6。
+D1/D4 **不建议同时改**：D4 会挪动 D1 的订阅方位置，先做 D4 会把 D1 的改动重做一遍。
+
+### 13.5 证据截图（docs/evidence）
+- `57-r35-initialz-fail-deadloop-before-fix.png`：修复前——stale token 卡在「控制台初始化失败」，重试无出口
+- `58-r35-stale-token-redirected-to-login.png`：修复后——自动跳 `/login?redirect=%2Fconsole%2Fwms%2Finput%2Flist`
+- `59-r35-relogin-returned-to-origin.png`：重新登录后**准确回到**原页面（入库单）
+- `60-r35-mid-session-401-to-login.png`：会话**中途**失效（点「刷新」）同样回登录页并保留 redirect
+- `61-r35c-chunk-fail-reload-once-then-card.png`：场景 C——chunk 永久失败：刷新一次后给可重试错卡
+- `62-r35d-backend-down-card-no-logout.png`：场景 D——后端宕机：错卡但**不清 token**（不误判为会话失效）
+
+### 13.6 本轮改动
+- `src/api/axios.ts`：业务码 401 收口 `handleSessionExpired()` + `isAuthEndpoint()` 白名单 +
+  会话失效跳转携带 `?redirect=`（R-35）。
+- `src/api/__tests__/axios.spec.ts`：location 替身补 `pathname/search`，
+  2 处既有断言改为断言 redirect 口径，新增 3 例（业务码 401 收口 / 登录接口豁免 / **并发**防重入）。
+- 后端、路由、守卫、`Console.vue`、脱敏策略**零改动**；场景 A/C/D 经真机确认**无需改动**。
+- 新增契约认识（写入 §12.5 同一门禁）：
+  **「兜底是否有效」的判据不是有没有 catch，而是失败之后用户有没有一条能走通的路**——
+  一张只有「重试」的错卡，在服务端持续拒绝时等价于死路。
