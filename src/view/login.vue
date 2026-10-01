@@ -1,12 +1,14 @@
 <script lang="ts" setup>
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, ref } from 'vue'
+import { loginInlineError } from '@/api/errorPolicy'
 import { authApi } from '@/api/system'
 import Logo from '@/component/login/Logo.vue'
 import { useRoutePreload } from '@/composables/useRoutePreload'
 import { LoginAction } from '@/model/common/LoginAction'
 import { useAppRoute } from '@/router/appRouter'
 import { useUserStore } from '@/stores/user'
+import { signedOutReasonHint } from '@/utils/authSync'
 import { reportError } from '@/utils/errorHandler'
 import { safeRedirect } from '@/utils/safeRedirect'
 import { isEmail, isMobilePhone, isNaturalNumber } from '@/utils/validators'
@@ -53,6 +55,25 @@ const isLoadingLogin = ref(false)
 const isEmailCodeLoading = ref(false)
 const isPhoneCodeLoading = ref(false)
 
+/**
+ * ### 登录失败的表单内联提示（R-37）
+ *
+ * 后端把「账号或密码错误」渲染成 HTTP 200 + `200001`，而 `errorPolicy` 对这个码**全局静默**
+ * （约定"由登录页自己呈现"）。修复前登录页 catch 里只有 `reportError`（只落 console），
+ * 于是密码输错后界面毫无变化 —— 静默码没人呈现，就成了「点了没反应」。
+ *
+ * 只登记 `credential` 类（见 `loginInlineError`）：其余码全局 toast 已经说过同一句话，
+ * 这里再显示一条就是双份提示。
+ */
+const loginFeedback = ref('')
+
+/**
+ * ### 被别的标签页登出的来源提示（R-38）
+ * `installAuthSync` 在别的标签页登出时带 `?reason=signedOut` 送回来。
+ * 只认这个 reason，直接访问登录页时保持安静。
+ */
+const signedOutHint = signedOutReasonHint(route.query.reason)
+
 // 表单验证
 const isValidCode = computed(() => user.value.code && user.value.code.length === 6)
 const isValidEmail = computed(() => user.value.email && isEmail(user.value.email))
@@ -94,10 +115,22 @@ async function loginRedirect(token: string) {
 }
 
 /**
+ * ### 登录失败的统一善后（R-37）
+ *
+ * 三件事：上报（可观测）、内联呈现（用户可见）、其余交给全局 toast（已存在的通用提示）。
+ * 判据在 `loginInlineError` 里 —— 不在页面里散写码值，码表仍是唯一事实来源。
+ */
+function onLoginFailure(error: unknown, context: string) {
+  reportError(error, context)
+  loginFeedback.value = loginInlineError(error) ?? ''
+}
+
+/**
  * ### 账号密码登录
  */
 async function onLogin() {
   isLoadingLogin.value = true
+  loginFeedback.value = ''
   try {
     const token = await authApi.login({
       email: user.value.email,
@@ -106,7 +139,7 @@ async function onLogin() {
     await loginRedirect(token)
   }
   catch (error) {
-    reportError(error, 'login')
+    onLoginFailure(error, 'login')
   }
   finally {
     isLoadingLogin.value = false
@@ -118,6 +151,7 @@ async function onLogin() {
  */
 async function onEmailLogin() {
   isLoadingLogin.value = true
+  loginFeedback.value = ''
   try {
     const token = await authApi.loginViaEmail({
       email: user.value.email,
@@ -126,7 +160,7 @@ async function onEmailLogin() {
     await loginRedirect(token)
   }
   catch (error) {
-    reportError(error, 'login-email')
+    onLoginFailure(error, 'login-email')
   }
   finally {
     isLoadingLogin.value = false
@@ -138,6 +172,7 @@ async function onEmailLogin() {
  */
 async function onPhoneLogin() {
   isLoadingLogin.value = true
+  loginFeedback.value = ''
   try {
     const token = await authApi.loginViaPhone({
       phone: user.value.phone,
@@ -146,7 +181,7 @@ async function onPhoneLogin() {
     await loginRedirect(token)
   }
   catch (error) {
-    reportError(error, 'login-phone')
+    onLoginFailure(error, 'login-phone')
   }
   finally {
     isLoadingLogin.value = false
@@ -459,6 +494,25 @@ function switchLoginAction(action: LoginAction) {
             </div>
           </form>
 
+          <!-- 被别的标签页登出的来源提示（R-38：installAuthSync 带 ?reason=signedOut 送回） -->
+          <div
+            v-if="signedOutHint && !loginFeedback"
+            class="login-hint"
+            role="status"
+          >
+            {{ signedOutHint }}
+          </div>
+
+          <!-- 登录失败的内联反馈（R-37：200001 这类全局静默码必须有人呈现） -->
+          <div
+            v-if="loginFeedback"
+            class="login-feedback"
+            role="alert"
+            aria-live="assertive"
+          >
+            {{ loginFeedback }}
+          </div>
+
           <!-- 协议同意 -->
           <div class="agreement">
             <el-checkbox
@@ -681,6 +735,31 @@ function switchLoginAction(action: LoginAction) {
                 font-size: 12px;
               }
             }
+          }
+
+          // R-37：登录失败的内联反馈（全局对 200001 静默，这里就是唯一的呈现处）
+          .login-feedback {
+            margin-top: 12px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--el-color-danger);
+            background: var(--el-color-danger-light-9);
+            border: 1px solid var(--el-color-danger-light-7);
+          }
+
+          // R-38：来源说明（被别的标签页登出）——不是错误，用信息色与 login-feedback 区分；
+          // 出现错误反馈时让位（模板里 v-else 语义），同屏最多一条消息
+          .login-hint {
+            margin-top: 12px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--el-color-info);
+            background: var(--el-color-info-light-9);
+            border: 1px solid var(--el-color-info-light-7);
           }
 
           .form-options {

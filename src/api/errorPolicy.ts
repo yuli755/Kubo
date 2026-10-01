@@ -151,6 +151,10 @@ const SILENT_CODES = new Set<number>([
 ])
 
 /**
+ * 登录页要自己呈现的那一类失败见文件底 `loginInlineError`（R-37 契约的落地处）。
+ */
+
+/**
  * 4031..4039 的**逐码语义**（键与后端 `Errors` 常量一一对应，见上方区间常量的注释表）。
  *
  * 每码给「标题 + 下一步」，而不是共用一句"无权限"：
@@ -412,4 +416,35 @@ export function shouldNotify(key: string, now: number = Date.now()): boolean {
 /** 清空去重记录（测试与"手动重试"场景用） */
 export function resetNotifyDedupe(): void {
   lastNotifiedAt.clear()
+}
+
+/**
+ * R-37 契约：登录失败的**页面内联**呈现（`login.vue` 三个登录入口的 catch 调用）。
+ *
+ * ## 为什么需要一个可执行的契约
+ * `SILENT_CODES` 的注释写着「由登录页自己呈现」，但 R-37 真机复现（2026-10-01）：
+ * `{ code: 200001, message: 用户账号或密码错误 }`（HTTP 200）→ 全局按约定静默 →
+ * 登录页 catch 里只有 `reportError`（只落 console）→ 用户点「立即登录」后**界面毫无变化**，
+ * 不知道密码错了——正是本文件头注释批判的「点了没反应」在登录页的复刻。
+ * 「silent 的前提是有人呈现」必须落成函数，而不是注释里的君子协定。
+ *
+ * ## 分工（同一条失败只说一遍）
+ * - classify 结果为 `credential`（200001；登录页场景下撞到的 401 也算）→ 返回要显示的一句话，
+ *   页面把它渲染在提交按钮上方；
+ * - 其余业务/HTTP 码 → 返回 undefined：响应拦截器的全局 toast 已经说了同一句话，
+ *   页面再显示就是双份；
+ * - 网络错误/超时（reject 的是没有数字 `code` 的 `Error`）→ 同样 undefined（拦截器直接弹
+ *   「网络连接失败 / 请求超时」）。
+ *
+ * 入参是 `unknown`：业务码路径 reject 的是 `ApiError` **普通对象**（非 Error 实例），
+ * HTTP 路径 reject 的才是带 `code` 的 `Error` —— 两种形态都要能读数。
+ */
+export function loginInlineError(error: unknown): string | undefined {
+  const code = (error as { code?: unknown } | null | undefined)?.code
+  if (typeof code !== 'number') {
+    return undefined
+  }
+  const message = (error as { message?: unknown } | null | undefined)?.message
+  const verdict = classifyBusinessError({ code, message: typeof message === 'string' ? message : undefined })
+  return verdict.kind === 'credential' ? notificationText(verdict) : undefined
 }

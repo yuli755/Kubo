@@ -10,6 +10,7 @@ import {
   isUnsupportedCode,
   LEGACY_FORBIDDEN_FAMILY_MAX,
   LEGACY_FORBIDDEN_FAMILY_MIN,
+  loginInlineError,
   mentionsAuthorization,
   notificationText,
   NOTIFY_DEDUPE_MS,
@@ -330,5 +331,39 @@ describe('errorPolicy · 重复提示抑制', () => {
     resetNotifyDedupe()
     expect(notifyKey(403)).toBe('403@')
     expect(shouldNotify(notifyKey(403), 3_000_000)).toBe(true)
+  })
+})
+
+describe('errorPolicy · 登录页内联契约 loginInlineError（R-37）', () => {
+  // 真机复现（2026-10-01）：错误密码 → HTTP 200 + { code: 200001, message: 用户账号或密码错误 }
+  // → 全局按 SILENT_CODES 静默 → 登录页此前只有 reportError（落 console）→ 界面毫无变化。
+  it('200001 必须给出内联文案：静默的前提是有人呈现', () => {
+    expect(loginInlineError({
+      code: BusinessCode.USER_LOGIN_ACCOUNT_OR_PASSWORD_INVALID,
+      message: '用户账号或密码错误',
+    })).toBe('登录未通过：用户账号或密码错误')
+  })
+
+  it('登录页撞上业务码 401（登录状态失效）也内联呈现，不让用户对着假表单发呆', () => {
+    const text = loginInlineError({ code: 401, message: '获取你的身份信息失败，请重新登录后再试' })
+    expect(text).toContain('登录状态已失效')
+  })
+
+  it('非 credential 码返回 undefined：全局 toast 已说过同一句话，页面不得双份提示', () => {
+    expect(loginInlineError({ code: 500, message: '服务器内部错误' })).toBeUndefined()
+    expect(loginInlineError({ code: 4002, message: 'email: 邮箱格式不正确' })).toBeUndefined()
+    expect(loginInlineError({ code: 403, message: '权限不足' })).toBeUndefined()
+  })
+
+  it('网络错误（无数字 code 的 Error）与非法入参一律 undefined，绝不显示 undefined', () => {
+    expect(loginInlineError(new Error('网络连接失败'))).toBeUndefined()
+    expect(loginInlineError(undefined)).toBeUndefined()
+    expect(loginInlineError(null)).toBeUndefined()
+    expect(loginInlineError('boom')).toBeUndefined()
+    expect(loginInlineError({ code: '200001', message: '字符串码不算数' })).toBeUndefined()
+  })
+
+  it('后端没给 message 时用兜底文案，内联不出现空壳', () => {
+    expect(loginInlineError({ code: BusinessCode.USER_LOGIN_ACCOUNT_OR_PASSWORD_INVALID })).toBe('登录未通过：请求未成功')
   })
 })

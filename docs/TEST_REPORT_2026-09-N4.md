@@ -581,3 +581,111 @@ D1/D4 **不建议同时改**：D4 会挪动 D1 的订阅方位置，先做 D4 �
 - 新增契约认识（写入 §12.5 同一门禁）：
   **「兜底是否有效」的判据不是有没有 catch，而是失败之后用户有没有一条能走通的路**——
   一张只有「重试」的错卡，在服务端持续拒绝时等价于死路。
+
+## 14. R36–R38 · §13 修复引入的新边界实测（round 34）
+
+> §13 把会话失效收口到 axios 之后，本轮按「修一处、验一圈」的规矩，把**收口本身引入的新边界**
+> 逐条在真机上打穿：`?redirect` 开放重定向、`/login` 页上的业务码 401 环路、多标签页登出同步、
+> 离线/恢复、坏 JWT 形态。三处真缺陷（R-36/R-37/R-38）修复并补单测，其余实测**无缺陷**并记录判据。
+
+### 14.1 边界实测矩阵（Playwright，dev：vite 3000 + 后端 8080）
+
+| 场景 | 注入方式 | 实测 | 结论 |
+| --- | --- | --- | --- |
+| **`?redirect` 开放重定向** | 登录页带 `?redirect=` 各类外域/混淆写法登录后观察落点 | 旧判据（前缀检查）被 `/\evil.test`、`/<TAB>//evil.test`、`/<LF>//evil.test` 绕过 → 会话送外域 | **R-36 真缺陷（P1），已修**，见 14.2 |
+| **`/login` 页业务码 401 环路** | `localStorage.Authorization='Bearer …DEAD-STALE…'` 后全页导航 `/login` 并驻留 | 登录页**不发任何业务 `/api` 请求**，`/user/login` 自身 401 又被 `isAuthEndpoint` 豁免（axios.ts:259,288）→ 零 replace、零循环 | **无缺陷**（观察：登录页驻留时残留的 stale token 无人清，无实际危害） |
+| **多标签页登出同步** | A/B 两标签页同会话，A 用真实 UI（`.user-card__trigger`→退出登录，无确认框）登出，观察 B | 修复前：B **毫无反应**——停留在原页、20 行数据照拉、还能翻页导航，`{"code":200,"message":"获取成功"}`；修复后：B **无交互自动**落到 `/login?reason=signedOut&redirect=…` 并显示原因提示 | **R-38 真缺陷（P1），已修**，见 14.4 |
+| **离线 → 恢复** | `ctx.setOffline(true)` 后：页内「刷新」、离线软导航、恢复网络 | 刷新 → toast『网络连接失败』（axios 无响应分支，axios.ts:272-278），表格保留最后好数据、会话不误清；软导航 → 懒加载 chunk 失败 → `router.onError` 刷新一次（10s 时间窗）→ 浏览器离线页（**dev 无 SW**：`hasServiceWorker=0`，`registerPWA()` 仅生产注册）；恢复 → `KAppShell.vue:151-159` toast『网络连接已恢复』，再点刷新数据回 20 行 | **无新缺陷**：数据层有准确 toast、恢复有 shell 级提示；生产离线壳由 SW 覆盖（dev 不可测，不强造） |
+| **坏 JWT 形态** | 把 `Authorization` 换成非 JWT 字符串/截断 JWT 后发业务请求 | 前端 `src/` 对 `atob|jwt|payload.exp` **零引用**——前端从不解析 token，坏形态只会由后端回业务码 401 → 走 R-35 既有收口 | **无前端缺口**（收口早已覆盖，本轮确认判据成立） |
+
+### 14.2 R-36 · `?redirect` 开放重定向绕过（P1，已修）
+
+**根因**：旧 `safeRedirect` 只做 `startsWith('/') && !startsWith('//')` 前缀检查，
+但 `window.location` 按 **WHATWG URL 规范**解析：反斜杠等同斜杠（`/\evil.test`→`http://evil.test/`）、
+TAB/LF/CR 在解析前被剔除（`/<TAB>//evil.test`→`http://evil.test/`）。
+「我们的判据」与「浏览器的判据」不是同一件事，`//evil.test` 拦住了、`/\evil.test` 漏了。
+
+**修复（`src/utils/safeRedirect.ts`，纯函数 +47）**：①先拒含反斜杠/C0/C1 控制字符的目标
+（合法站内路由不存在这类字符）；②**让浏览器自己的解析器当终判**——`new URL(target, FAKE_BASE)`
+后只认 `resolved.origin === FAKE_BASE`，规范再出新规整规则也绕不过 origin 比对。
+编码反斜杠 `/%5Cevil.test` 解析后仍在站内，照常放行（单测钉住不误伤）。
+
+**单测**：`src/utils/__tests__/safeRedirect.spec.ts` 9 例（含用 `String.fromCharCode(92/9/10/13)`
+构造的全部绕过变体 + 「若真放行就会跨 origin」的前提自证）。
+**真机**：`?redirect=/%5Cevil.probe.test` 登录后落 `http://localhost:3000/console/index`，`originOk=true`。证据 `63`。
+
+### 14.3 R-37 · 登录失败页内零反馈（P2，已修）
+
+**症状**：密码输错时 R-35 的会话收口豁免了 `/user/login`（正确！密码错是业务结果），
+全局 toast 又 3 秒即逝——用户盯着表单看不到任何失败原因，等价「点了没反应」。
+**静默的前提是有人呈现**：`SILENT_CODES` 里豁免一条码，就得有人负责呈现它。
+
+**修复**：`src/api/errorPolicy.ts` 新增 `loginInlineError(error)`（只认 `typeof code === 'number'`，
+`kind==='credential'` 才返回文案，其余 `undefined`——全局 toast 已说过的事不重复说）；
+`src/view/login.vue` 三个登录入口（账密/邮箱/手机号）统一走 `onLoginFailure`，
+页内插 `<div class="login-feedback" role="alert" aria-live="assertive">`。
+**单测**：`errorPolicy.spec.ts` +5（现 38 例）：200001 精确文案、业务码 401 含『登录状态已失效』、
+500/4002/403→undefined、非 ApiError（Error/null/字符串/字符串 code）→undefined。
+**真机**：错误密码 → `.login-feedback` 显示『登录未通过：用户账号或密码错误』，`toastCount=0`，停在 `/login`；
+正确密码重试 → `/console/index`。证据 `64`。
+
+### 14.4 R-38 · 跨标签页登出不同步（P1，已修）
+
+**根因链（全部实测钉死）**：登录态有**两处**——`Authorization`（localStorage，权威）与
+`useUserStore().token`（**内存**，请求拦截器真正读的那份，axios.ts:190-192）。A 登出只摘自己的两处；
+B 内存 token 还在、继续带旧凭证发请求。且后端 `/user/logout` 的撤销依赖 Redis
+（`kubo:token:revoked:<sha256>`，本地 dev 无 Redis = **不撤销**），实测登出后旧 JWT 照旧
+`{"code":200,"message":"获取成功"}` 拉到真数据。**共享电脑上的「注销」在其它标签页形同虚设。**
+E-C1 的 `onRestore` 只兜「重新加载」情形（实测 reload 安全），活标签页无人管。
+对标 `law-firm-platform` 同样**没有** storage/BroadcastChannel 监听——这是行业性缺口，不是对标倒退。
+
+**修复（3 改 + 1 新增）**：
+1. `src/stores/user.ts`：抽出 `clearLocalSession()`（L105-122，清内存态 + `authToken.remove()`
+   + `kubo:user` + queryClient + 脱敏缓存 + 权限 store，**不打后端**）；`logout()` 改为
+   `authApi.logout()` try/catch → 同一收口。
+2. **新增 `src/utils/authSync.ts`**：`installAuthSync()` 监听 `window 'storage'`，
+   只认 `key==='Authorization' && newValue===null`（对端登出）→ `clearLocalSession()` →
+   非登录页时 `replace('/login?reason=signedOut&redirect=<当前 path+query>')`。
+   **选 `storage` 事件而非 BroadcastChannel**：事件挂在唯一权威来源上，零新增状态；
+   BC 需要每条登出路径显式广播，漏一处就静默失效。对端**登录**（newValue 有值）刻意忽略——
+   不能抢占可能正在填表单的标签页。
+3. `src/main.ts`：pinia 就绪后、挂载前 `installAuthSync()`。
+4. `src/view/login.vue`：`signedOutReasonHint(route.query.reason)` →
+   `<div class="login-hint" role="status">`『当前账号已在其他标签页退出登录，请重新登录』
+   （认不出的 reason 不编造原因）。
+
+**单测**：新增 `src/utils/__tests__/authSync.spec.ts` 10 例（对端登出→清态+精确 replace+
+**不**重复打 `/user/logout`；对端登录/其它键/本标签页未登录→无动作；登录页上只清态不 replace；
+dispose 摘监听；`clearLocalSession` 无后端调用；`logout` 打后端恰 1 次）+ `user.spec.ts` 8 例，18 全绿。
+**测试课（值得记录）**：`storage` 监听挂在 window 上**跨用例存活**，早先安装的监听会用
+「当时激活的 pinia」响应后续用例——所有安装必须经统一 `setup()` 收口、`afterEach` 逐个 dispose。
+
+**真机（修复后）**：A 真实 UI 登出 → B **无交互自动**落
+`/login?reason=signedOut&redirect=%2Fconsole%2Fwms%2Finput%2Flist`，hint 正确、表格消失、token=null；
+从 B 自己的登录页重新登录 → **准确回到**其原页（20 行，errorCard=0）；登出态新开标签页 →
+`/login?redirect=…`；B 强制 reload 无快照复活（E-C1 兜底在位）。证据 `65`。
+
+### 14.5 可行性建议落地结论（本轮验证驱动）
+
+| 编号 | 决定 | 依据 |
+| --- | --- | --- |
+| **D2** 清理 refreshToken 死分支 | **不改** | 实测 `useUserStore().refreshToken()` 在进入网络前即抛 `No refresh token available`——「浪费一次往返」的**前提不成立**；该分支是未来后端补 `/user/refresh` 的挂载点，且被 4 条 axios 契约测试钉住，删除是零收益的破坏性重构 |
+| **D7** error-report 401 豁免 | **不改** | `src/utils/errorReportClient.ts` 走**裸 `fetch`**（不经 axios 拦截器），`REPORT_URL='/api/error-report'`、60s 去重、`keepalive:true`——「上报请求带坏 token 触发收口」的前提不成立 |
+| **D3** 顶部进度条 | **暂不落地** | 本轮边界矩阵未产出支持它的缺陷证据；冷启动反馈是观感增强非正确性缺口，且新增全局动效需连 `prefers-reduced-motion` 一起做，建议单独立项 |
+| **D5** 错卡文案分档 | **暂不落地** | 离线实测显示**交互路径**已有准确分档反馈（『网络连接失败』toast + 恢复提示），仅**冷启动 init 错卡**标题仍是统一的「控制台初始化失败」；属文案打磨，维持 §13.4 优先级排序 |
+
+### 14.6 证据截图（docs/evidence）
+- `63-r36-redirect-bypass-fixed.png`：R-36 修复后——混淆 redirect 登录落回站内 `console/index`
+- `64-r37-login-inline-feedback.png`：R-37——错误密码时登录按钮上方常驻『登录未通过：…』
+- `65-r38-multitab-logout-sync.png`：R-38——A 登出后 B 自动落到带原因提示与 redirect 的登录页
+
+### 14.7 本轮改动
+- `src/utils/safeRedirect.ts`（新）+ 9 例单测：浏览器解析器终判的开放重定向防护（R-36）。
+- `src/api/errorPolicy.ts`（`loginInlineError`）+ `src/view/login.vue`（三入口内联反馈 + `role=alert`）
+  + `errorPolicy.spec.ts` +5 例（R-37）。
+- `src/utils/authSync.ts`（新）+ `src/main.ts`（安装）+ `src/stores/user.ts`（`clearLocalSession` 抽口）
+  + `login.vue`（`login-hint`）+ `authSync.spec.ts` 10 例（R-38）。
+- 后端、路由、守卫**零改动**；`/login` 401 环路、离线/恢复、坏 JWT 三场景实测确认**无需改动**。
+- 新增契约认识（并入 §12.5 门禁）：
+  **「白名单/前缀检查不等于浏览器的判断」——凡是把用户输入喂给 `location` 的地方，终判必须交给同一个 URL 解析器的 origin 比对**；
+  **登出/会话类修复必须把「活标签页」当作默认场景**——localStorage 只是持久层，内存 store 才是请求真正携带的凭证。

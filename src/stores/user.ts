@@ -94,19 +94,15 @@ export const useUserStore = defineStore(
     }
 
     /**
-     * ### 登出
-     * 调用后端登出接口清除 Cookie，然后清除所有本地状态
+     * ### 只清本地会话（不请求后端）
+     *
+     * R-38：跨标签页登出同步的收口动作 —— 别的标签页已经调过 `/user/logout`
+     * 并摘掉了 `Authorization`，本标签页**绝不能再替用户登出一次**（那会用
+     * 已作废的凭证再打一发请求，纯属噪音）；它只需要把这份登出「演给自己看」：
+     * 清空内存态、缓存、权限，让路由守卫和请求拦截器立刻回到未登录口径。
+     * `logout()` 的后端段之后复用同一函数，保证两处收口的字段清单不漂移。
      */
-    async function logout() {
-      // 调用后端登出接口（清除服务端 Cookie）
-      try {
-        const { authApi } = await import('@/api/system')
-        await authApi.logout()
-      }
-      catch {
-        // 静默忽略 — 即使后端调用失败也要清除本地状态
-      }
-      // 清除本地状态
+    function clearLocalSession() {
       token.value = ''
       tenantId.value = undefined
       tenantList.value = []
@@ -125,6 +121,22 @@ export const useUserStore = defineStore(
       })
     }
 
+    /**
+     * ### 登出
+     * 调用后端登出接口清除 Cookie，然后清除所有本地状态
+     */
+    async function logout() {
+      // 调用后端登出接口（清除服务端 Cookie）
+      try {
+        const { authApi } = await import('@/api/system')
+        await authApi.logout()
+      }
+      catch {
+        // 静默忽略 — 即使后端调用失败也要清除本地状态
+      }
+      clearLocalSession()
+    }
+
     return {
       token,
       refreshTokenValue,
@@ -139,6 +151,7 @@ export const useUserStore = defineStore(
       isLoggedIn,
       refreshToken,
       logout,
+      clearLocalSession,
     }
   },
   {

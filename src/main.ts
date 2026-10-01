@@ -15,6 +15,7 @@ import { queryClient } from '@/query/queryClient'
 import { createAppRouter } from '@/router/appRouter'
 import { createPersistPlugin } from '@/stores/persist'
 import { useThemeStore } from '@/stores/theme'
+import { installAuthSync } from '@/utils/authSync'
 import { installGlobalErrorHandler, setErrorReporter } from '@/utils/errorHandler'
 import { reportErrorToServer } from '@/utils/errorReportClient'
 import { installRouterErrorHandler } from '@/utils/routerErrorHandler'
@@ -56,6 +57,10 @@ const pinia = createPinia()
 pinia.use(createPersistPlugin())
 
 app.use(pinia)
+
+// R-38：跨标签页登出同步。必须在 pinia 就绪之后（监听回调里要取 user store）、
+// 挂载之前（首帧之前就接管 storage 事件），见 src/utils/authSync.ts
+installAuthSync()
 
 // V2：挂载前应用主题偏好，确保首帧渲染就带正确的 html.dark（避免浅色闪烁）
 useThemeStore()
