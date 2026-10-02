@@ -378,7 +378,8 @@ function renderEChartsHeatmap() {
         emphasis: {
           itemStyle: {
             shadowBlur: 10,
-            shadowColor: 'rgba(0, 0, 0, 0.4)',
+            // canvas 吃不了 var()，走 resolveCssToken 读 --kubo-canvas-emphasis（同 L367 口径）
+            shadowColor: resolveCssToken('--kubo-canvas-emphasis', 'rgba(0, 0, 0, 0.4)'),
           },
         },
       },

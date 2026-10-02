@@ -71,6 +71,12 @@ export const authApi = {
   changePassword(data: ChangePasswordRequest): Promise<void> {
     return request.post('/user/updateMyPassword', data)
   },
+  // R41 ①a：忘记密码的真出口。后端 `user/resetMyPassword` 一直是 `login = false` 可用的
+  // （email 或 phone + 验证码 + 新密码，UserService.resetPasswordVia{Email,Phone}），
+  // 前端此前只有死链 `/forgot-password` 而从未接上。验证码复用 sendEmail / sendSms 同一通道。
+  resetMyPassword(data: { email?: string, phone?: string, code: string, password: string }): Promise<void> {
+    return request.post('/user/resetMyPassword', data)
+  },
   getCaptcha(): Promise<{ captchaId: string, image: string }> {
     return request.get('/user/captcha')
   },

@@ -263,7 +263,7 @@ function onKeydown(e: KeyboardEvent) {
   position: fixed;
   inset: 0;
   z-index: 2500;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--kubo-scrim);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   display: flex;

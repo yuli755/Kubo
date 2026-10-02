@@ -922,3 +922,103 @@ tests 钉住（状态码 422/500 的既有用例本就是同句式，本轮补�
 - **漏判优于误判**：嗅探未知响应体的守卫，不确定时一律保留原行为；
 - **pinia active instance 活得比 vi.resetModules 久**：复现「store 不可用」必须 `setActivePinia(undefined)`；
 - **spy 要最小化**：`vi.spyOn(document,'createElement')` 委托回原实现会经 spy 自递归爆栈——只补最小拦截点（`HTMLAnchorElement.prototype.click` + `vi.stubGlobal('URL', …)`）。
+
+## §17 Round 41：死链闭环 + 主题令牌收敛 + 系统设计梳理
+
+> 本轮主线即用户指令的四件事：修复已知问题 → 逐模块排查 → 视觉统一/组件化/常量化/工程化 → 设计思想梳理。每小节按「需求 → 逻辑拆解 → 方案选型 → 风险预判」展开，结尾以可行性/建议清单收口。
+
+### 17.1 需求 → 逻辑拆解
+
+| 需求（用户口径） | 拆成的可执行项 | 去向 |
+| --- | --- | --- |
+| 修复 §16.6 已知问题 | 死链三连给去处；忘记密码接真接口而非占位；协议默认不勾（合规口径） | ① 17.2 / 17.3 |
+| 视觉/风格统一 | 硬编码色值收敛到设计令牌 + 机器可校验 + 真机验证 | ② 17.4 |
+| 逐模块排查 | 样式层消费点 + EP 结构变化族扫描，复现即修 | ③ 17.4 两处真缺陷 / 17.5 |
+| 设计思想梳理 | 需求→拆解→选型→风险，对照 benchmark 仓库 | 本节 + 17.6 |
+
+### 17.2 ①a 登录页死链三连——从「挂账」到「闭环」
+
+- **需求**：`/privacy` `/terms` `/forgot-password` 点了等于没点（§16.6，evidence 73）。
+- **复核推翻挂账前提（重要）**：§16.6 写「密码重置等后端接口」——**错了**。后端 `user/resetMyPassword`（`UserService.resetMyPassword` → `resetPasswordVia{Email,Phone}`）一直是 `login = false` 可用的，验证码复用 `sendEmail`/`sendSms` 同一通道——**死链的真相不是「后端没能力」而是「前端从未接线」**。挂账必须写核验依据，否则误导后续轮次空等。
+- **隐私/条款**：`config/legal.ts` 单一数据源（`LegalKind` + `LEGAL_DOCUMENTS` + `legalDocument()`）+ `view/legal.vue` 一个组件承接两路由（`/privacy` `/terms`，`meta.guest: true`——**guest 可读是本页存在的理由**：「同意一个读不到的文本」比不同意更糟；authGuard 对 guest 双向放行，登录后也能看）。`ILegalSection`/`ILegalDocument` 仅模块内消费，exports 门禁（`exports:check`）据此判为死导出，已收回 `export`（repo 全库 grep 无外部引用，零语义变化）。
+- **忘记密码**：产品内真实面板 `component/login/ResetPassword.vue`（邮箱/手机号双通道 tab、验证码冷却、两次新密码一致才可提交、成功 `emit('back')` 回登录表单并回填邮箱），`api/system.ts` 新增 `resetMyPassword`。**设计红线**：没有后端接口就不做产品级死跳转——这次是接了真接口，不是再造占位。
+- 单测新增：`legal.spec.ts` 6（结构门禁：每份 ≥3 节、脚注含「正式部署」提醒占位文案、标题不互换、unknown kind → null）+ `ResetPassword.spec.ts` 7（回填/冷却禁用/切通道清验证码且只发对应通道/一致性闸门/提交 payload 精确断言/back）。
+- 真机：evidence 74（/privacy guest 直达渲染）、75（/terms）、77（面板 DOM：双 tab + 冷却按钮 + ‹返回登录）。**先量渲染 DOM 再写选择器**：本 EP 版本 `el-input` 不把 `id` 绑到内层 `input`（dump 实测），spec 一律按 placeholder 选取。
+
+### 17.3 ①b 协议勾选默认不勾选（合规口径落地）
+
+- 上轮按「产品决策」挂账；本轮指令直接拍板合规口径——boolean 状态 `isAgreed` 默认 false。技术闸门一直真实（未勾必弹确认），本轮只改默认值。
+- **依据**：pre-checked consent 在主要司法辖区有合规风险，「默认关」是普适最低安全。真机 evidence 76。
+
+### 17.4 ② 主题令牌收敛：9 个令牌 + 机器守卫 + 两个真缺陷
+
+**方案选型（对照 17.6）**：SCSS 变量（编译期烙死）救不了「运行期主题切换 + 消费点可引用」两个诉求，CSS 自定义属性（`--kubo-*`）同时满足。本轮 9 个新令牌逐个注释写明「原来在哪个组件硬编码」，令牌文件自带出处记录：
+
+| 令牌 | 取代的硬编码 | 特殊口径 |
+| --- | --- | --- |
+| `--kubo-scrim` | KCommandPalette 硬编码 `rgba(0,0,0,.45)` | 压暗与页面主题无关，**html.dark 不覆盖**（实测两侧 computed 相同） |
+| `--kubo-on-brand-text` / `-muted` / `-bg-soft` | TenantSwitcher white/85%/10% | 锚定「相对深色表面」而非页面底色，亮暗两侧同值不覆盖 |
+| `--kubo-bg-hover-neutral` | ThemeSwitcher `rgb(128 128 128/15%)` | 品牌深色面上的中性 hover，同上不覆盖 |
+| `--kubo-canvas-emphasis` | WarehouseHeatmap option 写死 `'rgba(0,0,0,0.4)'` | **canvas 吃不了 var()**，JS 侧 `resolveCssToken()` 读回——定义仍单点在 tokens.scss |
+| `--kubo-print-label-bg` / `-label-text` / `-text` | KDetail @media print | **刻意不随暗色主题**：打印走 `print-color-adjust: exact`，若引用随主题漂移的值，暗色下打印=深底深字费墨不可读，纸面必须固定浅色 |
+
+**机器守卫**（`designTokenContract.spec.ts` 本轮 +2 条，共 5 条）：
+- 颜色字面量守卫：`src/**` 样式层硬编码 hex/命名色 → FAIL（`--el-color-*` 等 EP 语义变量放行）；
+- 死引用守卫：`var(--x)` 的 x 未被 tokens/EP 定义 → FAIL（`--primary-color` 那类历史事故的机器版防线）。
+- **守卫做了负样本自检**：故意注入一行 `color: #ffffff` 进组件 → 确认守卫确实 FAIL → 撤销恢复。没有负样本的守卫可能是空转装饰。
+
+**真缺陷 A · TenantSwitcher 死选择器（EP ^2.12.0 结构变化族）**：新版 el-select 不再渲染 `.el-input__wrapper/.el-input__inner`，旧 `:deep()` **从未命中**——顶栏白字+描边环视觉上从未生效（实测旧样式：灰边框 `rgb(228,231,237)`、灰字 `rgb(168,171,178)`）。修至 `.el-select__wrapper` / `.el-select__selected-item`，真机复测 ring `rgba(255,255,255,0.35) 0 0 0 1px inset`（evidence 78）。全仓同类 `:deep(.el-input__*)` 逐个点名核对：仅 el-select 一族死亡，radio-button/table/menu/checkbox 目标类仍有效。
+
+**真缺陷 B · 纯 CSS style 块里的 `//` 注释（构建炸弹）**：KTable 令牌迁移时在 `<style scoped>`（lang=css）写了 `//` 行注释——vitest 与 dev 全绿，**只有生产构建炸**（postcss `Unknown word 主色底上的白字…`，且被 GBK 控制台乱码遮了一层定位难度）。改为 `/* */`。`//` 只在 `lang="scss"` 块合法；「只有 build 炸」这类缺陷唯一兜底是全链里的 build 门禁——**单测全绿 ≠ 可发布**。
+
+### 17.5 ③ 逐模块排查记录
+
+本轮扫描聚焦「样式层收敛消费点 + EP 结构变化族」，两处真缺陷（17.4 A/B）均由此方法命中；其余 framework 组件空态/错误态文案口径未再发现新违例。
+
+### 17.6 benchmark 对照（law-firm-platform）——为什么是这个方案
+
+| 维度 | benchmark（law-firm-web） | 本仓 | 结论 |
+| --- | --- | --- | --- |
+| 主题载体 | `variables.scss` SCSS 变量（`$primary-color: #409eff`、`$sidebar-bg: #3b6195`） | CSS 自定义属性 `--kubo-*` + `html.dark` 运行期翻转 | SCSS 变量编译期烙死，换主题=重构建；运行期令牌还解锁 JS 取色（canvas 场景） |
+| 颜色计算 | `adjust-color` 包装**已弃用** `darken()`，sidebar 两处直接 `darken($sidebar-bg-color, 5%/3%)` | 相对值令牌（`rgb(255 255 255 / 10%)` 叠加），不依赖 darken/lighten | darken/lighten 处于弃用轨道，那条路迟早断 |
+| EP 主题 | src 对 `--el-*` **零引用**：`$primary-color` 与 EP 默认蓝 #409eff 双源漂移 | 直接消费 `--el-color-*` 单一来源 | benchmark 的 EP 组件其实根本没吃到它的主色变量——双源漂移是肉眼看不见的债 |
+| 暗色模式 | 无体系 | 全量 `html.dark` + on-brand/scrim「两侧同值」令牌组 | on-brand 族正是「深色表面不该随主题漂移」问题的解 |
+| 空态 | `<el-empty>` 裸散 ≥15 个视图，`:image-size` 80/100 漂移、文案各写各的 | KTable `emptyText` 单点自动生成（按有无筛选条件） | 散装=漂移源；收口方向见 17.10 |
+
+### 17.7 全量回归（round 41 门禁，全部未降）
+
+- `pnpm check` 全链 exit 0（整链日志 `.tmp-r37-check4.log`）：lint:ci → airpower×2 → pom → deadcode → exports → typecheck → test:coverage → perms → auth → errcode → contract → text → ddl → migration → monitoring → canary → docker → drill → build → demo → size。
+- vitest **85 文件 / 919 测试全过**（round 36：83/904 → +2 文件 +15：legal 6 + ResetPassword 7 + 守卫 2）；覆盖率 **90.83 / 84.17 / 82.33 / 90.8**（阈值 50/65/50/75 未动）。
+- gzip：**首屏 294.3/450 KB · 总体 724.9/900 KB**（+5.1 KB 来自重置密码/法务面板代码，仍远低于闸值）。
+- 后端 `mvn test`：**150 套件 / 933 / 0 失败 / 0 错误 / 1 跳过**（后端零改动，静默机复跑确认）。
+- **环境纪律补记**：一次链上 10/919 全为 `Test timed out in 30000ms`（import 254s/tests 489s，约平时 5 倍）——静默机隔离复跑全绿后判**环境抖动**；§5.1 串行纪律（check 不与 mvn/Playwright 并发）是这类误报的根治法。**环境抖动必须复测定性，不能带疑放行，也不能就疑定罪。**
+
+### 17.8 证据截图（docs/evidence）
+
+- `74-r37-legal-privacy-page.png` / `75-r37-legal-terms-page.png`：/privacy /terms guest 直达渲染（标题「隐私政策/服务条款 - Kubo」）
+- `76-r37-login-consent-unchecked.png`：登录页协议默认未勾选
+- `77-r37-forgot-password-panel.png`：重置密码面板（双通道 tab/验证码/冷却/‹返回登录）
+- `78-r37-topbar-onbrand-tokens.png`：顶栏 on-brand 令牌生效 + TenantSwitcher 修复后描边实测
+
+### 17.9 本轮改动与新增案例法
+
+**改动**：`view/legal.vue`、`config/legal.ts`、`component/login/ResetPassword.vue`（均新增）、`api/system.ts`、`view/login.vue`（①a/①b）；`config/routes.ts`；`styles/tokens.scss` + `KCommandPalette/KDetail/TenantSwitcher/ThemeSwitcher/Logo/WarehouseHeatmap/KTable` 七个消费点（②）；测试 `legal.spec.ts`、`login/__tests__/ResetPassword.spec.ts`（新增）、`designTokenContract.spec.ts`、`routes.spec.ts`。**后端零改动。**
+
+**新增案例法**：
+- **挂账前提必须复核**：「等后端」可能是「没查前端」——`resetMyPassword` 白等了一轮；接口存在性一次 grep Controller 即定案（其 `login=false` 属性决定未登录态可用）；
+- **纯 CSS style 块 `//` 是构建炸弹**：dev/vitest 不报，只有 build 的 postcss 炸——build 门禁是最后防线，单测全绿 ≠ 可发布；
+- **EP 小版本会换内部 DOM**：`:deep()` 穿透选择器是升级高危区，修复后要用 computed 实测确认「现在真的命中了」，而不是看代码改了就算修完；
+- **守卫必须配负样本**：故意注入违例确认 FAIL 再撤销，否则断言可能从写下那天起就在空转；
+- **GBK 往返损坏**：pwsh 5.1 `Get/Set-Content` 默认编码非 UTF-8，非 ASCII 源文件往返后孤儿字节变 `?`，「diff 看着干净」≠ 编码安全——此类往返必须过 strict UTF-8 解码校验；
+- **Playwright 截图落 MCP 进程 cwd**：绝对路径被允许根拒绝、相对路径落 `~\.dsh\profiles\desktop` 静默成功——证据流要「相对名拍 + 立即收编进仓库」，报告只引用仓库落盘文件。
+
+### 17.10 可行性与待补充优化建议（收口）
+
+| 建议 | 权重 | 状态/入口 |
+| --- | --- | --- |
+| `/user/resetMyPassword` 防滥用：验证码通道未见服务端限流（前端冷却 ≠ 限流），建议后端限频 + 失败次数上限 | 高 | 可行，需后端配套 |
+| style 块门禁：text 家族加「纯 CSS块禁 `//`」检查（约十行脚本），把 17.4-B 变成机器拦截 | 中 | 可行 |
+| 空态收口二期：清点视图层裸 `<el-empty>`/自画空态残留（benchmark 的散装是反面教材） | 中 | 可行 |
+| legal.ts 文案外置（i18n 或后端 CMS），当前构建期静态 | 低 | 等产品口径 |
+| designTokenContract 守卫模板化，新模块复制即得颜色+死引用双保险 | 低 | 可行 |
+| refresh 死链 / axios-retry、AbortController 贯通 | — | 挂账不变（§16.5/16.6，前提在后端） |

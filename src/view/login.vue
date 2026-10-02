@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import { loginInlineError } from '@/api/errorPolicy'
 import { authApi } from '@/api/system'
 import Logo from '@/component/login/Logo.vue'
+import ResetPassword from '@/component/login/ResetPassword.vue'
 import { useRoutePreload } from '@/composables/useRoutePreload'
 import { LoginAction } from '@/model/common/LoginAction'
 import { useAppRoute } from '@/router/appRouter'
@@ -25,8 +26,12 @@ const currentAction = ref(LoginAction.LOGIN_VIA_PASSWORD)
 
 /**
  * ### 是否已阅读协议
+ *
+ * R41 ①b：**默认不勾选**（合规口径）。默认勾选是让「同意」成为不作为的副产品，
+ * 同意必须是主动动作 —— 这正是它作为合规前置的意义。未勾选时提交会走确认弹窗
+ * （onSubmit），点了「我已阅读并同意」同样生效，多一条补救路径而非拦路。
  */
-const isAgreed = ref(true)
+const isAgreed = ref(false)
 
 // 「记住我」控件已移除（R39 §15.8 → §16）：登录态有效期由后端 JWT 说了算，前端无裁量权；
 // 该勾选框绑定后无任何消费者，纯属空转。若实装为 sessionStorage，还会静默破坏 R-38
@@ -264,6 +269,25 @@ function switchLoginAction(action: LoginAction) {
   // 切换方式时清空验证码
   user.value.code = ''
 }
+
+/**
+ * ### 忘记密码：面板内重置（R41 ①a）
+ *
+ * 此前这里是 `href="/forgot-password"` 死链（守卫弹回，§16.6 实测）。后端
+ * `user/resetMyPassword` 一直可用，缺的只是前端入口。做成面板内嵌而不是路由页：
+ * 重置的终点是「用新密码登录」，跳走会丢 ?redirect= 回跳链。
+ */
+const resetMode = ref(false)
+
+function onResetSuccess(account: string) {
+  resetMode.value = false
+  // 回填账号、清空密码：用户只差「输入新密码 → 登录」一步
+  currentAction.value = LoginAction.LOGIN_VIA_PASSWORD
+  user.value.email = account
+  user.value.password = ''
+  loginFeedback.value = ''
+  ElMessage.success('密码重置成功，请使用新密码登录')
+}
 </script>
 
 <template>
@@ -271,13 +295,21 @@ function switchLoginAction(action: LoginAction) {
     <Logo />
     <div class="card">
       <div class="app-name">
-        欢迎登录 Kubo
+        {{ resetMode ? '重置密码' : '欢迎登录 Kubo' }}
       </div>
 
       <div class="body">
+        <!-- 忘记密码：面板内重置（R41 ①a），整体替换表单区 -->
+        <ResetPassword
+          v-if="resetMode"
+          :initial-email="user.email"
+          @back="resetMode = false"
+          @success="onResetSuccess"
+        />
+
         <!-- 二维码登录 -->
         <div
-          v-if="currentAction === LoginAction.LOGIN_VIA_QRCODE"
+          v-else-if="currentAction === LoginAction.LOGIN_VIA_QRCODE"
           class="qrcode-login"
         >
           <div class="qrcode-img">
@@ -352,12 +384,15 @@ function switchLoginAction(action: LoginAction) {
             </div>
 
             <div class="form-options">
-              <a
-                href="/forgot-password"
+              <!-- R41 ①a：原 href="/forgot-password" 是死链（守卫弹回，§16.6 实测）。
+                   后端 resetMyPassword 一直可用，这里接上真正的面板。 -->
+              <button
                 class="forgot-password"
+                type="button"
+                @click="resetMode = true"
               >
                 忘记密码？
-              </a>
+              </button>
             </div>
           </form>
 
@@ -513,16 +548,20 @@ function switchLoginAction(action: LoginAction) {
               class="agreement-checkbox"
             >
               我已阅读并同意
+              <!-- @click.stop：链接在 el-checkbox 的 label 里，不拦截点击会让
+                   「看条款」顺手切换勾选状态 —— 同意状态只能由勾选框本身决定 -->
               <a
                 href="/privacy"
                 target="_blank"
                 class="agreement-link"
+                @click.stop
               >《隐私政策》</a>
               以及
               <a
                 href="/terms"
                 target="_blank"
                 class="agreement-link"
+                @click.stop
               >《服务条款》</a>
             </el-checkbox>
           </div>
@@ -542,8 +581,11 @@ function switchLoginAction(action: LoginAction) {
           </div>
         </div>
 
-        <!-- 登录方式切换 + 第三方登录 -->
-        <div class="login-methods">
+        <!-- 登录方式切换 + 第三方登录（重置面板打开时隐藏：重置不是登录方式） -->
+        <div
+          v-if="!resetMode"
+          class="login-methods"
+        >
           <div class="divider">
             <span>其他登录方式</span>
           </div>
@@ -762,9 +804,16 @@ function switchLoginAction(action: LoginAction) {
             margin: 8px 0 16px;
 
             .forgot-password {
+              // R41 ①a：死链 <a href="/forgot-password"> 改为真按钮（开面板），
+              // button 默认样式需逐项归零，保持与原链接视觉一致。
+              padding: 0;
+              border: none;
+              background: transparent;
+              font-family: inherit;
               font-size: 13px;
               color: var(--el-color-primary);
               text-decoration: none;
+              cursor: pointer;
               transition: color 0.2s;
 
               &:hover {

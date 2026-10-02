@@ -989,7 +989,9 @@ const emptyText = computed(() => {
   padding: 0 6px;
   border-radius: 10px;
   background: var(--el-color-primary);
-  color: #fff;
+  /* 主色底上的白字：--el-color-white 亮暗恒定（同 WarehouseHeatmap 格内白字口径），
+     写死 #fff 会被 designTokenContract 的颜色断言挡住 */
+  color: var(--el-color-white);
   font-size: 12px;
   font-weight: 600;
   font-family: var(--kubo-font-mono);

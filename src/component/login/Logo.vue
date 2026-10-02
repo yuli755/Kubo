@@ -13,7 +13,7 @@
 .logo {
   height: 60px;
   padding: 10px;
-  background-color: rgba($color: #fff, $alpha: 0.1);
+  background-color: var(--kubo-on-brand-bg-soft);
   border-radius: 20px;
   position: absolute;
   left: 30px;

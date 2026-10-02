@@ -13,13 +13,15 @@ import { routes } from '@/config/routes'
 describe('routes · 访客路由 meta 契约', () => {
   const byPath = new Map(routes.map(route => [route.path, route]))
 
-  it('guest 路由仅限登录/回调/绑定/授权，且一一标注', () => {
+  it('guest 路由仅限登录/法务文本，且一一标注', () => {
     const guestPaths = routes
       .filter(route => route.meta?.guest === true)
       .map(route => route.path)
       .sort()
 
-    expect(guestPaths).toEqual(['/login'])
+    // R41 ①a：/privacy、/terms 是协议同意的落点，登录前必须可读（guest 是功能前提，
+    // 不是遗漏）。新增业务页仍必须走鉴权 —— 这条断言的存在就是为了让「多标一个」红。
+    expect(guestPaths).toEqual(['/login', '/privacy', '/terms'])
   })
 
   it('业务页 /home 与根布局 console 必须鉴权（无 guest）', () => {

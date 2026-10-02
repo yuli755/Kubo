@@ -16,6 +16,20 @@ export const routes: RouteRecordRaw[] = [
     meta: { guest: true },
     component: () => import('@/view/login.vue'),
   },
+  // R41 ①a：登录页协议死链（/privacy、/terms）的落点。guest 可读是本页存在的理由——
+  // 「同意一个读不到的文本」比不同意更糟；authGuard 对 guest 双向放行，登录后也能看。
+  {
+    path: '/privacy',
+    name: '隐私政策',
+    meta: { guest: true },
+    component: () => import('@/view/legal.vue'),
+  },
+  {
+    path: '/terms',
+    name: '服务条款',
+    meta: { guest: true },
+    component: () => import('@/view/legal.vue'),
+  },
   {
     path: '/home',
     name: '首页',

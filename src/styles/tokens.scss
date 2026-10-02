@@ -83,6 +83,11 @@
      （designTokenContract.spec.ts 会把写死的挡在 CI 上）。 */
   --kubo-shadow-overlay: 0 20px 40px rgb(0 0 0 / 16%);
 
+  /* ── 遮罩层（命令面板等浮层的背景压暗）──
+   * 压暗靠黑色半透明本身，与页面主题无关：亮暗两侧同值，故 html.dark 不覆盖。
+   * （原来 KCommandPalette 把 rgba(0,0,0,.45) 写死在组件里。） */
+  --kubo-scrim: rgba(0, 0, 0, 0.45);
+
   /* ── 描边环（用 box-shadow 画的 ring / hairline，不是投影层级，故单列一组） ──
    * 这两个值都**不需要暗色覆盖**，因为它们锚定的不是页面底色而是「相对背景」：
    * - ring-halo 取 --el-bg-color：状态点周围的留白光晕，本质是「把点从行背景里抠出来」，
@@ -91,6 +96,18 @@
    *   所以半透明白描边在明暗两侧都成立。 */
   --kubo-ring-halo: 0 0 0 1.5px var(--el-bg-color);
   --kubo-ring-inset-on-brand: 0 0 0 1px rgb(255 255 255 / 35%) inset;
+
+  /* ── on-brand 面层（顶栏 / 登录页头图这类「永远是深色」的表面）──
+   * 与 --kubo-sider-* 同理：锚定的是「相对深色背景」而不是页面底色，
+   * 亮暗两种主题下背景都是深色，半透明白在两侧都成立，html.dark 不覆盖。
+   * （原来 TenantSwitcher 写死 white 与 rgb(255 255 255/85%)、Logo 写死 rgba(#fff,.1)。） */
+  --kubo-on-brand-text: #fff;
+  --kubo-on-brand-text-muted: rgb(255 255 255 / 85%);
+  --kubo-on-brand-bg-soft: rgb(255 255 255 / 10%);
+
+  /* 品牌深色表面上的中性 hover：灰色半透明在深浅底上都成立（同上不覆盖暗色）。
+   * （原来 ThemeSwitcher 写死 rgb(128 128 128/15%)。） */
+  --kubo-bg-hover-neutral: rgb(128 128 128 / 15%);
 
   --kubo-spacing-1: 4px;
   --kubo-spacing-2: 8px;
@@ -183,4 +200,17 @@ html.dark {
 
   /* 空储位的描边：与 empty 底色配套，图例点靠它在中性背景上显形 */
   --kubo-occupancy-empty-border: #dcdfe6;
+
+  /* ── canvas 专用：强调阴影（ECharts emphasis.shadowColor 这类 JS 取色点）──
+   * canvas 吃不了 var()，JS 侧用 resolveCssToken() 读这里，值仍是字面量（同占用色阶的理由）。
+   * （原来 WarehouseHeatmap 把 'rgba(0,0,0,0.4)' 写死在 option 里。） */
+  --kubo-canvas-emphasis: rgba(0, 0, 0, 0.4);
+
+  /* ── 打印专用：纸面颜色，**刻意不随暗色主题变化**（html.dark 无覆盖）──
+   * 打印走 print-color-adjust: exact，若引用会随主题漂移的 --el-* token，
+   * 暗色主题下打印就是深底深字，费墨且不可读；纸面必须是固定的浅色。
+   * （原来 KDetail 的 @media print 块把三个值写死在组件里。） */
+  --kubo-print-label-bg: #f8fafc;
+  --kubo-print-label-text: #1e293b;
+  --kubo-print-text: #0f172a;
 }

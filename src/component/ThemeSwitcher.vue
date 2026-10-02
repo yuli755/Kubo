@@ -61,7 +61,8 @@ const tooltip = computed(() => `主题：${LABEL[themeStore.preference]}（点�
     transform var(--kubo-duration-fast) var(--kubo-ease-out);
 
   &:hover {
-    background: rgb(128 128 128 / 15%);
+    // 通用中性 hover 轨（灰 15% 叠加）：两种主题下灰半透明都成立，故不随主题翻转
+    background: var(--kubo-bg-hover-neutral);
   }
 
   &:active {

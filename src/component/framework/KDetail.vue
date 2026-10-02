@@ -175,13 +175,13 @@ function printDetail() {
     break-inside: avoid;
   }
   .k-detail :deep(.k-detail__label) {
-    background-color: #f8fafc !important;
+    background-color: var(--kubo-print-label-bg) !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-    color: #1e293b !important;
+    color: var(--kubo-print-label-text) !important;
   }
   .k-detail :deep(.el-descriptions__content) {
-    color: #0f172a !important;
+    color: var(--kubo-print-text) !important;
   }
 }
 </style>

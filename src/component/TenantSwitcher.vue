@@ -59,20 +59,25 @@ async function onTenantChange(value: number | undefined) {
 </template>
 
 <style lang="scss" scoped>
+// 本 EP 版本 el-select 已是新结构（.el-select__wrapper/.el-select__selected-item），
+// 旧 :deep(.el-input__wrapper/.el-input__inner) 从未命中过——实测（R41 ②）描边吃的是
+// EP 默认灰、选中项文字是灰字，深色顶栏上品牌环与白字全部失效。选择器随结构更新。
 .tenant-switcher {
   width: 190px;
 
-  :deep(.el-input__wrapper) {
+  :deep(.el-select__wrapper) {
     background: transparent;
     box-shadow: var(--kubo-ring-inset-on-brand);
   }
 
-  :deep(.el-input__inner) {
-    color: white;
+  // 选中项经 .el-select__placeholder span 呈现（EP 新结构），disabled 态同色才可读
+  :deep(.el-select__selected-item),
+  :deep(.el-select__selected-item span) {
+    color: var(--kubo-on-brand-text);
   }
 
   :deep(.el-select__caret) {
-    color: rgb(255 255 255 / 85%);
+    color: var(--kubo-on-brand-text-muted);
   }
 }
 </style>
