@@ -77,6 +77,17 @@ describe('createPersistPlugin · 持久化不变量', () => {
     expect(persisted.userInfo).toBeUndefined()
   })
 
+  it('恢复侧同样执行 pick（旧快照的已下线字段不得复活）', () => {
+    // 写入侧过滤过、恢复侧不过滤是第 35 轮审计修掉的洞：E-H3 之前 userInfo
+    // （明文 PII）在 pick 里，旧浏览器留着的快照会在每次加载时整份 $patch 回内存。
+    localStorage.setItem('kubo:user', flattedStringify({ token: 't', userInfo: { nickname: '老快照里的 PII' } }))
+    const { context, state } = makeStore({ persist: { key: 'kubo:user', storage: 'local', pick: ['token'] } })
+    createPersistPlugin()(context)
+    expect(state.token).toBe('t')
+    // userInfo 保持 store 自己的默认值，快照里那份被丢弃
+    expect((state.userInfo as { nickname: string }).nickname).toBe('Hamm')
+  })
+
   it('session storage 选择生效', () => {
     const { context, store } = makeStore({ persist: { key: 'kubo:user', storage: 'session' } })
     createPersistPlugin()(context)

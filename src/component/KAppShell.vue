@@ -30,6 +30,7 @@ import UserCard from '@/component/UserCard.vue'
 import { isDemoRuntime } from '@/config/runtimeFlags'
 import { FeedbackUtil } from '@/framework'
 import { getRouter, useAppRoute } from '@/router/appRouter'
+import { safeGetItem, safeSetItem } from '@/utils/storage'
 import { resolveMenuIcon } from './shell/icons'
 import KAppMenuNode from './shell/KAppMenuNode.vue'
 
@@ -49,7 +50,7 @@ const props = withDefaults(defineProps<{
 
 const route = useAppRoute()
 const router = getRouter()
-const collapsed = ref(localStorage.getItem('kubo:shell:collapsed') === 'true')
+const collapsed = ref(safeGetItem('kubo:shell:collapsed') === 'true')
 const isNarrow = ref(false)
 const drawerVisible = ref(false)
 const paletteVisible = ref(false)
@@ -124,7 +125,8 @@ const pageTitle = computed(() => {
 })
 
 function persistCollapsed() {
-  localStorage.setItem('kubo:shell:collapsed', String(collapsed.value))
+  // 折叠态是便利数据，存不下（隐私模式/配额）只是下次恢复默认，不该炸掉点击
+  safeSetItem('kubo:shell:collapsed', String(collapsed.value))
 }
 
 function toggleCollapse() {

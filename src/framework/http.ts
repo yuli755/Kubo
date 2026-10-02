@@ -238,9 +238,16 @@ export abstract class AbstractCurdService<E extends IIdentifiableEntity> extends
     return this.api(apiUrl).requestRaw<string>(request)
   }
 
-  /** 查询导出结果：任务未完成时后端会返回业务错误，调用方负责重试（见 `ExportUtil`） */
+  /**
+   * 查询导出结果：任务未完成时后端会返回业务错误，调用方负责重试（见 `ExportUtil`）。
+   *
+   * 轮询期间的「任务还在跑」是**预期状态**不是失败（`waitForFile` 的 catch 注释），
+   * 所以这里必须 `hideError()`：否则每 500ms 一轮轮询 × 3s 去重窗口 = 一次导出
+   * 叠三四条红色报错，任务完成后又变绿字「导出完成」（第 35 轮审计 P1）。
+   * 真正的失败由 `ExportUtil` 超时抛错 + 调用点（useTable）统一 toast。
+   */
   async queryExport(fileCode: string, apiUrl = this.urlQueryExport): Promise<string> {
-    return this.api(apiUrl).requestRaw<string>({ fileCode })
+    return this.api(apiUrl).hideError().requestRaw<string>({ fileCode })
   }
 
   /** 分页查询 */

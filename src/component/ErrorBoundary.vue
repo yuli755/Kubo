@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { onErrorCaptured, ref, watch } from 'vue'
 import { useAppRoute } from '@/router/appRouter'
+import { describeUserError } from '@/utils/errorCopy'
 import { reportError } from '@/utils/errorHandler'
 
 /**
@@ -16,6 +17,12 @@ import { reportError } from '@/utils/errorHandler'
  * - 因此这里**主动** `reportError(err, 'error-boundary')` 上报一次，闭环到后端
  *   `/api/error-report`（复用 `errorHandler` 的 reporter，生产已接到后端，见 main.ts）。
  *
+ * ## D5：文案分档，不再甩英文原文
+ * 此前直接把 `err.message` 打在错卡主位。实测（§14.1 同源场景）懒加载 chunk 失败时用户看到
+ * `Failed to fetch dynamically imported module: http://…/view/…vue` —— 英文、含内部路径、
+ * 且「重试」按钮对它**完全无效**（chunk 失效必须重新拉 index.html）。
+ * 现在主位是中文标题 + 下一步指引，原文降级为次要信息（排查仍需要它）。见 `utils/errorCopy.ts`。
+ *
  * ## 明确不做的事
  * - 不「吞错继续渲染坏页面」：出错子树整体替换为兜底 UI，宁可少一块也不展示半成品；
  * - 不自动重试（避免坏数据反复触发同一次错误、把用户淹没）；只提供「重试」按钮 + 路由切换复位。
@@ -23,18 +30,14 @@ import { reportError } from '@/utils/errorHandler'
  * ## 路由切换自动复位
  * `watch(route.fullPath)`：切走再切回，给页面一次全新渲染机会（同页反复崩则再次兜底，不无限循环）。
  */
-interface BoundaryError {
-  message: string
-  info?: string
-}
 
-const error = ref<BoundaryError | null>(null)
+const error = ref<ReturnType<typeof describeUserError> | null>(null)
+/** 触发本次兜底的来源链路信息（vue 内部 hook 名，排查用） */
+const errorInfo = ref<string | undefined>(undefined)
 
 onErrorCaptured((err, _instance, info) => {
-  error.value = {
-    message: err instanceof Error ? err.message : String(err),
-    info,
-  }
+  error.value = describeUserError(err, '页面渲染出错')
+  errorInfo.value = info
   reportError(err, 'error-boundary')
   return false
 })
@@ -44,11 +47,13 @@ watch(
   () => route.fullPath,
   () => {
     error.value = null
+    errorInfo.value = undefined
   },
 )
 
 function retry(): void {
   error.value = null
+  errorInfo.value = undefined
 }
 </script>
 
@@ -59,16 +64,19 @@ function retry(): void {
     role="alert"
   >
     <div class="error-boundary__title">
-      页面渲染出错
+      {{ error.title }}
     </div>
     <div class="error-boundary__msg">
-      {{ error.message }}
+      {{ error.hint }}
+    </div>
+    <div class="error-boundary__raw">
+      {{ error.detail }}
     </div>
     <div
-      v-if="error.info"
+      v-if="errorInfo"
       class="error-boundary__info"
     >
-      {{ error.info }}
+      {{ errorInfo }}
     </div>
     <button
       type="button"
@@ -102,6 +110,14 @@ function retry(): void {
     margin-top: var(--kubo-spacing-3);
     max-width: 480px;
     color: var(--el-text-color-regular);
+  }
+
+  /* 原始错误文本：排查需要它，但它不是给用户读的主角 —— 更小、更淡 */
+  &__raw {
+    margin-top: var(--kubo-spacing-2);
+    max-width: 480px;
+    font-size: var(--el-font-size-extra-small);
+    color: var(--el-text-color-placeholder);
     word-break: break-all;
   }
 

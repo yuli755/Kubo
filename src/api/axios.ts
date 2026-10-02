@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import {
   BusinessCode,
   classifyBusinessError,
+  NETWORK_ERROR_CODE,
   notificationText,
   notifyKey,
   shouldNotify,
@@ -105,10 +106,16 @@ async function handleSessionExpired(): Promise<void> {
   }
 }
 
-/** 认证接口自身的 401 是业务结果，绝不触发刷新/登出（否则密码输错也登出，登录页死循环） */
+/**
+ * 认证接口自身的 401 是业务结果，绝不触发刷新/登出（否则密码输错也登出，登录页死循环）。
+ *
+ * **精确匹配**而非前缀匹配：`startsWith('/user/login')` 会把未来的
+ * `/user/loginHistory` 之类端点误判成认证接口，让真会话失效悄悄跳过收口（比误登出更难发现）。
+ */
+const AUTH_ENDPOINTS = new Set(['/user/login', '/user/refresh', '/user/logout'])
 function isAuthEndpoint(url: string | undefined): boolean {
-  const path = url || ''
-  return ['/user/login', '/user/refresh', '/user/logout'].some(prefix => path.startsWith(prefix))
+  const path = (url || '').split('?')[0]
+  return AUTH_ENDPOINTS.has(path)
 }
 
 /**
@@ -200,9 +207,14 @@ function createAxiosInstance(): AxiosInstance {
 
       // 添加幂等键 (POST/PUT/PATCH 请求)
       // 后端 OpenApiConfig 已把它声明为 Idempotency-Key security scheme（外部 API 契约的一部分）。
+      // 幂等的前提是「同一逻辑操作始终同一把键」，所以：
+      // 1. 调用方自带的键必须原样保留（否则等于公开承诺幂等、实际静默作废它）；
+      // 2. 401 刷新后的重试复用 originalRequest，其上已有首发的键 —— 不再生成第二把，
+      //    避免同一逻辑写操作带两个键穿透服务端的去重。
       if (config.method && ['post', 'put', 'patch'].includes(config.method.toLowerCase())) {
-        const idempotentKey = crypto.randomUUID()
-        config.headers['Idempotency-Key'] = idempotentKey
+        if (!config.headers['Idempotency-Key']) {
+          config.headers['Idempotency-Key'] = crypto.randomUUID()
+        }
       }
 
       // 请求时间戳：仅作服务端观测/审计预留。注意它**不构成防重放防护**——后端当前不校验此值，
@@ -270,9 +282,28 @@ function createAxiosInstance(): AxiosInstance {
 
       // 网络错误或超时
       if (!error.response) {
-        const message = error.code === 'ECONNABORTED' ? '请求超时' : '网络连接失败'
-        ElMessage.error(message)
-        const networkError = new Error(message) as Error & { traceId?: string }
+        // 主动取消（AbortController / ERR_CANCELED）不是失败，不打扰用户、不上报
+        if (error.code === 'ERR_CANCELED') {
+          return Promise.reject(error)
+        }
+        const timeout = error.code === 'ECONNABORTED'
+        const message = timeout ? '请求超时' : '网络连接失败'
+        const netCode = timeout ? NETWORK_ERROR_CODE.timeout : NETWORK_ERROR_CODE.offline
+        // 走统一收口：showError:false / customErrorHandler 必须让路，且必须去重。
+        // 去重键刻意不带 path（path 传空）：断网时页面并发的 N 个请求打的是**不同路径**，
+        // 若按「码+路径」去重仍会糊 N 条红条 —— 网络失败全局就是同一件事，全局只说一次。
+        notifyBusinessError(
+          {
+            code: netCode,
+            message,
+            timestamp: new Date().toISOString(),
+            path: '',
+            traceId: originalRequest?.traceId,
+          },
+          originalRequest as RequestConfig | undefined,
+        )
+        const networkError = new Error(message) as Error & { code?: number, traceId?: string }
+        networkError.code = netCode
         // 网络错误无响应体，只能用请求侧生成的 traceId
         networkError.traceId = originalRequest?.traceId
         return Promise.reject(networkError)
@@ -318,9 +349,16 @@ function createAxiosInstance(): AxiosInstance {
           break
         }
 
-        case 404:
-          ElMessage.error('请求的资源不存在')
+        case 404: {
+          // 与 403/500 同一条正道：分类、去重、尊重 showError（此前裸 ElMessage，
+          // 并发 3 个请求就叠 3 条同样的红条）
+          const path = originalRequest?.url || ''
+          notifyBusinessError(
+            toApiError(BusinessCode.DATA_NOT_FOUND, data, path, '请求的资源不存在'),
+            originalRequest as RequestConfig | undefined,
+          )
           break
+        }
 
         case 422: {
           // 参数校验错误：走业务码 4002 的同一套文案，顺带解析出字段名以便表单定位
@@ -332,9 +370,14 @@ function createAxiosInstance(): AxiosInstance {
           break
         }
 
-        case 429:
-          ElMessage.error('请求过于频繁，请稍后再试')
+        case 429: {
+          const path = originalRequest?.url || ''
+          notifyBusinessError(
+            toApiError(BusinessCode.RATE_LIMITED, data, path, '请求过于频繁，请稍后再试'),
+            originalRequest as RequestConfig | undefined,
+          )
           break
+        }
 
         case 500: {
           const path = originalRequest?.url || ''
@@ -345,8 +388,15 @@ function createAxiosInstance(): AxiosInstance {
           break
         }
 
-        default:
-          ElMessage.error(data?.message || `请求失败 (${status})`)
+        default: {
+          // 未知状态码：以前把后端/网关的 message **原文**印上红条（内部信息进 UI 文本），
+          // 现在同样进统一收口 —— 分类给中文标题与指引，原文降级为 detail。
+          const path = originalRequest?.url || ''
+          notifyBusinessError(
+            toApiError(status, data, path, `请求失败 (${status})`),
+            originalRequest as RequestConfig | undefined,
+          )
+        }
       }
 
       return Promise.reject(Object.assign(new Error(data?.message || error.message), {
@@ -436,7 +486,9 @@ export const api = {
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
+      // 延迟释放：click() 只是把下载任务排进浏览器队列，Safari 在同步 revoke 后
+      // 可能还没读到 blob 就拿到失效 URL（下载静默失败）。留 1s 缓冲。
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000)
     })
   },
 }

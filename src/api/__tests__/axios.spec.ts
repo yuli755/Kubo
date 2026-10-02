@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { AxiosResponse } from 'axios'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { resetNotifyDedupe } from '@/api/errorPolicy'
+import { NETWORK_ERROR_CODE, resetNotifyDedupe } from '@/api/errorPolicy'
 import { clearFieldError, fieldError } from '@/stores/fieldError'
 
 /**
@@ -132,6 +132,43 @@ describe('axios 请求层 · 请求拦截器', () => {
       }),
     })
     expect(getCfg.headers['Idempotency-Key']).toBeUndefined()
+  })
+
+  it('调用方自带 Idempotency-Key 时原样保留（第 35 轮审计）', async () => {
+    // 幂等的语义是「同一逻辑操作同一把键」。拦截器无条件覆盖会把调用方
+    // （外部 API 契约场景）精心管理的键静默作废 —— 承诺了幂等、实际没幂等。
+    let cfg: any
+    await request.post('/keep', {}, {
+      headers: { 'Idempotency-Key': 'caller-key-1' },
+      adapter: captureAdapter((c) => {
+        cfg = c
+      }),
+    } as any)
+    expect(cfg.headers['Idempotency-Key']).toBe('caller-key-1')
+  })
+
+  it('401 刷新后的重试复用同一把 Idempotency-Key（重试不是新操作）', async () => {
+    // 401 重试是把 originalRequest 重新塞回请求拦截器 —— 若无条件重新生成，
+    // 同一逻辑写操作就带两把键，服务端去重形同虚设（请求可能落库两次）。
+    const seen: string[] = []
+    let calls = 0
+    const adapter = async (config: any) => {
+      seen.push(String(config.headers['Idempotency-Key']))
+      calls += 1
+      if (calls === 1) {
+        const err: any = new Error('401')
+        err.isAxiosError = true
+        err.config = config
+        err.response = { status: 401, data: { message: 'unauthorized' }, headers: {}, config }
+        throw err
+      }
+      return { data: { code: 200, message: 'ok', data: 'done' }, status: 200, statusText: 'OK', headers: {}, config }
+    }
+    const data = await request.post('/write', {}, { adapter })
+    expect(data).toBe('done')
+    expect(seen).toHaveLength(2)
+    expect(seen[0]).toBeTruthy()
+    expect(seen[1]).toBe(seen[0])
   })
 })
 
@@ -414,5 +451,119 @@ describe('axios 请求层 · 业务错误的用户提示', () => {
     const text = elMessage.error.mock.calls[0][0].message
     expect(text).toContain('服务器处理失败：NPE')
     expect(text).toContain('traceId')
+  })
+})
+
+/**
+ * 第 35 轮审计：网络层失败与残余状态码（404/429/未知）此前都是**裸 ElMessage**。
+ * 裸提示意味着它们绕过了 showError:false、customErrorHandler 与 3s 去重 ——
+ * 断网瞬间并发的 5 个请求就是 5 条红条，且后台静默刷新也照弹不误。
+ * 这组用例锁「所有出 toast 的口子都收口在 notifyBusinessError」这条规则。
+ */
+describe('axios 请求层 · 网络失败与状态码统一收口', () => {
+  function httpErrorAdapter(status: number, data: unknown): (config: any) => Promise<AxiosResponse> {
+    return async (config: any) => {
+      const err: any = new Error(`Request failed with status code ${status}`)
+      err.isAxiosError = true
+      err.config = config
+      err.response = { status, data, headers: {}, config }
+      throw err
+    }
+  }
+
+  /** 无 response 的适配器（断网/超时的形状）；code 决定是超时还是断线 */
+  function networkAdapter(code?: string): (config: any) => Promise<AxiosResponse> {
+    return async (config: any) => {
+      const err: any = new Error('network down')
+      err.isAxiosError = true
+      err.config = config
+      if (code) {
+        err.code = code
+      }
+      throw err
+    }
+  }
+
+  beforeEach(() => {
+    resetNotifyDedupe()
+  })
+
+  it('超时 → 分类文案「请求超时」带指引，reject 带合成码 -1', async () => {
+    const err: any = await request
+      .get('/slow', { adapter: networkAdapter('ECONNABORTED') })
+      .then(() => null, (e: unknown) => e)
+    expect(err.code).toBe(NETWORK_ERROR_CODE.timeout)
+    expect(err.message).toBe('请求超时')
+    const text = elMessage.error.mock.calls[0][0].message
+    expect(text).toContain('请求超时（')
+    expect(text).toContain('告知管理员')
+  })
+
+  it('断线（无 response 无 code）→ 「网络连接失败」带指引，reject 带合成码 -2', async () => {
+    const err: any = await request
+      .get('/gone', { adapter: networkAdapter() })
+      .then(() => null, (e: unknown) => e)
+    expect(err.code).toBe(NETWORK_ERROR_CODE.offline)
+    expect(elMessage.error.mock.calls[0][0].message).toContain('网络连接失败（')
+  })
+
+  it('网络失败同样尊重 showError:false（后台批量刷新不该被红条打断）', async () => {
+    await expect(
+      request.get('/bg', { showError: false, adapter: networkAdapter() } as never),
+    ).rejects.toBeDefined()
+    expect(elMessage.error).not.toHaveBeenCalled()
+  })
+
+  it('断网时不同路径也只弹一条（全局同一件事，按路径去重压不住）', async () => {
+    await expect(request.get('/a', { adapter: networkAdapter() })).rejects.toBeDefined()
+    await expect(request.get('/b', { adapter: networkAdapter() })).rejects.toBeDefined()
+    await expect(request.get('/c', { adapter: networkAdapter() })).rejects.toBeDefined()
+    expect(elMessage.error).toHaveBeenCalledTimes(1)
+  })
+
+  it('主动取消（ERR_CANCELED）不是失败：不弹提示，原样 reject', async () => {
+    await expect(
+      request.get('/abort', { adapter: networkAdapter('ERR_CANCELED') }),
+    ).rejects.toBeDefined()
+    expect(elMessage.error).not.toHaveBeenCalled()
+  })
+
+  it('404 → 「数据不存在」统一文案；后端没给 message 时用兜底句', async () => {
+    await expect(
+      request.get('/missing', { adapter: httpErrorAdapter(404, { message: 'no such record' }) }),
+    ).rejects.toBeDefined()
+    const text = elMessage.error.mock.calls[0][0].message
+    expect(text).toContain('数据不存在：no such record')
+    expect(text).toContain('刷新')
+
+    elMessage.error.mockClear()
+    resetNotifyDedupe()
+    await expect(
+      request.get('/missing2', { adapter: httpErrorAdapter(404, undefined) }),
+    ).rejects.toBeDefined()
+    expect(elMessage.error.mock.calls[0][0].message).toContain('数据不存在：请求的资源不存在')
+  })
+
+  it('429 → 「请求过于频繁」，并且给"稍等几秒"的可执行指引', async () => {
+    await expect(
+      request.get('/spam', { adapter: httpErrorAdapter(429, undefined) }),
+    ).rejects.toBeDefined()
+    const text = elMessage.error.mock.calls[0][0].message
+    expect(text).toContain('请求过于频繁')
+    expect(text).toContain('稍等几秒')
+  })
+
+  it('未知状态码 → 有原文时原文降级为 detail，没有时状态码兜底', async () => {
+    await expect(
+      request.get('/teapot', { adapter: httpErrorAdapter(418, { message: 'teapot raw text' }) }),
+    ).rejects.toBeDefined()
+    expect(elMessage.error.mock.calls[0][0].message).toContain('请求失败：teapot raw text')
+
+    elMessage.error.mockClear()
+    resetNotifyDedupe()
+    await expect(
+      request.get('/teapot2', { adapter: httpErrorAdapter(418, undefined) }),
+    ).rejects.toBeDefined()
+    expect(elMessage.error.mock.calls[0][0].message).toContain('请求失败 (418)')
   })
 })

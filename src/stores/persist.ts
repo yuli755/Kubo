@@ -80,7 +80,19 @@ export function createPersistPlugin(options: PersistOptions = {}) {
       const raw = storage.getItem(key)
       if (raw) {
         const state = serializer.deserialize(raw)
-        const restored = merged.onRestore ? merged.onRestore(state) : state
+        let restored = merged.onRestore ? merged.onRestore(state) : state
+        if (restored && merged.pick && merged.pick.length > 0) {
+          // 写入侧按 pick 过滤，恢复侧也必须过滤：旧版本快照里可能残留后来从 pick
+          // 移除的字段（如 E-H3 之前的 userInfo 明文 PII），不过滤就会在每次加载时
+          // 把已下线字段整份 $patch 回内存 —— pick 的「不落盘」承诺被绕过一半。
+          const picked = {} as StateTree
+          for (const field of merged.pick) {
+            if (field in restored) {
+              picked[field] = restored[field as keyof typeof restored]
+            }
+          }
+          restored = picked
+        }
         if (restored) {
           store.$patch(restored)
         }

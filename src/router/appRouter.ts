@@ -165,15 +165,23 @@ export function initVueRouter(
 
   const registerRoute = (list: MenuItem[]) => {
     list.forEach((item) => {
-      if (!item.name) {
-        throw new Error('路由初始化失败，缺少参数')
-      }
       // 同名路由不重复注册：登录后刷新菜单会再调一次，重复 addRoute 会覆盖已有路由
       if (router.hasRoute(item.id.toString())) {
         return
       }
       if (item.children?.length) {
         registerRoute(item.children)
+      }
+      if (!item.name) {
+        // 库里某个菜单的 name 被清空（管理端表单留空即可造成）原本会 throw ——
+        // 后果与成因完全不成比例：一行坏数据让整个控制台进不去（init catch → 错误卡片），
+        // 所有用户所有页面全挂。与上面「组件缺失跳过注册」同一哲学：
+        // 坏一行、跳一行、留可诊断告警，绝不因单行数据放大成全应用故障。
+        // 检查放在 children 递归之后：即使分组节点缺 name，其子树照常注册。
+        // 不注册本节点的理由：name 进 meta.name 当页面标题、也是标题守卫的判据，
+        // 空标题的路由即使能点也是坏体验。
+        console.warn(`[appRouter] 菜单节点缺少 name，已跳过注册（id=${item.id}, path=${item.path}）`)
+        return
       }
       if (!item.path) {
         return

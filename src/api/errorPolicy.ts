@@ -48,6 +48,11 @@ export const BusinessCode = {
   /** 数据不存在 */
   DATA_NOT_FOUND: 404,
   /**
+   * 请求过于频繁（HTTP 429，网关/限流层直出，业务码空间从未出现这个值，
+   * 借 HTTP 状态码同一数字域归档，见 axios 错误分支）。
+   */
+  RATE_LIMITED: 429,
+  /**
    * 接口未开放（`Errors.API_SERVICE_UNSUPPORTED`，枚举原文"请求的接口暂未实现"）。
    *
    * ## 它不是 404，也不是 403，更不是 500
@@ -110,6 +115,7 @@ type BusinessErrorKind
     | 'unsupported'
     | 'server'
     | 'credential'
+    | 'network'
     | 'unknown'
 
 /** 分类结果 */
@@ -149,6 +155,14 @@ interface BusinessErrorInput {
 const SILENT_CODES = new Set<number>([
   BusinessCode.USER_LOGIN_ACCOUNT_OR_PASSWORD_INVALID,
 ])
+
+/**
+ * 网络层失败（请求没到后端）的**前端合成码**：后端码空间没有负数，不会撞车。
+ * 有了码就能进 `classifyBusinessError` → `notifyBusinessError` 这条正道，
+ * 从而享受 showError 让路 / customErrorHandler / 3s 去重 —— 此前网络错误直接
+ * `ElMessage.error`，`hideError()` 形同虚设，断线时 5 个并发请求弹 5 条红条。
+ */
+export const NETWORK_ERROR_CODE = { timeout: -1, offline: -2 } as const
 
 /**
  * 登录页要自己呈现的那一类失败见文件底 `loginInlineError`（R-37 契约的落地处）。
@@ -276,6 +290,28 @@ export function classifyBusinessError(input: BusinessErrorInput): ClassifiedBusi
   if (SILENT_CODES.has(code)) {
     return { kind: 'credential', code, title: '登录未通过', detail, silent: true }
   }
+  // 网络层失败的**前端合成码**（见 NETWORK_ERROR_CODE）：请求根本没到后端，
+  // 没有后端文案可分类，标题/指引在这里给全。
+  if (code === NETWORK_ERROR_CODE.timeout) {
+    return {
+      kind: 'network',
+      code,
+      title: '请求超时',
+      detail,
+      hint: '请检查网络后重试；持续超时请把本次操作时间告知管理员',
+      silent: false,
+    }
+  }
+  if (code === NETWORK_ERROR_CODE.offline) {
+    return {
+      kind: 'network',
+      code,
+      title: '网络连接失败',
+      detail,
+      hint: '请检查网络连接后重试；若网络正常，可能是服务暂时不可达',
+      silent: false,
+    }
+  }
   // 403 与 403x 家族：后端把「授权失败」与「业务规则/状态机拒绝」**都**渲染成 403 家族
   // （前者如 `你无权访问 权限-不分页查询 (Permission_getList)`、`数据权限不足…`；
   //   后者如 `该单据状态无法审核`、`令牌数量已达上限`、`该明细已标记完成…`）。
@@ -348,6 +384,16 @@ export function classifyBusinessError(input: BusinessErrorInput): ClassifiedBusi
       title: '数据不存在',
       detail,
       hint: '可能已被删除或页面数据已过期，请刷新后重试',
+      silent: false,
+    }
+  }
+  if (code === BusinessCode.RATE_LIMITED) {
+    return {
+      kind: 'conflict',
+      code,
+      title: '请求过于频繁',
+      detail,
+      hint: '稍等几秒再试；连续快速点击不会更快，反而继续受限',
       silent: false,
     }
   }

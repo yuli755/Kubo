@@ -131,4 +131,18 @@ describe('framework · 服务层 URL 与解析契约', () => {
     const list: DemoEntity[] = await service.getList(new QueryRequestPage(DemoEntity))
     expect(list).toEqual([])
   })
+
+  it('queryExport 必须静默（轮询探测失败是常态，不该弹全局提示）', async () => {
+    // ExportUtil.waitForFile 每 500ms 打一次 queryExport，「任务还在跑」是**预期状态**、
+    // 走 catch 继续等；没挂 hideError 的话一次导出最多糊 60 条红条（第 35 轮审计 P1）。
+    requestMock.mockResolvedValue('export/2026-09-17.xlsx')
+    const exposed = service as unknown as { queryExport: (fileCode: string) => Promise<string> }
+    const path = await exposed.queryExport('FC-1')
+
+    const [config] = requestMock.mock.calls[0] as [{ url: string, data: unknown, showError: boolean }]
+    expect(config.url).toBe('/demo/queryExport')
+    expect(config.data).toEqual({ fileCode: 'FC-1' })
+    expect(config.showError).toBe(false)
+    expect(path).toBe('export/2026-09-17.xlsx')
+  })
 })

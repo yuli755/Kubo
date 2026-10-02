@@ -17,6 +17,7 @@ import {
 import { computed, nextTick, ref, watch } from 'vue'
 import { FeedbackUtil, getEnumItems, getFormConfigList, getModelName, WebValidator } from '@/framework'
 import { clearFieldError, fieldError } from '@/stores/fieldError'
+import { draftKeyOf } from '@/utils/draftStorage'
 
 /**
  * # KFormDialog —— 自研表单弹窗（替代 airpower `ADialog` + `useEditor` 的组合）
@@ -260,7 +261,7 @@ const draftStorageKey = computed(() => {
   if (props.id != null) {
     return null
   }
-  return `kubo:draft:${props.service.name}`
+  return draftKeyOf(props.service.name)
 })
 
 const hasDraft = ref(false)
@@ -301,6 +302,10 @@ function restoreDraft() {
         FeedbackUtil.toastSuccess('已恢复此前未保存的草稿')
       }
     }
+  }
+  catch {
+    // 草稿坏损（JSON 截断 / 旧格式）：静默作废它，别让一次坏草稿挡住整个表单
+    discardDraft()
   }
   finally {
     hasDraft.value = false

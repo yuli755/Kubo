@@ -68,6 +68,15 @@ export function installGlobalErrorHandler(app: App): void {
   }
 
   window.addEventListener('unhandledrejection', (event) => {
+    // ElMessageBox（FeedbackUtil.confirm* 全家，全站 26 处调用点）在用户点「取消」时
+    // reject('cancel')／Esc 时 reject('close') —— 这是**用户意图**不是程序错误。
+    // 确认框调用点普遍没挂 catch，这些 rejection 全部冒到这里，接入 Sentry 后
+    // 监控里最大的噪音源会是「用户点了取消」。直接吞掉并阻止默认控制台报错。
+    const reason = event.reason
+    if (reason === 'cancel' || reason === 'close') {
+      event.preventDefault()
+      return
+    }
     reporter(toReport(event.reason, 'promise'))
   })
 

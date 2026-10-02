@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { safeGetItem, safeSetItem } from '@/utils/storage'
 
 /**
  * # 主题 Store（V2 深色模式）
@@ -25,7 +26,7 @@ const DARK_CLASS = 'dark'
 const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)')
 
 function readPreference(): ThemePreference {
-  const raw = localStorage.getItem(STORAGE_KEY)
+  const raw = safeGetItem(STORAGE_KEY)
   if (raw === 'light' || raw === 'dark' || raw === 'system') {
     return raw
   }
@@ -55,7 +56,8 @@ export const useThemeStore = defineStore('theme', () => {
   /** 切换偏好；`system` 下监听系统偏好变化，保持派生值一致 */
   function setPreference(next: ThemePreference): void {
     preference.value = next
-    localStorage.setItem(STORAGE_KEY, next)
+    // 隐私模式配额为 0：主题只是偏好，存不下也要能当场切换
+    safeSetItem(STORAGE_KEY, next)
     applyTheme()
   }
 

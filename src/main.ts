@@ -18,6 +18,7 @@ import { useThemeStore } from '@/stores/theme'
 import { installAuthSync } from '@/utils/authSync'
 import { installGlobalErrorHandler, setErrorReporter } from '@/utils/errorHandler'
 import { reportErrorToServer } from '@/utils/errorReportClient'
+import { installNavProgress } from '@/utils/navProgress'
 import { installRouterErrorHandler } from '@/utils/routerErrorHandler'
 // V1+V2：设计 token 层 + Element Plus 暗色变量（顺序敏感，必须在本文件其它样式之后引入）
 // 这里的「其它样式」包括 element-plus 的组件样式：它们随 L2 的 `from 'element-plus'`
@@ -70,6 +71,10 @@ const router = createAppRouter(routes)
 // 路由级错误兜底：懒加载 chunk 加载失败（发版时新旧 bundle 不匹配）走 router.onError、
 // 不经过 ErrorBoundary 的 onErrorCaptured；此处上报 + 刷新恢复，补上「导航侧」这条腿
 installRouterErrorHandler(router)
+
+// D3：顶部导航进度条 —— 懒加载/冷启动的 1~5s 空档期给出「正在处理」的确定信号，
+// afterEach 与 onError 双路收尾（不会留永久 99% 死条），见 src/utils/navProgress.ts
+installNavProgress(router)
 
 // 注册路由守卫（顺序：先认证 → 再权限）
 initAuthGuard(router)

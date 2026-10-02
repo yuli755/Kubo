@@ -18,6 +18,13 @@ function isPlainObject(value: unknown): value is IJson {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
+/**
+ * 原型污染类键：`target['__proto__'] = x` 不是普通赋值，会触发继承链上的
+ * setter 把**该实例**的原型换掉（`constructor` 同理顶掉构造器引用）。
+ * 数据来自后端 JSON / localStorage 草稿 —— 全部视为不可信输入，一律跳过。
+ */
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
+
 /** 深拷贝：实体数组/嵌套对象/普通值都能安全复制 */
 function deepCopy<T>(value: T): T {
   if (Array.isArray(value)) {
@@ -31,6 +38,9 @@ function deepCopy<T>(value: T): T {
     }
     const result: IJson = {}
     for (const [key, item] of Object.entries(source)) {
+      if (UNSAFE_KEYS.has(key)) {
+        continue
+      }
       result[key] = deepCopy(item)
     }
     return result as unknown as T
@@ -48,6 +58,12 @@ export class RootModel {
   copy<T extends this>(): T {
     const result = Object.create(Object.getPrototypeOf(this)) as Record<string, unknown>
     for (const [key, value] of Object.entries(this as unknown as Record<string, unknown>)) {
+      // 顶层同样要挡 UNSAFE_KEYS：deepCopy 只护嵌套层，`result['__proto__'] = ...`
+      // 走 [[Set]] 会触发 setter 把副本的原型换掉（实体被 fill 挡着，但
+      // 被 JSON.parse+defineProperty 造出自有 __proto__ 的对象照样能流到这里）
+      if (UNSAFE_KEYS.has(key)) {
+        continue
+      }
       result[key] = deepCopy(value)
     }
     return result as unknown as T
@@ -99,6 +115,11 @@ export function fill<T extends object>(instance: T, json: unknown): T {
   }
   const target = instance as unknown as Record<string, unknown>
   for (const [key, value] of Object.entries(json)) {
+    // 见 UNSAFE_KEYS：后端（或被篡改的响应）里一个名为 __proto__ 的字段
+    // 就能把这个实体实例的原型换掉，后续所有属性读取行为诡异且极难排查。
+    if (UNSAFE_KEYS.has(key)) {
+      continue
+    }
     const Child = getTypeConfig(instance.constructor, key)
     if (value === null || value === undefined) {
       target[key] = value ?? undefined

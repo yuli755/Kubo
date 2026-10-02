@@ -1,7 +1,14 @@
 import type { TenantOption } from '@/api/system/types'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+// 静态导入是刻意的：queryClient 模块只依赖 @tanstack/vue-query，permission store 只依赖
+// pinia+vue，二者都**不**回依赖本模块 —— 没有循环。此前用 `void import(...)` 动态导入，
+// clear 要等微任务，跨标签页登出（R-38）窗口内本页仍能读到上一身份的查询缓存。
+// useMaskPolicy 真的会成环（它 import stores/user），那一条保持动态。
+import { queryClient } from '@/query/queryClient'
+import { usePermissionStore } from '@/stores/permission'
 import { authToken } from '@/utils/authStorage'
+import { clearAllDrafts } from '@/utils/draftStorage'
 /**
  * # 用户状态 Store
  *
@@ -113,12 +120,17 @@ export const useUserStore = defineStore(
       // 阶段 E-M5：身份切换后跨用户缓存必须清零。react-query 缓存 key 不带
       // 用户身份（['wms:input','list'] 等），脱敏策略缓存按"登出/切租户应调用"
       // 的文档约定在此收口；否则低权限账号在同一标签页复用上一账号的读缓存。
-      void import('@/query/queryClient').then(({ queryClient }) => queryClient.clear())
+      // 同步执行（模块级静态导入）：R-38 跨标签页登出**不会**重载页面，
+      // 异步 clear 会留出「读到上一身份缓存」的窗口。
+      queryClient.clear()
+      usePermissionStore().clear()
+      // useMaskPolicy → stores/user 会成环，只能保持动态导入；它不是路由守卫的
+      // 前置条件，且两条手动登出路径随后都会 replace('/login') 清空堆。
       void import('@/composables/useMaskPolicy').then(({ clearMaskPolicyCache }) => clearMaskPolicyCache())
-      // 清除权限 store（延迟导入避免循环依赖）
-      import('@/stores/permission').then(({ usePermissionStore }) => {
-        usePermissionStore().clear()
-      })
+      // 第 35 轮审计：草稿按 service 名存 localStorage，键里**没有身份**——
+      // 上一个账号未提交的表单（可能含客户手机号）会被下一个账号的同号对话框恢复。
+      // 登出/切身份时一并清掉所有草稿。
+      clearAllDrafts()
     }
 
     /**

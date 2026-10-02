@@ -9,6 +9,7 @@
  */
 
 import type { ITransformerConstructor } from './types'
+import { isMobilePhone as isMobilePhoneCanonical } from '@/utils/validators'
 import { getFormConfigList } from './metadata'
 
 export type WebValidatorTrigger = 'blur' | 'change'
@@ -34,7 +35,9 @@ export const ValidateUtil = {
     return /^[\w.%+-]+@[\w.-]+\.[a-z]{2,}$/i.test(value)
   },
   isMobilePhone(value: string): boolean {
-    return /^(?:\+\d{1,3})?1[3-9]\d{9}$/.test(value)
+    // 委托 utils/validators 的规范实现（国家码 1~4 位）。此处曾经自带一份
+    // \d{1,3} 的克隆正则 —— 同一语义两处定义已经漂移过一次，留一份就好。
+    return isMobilePhoneCanonical(value)
   },
   isTelephone(value: string): boolean {
     return /^0\d{2,3}-?\d{7,8}$/.test(value)

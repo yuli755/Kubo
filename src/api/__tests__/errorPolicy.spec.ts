@@ -12,6 +12,7 @@ import {
   LEGACY_FORBIDDEN_FAMILY_MIN,
   loginInlineError,
   mentionsAuthorization,
+  NETWORK_ERROR_CODE,
   notificationText,
   NOTIFY_DEDUPE_MS,
   notifyKey,
@@ -365,5 +366,40 @@ describe('errorPolicy · 登录页内联契约 loginInlineError（R-37）', () =
 
   it('后端没给 message 时用兜底文案，内联不出现空壳', () => {
     expect(loginInlineError({ code: BusinessCode.USER_LOGIN_ACCOUNT_OR_PASSWORD_INVALID })).toBe('登录未通过：请求未成功')
+  })
+})
+
+/**
+ * 第 35 轮审计新增的两类码：网络层失败的**前端合成码**与 429。
+ * 它们没有后端文案可分类（请求根本没到后端 / 网关直出），标题与指引必须由本层给全，
+ * 否则用户看到的就是一句裸的「请求超时」。
+ */
+describe('errorPolicy · 网络合成码与 429', () => {
+  it('超时（-1）说「请求超时」并给可执行的下一步', () => {
+    const verdict = classifyBusinessError({ code: NETWORK_ERROR_CODE.timeout, message: '请求超时' })
+    expect(verdict.kind).toBe('network')
+    expect(verdict.title).toBe('请求超时')
+    expect(verdict.silent).toBe(false)
+    expect(notificationText(verdict)).toContain('请检查网络后重试')
+  })
+
+  it('断线（-2）说「网络连接失败」，并提示可能是服务端不可达', () => {
+    const verdict = classifyBusinessError({ code: NETWORK_ERROR_CODE.offline, message: '网络连接失败' })
+    expect(verdict.kind).toBe('network')
+    expect(verdict.title).toBe('网络连接失败')
+    expect(notificationText(verdict)).toContain('服务暂时不可达')
+  })
+
+  it('429 归为 conflict 并给「稍等几秒」；不被 403 家族或 unknown 吞掉', () => {
+    const verdict = classifyBusinessError({ code: BusinessCode.RATE_LIMITED, message: '请求过于频繁，请稍后再试' })
+    expect(verdict.kind).toBe('conflict')
+    expect(verdict.title).toBe('请求过于频繁')
+    expect(verdict.hint).toContain('稍等几秒')
+    expect(verdict.silent).toBe(false)
+  })
+
+  it('合成码是负数：与后端业务码空间（正整数）天然不冲突', () => {
+    expect(NETWORK_ERROR_CODE.timeout).toBeLessThan(0)
+    expect(NETWORK_ERROR_CODE.offline).toBeLessThan(0)
   })
 })

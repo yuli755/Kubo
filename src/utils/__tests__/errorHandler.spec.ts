@@ -139,6 +139,32 @@ describe('errorHandler · 全局错误兜底', () => {
     expect(reporter.mock.calls[0][0].message).toMatch(/^resource-load-error/)
     expect(reporter.mock.calls[0][0].source).toBe('window')
   })
+
+  it('弹窗取消的 cancel/close rejection 是用户意图：不上报，且 preventDefault 压掉控制台噪音', () => {
+    // FeedbackUtil.confirm* 全家（26 处调用点）在取消时 reject('cancel')、Esc 时 reject('close')，
+    // 调用点普遍不挂 catch。接了监控后，最大的噪音源会是「用户点了取消」——那是意图不是故障。
+    const reporter = vi.fn()
+    setErrorReporter(reporter)
+    installGlobalErrorHandler(mockApp())
+
+    const prevent = vi.spyOn(Event.prototype, 'preventDefault')
+    for (const reason of ['cancel', 'close']) {
+      const event = new Event('unhandledrejection', { cancelable: true }) as Event & { reason?: unknown }
+      event.reason = reason
+      window.dispatchEvent(event)
+      expect(prevent).toHaveBeenCalled()
+    }
+    expect(reporter).not.toHaveBeenCalled()
+
+    // 同一监听器仍然接真错误
+    const real = new Event('unhandledrejection') as Event & { reason?: unknown }
+    real.reason = new Error('still reported')
+    window.dispatchEvent(real)
+    expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'still reported',
+      source: 'promise',
+    }))
+  })
 })
 
 /**

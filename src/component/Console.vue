@@ -8,6 +8,7 @@ import { UserService } from '@/model/personnel/user/UserService'
 import { DEFAULT_HOME_PATHS, firstNavigableMenuPath, getRouter, initVueRouter, reloadCurrentRoute } from '@/router/appRouter'
 import { usePermissionStore } from '@/stores/permission'
 import { useUserStore } from '@/stores/user'
+import { describeUserError } from '@/utils/errorCopy'
 import { reportError } from '@/utils/errorHandler'
 
 const components = import.meta.glob('/src/view/**/*.vue')
@@ -15,7 +16,8 @@ const currentUserInfo = ref(new UserEntity())
 const menuList = ref<MenuEntity[]>([])
 const isLoading = ref(true)
 const loadError = ref(false)
-const errorMessage = ref('')
+/** D5：错卡文案分档后的结构化文案（标题/详情/指引），不再把 error.message 原样甩给用户 */
+const errorCopy = ref<ReturnType<typeof describeUserError> | null>(null)
 const errorTitle = ref('')
 const tenantReady = ref(false)
 /**
@@ -41,7 +43,7 @@ onErrorCaptured((error) => {
   reportError(error, 'console-render')
   loadError.value = true
   errorTitle.value = '页面渲染异常'
-  errorMessage.value = error instanceof Error ? error.message : '页面渲染异常，请刷新或重试'
+  errorCopy.value = describeUserError(error)
   return false
 })
 
@@ -91,8 +93,10 @@ async function init() {
   catch (error) {
     reportError(error, 'console-init')
     loadError.value = true
+    // D5：初始化失败最常见的原因是「后端没起 / 网络不通 / 发版后旧 chunk 失效」，
+    // 这三种情形的下一步完全不同；把 error.message（多为英文原文）当副标题等于没指引。
     errorTitle.value = '控制台初始化失败'
-    errorMessage.value = error instanceof Error ? error.message : '菜单或权限加载失败，请重试'
+    errorCopy.value = describeUserError(error)
     usePermissionStore().clear()
   }
   finally {
@@ -122,18 +126,27 @@ init()
     <el-result
       icon="error"
       :title="errorTitle"
-      :sub-title="errorMessage"
+      :sub-title="errorCopy?.hint"
     >
       <template #extra>
-        <el-button
-          type="primary"
-          @click="retryInit"
+        <!-- 原始错误文本：排查必需（多为英文原文），降级为次要信息常驻可见 -->
+        <div
+          v-if="errorCopy?.detail"
+          class="console-error__raw"
         >
-          重试
-        </el-button>
-        <el-button @click="backToHome">
-          返回首页
-        </el-button>
+          {{ errorCopy.detail }}
+        </div>
+        <div class="console-error__actions">
+          <el-button
+            type="primary"
+            @click="retryInit"
+          >
+            重试
+          </el-button>
+          <el-button @click="backToHome">
+            返回首页
+          </el-button>
+        </div>
       </template>
     </el-result>
   </div>
@@ -176,6 +189,22 @@ init()
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* D5：原始错误文本降为次要信息（排查需要，但不与中文指引抢主角位） */
+.console-error__raw {
+  max-width: 560px;
+  margin: 0 auto var(--kubo-spacing-4);
+  font-size: var(--el-font-size-extra-small);
+  color: var(--el-text-color-placeholder);
+  text-align: left;
+  word-break: break-all;
+}
+
+.console-error__actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--kubo-spacing-3);
 }
 
 .header-actions {

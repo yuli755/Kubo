@@ -94,14 +94,25 @@ describe('appRouter · native vue-router 实现', () => {
     expect(router.hasRoute('21'), '缺前导斜杠就拼不出组件键，页面会静默空白或 404').toBe(true)
   })
 
-  it('initVueRouter 缺 name 抛错', () => {
+  it('initVueRouter 缺 name：跳过该节点并告警，不再让整个控制台初始化失败', () => {
+    // 曾经的契约是 throw('路由初始化失败，缺少参数')：库里一行 name 被清空
+    // 就让所有用户的控制台整体进不去 —— 后果与成因不成比例，本轮改为坏一行跳一行。
     const router = createAppRouter([
       { path: '/', component: Dummy },
       { path: '/console', name: 'console', component: Dummy },
     ])
-    expect(() => initVueRouter([{ id: 1, name: '', path: '/x', component: 'x' }], {}))
-      .toThrow('路由初始化失败，缺少参数')
-    void router
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(() => initVueRouter(
+      [
+        { id: 1, name: '', path: '/x', component: 'x' },
+        { id: 2, name: '正常页', path: '/ok', component: 'ok' },
+      ],
+      { '/src/view/ok.vue': () => Promise.resolve(Dummy) },
+    )).not.toThrow()
+    expect(router.hasRoute('1')).toBe(false)
+    expect(router.hasRoute('2'), '坏节点不得波及后续菜单注册').toBe(true)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('id=1'))
+    warn.mockRestore()
   })
 
   it('firstNavigableMenuPath：跳过 redirect 跳板与分组，返回首个真实页面', () => {

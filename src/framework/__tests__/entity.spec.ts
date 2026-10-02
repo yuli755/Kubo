@@ -108,6 +108,28 @@ describe('framework · 实体与序列化', () => {
     expect(fill(new DetailEntity(), '不是对象').id).toBeUndefined()
   })
 
+  it('fill() 跳过原型污染键（__proto__ 换不掉实例原型，全局原型不被污染）', () => {
+    // 响应 JSON 是不可信输入：target['__proto__'] = {...} 不是普通赋值，
+    // 会触发 setter 把该实例的原型整个换掉（后续属性读取行为诡异且极难排查）
+    const evil = JSON.parse('{"name":"ok","__proto__":{"polluted":true},"constructor":{"bad":true}}')
+    const detail = fill(new DetailEntity(), evil)
+    expect(detail.name).toBe('ok')
+    expect(Object.getPrototypeOf(detail)).toBe(DetailEntity.prototype)
+    expect((detail as unknown as Record<string, unknown>).polluted).toBeUndefined()
+    expect((Object.prototype as unknown as Record<string, unknown>).polluted).toBeUndefined()
+  })
+
+  it('copy()/deepCopy 同样跳过原型污染键（草稿等本地数据同源不可信）', () => {
+    const seeded = new DetailEntity()
+    seeded.name = 'ok'
+    // defineProperty 造出真正的**自有** __proto__ 数据属性（赋值触发 setter，造不出来）
+    Object.defineProperty(seeded, '__proto__', { value: { polluted: true }, enumerable: true, configurable: true, writable: true })
+    const cloned = seeded.copy()
+    expect(cloned.name).toBe('ok')
+    expect((cloned as unknown as Record<string, unknown>).polluted).toBeUndefined()
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+  })
+
   it('分页响应形状与后端一致', () => {
     const response = new QueryResponsePage<BillEntity>()
     response.total = 42

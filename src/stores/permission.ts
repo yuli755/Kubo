@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
-import { permissionCache } from '@/utils/authStorage'
+import { ref } from 'vue'
 
 export const usePermissionStore = defineStore(
   'permission',
@@ -8,10 +7,20 @@ export const usePermissionStore = defineStore(
     const permissions = ref<string[]>([])
     const loaded = ref(false)
 
+    // 第 35 轮审计：历史上这里还把权限列表镜像写进 localStorage['permissions']
+    // （permissionCache），但生产代码没有任何读取方 —— 真实读者只有本 store
+    // （persist 到 sessionStorage `kubo:permission`）。死镜像已删除；这里清一次
+    // 老版本留下的残留键，清完即止（removeItem 对不存在的键是 no-op）。
+    try {
+      localStorage.removeItem('permissions')
+    }
+    catch {
+      // 隐私模式下存储不可用：本来也没有残留可清
+    }
+
     function setPermissions(list: string[]) {
       permissions.value = list
       loaded.value = true
-      permissionCache.saveList(list)
     }
 
     /** 核心权限检查方法 */
@@ -26,14 +35,7 @@ export const usePermissionStore = defineStore(
     function clear() {
       permissions.value = []
       loaded.value = false
-      permissionCache.saveList([])
     }
-
-    watch(permissions, (list) => {
-      if (list && list.length > 0) {
-        permissionCache.saveList(list)
-      }
-    }, { immediate: true })
 
     return {
       permissions,

@@ -155,6 +155,29 @@ a,
   animation: kubo-slide-down var(--kubo-duration-base) var(--kubo-ease-out);
 }
 
+/* ── D3：顶部导航进度条外观（配色走 token，深浅色各自正确） ──
+ * nprogress 自带 nprogress.css（蓝紫色 + 右侧 spinner），这里只覆盖「与设计系统不一致」的三处：
+ * 颜色用主题主色、去掉 spinner（与全局无转圈加载的克制风格一致）、加高到 2px 保证可见性。
+ * 选择器写成 `#nprogress .bar` 是为了压过 nprogress.css 自带的 `.bar`（特异度 1,0,1 > 0,1,0）。 */
+#nprogress {
+  pointer-events: none;
+
+  .bar {
+    height: 2px;
+    background: var(--el-color-primary);
+  }
+
+  .peg {
+    box-shadow:
+      0 0 10px var(--el-color-primary),
+      0 0 5px var(--el-color-primary);
+  }
+
+  .spinner {
+    display: none;
+  }
+}
+
 /* ── V8：用户偏好减少动效时，统一关闭位移/缩放/阴影过渡（保留颜色/透明度） ── */
 @media (prefers-reduced-motion: reduce) {
   .el-button,
@@ -173,5 +196,12 @@ a,
   .k-pulse,
   .k-slide-down {
     animation: none;
+  }
+
+  /* 进度条的价值全在动画：静止的进度线对晕动症用户是纯噪声，直接隐藏
+     （用 visibility 不用 display —— nprogress 会读写 .bar 的 style.width，
+      display:none 时它照跑逻辑，visibility 更贴合「功能在、视觉退场」） */
+  #nprogress {
+    visibility: hidden;
   }
 }

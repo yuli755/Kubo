@@ -689,3 +689,161 @@ dispose 摘监听；`clearLocalSession` 无后端调用；`logout` 打后端恰 
 - 新增契约认识（并入 §12.5 门禁）：
   **「白名单/前缀检查不等于浏览器的判断」——凡是把用户输入喂给 `location` 的地方，终判必须交给同一个 URL 解析器的 origin 比对**；
   **登出/会话类修复必须把「活标签页」当作默认场景**——localStorage 只是持久层，内存 store 才是请求真正携带的凭证。
+
+## 15. R39 · D3/D5 落地与逐模块横向收口（round 35）
+
+> 本轮把 §13/§14 挂账的 D3（顶部进度条）、D5（错卡文案分档）正式落地，并对 api / stores /
+> router / framework / utils / views 做了一次**横向**排查（此前各轮多为纵向打穿一条链路）。
+> 判定标准不变：真机或单测能复现才修，修完钉单测；不能复现的写判据；动全局的先立契约。
+
+### 15.1 D3 · 顶部导航进度条（落地，nprogress ^0.2.0）
+
+**选型**：复用现成方案 `nprogress@0.2.0`（~2KB gzip、零依赖、benchmark `law-firm-web` 同款），
+不手写。与 benchmark 的两处刻意差异（写进 `src/utils/navProgress.ts` 头注释）：
+1. **补 `router.onError` 腿**——benchmark 只挂 beforeEach/afterEach，chunk 失败时条永远悬在 99%；
+   判据：**一条死在 99% 的进度条比没有更糟**（用户会等一个永远不会来的页面）。
+2. `minimum:0.1` 而非 0.3——0.3 起步是假装已有 30% 进度，撒谎从起点开始。
+   配置全量：`{showSpinner:false, trickleSpeed:200, minimum:0.1, speed:400}`。
+
+**实现**（`src/utils/navProgress.ts` 92 行 + `src/main.ts:77` 安装 + `src/styles/motion.scss:162-179,182-206`）：
+- `installNavProgress(router)` 幂等闩（`installed`），返回卸载函数（3 个钩子逐一摘除 + `NProgress.remove()`）；
+- 色带 2px、`background: var(--el-color-primary)`（跟主题）、`aria-hidden="true"`（装饰性动效不进读屏）、spinner 关闭；
+- **`prefers-reduced-motion: reduce` 时 `#nprogress { visibility: hidden }`**——用 visibility 而非 display，
+  因为 nprogress 会读写 `.bar.style.width`，display:none 会让它在不可见布局里做无意义回流；
+- `afterEach` **无条件** `done()`：vue-router 4.6 在 redirect/abort 时同样触发 afterEach（版本已核实），
+  不判断「是否成功导航」反而不会漏收尾。
+
+**真机（证据 66/66b/67）**：
+- 导航空档期（对懒加载 chunk 注入 2.2s 延迟 + 真实侧边栏点击）：条存在、`visibility:visible`、
+  `opacity:1`、theme 主色、高 2px、spinner 无、`aria-hidden="true"`；
+- 同一实例驱动 `start()→done()` 的生命周期采样：`+600ms` trickle 至 12.7%，`done()+400ms` 淡出，
+  **`done()+1600ms` 元素已从 DOM 移除**；全新 context 复测：idle 无元素 → mid 有 → settled 无；
+- `reducedMotion:'reduce'` 上下文：条全程 `visibility:hidden`（用户看不到动效），
+  导航照常完成（`navWorked=true`，表格可见、标题正确）——**隐藏动画 ≠ 隐藏功能**。
+- 曾观察到的「导航结束后条滞留」为探针伪影：`browser_run_code_unsafe` 跨调用**累积**的
+  `page.route` 处理器让 chunk 请求永远悬挂，导航 legitimately 未完成。教训入档：
+  **每个测量用全新 context；探针注入比被测代码更易出 bug**。
+
+**评估后不做**：`setTimeout(done, N)` 兜底上限——若懒加载请求真的永远悬挂，页面本身同样悬挂，
+此时条仍在 trickle 是**诚实**的状态指示；强行到点隐藏等于宣称「导航完成」而页面没变，
+比滞留更接近「撒谎的条」，与被否决的 99% 死条同罪。
+
+### 15.2 D5 · 错卡文案分档（落地，`src/utils/errorCopy.ts`）
+
+新增纯函数 `describeUserError(error, fallbackTitle?): UserErrorCopy{title,detail,hint,raw}`，
+四档判据（每档必给「下一步」，见文件头注释）：
+chunk 失败→「页面资源加载失败」+明说 **Ctrl+F5**（这类错的真相是 index.html 引用的文件已不存在，
+点重试按钮不重拉 index.html，不写清就是死路一条）；网络/超时→「网络连接失败」（与 axios 无响应分支同口径）；
+数字 code→直接透传 `classifyBusinessError`（同一句话只说一遍，不另写一套）；兜底→fallbackTitle，
+**原文永远保留在 detail 槽**（降级不丢弃，运维要靠它定位）。
+接线：`Console.vue`（init catch 给「控制台初始化失败」+ `clear()` 权限 + 原文灰字 + 重试/返回首页；
+`onErrorCaptured` 给「页面渲染异常」）、`ErrorBoundary.vue`（「页面渲染出错」，仍单次上报）。
+
+**真机（证据 68/68b）**：kill 8080 → 冷启动错卡
+`控制台初始化失败 / 请稍后重试；若持续失败，请把本次操作时间与 traceId 告知管理员 /
+"Request failed with status code 500"（灰色次要色）/ [重试][返回首页]`；
+重启后端 → 点**重试**原地恢复（卡消失、菜单在、无刷新）。这是 §12.5 判据的正向用例：错卡必须有出路。
+
+### 15.3 api 模块 · 提示权威唯一化（R-39）
+
+本轮通读 `src/api/axios.ts` 全文（497 行）后确认并修复：网络失败（超时/断线）、404、429、
+未知状态码四类此前是**裸 `ElMessage`**——绕过分档、绕过去重、无视 `showError:false`
+（`hideError()` 形同虚设；断线时列表页 5 个并发请求=5 条红条糊屏）。现在全部经
+`notifyBusinessError`，`src/api/` 内 `ElMessage.error` 仅剩 :159 一处（唯一出口），契约由
+tests 钉住（状态码 422/500 的既有用例本就是同句式，本轮补齐缺的三档）。
+配套 `errorPolicy.ts`：`NETWORK_ERROR_CODE={timeout:-1,offline:-2}`、`RATE_LIMITED:429`、
+429 档放在 `isUnsupportedCode` **之前**（否则「请求过于频繁」会被误分档成「接口未开放」——
+后者教用户「别重试了去找人」，前者教用户「稍等几秒重试」，指引完全相反）；
+断线通知传 `path:''`——「断网」是全局一件事，按路径去重压不住 N 个并发路径。
+`classifyBusinessError` 42 例、axios 36 例全绿。
+
+### 15.4 其余模块横向排查（复现即修，全部钉单测）
+
+| 模块 | 缺陷（复现方式） | 修复 | 单测 |
+| --- | --- | --- | --- |
+| `framework/entity.ts` | `copy()` 顶层循环未过滤 `__proto__`（`JSON.parse` 出带 `__proto__` 自有属性的对象再 `copy` → `result['__proto__']=…` 触发 setter，**换掉克隆原型的 getter**） | `UNSAFE_KEYS` 同时挡在 `deepCopy` 嵌套层与 `copy` 顶层 | entity.spec +2（`Object.defineProperty` 造枚举 `__proto__`） |
+| `framework/http.ts` | `queryExport` 500ms 轮询文件生成状态，未就绪是**预期业务态**却每次失败弹 toast（3s 去重窗口一过又弹） | 加 `hideError()`（`ExportUtil.waitForFile` 的 catch 就是轮询信号） | service.spec +1 |
+| `framework/validate.ts` | `isMobilePhone` 与 `utils/validators` 正本漂移（副本 `\d{1,3}` 国际前缀放行 `+651…` 错号段） | 委托正本，删除副本正则 | 新 validate.spec 4 例（`+6513812348888` 是分水岭） |
+| `router/appRouter.ts` | 菜单某行 `name` 为空 → **throw** → 整控制台进不去：一行坏数据（管理端表单留空即可造成）放大成全站故障 | 跳过该节点 + `console.warn` 留诊断；**检查放在 children 递归之后**（分组节点缺 name 不殃及子树） | appRouter.spec +2 **「坏一行、跳一行、绝不全崩」** |
+| `stores/persist.ts` | pick 只在**写入侧**过滤，恢复侧照单全收 → 旧版快照里的 `userInfo` 明文 PII 每次加载被 `$patch` 回内存，「不落盘」承诺被绕过一半 | 恢复侧同样按 pick 过滤 | persist.spec +1（预置 flatted 旧快照验证恢复侧被挡） |
+| `stores/permission.ts` | 权限列表镜像写 `localStorage['permissions']`，**生产零读取方**（活数据只进 sessionStorage `kubo:permission`）→ 第三份无人读的权限副本，登出漏清就是陈旧面 | 删镜像 + 一次性 `removeItem` 清残留（老用户浏览器里的旧键） | 由既有 persist/auth 面覆盖 |
+| `utils/storage.ts`（新） | 隐私模式/配额满时 `localStorage.setItem` 直接 throw，主题切换/折叠/登录态写入这类**便利数据**能炸掉整个交互 | `safeSetItem/safeGetItem/safeRemoveItem`，接线 `stores/theme.ts`、`utils/authStorage.ts`、`KAppShell.vue` | storage.spec 3 例 |
+| `utils/draftStorage.ts`（新） | 草稿键 `kubo:draft:<service>` **不带身份**：登出后下一个账号打开同服务新建弹窗，会恢复**上一个账号**的草稿（客户电话等 PII） | 登出 `clearLocalSession()` 末尾 `clearAllDrafts()`（草稿可弃，身份隔离不靠它）；键名收口 `draftKeyOf` | draftStorage.spec 3 例 + KFormDialog 接线 |
+| `component/framework/KFormDialog.vue` | 草稿 JSON 截断/旧格式 → `restoreDraft` 抛错，**一次坏草稿永久挡住该表单**（catch 缺失） | catch → `discardDraft()` 静默作废 | 走既有 KFormDialog 用例面 |
+| `utils/audioFeedback.ts` | 每声 beep `new AudioContext()`：浏览器上限 ~4-6 个，手持扫码枪连续扫描后**中班中途静音** | 模块级共享单例 + suspended 时 resume + 坏了重建 | audioFeedback.spec 5 例（fake ctor 必须 `vi.fn(function(){})`——箭头函数过不了 `new`） |
+| `utils/errorHandler.ts` | `ElMessageBox` 取消的 `'cancel'/'close'` rejection 全量进全局错误上报：确认框点「取消」也被当异常上报（噪音淹真异常） | 早退 + `preventDefault()`（26 处确认框共用此机制） | errorHandler.spec +1 |
+| `api/axios.ts` | ①401 重试重新过请求拦截器 → **无条件重新生成 Idempotency-Key**，服务端幂等去重被自己的重试打败；②调用方自带的 key 会被覆写 | `if (!config.headers['Idempotency-Key'])` 一行挡两头（覆写 + 重试漂移） | axios.spec +2（自带 key 原样保留；401 重试复用同一把） |
+| `api/axios.ts` | `api.download` blob URL 未 `revokeObjectURL`（Safari 泄漏） | setTimeout 1000ms 回收 | 既有 download 用例覆盖 |
+| `utils/errorCopy.ts` | 回归门禁 `exports:check` 逮到本轮新代码的**无人引用导出** `UserErrorCopy` interface | 收回为非导出（调用方用 `ReturnType<typeof describeUserError>`） | 门禁本身即测试 |
+
+### 15.5 §14.1 观察项终局：登录页驻留 stale token —— **论证后不清**
+
+§14.1 记录「登录页驻留时残留的 stale token 无人清，无实际危害」，本轮给出**终局判据**：
+1. 残留无害：登录页零业务 `/api` 请求（§14.1 实测）；成功登录会**覆写** token；
+   带去 `/console` 的任何 stale token 都被 R-35 收口（业务码 401 → 登出 + 带 redirect 回登录页）。
+   stale token 的存活区间 = 到下一次业务请求为止，无逃逸路径。
+2. **主动清理反而引入新缺陷**：`/login` 是 `meta.guest`，已登录用户在新标签页打开 `/login`
+   不会被弹走（authGuard.ts:22-24 设计如此，用户就是要开第二个登录入口）。若登录页挂载即清 token，
+   `removeItem('Authorization')` 会触发 **storage 事件（newValue=null）**，R-38 的 `installAuthSync`
+   会让其它已登录标签页把它当「对端登出」——**把正常多标签用户踢下线**。
+   清理动作与既有正确机制（R-38）直接冲突，收益为零、伤害真实 → **不改**。
+
+### 15.6 全量回归（round 35 门禁，全部未降）
+
+- `pnpm check` 全链（lint:ci → airpower×2 → pom → deadcode → exports → typecheck → test:coverage → perms → auth → errcode → contract → text → ddl → migration → monitoring → canary → docker → drill → build → demo → size）exit 0，整链日志 `.tmp-r35-check.log`（paren 分组后统一重定向）。
+- vitest **83 文件 / 894 测试全过**（round 34：77/845 → +6 文件 +49 测试）；
+  覆盖率 **91.07 / 82.23 / 82.82 / 90.93**（阈值 50/65/50/75 未动，Stmts/Lines 大幅抬升来自本轮 utils 新面）。
+- gzip：**首屏 293.8/450 KB · 总体 719.4/900 KB**（nprogress 净增首屏 ≈2.7KB，门禁内）。
+- 后端 `mvn -B -o clean test`：**933 / 0 失败 / 0 错误 / 1 跳过 · BUILD SUCCESS**（后端本轮零改动）。
+- 探针课（新增案例法）：**`page.route('**/api/**')` 会连 vite 的 `/src/api/*.ts` 源码模块一起拦**——
+  dev 模式下按 `net::ERR_FAILED` 炸掉模块图、整页意外重载，「toast 没出现」全是探针干的；
+  拦后端必须用锚定正则 `/^https?:\/\/localhost:3000\/api\/[a-zA-Z]/`。
+  另：`cmd /c "a && b > log && echo 0 || echo %ERRORLEVEL%"` 的重定向只绑最后一条命令、
+  `%ERRORLEVEL%` 在解析期展开——**整链日志要 paren 分组** `[a && b && c] > log`，否则门禁报告说谎。
+
+### 15.7 证据截图（docs/evidence）
+- `66-r35-d3-progress-bar-mid-nav.png`：D3 导航空档期进度条（2px、主题色、spinner 关）
+- `66b-r35-d3-after-nav-done.png`：导航落定后条已消失（afterEach→done→remove 全链路）
+- `67-r35-d3-reduced-motion-bar-hidden.png`：`prefers-reduced-motion: reduce` 下条不可见、导航照常完成
+- `68-r35-d5-init-error-card-tiered.png`：后端宕机冷启动——D5 分档错卡（中文标题/指引 + 灰色原文 + 双出路）
+- `68b-r35-d5-retry-recovers-after-backend-up.png`：后端恢复后点「重试」原地自愈
+- `69-r35-network-offline-toast.png`：断网时 N 个并发失败合并为**一条**「网络连接失败」toast
+
+### 15.8 设计优化建议清单（本轮验证驱动；✅=已落地）
+
+| 项 | 判定 | 依据/建议 |
+| --- | --- | --- |
+| D3 顶部进度条 | ✅ 落地 | 见 15.1；复用 nprogress，onError 腿 + minimum:0.1 两处优于 benchmark 原样 |
+| D5 错卡分档 | ✅ 落地 | 见 15.2；纯函数 + 两处接线，文案单点维护 |
+| 提示唯一出口 | ✅ 落地 | 见 15.3；判据：**任何绕过 notifyBusinessError 的 ElMessage 都是架构回归** |
+| stale token on /login | ✅ 终局=不改 | 见 15.5；主动清会与 R-38 多标签同步互相打架 |
+| 删 refresh 死链 | **挂账** | 后端无 `/user/refresh`、`refreshTokenValue` 永空；删除行为等价，但被 4 条契约测试钉成「未来挂载点」。等后端真补接口再动 |
+| rememberMe 空转 | **挂账（建议删）** | `login.vue:34/:357` 绑定后无任何消费者（登录态持久化不看它）。要么实装（token 存 sessionStorage），要么删控件——**给用户一个不生效的勾选项比没有更糟**。倾向删：后端 JWT 有效期说了算，前端无裁量权 |
+| AbortController 透传 | **挂账** | 路由离开后在途请求继续跑完并可能弹 toast（低危：数据进的是已卸载组件）。axios signal 已内建，需 `useTable`/`KFormDialog` 统一接 cancel token，影响面大，建议与 vue-query 的 per-page QueryClient 作用域一并设计 |
+| vue-query key 加身份维度 | **已用更简方案替代** | query key 带 tenantId/userId 可彻底隔离，但登出时 `queryClient.clear()` + `clearAllDrafts()` 已切断跨账号数据流；等出现「登出不清」的真实缺口再升级 |
+| 换 pinia-plugin-persistedstate | **不换** | benchmark 用它；自研 `stores/persist.ts` 105 行、pick/onRestore 语义被 9 测试钉住、本轮刚修了恢复侧过滤。换库收益≈0，迁移风险>0 |
+| `Intl.NumberFormat` 金额格式化 | **挂账（低优）** | `utils/format.ts:29-48` 手写四舍五入字符串拼接；`Intl` 原生可用、千分位/货币符号/舍入交给 ICU。改动会动快照类断言，单独小轮做 |
+| dayjs | **不换** | 现有日期用法少且浅；dayjs ~3KB 但每个新依赖都要过 gzip 门禁与 supply-chain 审视，收益不抵成本 |
+| axios-retry | **等后端** | 前端幂等基建就绪后，**真**重试的前提是后端 Idempotency-Key 落地生效（现为声明级契约）；先行接入只会放大重复写风险 |
+| `api.download` blob 内容守卫 | **挂账（0 调用方）** | 后端以 200+blob 回业务错误时会存下 JSON 当文件；当前 0 生产调用方，接线前先加 |
+| errorReportClient 补头 | **挂账** | `errorReportClient.ts:52-59` 裸 fetch 缺 Authorization/tenantId/traceId，上报侧无法回溯身份；但它必须**永不抛错**，改动要保静默语义 |
+
+### 15.9 本轮改动与新增案例法
+
+**改动**：`api/axios.ts`（网络/状态码收口 + 幂等守卫 + download 回收）、`api/errorPolicy.ts`
+（网络合成码/429 档/去重键）、`utils/navProgress.ts`+`styles/motion.scss`+
+`main.ts`+`package.json`/`pnpm-lock.yaml`（nprogress + @types/nprogress，D3）、`utils/errorCopy.ts`+`Console.vue`+`ErrorBoundary.vue`（D5）、
+`utils/storage.ts`/`draftStorage.ts`（新）+ `stores/theme|permission|persist|user` +
+`KAppShell.vue`/`authStorage.ts`/`KFormDialog.vue`、`framework/entity|http|validate`、
+`router/appRouter.ts`、`utils/audioFeedback|errorHandler` + 对应 14 个测试文件（6 新建）。
+`UserErrorCopy` 由 exports:check 当场逮出收回。**后端零改动。**
+
+**新增案例法**：
+- **便利数据不配炸掉交互**：主题/折叠/tab 标题这类丢了无所谓的写入必须 safe-wrapped，抛出只配进 console；
+- **单行坏数据的爆炸半径 = 一行**：路由注册、菜单渲染按行降级+告警，绝不 throw 全站（appRouter）；
+- **写入侧过滤必须镜像到恢复侧**：持久化的字段白名单只写一半 = 没写（persist pick）；
+- **可弃数据也要有登出路径**：草稿/缓存这类不带身份的痕迹，是跨账号 PII 的隐形通道；
+- **探针先于被测者出错**：本轮两次「产品缺陷」实为 Playwright 路由残留/过宽拦截所致——
+  下结论前先做一次「无注入对照」，全新 context 复测才算数；
+- **门禁日志必须整链捕获**：`&&` 链上挂重定向只会吞掉最后一环，验证「全链绿」= 看整链日志尾部，
+  不是看包装器的 exit code。
