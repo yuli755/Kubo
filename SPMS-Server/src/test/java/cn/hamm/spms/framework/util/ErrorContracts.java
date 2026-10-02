@@ -29,7 +29,7 @@ final class ErrorContracts {
                         403, 4031, 4032, 4033, 4034, 4035, 4036, 4037, 4038, 4039, 404, 405, 415,
                         500, 5001, 5002, 5003, 501, 5011, 5021, 50211, 50212, 5022, 5023, 5024, 5025),
                         Arrays.stream(Errors.values()).map(Errors::getCode).toList())),
-                new UtilityContracts.Case("errors/custom-code-offset", () -> equal(List.of(200001, 200002, 200101, 200102, 200103),
+                new UtilityContracts.Case("errors/custom-code-offset", () -> equal(List.of(200001, 200002, 200101, 200102, 200103, 200104),
                         Arrays.stream(CustomError.values()).map(CustomError::getCode).toList())),
                 new UtilityContracts.Case("errors/aliases-and-default-messages", () -> {
                     for (Errors error : Errors.values()) {

@@ -88,8 +88,9 @@ describe('设计 token · 阴影不允许写死字面值', () => {
     // 类别进度：
     //   3. 颜色字面值 → 已落地（见下方两条：清零存量后直接 fail 级）；
     //      兜底口径与 styleContract.spec.ts（view 层 hex 守卫）一致，扩到 rgb 族与组件层。
-    //   1. 时长/缓动 → 已落地（框架层 fail 级；view 层存量 24 处含手调漂移，清零后再扩；
-    //      ambient 循环动画的时长是节律身份不是交互响应，不纳入）。
+    //   1. 时长/缓动 → 已落地（框架层 fail 级；view 层 R44 起走棘轮：基线=实测 14 处，
+    //      只锁增量不还债，清零后升级为清零断言；旧口径「24 处」含 ambient/组件层混计，
+    //      已被下方探针同款判据取代。ambient 循环动画的时长是节律身份不是交互响应，不纳入）。
     //   2. border-radius → **实测否决机械守卫**：存量值谱 2/3/4/8/12/16/20/999/50% 远超
     //      token 三档（6/10/14），逐像素建 token 等于把漂移写进规范本身；
     //      像素值收敛（16→14 这类）需要人眼回归，见报告 §19 建议清单。
@@ -171,8 +172,38 @@ describe('设计 token · 阴影不允许写死字面值', () => {
     expect(files.length, '框架层应至少扫出一批 .vue').toBeGreaterThan(5)
     expect(
       offenders,
-      `交互时长手调后无法对照（档位在 --kubo-duration-fast/base/slow，曲线在 --kubo-ease-*）：\n${offenders.join('\n')}`,
+      `交互时长手调后无法对照（档位在 --kubo-duration-base/slow，曲线在 --kubo-ease-*）：\n${offenders.join('\n')}`,
     ).toEqual([])
+  })
+
+  /**
+   * view 层时长漂移棘轮（R44）。基线取 **R44 实测 14 处**——spec 旧注释里的「24 处」
+   * 是过期读数（口径含 ambient 与组件层），棘轮的立身之本是当场可复算的计数，
+   * 所以基线常量与探针输出必须同源（探针=本测试同款判据）。
+   * 口径：只锁增量不还债——修一处请顺带把基线调低一行（review 时看到降基线=净收益），
+   * 新写一处当场红。清零后把本棘轮升级为框架层同款清零断言。
+   */
+  const VIEW_DURATION_BASELINE = 14
+
+  it('view 层 transition 字面量只降不升（R44 棘轮，基线 14）', () => {
+    const files = walk(join(SRC, 'view')).filter(f => f.endsWith('.vue'))
+    const offenders: string[] = []
+    for (const file of files) {
+      let text = readFileSync(file, 'utf8')
+      for (const pattern of LEGAL_COLOR_SPOTS)
+        text = text.replace(pattern, m => m.replace(/[^\n]/g, ' '))
+      text.split(/\r?\n/).forEach((line, index) => {
+        if (hasHardcodedTiming(line))
+          offenders.push(`${relative(ROOT, file).split(sep).join('/')}:${index + 1}  ${line.trim()}`)
+      })
+    }
+    // 哨兵同框架层：路径写错=空转绿灯，棘轮最怕这个
+    expect(files.length, 'view 层应至少扫出一批 .vue').toBeGreaterThan(20)
+    expect(
+      offenders.length,
+      `view 层时长字面量 ${offenders.length} 处，超过基线 ${VIEW_DURATION_BASELINE}（新增交互时长请走 var(--kubo-duration-*)；`
+      + `若本 PR 是在收敛存量，请同步把 VIEW_DURATION_BASELINE 调低并把本行违例清零）：\n${offenders.join('\n')}`,
+    ).toBeLessThanOrEqual(VIEW_DURATION_BASELINE)
   })
 
   it('被引用的 --kubo-* 必须都在 tokens.scss 有定义（防 --primary-color 式死引用静默走兜底）', () => {

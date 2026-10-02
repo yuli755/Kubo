@@ -21,6 +21,8 @@ public enum CustomError implements ErrorCode, Supplier<CustomError> {
     SMS_SEND_BUSY(102, "发送短信过于频繁，请稍后再试"),
 
     REQUEST_TOO_FREQUENT(103, "请求过于频繁，请稍后再试"),
+
+    RESET_ATTEMPT_TOO_MANY(104, "验证码错误次数过多，请稍后再试"),
     ;
 
     private final int code;

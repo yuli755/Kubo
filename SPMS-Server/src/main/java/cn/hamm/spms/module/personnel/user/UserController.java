@@ -15,6 +15,8 @@ import cn.hamm.spms.framework.web.annotation.Permission;
 import cn.hamm.spms.common.redis.RedisHelper;
 import cn.hamm.spms.base.BaseController;
 import cn.hamm.spms.common.security.LoginBruteForceGuard;
+import cn.hamm.spms.common.security.RateLimitHelper;
+import cn.hamm.spms.common.security.ResetCodeBruteForceGuard;
 import cn.hamm.spms.module.personnel.user.enums.UserLoginType;
 import cn.hamm.spms.module.system.menu.MenuEntity;
 import cn.hamm.spms.module.system.permission.PermissionEntity;
@@ -42,6 +44,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static cn.hamm.spms.common.exception.CustomError.REQUEST_TOO_FREQUENT;
 import static cn.hamm.spms.common.exception.Errors.FORBIDDEN_DISABLED;
 import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
 
@@ -81,6 +84,12 @@ public class UserController extends BaseController<UserEntity, UserService, User
 
     @Autowired
     private LoginBruteForceGuard loginBruteForceGuard;
+
+    @Autowired
+    private ResetCodeBruteForceGuard resetCodeBruteForceGuard;
+
+    @Autowired
+    private RateLimitHelper rateLimitHelper;
 
     @Autowired
     private CookieConfig cookieConfig;
@@ -203,19 +212,37 @@ public class UserController extends BaseController<UserEntity, UserService, User
     @Description("返回密码")
     @Permission(login = false)
     @PostMapping("resetMyPassword")
-    public ApiResponse<Void> resetMyPassword(@RequestBody @Validated(WhenResetMyPassword.class) UserEntity user) {
+    public ApiResponse<Void> resetMyPassword(@RequestBody @Validated(WhenResetMyPassword.class) UserEntity user,
+                                             HttpServletRequest httpServletRequest) {
         String phone = user.getPhone();
         String email = user.getEmail();
         String code = user.getCode();
         String newPassword = user.getPassword();
-        if (StringUtils.hasText(phone)) {
-            service.resetPasswordViaPhone(phone, code, newPassword);
-        } else if (StringUtils.hasText(email)) {
-            service.resetPasswordViaEmail(email, code, newPassword);
-        } else {
-            PARAM_INVALID.show("请传入邮箱或手机号码");
+        // 防爆破（口径同 handleLoginRequest）：公开端点对 6 位验证码无限次尝试会被穷举，
+        // 锁定检查须在失败计数之外，锁定期直接拒绝、不计入失败次数（否则锁定永续）。
+        String account = StringUtils.hasText(phone) ? phone : email;
+        String clientIp = resetCodeBruteForceGuard.resolveClientIp(httpServletRequest);
+        resetCodeBruteForceGuard.assertNotLocked(account, clientIp);
+        // IP 维度 DoS 兜底：用掉沉睡的 REQUEST_TOO_FREQUENT（200103），按请求量（非失败量）计，
+        // 阈值按「明显异常」标定（NAT 出口口径同 RateLimitHelper），防分布式打手刷失败计数锁死他人账号。
+        if (!rateLimitHelper.allowByIp(httpServletRequest, "kubo:reset:rate:", 10, 60)) {
+            REQUEST_TOO_FREQUENT.show();
         }
-        return ApiResponse.success("密码重置成功");
+        try {
+            if (StringUtils.hasText(phone)) {
+                service.resetPasswordViaPhone(phone, code, newPassword);
+            } else if (StringUtils.hasText(email)) {
+                service.resetPasswordViaEmail(email, code, newPassword);
+            } else {
+                PARAM_INVALID.show("请传入邮箱或手机号码");
+            }
+            resetCodeBruteForceGuard.clear(account, clientIp);
+            return ApiResponse.success("密码重置成功");
+        } catch (BusinessException exception) {
+            // 验码失败（码错/码过期/用户异常等）：计数，达阈值即锁定
+            resetCodeBruteForceGuard.recordFailure(account, clientIp);
+            throw exception;
+        }
     }
 
     @Description("账号密码登录")

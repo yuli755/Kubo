@@ -1113,3 +1113,49 @@ KFormDialog 600ms 草稿防抖在卸载后落一次 localStorage（持久化语�
 | 视图层 24 处 duration 字面量漂移 | 低权重：台账在册，随各模块功能轮顺带修，不开专项轮 |
 | legal 文案外置 | 低权重不变（19.4 已给理由：模板化负收益） |
 | radius 守卫 | **本轮关闭——否决**（理由见 19.4） |
+
+---
+
+## §20 Round 44：服务端限流落地，顺带揪出 B0 的第四处静默丢失（round 44）
+
+### 20.1 需求
+
+§19.7 把两笔长期挂账重述为待办（`/user/resetMyPassword` 服务端限流：高权重；视图层 duration 字面量漂移：低权重），用户批准本轮清单 ①–⑤：①② 关闭这两笔账；③④ 给 R43 生命周期资产做机器化收尾（内存浸泡 + SecurityDashboard 同型哨兵）；⑤ 清 `.tmp-r43-*.log` 工作区。五件事的共同主线：把「评审过、判定该修、但没有任何机器门禁守着」的状态，逐笔变成可断言、且**负样本证明过会咬人**的门禁。
+
+### 20.2 拆解与选型
+
+**① resetMyPassword 服务端限流**
+
+- 现状勘察：端点 `@Permission(login=false)` + 六位短信/邮件验证码，校验失败**不删**码 key（当轮可重试）⇒ 事实上无限尝试。仓内唯一同类先例是登录侧 `LoginBruteForceGuard`。
+- 选型：**克隆 LoginBruteForceGuard 形态**（`kubo:reset:fail:/lock:/ip:fail:/ip:lock:`），而非清单原稿提的 send-code `EMAIL_SEND_BUSY` 模式——后者是发送侧配额闸门，本缺陷在**校验侧**，套错侧等于没修。参数：账号 5 锁 15min；失败窗口 5min——刻意取 `CACHE_CODE_EXPIRE_SECOND` 同值，让失败窗口跟着凭证自身生命周期走；IP 维度 50 次（NAT 出口容忍）。Redis 不可用 ⇒ 降级放行，与登录守卫同一「可用性优先」哲学（见 20.4）。
+- 契约：新业务码 `200104 RESET_ATTEMPT_TOO_MANY`；`ErrorContracts` 黄金清单同步至六码；沉睡的 `200103 REQUEST_TOO_FREQUENT` 顺带启用为 IP 10req/60s 滑窗（`RateLimitHelper.allowByIp`）——契约债就地清。
+- 验证：7 个 Mockito 单测（同型 `LoginBruteForceGuardTest`，含失败窗口 TTL==5*60 断言与 XFF 信任源判别）；**真机负样本命中**：连错 7 次，1–5 次回 4002、6–7 次回 200104，redis 侧 `kubo:reset:lock:*` TTL=899 对上 15min 锁。
+
+**② duration 棘轮**：清单原稿写「基线 24」，spec 落地时当场重算是 **14**——旧 24 是含 ambient 与组件层的混计过期读数（`designTokenContract.spec.ts:180-186` 存证）。棘轮的立身之本是当场可复算的计数，取 14：只锁增量不还债，新写一处当场红，收敛存量时须同步调低基线（修一降一）。违例清单为空时另有哨兵断言守 glob 路径——棘轮最怕 glob 写错变永久绿灯。两层负样本本轮现场复打：view 层插一条字面量 → `expected 15 to be less than or equal to 14`（spec:206，清单精确点名插入行）；框架层向 KPanel.vue:61 插同款探针 → `toEqual([])` 红且清单点名该线（spec:176）；均还原复绿。顺带再证一次：计数当场可复算（存量 14 与新基线同源），旧「24」口径正式废弃。
+
+**③ 内存浸泡（真机）**：矩阵⇄2.5D ×20 —— 节点数恒 971、每次离开矩阵视图后 echarts 实例残留 0（20/20 干净，R43 dispose-on-leave 成立）；命令面板 ×50 —— 打开失败 0、堆 33–36MB 平带无趋势、关闭后节点精确回落基线。方法学坑：面板关闭走 `<Transition>`，关后 120ms 即时检查必然撞上 leave 过渡产生假阳性；决定性指标是「终态节点数 == 打开前基线」而非「即时消失」。证据 80（`docs/evidence/80-r44-memory-soak-heatmap-palette.png`）。
+
+**④ SecurityDashboard 同型哨兵**：R43 echarts-mock 模板移植，3 把锁——init+setOption 各一次 / 刷新替换数组不重复 init 且容器不游离 / 卸载 dispose 配平。断言的是 R42 同型「空白图表」缺陷的**不可达性**；路径哨兵同 ②。dispose 锁负样本本轮现场复打：卸装路径插 `modeChart && false && dispose()` → `AssertionError: expected "vi.fn()" to be called 1 times, but got 0 times`（spec:162）红 → 还原 3/3 绿。
+
+### 20.3 本轮真正的收获：B0 的第四处静默丢失
+
+真机负样本**第一轮没有咬中**：连错验证码返回全对，但 redis 里零 `kubo:reset:*` key，MONITOR 证实应用一条 redis 命令都没发——不是守卫写错，是 `RedisHelper.redisTemplate` 运行时为 null。根因：全仓消费 `RedisTemplate<String,Object>`，而 Boot 自动配置只供 `RedisTemplate<Object,Object>`（泛型不匹配 ⇒ `@Autowired(required=false)` 静默 null）；该 bean 历史上由 `cn.hamm:airpower-redis` 供给，B0 退场删依赖时把 provider 删了、消费点全部留下。影响面远超本轮守卫：**登录防爆破、IP 限流、数据权限事件、cookie 缓存自 B0 起一直在静默降级**。940 个单测全程绿——消费方全部 mock RedisHelper，「装配缺失」在测试网里的形状就是这样。pom 里已记录过 B0 的三处静默丢失（`-parameters` 等），这是第四处，也是唯一晚暴露五轮才被抓到的一处。
+
+修复 `config/RedisTemplateConfig.java`：key String / value GenericJackson2Json（defaultTyping，`@class` 与 airpower-redis 旧格式对偶）；`@ConditionalOnProperty(name="spring.data.redis.host")` 门控——`application-test.yml` 不写该行，H2 测试原样走 null 降级路径，**不改一个测试 940 全绿**。复跑负样本立刻命中（20.2①）。
+
+存案教训：`@Autowired(required=false)` + null 降级是静默丢失的候选登记处；这类装配问题单测永不能拦，唯一有效的门禁是**真机负样本命中**——「单测绿 ≠ 完成，真机负样本命中才算完成」从本轮实践升格为流程。
+
+### 20.4 风险与否决记录
+
+- **守卫降级方向**：redis 全挂时防刷闸完全打开。否决 fail-closed（redis 抖动会让所有用户无法重置密码，比放开更糟），沿用登录守卫既有哲学，风险显式存案而非默认吞掉。
+- **棘轮基线数字**：错误基线比没有棘轮更糟（要么永久绿灯要么天天误咬）。处置：基线只认 spec 当场复算值；14 vs 24 的差值本身就是「报告转写数字会过期」的实证。
+- **IP 锁阈值 50**：NAT 出口误伤取舍——账号锁已封住主要攻击面，IP 锁只做压顶，宁松勿误伤。
+
+### 20.5 全量回归（round 44 门禁，安静机器）
+
+后端：`RedisTemplateConfig` 加入后**离线全量复跑** —— `mvnw test -o`：**Tests run 940 / Failures 0 / Errors 0 / Skipped 1**（151 套件，Skipped 仍为 `ApplicationTest @Disabled`），BUILD SUCCESS。
+前端：`pnpm check` 链安静机器全绿——`test:coverage` **88 文件 / 933 测试**（R43 基线 87/929，+1 文件 +4 用例 = ④ 哨兵 3 + ② 棘轮 1）；覆盖率 **90.83 / 84.17 / 82.33 / 90.8**（与 R43 打印值逐位相同，阈值 50/65/50/75 未降未跌）；gzip 首屏 **294.3/450 KB** · 总体 **724.9/900 KB** 达标（与 R42/R43 持平）；后 14 步（perms → size）全绿。§19.6 存档的 `0xC0000409` 崩溃本轮（安静机器）**未复现**，佐证当时定性为环境性而非 spec 缺陷。
+
+### 20.6 改动清单（收口）
+
+后端：`ResetCodeBruteForceGuard` + `RedisTemplateConfig`（新增）、`UserController.resetMyPassword` 接线、`CustomError`/`ErrorContracts` 契约同步、`ResetCodeBruteForceGuardTest`（7 用例）。前端：view 层 duration 棘轮（基线 14）、`SecurityDashboard.spec.ts` 哨兵（3 用例）。其余：报告本节 + 证据 80 + `.tmp-r43-*` 清理。§19.7 表中前两行挂账至此关闭。
