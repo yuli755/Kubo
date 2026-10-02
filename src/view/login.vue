@@ -28,10 +28,9 @@ const currentAction = ref(LoginAction.LOGIN_VIA_PASSWORD)
  */
 const isAgreed = ref(true)
 
-/**
- * ### 是否记住我
- */
-const rememberMe = ref(true)
+// 「记住我」控件已移除（R39 §15.8 → §16）：登录态有效期由后端 JWT 说了算，前端无裁量权；
+// 该勾选框绑定后无任何消费者，纯属空转。若实装为 sessionStorage，还会静默破坏 R-38
+// 跨标签登出同步（storage 事件不跨 storage 区域）——删除是唯一不回退安全特性的选择。
 
 const user = ref({
   email: '',
@@ -353,12 +352,6 @@ function switchLoginAction(action: LoginAction) {
             </div>
 
             <div class="form-options">
-              <el-checkbox
-                v-model="rememberMe"
-                class="remember-me"
-              >
-                记住我（7天免登录）
-              </el-checkbox>
               <a
                 href="/forgot-password"
                 class="forgot-password"
@@ -764,16 +757,9 @@ function switchLoginAction(action: LoginAction) {
 
           .form-options {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-end;
             align-items: center;
             margin: 8px 0 16px;
-
-            .remember-me {
-              ::v-deep(.el-checkbox__label) {
-                font-size: 13px;
-                color: var(--el-text-color-regular);
-              }
-            }
 
             .forgot-password {
               font-size: 13px;

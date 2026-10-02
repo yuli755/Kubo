@@ -472,23 +472,62 @@ export const api = {
     }))
   },
 
-  // 文件下载
-  download(url: string, params?: Record<string, unknown>, filename?: string): Promise<void> {
+  /**
+   * 文件下载（blob）。
+   *
+   * R40（§15.8 → §16）**blob-JSON 守卫**：后端业务失败一律是 **HTTP 200 + JSON body**，
+   * 而 blob 响应在响应拦截器里被「原样透传」（不能 JSON 解包），code≠200 的收口对下载
+   * 完全失明——错误 JSON 会被当成「假文件」存进用户下载夹（点开是 `{"code":403,...}`，
+   * 界面全程毫无提示）。守卫嗅探 JSON 信封：业务错误 → 统一 toast + reject，**不落盘**。
+   *
+   * `config` 可带 `showError:false` / `customErrorHandler`，与拦截器同一套让路语义。
+   */
+  download(url: string, params?: Record<string, unknown>, filename?: string, config?: RequestConfig): Promise<void> {
     return request.get(url, {
       params,
       responseType: 'blob',
-    }).then((response: AxiosResponse) => {
+      ...config,
+    }).then(async (response: AxiosResponse) => {
       const blob = response.data as Blob
-      const url = window.URL.createObjectURL(blob)
+      // 只嗅 JSON，正文件（xlsx/zip/pdf）一字节都不碰；application/problem+json 也在网内
+      if (blob.type.includes('json')) {
+        let bizError: ApiError | null = null
+        try {
+          const body = JSON.parse(await blob.text()) as { code?: unknown, message?: unknown, data?: unknown, timestamp?: unknown, traceId?: unknown }
+          if (body && typeof body.code === 'number' && body.code !== 200 && body.code !== 0) {
+            bizError = {
+              code: body.code,
+              message: typeof body.message === 'string' && body.message ? body.message : '下载失败',
+              data: body.data,
+              timestamp: typeof body.timestamp === 'string' ? body.timestamp : new Date().toISOString(),
+              path: url,
+              traceId: typeof body.traceId === 'string' ? body.traceId : undefined,
+            }
+          }
+        }
+        catch {
+          // 名义 JSON 实际解析不出（网关脏数据等）：按普通文件继续保存。
+          // **漏判优于误判**——漏判文件照旧能下载，误判是把正常文件拒之门外。
+        }
+        if (bizError) {
+          notifyBusinessError(bizError, config ?? {})
+          // 与拦截器同一 R-35 收口：业务码 401 的下载失败=会话失效，不能把人留在假会话里
+          if (bizError.code === BusinessCode.UNAUTHORIZED && !isAuthEndpoint(url)) {
+            void handleSessionExpired()
+          }
+          return Promise.reject(bizError)
+        }
+      }
+      const objectUrl = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
-      link.href = url
+      link.href = objectUrl
       link.download = filename || 'download'
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       // 延迟释放：click() 只是把下载任务排进浏览器队列，Safari 在同步 revoke 后
       // 可能还没读到 blob 就拿到失效 URL（下载静默失败）。留 1s 缓冲。
-      setTimeout(() => window.URL.revokeObjectURL(url), 1000)
+      setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000)
     })
   },
 }

@@ -847,3 +847,78 @@ tests 钉住（状态码 422/500 的既有用例本就是同句式，本轮补�
   下结论前先做一次「无注入对照」，全新 context 复测才算数；
 - **门禁日志必须整链捕获**：`&&` 链上挂重定向只会吞掉最后一环，验证「全链绿」= 看整链日志尾部，
   不是看包装器的 exit code。
+
+---
+
+## 16. R40 · 挂账清偿：死控件 / 上报身份 / 金额格式化 / 下载守卫（round 36）
+
+§15.8 把「rememberMe 空转、errorReportClient 裸 fetch、手写金额格式化、download blob 不设防」挂账，本轮四项全部清偿并全链回归 + 真机验证；AbortController 仅产出设计结论（§16.5）。**后端零改动。**
+
+### 16.1 ① rememberMe 空转控件 —— 删除（而非实装）
+
+- `view/login.vue`：删 `rememberMe` ref、`el-checkbox` 与 `.remember-me` 样式；`.form-options` 排布 `space-between`→`flex-end`。
+- **判据（删 > 实装）**：令牌有效期由后端 JWT 说了算，前端无裁量权；若用 sessionStorage 实装反而**破坏 R-38**——storage 事件不跨存储区，token 挪进 sessionStorage 后其它标签页收不到登出。空转勾选项等于对用户开票不兑付，**假 affordance 比没有更糟**。
+- 登录页剩余唯一勾选是协议勾选（`isAgreed`，:194 真实拦提交），功能真实，保留。
+- 真机（全新 context 登录页实测）：remember 文案消失、`.form-options` computed justify `flex-end`（evidence 70）。
+
+### 16.2 ② errorReportClient 补身份与追踪头（静默语义不变）
+
+- `utils/errorReportClient.ts` 新增 `identityHeaders()`：`Content-Type` + **每条报告一个新鲜** `X-Trace-Id`（`crypto.randomUUID()`）；token 优先 `useUserStore()`、异常回退 `authToken.get()`；`Authorization` 仅有 token 时带、`X-Tenant-Id` 仅有租户时带。
+- **设计红线**：头缺失不得阻断上报——**孤儿报告也胜于无报告**；never-throw 的 `.catch(() => {})` 原样保留。
+- 单测 8（新 3）。案例：`vi.resetModules()` 清不掉 pinia 的**模块级 active instance**，「无 pinia」场景必须 `setActivePinia(undefined)`，否则测到上个用例的幽灵 store。
+- 真机全链路（window onerror → errorHandler → reportErrorToServer → 后端）：`POST /api/error-report` **200**，`Authorization: Bearer …`（90 字符）、`X-Tenant-Id: 1`、UUID `X-Trace-Id`、`keepalive: true`（evidence 71）。
+
+### 16.3 ③ 金额/数量格式化委托 `Intl.NumberFormat`（`framework/format.ts`）
+
+（原建议误写 `src/utils/format.ts`；`formatMoney`/`formatQuantity` 实际在 `framework/format.ts`。）
+
+- NumberFormat 实例按 `${min}/${max}` 位数缓存；locale 钉死 **`en-US`**——分组符与旧手写实现字节一致，且不受浏览器 locale 漂移影响。
+- 指数形态输入（`1e21`/`1e-7`）解析 `String(num)` 推真实小数位；`-0` 归一为 `0`，不再渲染「-0」。
+- **口径实测纠偏（重要）**：教科书「toFixed 平局负数向 +∞」（`(-0.125).toFixed(2)='-0.12'`）在 V8 **不成立**——实测已是 `-0.13`，与后端 HALF_UP 相同。真分歧在**二进制不可表示小数**：`(2.675).toFixed(2)='2.67'`、`(1.005).toFixed(2)='1.00'`，而后端 `BigDecimal("2.675").setScale(2, HALF_UP)=2.68`。`Intl.NumberFormat` 按 ECMA-402 对**十进制字符串**舍入（halfExpand 远离零）→ 与后端一致。测试注释与断言均按实测口径写（钉 `2.675/1.005` + 平局防回归）。
+- 真机（浏览器原生 Intl）：`1,234,567.89` / `-0.13` / `1e21→1,000,000,000,000,000,000,000` / `1e-7→0.0000001` / `-0→'0'` / 非法值→`'-'`。单测 frameworkCell 19（新 2）。
+
+### 16.4 ④ `api.download` blob 内容守卫（预铺性修复，现 0 生产调用方）
+
+- **陷阱机制**：`responseType:'blob'` 响应绕过 JSON 拦截器（axios.ts:243-245 直通），后端以 200+JSON 回业务错误时会被存成「假文件」双击没动静。
+- 守卫：`blob.type` 含 json → `JSON.parse(await blob.text())`，数值 code ≠200/0 时构造 `ApiError` → 走**唯一出口 `notifyBusinessError`** → 业务 401 且非 auth 端点 → `handleSessionExpired()` → reject；**解析失败照常保存**——漏判优于误判，不给未标型响应判死刑。
+- 单测 5 新（axios.spec 共 41）：403 不建 objectURL、toast 带分档指引；业务 401 登出 + redirect；`showError:false`/`customErrorHandler` 仍被尊重；xlsx 正常保存且 1s 后 `revokeObjectURL`。
+- 真机：200+JSON-403 → `createObjectURL` 调用 **0 次**、reject 携带 `{code:403, path, traceId}`、恰好一条分档 ElMessage（evidence 72）。
+
+### 16.5 ⑤ AbortController / vue-query 作用域 —— 设计结论（本轮明确不实施）
+
+- **目标形态**：页面级 QueryClient 由 Console 壳在 router-view 出口 provide/inject；路由离开 `queryClient.cancelQueries()`，同时 `useTable` 的 fetcher 把 `AbortController.signal` 透传进 axios（signal 内建，缺的只是贯通）；全局查询（登录/初始化/菜单）留在全局 client，不受页面生命周期波及。
+- **本轮不动的理由**：要同时改 `useTable`、`KFormDialog` 与 keep-alive 的页面缓存语义（跨页返回是否保留在途数据）——一次性触碰框架取数主干；而现状危害仅「离开后在途请求跑完、数据进已卸载组件」，无用户可见缺陷。**设计定案、排期后置**，等出现真实误弹/竞态场景再实施。
+- 同源决策不变：query key 身份维度仍由登出 `clear()` 方案替代（§15.8）。
+
+### 16.6 新增真机发现 → 建议挂账（本轮不动代码）
+
+| 项 | 判定 | 依据/建议 |
+| --- | --- | --- |
+| 登录页死链三连 | **挂账（等后端/小轮）** | `/forgot-password`、`/privacy`、`/terms` 无对应路由，未登录访问被守卫弹回——**点了等于没点**（evidence 73）。密码重置等后端接口；隐私/服务条款可先补两个静态路由，建议单独小轮（纯静态页+路由+文案门禁） |
+| 协议勾选默认勾选 | **挂账（产品决策）** | 实测 `isAgreed` 默认 true（pre-checked consent）。技术闸门真实存在，但合规口径「默认不勾」更稳——改动是行为变更，需产品确认后再动 |
+| 删 refresh 死链 / axios-retry | **挂账（不变）** | 后端 `/user/refresh` 未提供、Idempotency-Key 未生效，两个前提都在后端侧 |
+
+### 16.7 全量回归（round 36 门禁，全部未降）
+
+- `pnpm check` 全链（lint:ci → airpower×2 → pom → deadcode → exports → typecheck → test:coverage → perms → auth → errcode → contract → text → ddl → migration → monitoring → canary → docker → drill → build → demo → size）exit 0，整链日志 `.tmp-r36-check.log`。
+- vitest **83 文件 / 904 测试全过**（round 35：894 → +10：errorReportClient 3 + axios 5 + frameworkCell 2）；覆盖率 **90.98 / 84.11 / 82.88 / 90.95**（阈值 50/65/50/75 未动）。
+- gzip：**首屏 294.1/450 KB · 总体 719.8/900 KB**（本轮均为纯逻辑改动，体积零净增）。
+- 后端 `mvn -B -o clean test`：**933 / 0 失败 / 0 错误 / 1 跳过 · BUILD SUCCESS**（后端零改动）。
+
+### 16.8 证据截图（docs/evidence）
+
+- `70-r36-login-no-rememberme.png`：rememberMe 删除后登录页——仅剩忘记密码链接，flex-end 排布
+- `71-r36-error-report-headers.png`：真机错误上报链路 200 + Authorization/X-Tenant-Id/X-Trace-Id 齐全
+- `72-r36-download-json-guard.png`：200+JSON 业务错误 → 零假文件落盘、单条分档 toast
+- `73-r36-login-dead-links.png`：登录页死链三连实测——点进又弹回登录页
+
+### 16.9 本轮改动与新增案例法
+
+**改动**：`view/login.vue`（①）、`utils/errorReportClient.ts`（②）、`framework/format.ts`（③）、`api/axios.ts`（④）+ 对应测试 `utils/__tests__/errorReportClient.spec.ts`、`config/__tests__/frameworkCell.spec.ts`、`api/__tests__/axios.spec.ts`。**后端零改动。**
+
+**新增案例法**：
+- **先实测再写注释**：「toFixed 平局向 +∞」的教科书例子（-0.125→-0.12）在 V8 不成立，真分歧在不可表示小数（2.675/1.005）——舍入口径类论据必须实测后落笔，错误注释比没注释更误导；
+- **静默通道的身份是 best-effort**：错误上报补头，任何「头拿不到」的分支都不许短路 POST；
+- **漏判优于误判**：嗅探未知响应体的守卫，不确定时一律保留原行为；
+- **pinia active instance 活得比 vi.resetModules 久**：复现「store 不可用」必须 `setActivePinia(undefined)`；
+- **spy 要最小化**：`vi.spyOn(document,'createElement')` 委托回原实现会经 spy 自递归爆栈——只补最小拦截点（`HTMLAnchorElement.prototype.click` + `vi.stubGlobal('URL', …)`）。

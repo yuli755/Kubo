@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { AxiosResponse } from 'axios'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NETWORK_ERROR_CODE, resetNotifyDedupe } from '@/api/errorPolicy'
 import { clearFieldError, fieldError } from '@/stores/fieldError'
 
@@ -37,7 +37,7 @@ vi.mock('element-plus', () => ({
   ElMessage: elMessage,
 }))
 
-const { request } = await import('@/api/axios')
+const { api, request } = await import('@/api/axios')
 
 /** 用自定义 adapter 回放固定响应（不真发网络） */
 function adapterReturning(payload: unknown, status = 200): (config: any) => Promise<AxiosResponse> {
@@ -565,5 +565,140 @@ describe('axios 请求层 · 网络失败与状态码统一收口', () => {
       request.get('/teapot2', { adapter: httpErrorAdapter(418, undefined) }),
     ).rejects.toBeDefined()
     expect(elMessage.error.mock.calls[0][0].message).toContain('请求失败 (418)')
+  })
+})
+
+/**
+ * R40（§15.8 → §16）：`api.download` 的 blob-JSON 守卫。
+ *
+ * blob 响应在拦截器里原样透传，后端 **HTTP 200 + JSON 业务错误** 对下载链路是失明的：
+ * 不加守卫，错误 JSON 会被存成「假文件」落进用户下载夹，且界面全程无提示。
+ * 锁四件事：错误不落盘（createObjectURL 都不该被调用）、提示走统一收口、
+ * showError/customErrorHandler 照常让路、真文件与脏 JSON 一律照常保存。
+ */
+describe('api.download · blob-JSON 守卫（R40）', () => {
+  const locationReplace = vi.fn()
+  const createObjectURL = vi.fn(() => 'blob:fake-object-url')
+  const revokeObjectURL = vi.fn()
+  let clicks: HTMLAnchorElement[]
+
+  beforeEach(() => {
+    resetNotifyDedupe()
+    elMessage.error.mockClear()
+    createObjectURL.mockClear()
+    revokeObjectURL.mockClear()
+    locationReplace.mockClear()
+    clicks = []
+    // jsdom 不实现对象 URL：打桩后「有没有落盘」变成可断言的调用计数
+    vi.stubGlobal('URL', Object.assign(Object.create(window.URL), window.URL, {
+      createObjectURL,
+      revokeObjectURL,
+    }))
+    // 只桩 anchor 的 click（记录被点的那个 a）：不桩 document.createElement——
+    // bind 原方法再委托的写法会在 spy 恢复后指回 spy 自身，栈溢出（第一版实测踩中）
+    HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+      clicks.push(this)
+    }
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      writable: true,
+      value: { replace: locationReplace, href: 'http://localhost/', pathname: '/', search: '' },
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  /** 回放一个 blob 响应（下载走 responseType:'blob'，拦截器原样透传） */
+  function blobAdapter(blob: Blob): (config: any) => Promise<AxiosResponse> {
+    return async (config: any) => ({
+      data: blob,
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    })
+  }
+
+  it('200 + JSON 业务错误：reject、统一 toast、一个字节都不落盘', async () => {
+    const blob = new Blob([JSON.stringify({ code: 403, message: '权限不足' })], { type: 'application/json' })
+
+    await expect(api.download('/export/x', undefined, undefined, {
+      adapter: blobAdapter(blob),
+    } as never)).rejects.toMatchObject({ code: 403, path: '/export/x' })
+
+    expect(createObjectURL).not.toHaveBeenCalled()
+    expect(clicks).toHaveLength(0)
+    const text = elMessage.error.mock.calls[0][0].message
+    expect(text).toContain('无权限：权限不足')
+    expect(text).toContain('管理员')
+  })
+
+  it('下载撞上业务码 401：与拦截器同一收口（登出 + 回登录页），假会话不留人', async () => {
+    const blob = new Blob([JSON.stringify({ code: 401, message: '登录状态已失效，请重新登录' })], { type: 'application/json' })
+
+    await expect(api.download('/export/y', undefined, undefined, {
+      adapter: blobAdapter(blob),
+    } as never)).rejects.toMatchObject({ code: 401 })
+    // 收口是 fire-and-forget（守卫要先 reject 原请求），等一个宏任务让 finally 落地
+    await new Promise(r => setTimeout(r, 0))
+
+    expect(userStore.logout).toHaveBeenCalledTimes(1)
+    expect(locationReplace).toHaveBeenCalledWith('/login?redirect=%2F')
+    expect(createObjectURL).not.toHaveBeenCalled()
+  })
+
+  it('showError:false / customErrorHandler 照常让路（与拦截器同一套语义）', async () => {
+    const mk = () => new Blob([JSON.stringify({ code: 403, message: '权限不足' })], { type: 'application/json' })
+
+    await expect(api.download('/q', undefined, undefined, {
+      showError: false,
+      adapter: blobAdapter(mk()),
+    } as never)).rejects.toBeDefined()
+    expect(elMessage.error).not.toHaveBeenCalled()
+
+    const handler = vi.fn()
+    await expect(api.download('/c', undefined, undefined, {
+      customErrorHandler: handler,
+      adapter: blobAdapter(mk()),
+    } as never)).rejects.toBeDefined()
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ code: 403 }))
+    expect(elMessage.error).not.toHaveBeenCalled()
+  })
+
+  it('真文件（xlsx）原样落盘：文件名生效，守卫不误伤', async () => {
+    const blob = new Blob(['PK'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+
+    // 假定时器：Safari 修复的 1s revoke 定时器必须在测试内落地——留到 afterEach
+    // 拆桩之后再触发，jsdom 的真实 URL.revokeObjectURL 不存在，会炸成未处理异常
+    vi.useFakeTimers()
+    await api.download('/export/ok', undefined, '报表.xlsx', {
+      adapter: blobAdapter(blob),
+    } as never)
+
+    expect(createObjectURL).toHaveBeenCalledWith(blob)
+    expect(clicks).toHaveLength(1)
+    expect(clicks[0].download).toBe('报表.xlsx')
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake-object-url')
+    expect(elMessage.error).not.toHaveBeenCalled()
+  })
+
+  it('名义 JSON 但解析不出（网关脏数据）：按普通文件保存——漏判优于误判', async () => {
+    const blob = new Blob(['not json at all'], { type: 'application/json' })
+
+    vi.useFakeTimers()
+    await api.download('/export/dirty', undefined, undefined, {
+      adapter: blobAdapter(blob),
+    } as never)
+
+    expect(createObjectURL).toHaveBeenCalledWith(blob)
+    expect(clicks).toHaveLength(1)
+    expect(clicks[0].download).toBe('download')
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(revokeObjectURL).toHaveBeenCalledTimes(1)
+    expect(elMessage.error).not.toHaveBeenCalled()
   })
 })

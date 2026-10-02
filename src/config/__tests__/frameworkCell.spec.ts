@@ -44,6 +44,30 @@ describe('f2 · 数值格式化', () => {
     expect(formatQuantity(12.5)).toBe('12.5')
     expect(formatQuantity('')).toBe('-')
   })
+
+  it('舍入与后端 BigDecimal HALF_UP 对齐（R40：不可表示小数不再向下偏）', () => {
+    // 实测（node/Chrome 一致）：2.675 的二进制真身略小于 2.675，toFixed 忠实渲染真身 →
+    // (2.675).toFixed(2) === '2.67'；后端 BigDecimal("2.675").setScale(2, HALF_UP) === 2.68。
+    // Intl 规范舍入基于十进制字符串（ECMA-402 「number-to-string」）→ 与后端一致。
+    // 注：可表示平局（-0.125）两边本就同为远离零，V8 的 toFixed 并没有那个教科书偏差——
+    // 真正的前后端分歧在 2.675/1.005 这类「写起来两位、二进制存不下」的金额上。
+    expect(formatMoney(2.675)).toBe('2.68')
+    expect(formatMoney(1.005)).toBe('1.01')
+    expect(formatMoney(-2.675)).toBe('-2.68')
+    // 平局与负数远离零口径钉住（后端 HALF_UP 语义），防止回归
+    expect(formatMoney(-0.125, 2)).toBe('-0.13')
+    expect(formatMoney(-2.5, 0)).toBe('-3')
+    expect(formatMoney(0.125, 2)).toBe('0.13')
+    expect(formatMoney(2.5, 0)).toBe('3')
+  })
+
+  it('指数形态给完整十进制；-0 不渲染成 "-0"（R40）', () => {
+    expect(formatQuantity(1e21)).toBe('1,000,000,000,000,000,000,000')
+    expect(formatQuantity(1e-7)).toBe('0.0000001')
+    expect(formatQuantity(-0)).toBe('0')
+    // 金额两位小数下 1e-7 舍入为 0.00 —— 与旧 toFixed 一致，防止过度承诺「 Intl 保精度」
+    expect(formatMoney(1e-7)).toBe('0.00')
+  })
 })
 
 describe('f2 · 单元格文本', () => {

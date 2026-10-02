@@ -12,13 +12,23 @@ import type { ErrorReport } from './errorHandler'
  * - **失败静默**：上报失败仅忽略（不 console 刷屏、不递归上报，避免死循环），错误上报
  *   永远不得反过来影响业务；
  * - **keepalive**：页面跳转/卸载时尽力把最后一批错误发出去；
- * - **内存保护**：去重 Map 超阈值时清理过期项，防止长会话内存无限增长。
+ * - **内存保护**：去重 Map 超阈值时清理过期项，防止长会话内存无限增长；
+ * - **身份与追踪头（§15.8 → R40）**：裸 fetch 此前不带任何身份头，后端日志里上报是
+ *   「孤儿」——无法回溯是谁、哪个租户、哪条链路。现补 `Authorization`/`X-Tenant-Id`
+ *   （与 axios 拦截器同源）+ 每次上报新生成的 `X-Trace-Id`。这些头是**尽力而为**：
+ *   登录页（无 store）或 pinia 未就绪的引导期报错，也必须匿名发得出——头的缺失永远
+ *   不能成为不报的理由。
  */
+
+import { useUserStore } from '@/stores/user'
+import { authToken } from './authStorage'
 
 const REPORT_URL = '/api/error-report'
 const DEDUP_WINDOW_MS = 60_000
 const MAX_KEY_LENGTH = 200
 const MAX_DEDUP_SIZE = 1000
+/** 与 `api/axios.ts` 的 TRACE_ID_HEADER 同名同义（此处不 import，保持上报器依赖面最小） */
+const TRACE_ID_HEADER = 'X-Trace-Id'
 
 const lastReported = new Map<string, number>()
 
@@ -38,6 +48,39 @@ function prune(now: number): void {
   }
 }
 
+/**
+ * 尽力而为地拼身份/追踪头。
+ *
+ * 这里的任何失败（最常见：pinia 尚未就绪——引导期或登录页就崩了）都**绝不能**变成
+ * 「不报了」：先读 store，失败退回 localStorage 的 `authToken`，再没有就匿名发。
+ * 孤儿上报（无身份）只是少一半线索；不发上报是全部线索都没有。
+ */
+function identityHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    // 每次上报新生成：后端 MDC 关联认的是 id 本身，不是复用
+    [TRACE_ID_HEADER]: crypto.randomUUID(),
+  }
+  let token = ''
+  let tenantId: unknown
+  try {
+    const userStore = useUserStore()
+    token = userStore.token || authToken.get()
+    tenantId = userStore.tenantId
+  }
+  catch {
+    // getActivePinia() 抛错：store 不可用，匿名上报优于沉默
+    token = authToken.get()
+  }
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  if (tenantId !== undefined && tenantId !== null) {
+    headers['X-Tenant-Id'] = String(tenantId)
+  }
+  return headers
+}
+
 /** 上报单条错误到后端。去重 + 失败静默。 */
 export function reportErrorToServer(report: ErrorReport): void {
   const key = dedupKey(report)
@@ -51,7 +94,7 @@ export function reportErrorToServer(report: ErrorReport): void {
 
   fetch(REPORT_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: identityHeaders(),
     body: JSON.stringify(report),
     keepalive: true,
   }).catch(() => {
