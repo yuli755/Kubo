@@ -28,6 +28,14 @@
  * 而我们连续几轮把"沙箱内测试全绿"当成了交付依据。
  * 与其等 CI 一个来回（下载依赖 + 编译 ≈ 3 分钟），不如在提交前用 20 毫秒自查。
  *
+ * ## 第四项：纯 CSS 样式块里的 // 行注释（round 41 真实构建事故）
+ *
+ * KTable 令牌迁移时在 `<style scoped>`（无 lang 属性 = 纯 CSS）里写了 // 注释：
+ * dev 与 919 个单测全绿，只有 vite build 的 postcss 报 Unknown word 把发布链拦腰截断。
+ * build 门禁兜得住，但它在链路末端，一次要烧十几分钟；扫描器 20 毫秒就能判掉。
+ * 范围刻意收窄：只认「lang 缺失或 lang="css"」的样式块与 .css 文件——lang="scss"
+ * 里 // 由预处理器负责、合法；块注释、字符串、url() 裸地址里的 // 先挖空再谈违规。
+ *
  * ## 为什么必须让机器来管这件事
  * 这类损坏不会导致编译失败、不会导致测试变红（测试断言的是行为，不是文案），
  * 只有人眼在特定页面才能看到 —— 正好是"人眼不该负责发现"的那一类问题。
@@ -418,12 +426,117 @@ function javaFindings(file, text) {
   return [...javaLiteralFindings(file, text), ...javaImportFindings(file, text)]
 }
 
+/**
+ * 第四项：纯 CSS 样式块里的 // 行注释
+ *
+ * dev 与单测对这种写法全程沉默，只有 build pipeline 的 postcss 会炸（§17.4-B 实测：
+ * Unknown word …，控制台还常被 GBK 乱码遮一层）。与 javaLiteralFindings 同套路：
+ * 先把块注释 / 字符串 / url() 裸地址挖成上下文，剩下的 // 才是真违规。
+ *
+ * 收窄判据（门禁咬错了就先收窄，本仓老规矩）：
+ * - .vue/.html 只扫 lang 缺失或 lang="css" 的 style 块；scss/less 的 // 是预处理器语法，报了即误伤；
+ * - src 外链样式没有正文可扫；块注释跨行合法，字符串按 CSS 口径不跨行。
+ */
+function cssLineCommentFindings(file, text) {
+  const blocks = []
+  if (file.endsWith('.css')) {
+    blocks.push({ body: text, startLine: 1 })
+  }
+  else {
+    const re = /<style\b([^>]*)>([\s\S]*?)<\/style\s*>/gi
+    let m
+    while ((m = re.exec(text)) !== null) {
+      if (/\bsrc\s*=/i.test(m[1])) {
+        continue
+      }
+      const lang = /lang\s*=\s*["']?([\w-]+)/i.exec(m[1])
+      if (lang && lang[1].toLowerCase() !== 'css') {
+        continue
+      }
+      blocks.push({
+        body: m[2],
+        // 第一个 > 必然闭合起始标签（属性串里的 [^>]* 保证了这点），正文行号从它之后数
+        startLine: text.slice(0, m.index + m[0].indexOf('>') + 1).split('\n').length,
+      })
+    }
+  }
+  const out = []
+  for (const block of blocks) {
+    const lines = block.body.split('\n')
+    let inBlock = false
+    let inStr = null
+    let inUrl = false
+    let lineIdx = 0
+    for (let i = 0; i < block.body.length; i++) {
+      const ch = block.body[i]
+      const next = block.body[i + 1]
+      if (ch === '\n') {
+        lineIdx++
+        // CSS 字符串不跨行；url() 视作单行（跨行的 url 属病理形态，不为其放宽 // 判定）
+        inStr = null
+        inUrl = false
+        continue
+      }
+      if (inBlock) {
+        if (ch === '*' && next === '/') {
+          i++
+          inBlock = false
+        }
+        continue
+      }
+      if (inStr) {
+        if (ch === '\\') {
+          i++
+        }
+        else if (ch === inStr) {
+          inStr = null
+        }
+        continue
+      }
+      if (inUrl) {
+        if (ch === ')') {
+          inUrl = false
+        }
+        continue
+      }
+      if (ch === '/' && next === '*') {
+        i++
+        inBlock = true
+        continue
+      }
+      if (ch === '"' || ch === "'") {
+        inStr = ch
+        continue
+      }
+      if ((ch === 'u' || ch === 'U') && block.body.slice(i, i + 4).toLowerCase() === 'url(') {
+        // 裸 url(http://…) 里的双斜杠是地址不是注释——整段跳到右括号
+        i++
+        inUrl = true
+        continue
+      }
+      if (ch === '/' && next === '/') {
+        out.push({
+          kind: 'css-line-comment',
+          file,
+          line: block.startLine + lineIdx,
+          why: '纯 CSS 样式块里的 // 行注释：dev/单测全程沉默，vite build 的 postcss 会报 Unknown word（§17.4-B 构建炸弹）；改成块注释，或给块加 lang="scss"',
+          preview: (lines[lineIdx] ?? '').trim().slice(0, 90),
+        })
+        i++
+        continue
+      }
+    }
+  }
+  return out
+}
+
 let selfChecked = 0
 
 const verbose = process.argv.includes('--verbose')
 const findings = []
 let scanned = 0
 let javaScanned = 0
+let styleScanned = 0
 
 for (const root of SCAN_ROOTS) {
   for (const file of walk(resolve(ROOT, root))) {
@@ -432,6 +545,10 @@ for (const root of SCAN_ROOTS) {
     if (file.endsWith('.java')) {
       javaScanned++
       findings.push(...javaFindings(relative(ROOT, file), text))
+    }
+    if (file.endsWith('.css') || file.endsWith('.vue') || file.endsWith('.html')) {
+      styleScanned++
+      findings.push(...cssLineCommentFindings(relative(ROOT, file), text))
     }
     if (!/[\uFFFD\uFFFE\uFFFF]/.test(text)) {
       continue
@@ -529,10 +646,39 @@ function selfCheck() {
       java: 'package p;\nimport static java.util.Objects.*;\n\nclass A {\n  void a() { }\n}\n',
       expect: null,
     },
+    {
+      name: '纯 CSS（无 lang）style 块里的 //（§17.4-B KTable 构建炸弹的形状，行号必须落在注释行）',
+      css: '<template/>\n<style scoped>\n.a { // 主色底上的白字\n  color: red;\n}\n</style>\n',
+      expect: 'css-line-comment',
+      expectLine: 3,
+    },
+    {
+      name: 'lang="scss" 块里的 //（预处理器语法合法，报了即误伤）',
+      css: '<style lang="scss">\n.a { // scss 注释合法\n  color: red;\n}\n</style>\n',
+      expect: null,
+    },
+    {
+      name: '显式 lang="css" 同样要扫；src 外链块无正文不扫',
+      css: '<style src="./a.css"></style>\n<style lang="css">\n// 显式 css 也要报\n</style>\n',
+      expect: 'css-line-comment',
+    },
+    {
+      name: 'url() 裸地址里的 //（http:// 是地址不是注释）',
+      css: '<style>\n.a { background: url(http://x/y.png); }\n</style>\n',
+      expect: null,
+    },
+    {
+      name: '字符串与块注释里的 //（必须不报）',
+      css: '<style>\n/* content: "//" 也在注释里 */\n.a { content: "//x"; }\n</style>\n',
+      expect: null,
+    },
   ]
   for (const item of cases) {
     selfChecked++
-    const kinds = new Set(javaFindings('<self-test>', item.java).map((found) => found.kind))
+    const found = item.css === undefined
+      ? javaFindings('<self-test>', item.java)
+      : cssLineCommentFindings('<self-test>.vue', item.css)
+    const kinds = new Set(found.map((f) => f.kind))
     if (item.expect === null) {
       if (kinds.size > 0) {
         problems.push(`自检：「${item.name}」被误判为 ${[...kinds].join('/')}`)
@@ -541,6 +687,10 @@ function selfCheck() {
     }
     if (!kinds.has(item.expect)) {
       problems.push(`自检：「${item.name}」没有被检出（期望 ${item.expect}）`)
+      continue
+    }
+    if (item.expectLine !== undefined && found.some((f) => f.kind === item.expect && f.line !== item.expectLine)) {
+      problems.push(`自检：「${item.name}」行号错位（期望 ${item.expectLine}，实际 ${found.map((f) => f.line).join('/')}）——行号错位一次误伤白耗半小时`)
     }
   }
   return problems
@@ -556,7 +706,7 @@ if (selfProblems.length > 0) {
 }
 
 if (findings.length === 0) {
-  console.log(`✓ 文本完整性：${scanned} 个文件无 U+FFFD / 非字符；${javaScanned} 个 Java 文件的字面量、转义与 JDK import 已扫描；门禁自检 ${selfChecked} 例通过`)
+  console.log(`✓ 文本完整性：${scanned} 个文件无 U+FFFD / 非字符；${javaScanned} 个 Java 文件的字面量、转义与 JDK import 已扫描；${styleScanned} 个样式宿主的纯 CSS 块已扫描 // 注释；门禁自检 ${selfChecked} 例通过`)
   process.exit(0)
 }
 
@@ -596,5 +746,9 @@ if (kinds.has('java-jdk-import')) {
 if (kinds.has('java-escape')) {
   console.error('  转义类处理：Java 源码里的正则要双写反斜杠（matches 的参数是正则，不是字面量）。')
   console.error('  并确认后端 CI 的 Compile 步骤真的执行过：沙箱内无法运行 mvn，看起来对 != 编译得过。')
+}
+if (kinds.has('css-line-comment')) {
+  console.error('  CSS 注释类处理：纯 CSS（无 lang 或 lang="css"）块只认 /* */，// 要到 vite build 才被 postcss 判 Unknown word——')
+  console.error('  改块注释即可；加 lang="scss" 是引预处理器的决定，不该为了省两个星号顺手做。')
 }
 process.exit(1)
