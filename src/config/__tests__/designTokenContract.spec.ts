@@ -88,9 +88,11 @@ describe('设计 token · 阴影不允许写死字面值', () => {
     // 类别进度：
     //   3. 颜色字面值 → 已落地（见下方两条：清零存量后直接 fail 级）；
     //      兜底口径与 styleContract.spec.ts（view 层 hex 守卫）一致，扩到 rgb 族与组件层。
-    // 后续候选（按存量从少到多）：
-    //   1. transition/animation 的时长与缓动 → var(--kubo-duration-*) / var(--kubo-ease-*)
-    //   2. border-radius 字面值 → var(--kubo-radius-*)
+    //   1. 时长/缓动 → 已落地（框架层 fail 级；view 层存量 24 处含手调漂移，清零后再扩；
+    //      ambient 循环动画的时长是节律身份不是交互响应，不纳入）。
+    //   2. border-radius → **实测否决机械守卫**：存量值谱 2/3/4/8/12/16/20/999/50% 远超
+    //      token 三档（6/10/14），逐像素建 token 等于把漂移写进规范本身；
+    //      像素值收敛（16→14 这类）需要人眼回归，见报告 §19 建议清单。
     // 每加一类都先在 CI 里跑出存量清单，清零后再把断言从「告警」升级为「失败」。
     expect(typeof HARDCODED_SHADOW).toBe('object')
   })
@@ -125,6 +127,51 @@ describe('设计 token · 阴影不允许写死字面值', () => {
     expect(
       offenders,
       `写死的颜色在暗色模式下无从适配、改色必漏（--kubo-scrim / --kubo-on-brand-* / --kubo-print-* / var(--el-*) 已覆盖这些语义）：\n${offenders.join('\n')}`,
+    ).toEqual([])
+  })
+
+  /**
+   * 时长/缓动守卫（扩展类 1，框架层 fail 级）。
+   *
+   * 范围只收 `src/component/framework/**` 的 transition：
+   * - 框架组件是设计系统自有层，一致性收益最高、存量最小，先拉闸；
+   * - view 层还有 24 处带实测漂移（0.15~0.25s 手调值 + 自定义 bezier），清零前不收，
+   *   否则守卫逼人批量改视觉；ambient 无限循环动画（shimmer/pulse）刻意不纳入——
+   *   它们的时长是节律身份，不是交互响应。
+   * cubic-bezier 字面值同判：--kubo-ease-* 的存在就是为了让曲线可比对。
+   */
+  const FRAMEWORK = join(SRC, 'component', 'framework')
+  // 拆成「先取 transition 片段 → 再在片段里测字面值」两步，而不是一个大正则：
+  // `[^;]*?` 与 `\d*`/`\d+` 的匹配路径可交换（eslint regexp/no-super-linear-backtracking），
+  // 文件顶部 box-shadow 那条注释记录的就是同一个坑。分段正则各自单趟扫描、无回溯歧义。
+  function hasHardcodedTiming(line: string): boolean {
+    for (const m of line.matchAll(/transition\s*:[^;]*/g)) {
+      if (/\d+(?:\.\d+)?m?s\b/.test(m[0]) || /cubic-bezier\(/.test(m[0]))
+        return true
+    }
+    return false
+  }
+
+  it('框架层 transition 的时长/曲线必须走 --kubo-duration-* / --kubo-ease-*（扩展类 1 拉闸）', () => {
+    const files = walk(FRAMEWORK).filter(f => f.endsWith('.vue'))
+    const offenders: string[] = []
+    for (const file of files) {
+      let text = readFileSync(file, 'utf8')
+      // 复用颜色守卫的「合法出现」表：注释与 var(--x, 兜底) 里的字面值不算漂移。
+      // 剔除必须「保行数置空」而不是替换成单个空格：跨行块注释一旦折叠，
+      // 后面的违例行号会整体错位——行号错位一次，误伤排查白耗半小时。
+      for (const pattern of LEGAL_COLOR_SPOTS)
+        text = text.replace(pattern, m => m.replace(/[^\n]/g, ' '))
+      text.split(/\r?\n/).forEach((line, index) => {
+        if (hasHardcodedTiming(line))
+          offenders.push(`${relative(ROOT, file).split(sep).join('/')}:${index + 1}  ${line.trim()}`)
+      })
+    }
+    // 哨兵：walk 路径写错会把守卫变成空转（同死引用守卫的教训）
+    expect(files.length, '框架层应至少扫出一批 .vue').toBeGreaterThan(5)
+    expect(
+      offenders,
+      `交互时长手调后无法对照（档位在 --kubo-duration-fast/base/slow，曲线在 --kubo-ease-*）：\n${offenders.join('\n')}`,
     ).toEqual([])
   })
 

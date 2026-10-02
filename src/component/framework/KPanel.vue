@@ -62,7 +62,7 @@ withDefaults(defineProps<{
   border: 1px solid var(--el-border-color-lighter);
   background: var(--el-bg-color);
   box-shadow: var(--kubo-shadow-sm);
-  transition: all 0.2s ease;
+  transition: all var(--kubo-duration-base) ease;
 }
 
 .k-panel--plain {

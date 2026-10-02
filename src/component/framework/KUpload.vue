@@ -250,7 +250,7 @@ function remove(index: number): void {
   border-radius: 6px;
   background: var(--el-fill-color-blank);
   cursor: pointer;
-  transition: border-color 0.2s, background-color 0.2s;
+  transition: border-color var(--kubo-duration-base), background-color var(--kubo-duration-base);
 }
 
 .k-upload__picker.is-compact {

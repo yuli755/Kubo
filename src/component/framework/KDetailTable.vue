@@ -207,7 +207,9 @@ function cellStyle(row: E, column: ITableColumn): CSSProperties {
   }
 
   :deep(.el-table__row) {
-    transition: background-color var(--kubo-duration-fast, 150ms) ease;
+    /* 兜底值必须与 tokens.scss 定义同值（120ms）：兜底写 150ms 只在令牌缺失时生效，
+       而缺失已被 designTokenContract 的死引用守卫拦截——漂移兜底唯一的实际作用是误导读者 */
+    transition: background-color var(--kubo-duration-fast, 120ms) ease;
   }
 }
 

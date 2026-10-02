@@ -398,6 +398,15 @@ watch([displayMode, activeZone, occupancyFilter], () => {
       handleResize()
     })
   }
+  else if (chartInstance) {
+    // R43 生命周期修复：容器在 v-else 分支上，切到 2.5D 时 DOM 节点被销毁而实例还在；
+    // 切回来时下方的 `if (!chartInstance)` 会跳过重建，setOption 画在游离节点上——
+    // 第二次进矩阵永远空白，且旧实例连同 click 闭包泄漏到组件卸载为止。离开即销毁。
+    nextTick(() => {
+      chartInstance?.dispose()
+      chartInstance = null
+    })
+  }
 })
 
 onMounted(() => {

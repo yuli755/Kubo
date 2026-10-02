@@ -392,7 +392,7 @@ html.dark .k-command-palette__item.is-active {
   font-size: 12px;
   color: var(--el-text-color-placeholder, #cbd5e1);
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--kubo-duration-fast) ease;
 }
 
 .k-command-palette__item.is-active .item-arrow {
@@ -429,7 +429,9 @@ html.dark .k-command-palette__item.is-active {
 
 .palette-fade-enter-active,
 .palette-fade-leave-active {
-  transition: opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  /* 曲线原为 cubic-bezier(0.22,1,0.36,1)——与 --kubo-ease-out 逐参数同值；
+     180ms 收敛到 base 档（200ms），肉眼无感，档位可比对 */
+  transition: opacity var(--kubo-duration-base) var(--kubo-ease-out);
 }
 
 .palette-fade-enter-from,

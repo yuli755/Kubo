@@ -48,6 +48,9 @@ const confirm = ref('')
 const CODE_COOLDOWN_SECONDS = 60
 const cooldown = ref(0)
 let cooldownTimer: ReturnType<typeof setInterval> | null = null
+// R43 生命周期修复：请求在途时组件可能被卸载（关闭面板/返回登录），
+// 迟到的 startCooldown 会造出无人认领的僵尸 interval（60s 写死引用）。
+let disposed = false
 
 const isValidEmail = computed(() => !!email.value && isEmail(email.value))
 const isValidPhone = computed(() => !!phone.value && isMobilePhone(phone.value))
@@ -72,6 +75,10 @@ function switchChannel(next: ResetChannel) {
 }
 
 function startCooldown() {
+  // 请求在途时组件可能已卸载（见 disposed），迟到的启动直接作废
+  if (disposed) {
+    return
+  }
   cooldown.value = CODE_COOLDOWN_SECONDS
   cooldownTimer = setInterval(() => {
     cooldown.value -= 1
@@ -83,6 +90,7 @@ function startCooldown() {
 }
 
 onBeforeUnmount(() => {
+  disposed = true
   if (cooldownTimer) {
     clearInterval(cooldownTimer)
     cooldownTimer = null

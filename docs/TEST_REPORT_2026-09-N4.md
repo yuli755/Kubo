@@ -1055,3 +1055,61 @@ tests 钉住（状态码 422/500 的既有用例本就是同句式，本轮补�
 | `/user/resetMyPassword` 服务端限流 | 高权重，需后端（17.10 不变） |
 | legal 文案外置 / 守卫模板化 | 低权重不变 |
 | 空态收口二期 | **本轮关闭**（本仓无散装空态） |
+
+---
+
+## §19 Round 43：生命周期资源释放 —— 让「卸载之后」不再是无人认领的时间
+
+### 19.1 需求 → 拆解 → 选型 → 风险
+
+需求：§18 之后的新排查维度——「组件卸载后代码是否还在活着」（没摘的监听、撤不掉的定时器、无主的图表实例）。这类缺陷不报错、不红测试，只在数小时运行后悄悄吃内存，编译器和单测都看不见——机器门禁造不出它，只能人工盘点 + 回归锁守线。
+
+- **拆解**：先盘点后动手，而非 grep 到就改。`addEventListener` 在 src 就有 89 处命中，逐处判定需要上下文（命名函数与否、同作用域与否、mount 条件与否）；一把梭必出误伤。只读深审产出 22 行清单，每项带 created-in / released-in / verdict / reason 列——配对证据摆齐，真缺陷只有 3 处。
+- **选型**：仓库没有 @vueuse（deps grep 空），原生监听全靠手动配对——修复也沿用同风格（留句柄 + `onBeforeUnmount` 撤销），不为三处缺陷拉新依赖；图表实例沿用既有「卸载即 dispose」通道，只补「离开矩阵模式即销毁」，不引入新生命周期概念；测试用现成 vitest + @vue/test-utils，mock ECharts 验证 dispose 链。
+- **风险（取舍记账）**：① 模式离开即销毁意味着实例不能跨模式复用——但热力数据每次进矩阵都重新 setOption，复用死实例有害无益；② ModifyPassword 撤销跳转 = 「用户自己关的抽屉就不再替他跳」——行为变了但合理，服务端会话已吊销，下一次请求自然送回登录页；③ ResetPassword 迟到即作废的代价是「少倒计时一次」，比留 60 秒僵尸 interval 写死引用轻得多。
+
+### 19.2 三处缺陷、三个修复、三把锁
+
+| # | 位置 | 触发路径 | 症状 | 修复 |
+| --- | --- | --- | --- | --- |
+| 1 | WarehouseHeatmap.vue watch（L394） | 2.5D → 矩阵 → 2.5D → 矩阵 | 第二次矩阵**永远空白**（`if (!chartInstance)` 跳过重建，setOption 画在游离节点上），旧实例连 click 闭包泄漏到卸载 | 离开 matrix 模式即 `dispose`（`nextTick` 里做，等 v-else 节点拆完） |
+| 2 | ModifyPassword.vue :38 | 改密成功后 3 秒内关抽屉/切页 | 仍被 `window.location.replace` 强制甩到 /login | setTimeout 留句柄，`onBeforeUnmount` 撤销 |
+| 3 | ResetPassword.vue startCooldown | 发码请求在途时卸载面板 | 迟到的 startCooldown 造出无人认领的 60s 僵尸 interval | 组件级 `disposed` 旗标，迟到即作废 |
+
+三把锁都是「缺陷回归锁」：断言的是修复后的正确行为，摘掉修复必红。其中 WarehouseHeatmap.spec.ts 是 `src/view/` 下**第一份**组件级 spec（该目录 `__tests__` 此前为空——R42 视图层 24 处漂移长期没人治的根因之一就是这一层根本没有测试设施）。
+
+### 19.3 负样本：三把锁全部先证明「会咬人」（仓库铁律）
+
+逐个在修复点插 `&& false` 短路探针 → 三把锁应红 → 还原 → 复绿。报错原文存档：
+
+1. `expected "vi.fn()" to be called 1 times, but got 0 times`（dispose 未发生——空白缺陷复现）；
+2. `expected "clearTimeout" to be called at least once`（强制跳转回来了）；
+3. `expected "setInterval" to not be called at all, but actually been called 1 times`（僵尸 interval 回来了）。
+
+第一发探针还顺手抓到一个设施坑：`mount()` 默认挂在游离 div 上，「画在游离节点」与「重建后已挂载」在测试里无法区分——mount 加 `attachTo: document.body` 后，`document.contains(container)` 才有物理意义。
+
+### 19.4 17.10 余项收口：duration 守卫落地，radius 守卫明确否决
+
+- **落地**：三处「本意走令牌却手写死值」改 `var(--kubo-duration-base)` / `var(--kubo-ease-out)`（KPanel tab 下划线 300→200ms、KPalette 200→120ms、KCommandPalette 遮罩 180→200ms + 删内联 cubic-bezier），真机 computed 全部确认（KPanel 0.2s/ease；遮罩 0.2s/cubic-bezier(0.22,1,0.36,1)，见证据 79 同轮）；duration 族已有 `check-design-token-contract` duration-fallback 门禁——新模块复制即得双保险。
+- **否决（理由存档）**：radius 族不做同款守卫。契约只认四档，而实库 38 种合法值（`5px`/`11px`/`4px`/`15px`/`26px`…几乎每个值都有注明理由的注释）——那是不同构件的显式需求，不是随手漂移。硬钉 = 把历史冻结成法律，此后每个合法新值都得先「过守卫」；本仓门禁铁律「咬错一次就没人信它」，此处的代价远大于收益。文本族模板化未做：硬编码文本仅 3 处且都在注释/兜底语境，模板化是负收益。
+
+### 19.5 NOT-WORTH-FIXING 台账（审过、判定不动，留档防复查）
+
+KFormDialog 600ms 草稿防抖在卸载后落一次 localStorage（持久化语义，良性）；SecurityDashboard 双图 `!xChart` 守卫只在 `resources.length` 0→非 0 时出问题（刷新路径不可达）；theme.ts `matchMedia` change 监听——单例 store 与应用同寿；authSync `storage`、errorHandler 双全局、registerSW 小时级轮询、persist `$subscribe`、navProgress 三件套（自带 `installed` 防重入旗标）——应用级单例，均有一处注册 + 文档化理由；KTable「条件加/无条件删」不对称但正确（remove 未注册函数是 no-op）；axios `revokeObjectURL` 延迟 1s 是 Safari 竞态缓冲；feedback `openDialog` 命令式渲染有完整卸载链；error.vue `onScopeDispose` 冗余但无害。
+
+### 19.6 全量回归（round 43 门禁，全部未降）
+
+`pnpm check` 链全绿：前半（lint:ci → … → typecheck）首轮即过；`test:coverage` **87 文件 / 929 测试**（R42 基线 919，本轮生命周期新增 9 用例）；覆盖率 **90.83 / 84.17 / 82.33 / 90.8**（阈值 50/65/50/75 未降未跌）；gzip 首屏 **294.3/450 KB** · 总体 **724.9/900 KB**（与 R42 持平）；后 14 步（perms → size）**TAIL_OK**；后端零改动。
+
+**本轮插曲存档（环境性不稳定，非本轮引入）**：test:coverage 两次在全并发下以 `0xC0000409`（Windows fail-fast）崩溃，且**崩溃点不固定**（一次 19904 行处、一次 44 行处）——非确定性特征；本轮三份新 spec 定向连跑三轮 16/16 全绿排除自身嫌疑；限流 `VITEST_MAX_THREADS=2` 后一次通过全绿。定性：机器内存压力下的 vitest worker 崩溃（当时空闲内存 ~3GB），非 spec 缺陷。处置：不在仓库里为此加全局限流配置（并发数属机器属性非项目属性），复现再议。
+
+### 19.7 改动与建议清单（收口）
+
+**改动**：三处生命周期修复 + 新增 9 用例（3 份 spec，含 view 层首份组件 spec）+ 三处 duration 字面量换令牌。
+
+| 剩余建议 | 状态 |
+| --- | --- |
+| `/user/resetMyPassword` 服务端限流 | 高权重，需后端（17.10 不变） |
+| 视图层 24 处 duration 字面量漂移 | 低权重：台账在册，随各模块功能轮顺带修，不开专项轮 |
+| legal 文案外置 | 低权重不变（19.4 已给理由：模板化负收益） |
+| radius 守卫 | **本轮关闭——否决**（理由见 19.4） |

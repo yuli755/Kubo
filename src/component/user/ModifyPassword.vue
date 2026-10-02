@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { ElButton, ElForm, ElFormItem, ElInput } from 'element-plus'
-import { reactive, ref } from 'vue'
+import { onBeforeUnmount, reactive, ref } from 'vue'
 import { FeedbackUtil } from '@/framework'
 import { UserService } from '@/model/personnel/user/UserService'
 
@@ -23,6 +23,17 @@ const form = reactive({
 
 const confirmPassword = ref('')
 const isSubmitting = ref(false)
+// R43 生命周期修复：3 秒跳转的定时器原来没留句柄、无法撤销——成功后 3 秒内
+// 关掉抽屉/切走页面，仍会被 window.location.replace 强制甩到登录页。
+// 卸载即撤销：用户已经自己走了，不该再替他跳。
+let redirectTimer: ReturnType<typeof setTimeout> | null = null
+
+onBeforeUnmount(() => {
+  if (redirectTimer) {
+    clearTimeout(redirectTimer)
+    redirectTimer = null
+  }
+})
 
 const canSubmit = () => !!form.oldPassword && !!form.password && !!confirmPassword.value
 
@@ -35,7 +46,8 @@ async function onSubmit() {
   try {
     await new UserService().updateMyPassword({ ...form } as never)
     await FeedbackUtil.toastSuccess('密码修改成功，请重新登录')
-    setTimeout(() => {
+    redirectTimer = setTimeout(() => {
+      redirectTimer = null
       window.location.replace('/login')
     }, 3000)
   }

@@ -144,4 +144,47 @@ describe('login/ResetPassword · 忘记密码面板（R41 ①a）', () => {
     await wrapper.find('.back-link').trigger('click')
     expect(wrapper.emitted('back')).toHaveLength(1)
   })
+
+  it('生命周期（R43）：请求在途时卸载 → 迟到的 startCooldown 被作废，不留僵尸 interval', async () => {
+    vi.useFakeTimers()
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval')
+    try {
+      const wrapper = mountReset()
+      await field(wrapper, P.email).setValue('user@hamm.cn')
+      let resolveSend!: () => void
+      mocks.sendEmailCode.mockImplementationOnce(() => new Promise<void>((resolve) => {
+        resolveSend = resolve
+      }))
+      await wrapper.find('.send-code-btn').trigger('click')
+      await vi.advanceTimersByTimeAsync(0) // 请求已发出、仍在途
+      expect(mocks.sendEmailCode).toHaveBeenCalled()
+      wrapper.unmount() // 用户在响应回来之前关面板
+      resolveSend()
+      await vi.advanceTimersByTimeAsync(0)
+      // 修复前：迟到的 startCooldown 在这里 setInterval(…,1000)，60s 写死引用
+      expect(intervalSpy).not.toHaveBeenCalled()
+    }
+    finally {
+      intervalSpy.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('生命周期（R43）：冷却已在跑时卸载 → clearInterval 认领（对照组，防止修复把正常路径也关掉）', async () => {
+    vi.useFakeTimers()
+    const clearSpy = vi.spyOn(globalThis, 'clearInterval')
+    try {
+      const wrapper = mountReset()
+      await field(wrapper, P.email).setValue('user@hamm.cn')
+      await wrapper.find('.send-code-btn').trigger('click')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(wrapper.find('.send-code-btn').attributes('disabled')).toBeDefined()
+      wrapper.unmount()
+      expect(clearSpy).toHaveBeenCalled()
+    }
+    finally {
+      clearSpy.mockRestore()
+      vi.useRealTimers()
+    }
+  })
 })
