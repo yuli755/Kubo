@@ -1159,3 +1159,56 @@ KFormDialog 600ms 草稿防抖在卸载后落一次 localStorage（持久化语�
 ### 20.6 改动清单（收口）
 
 后端：`ResetCodeBruteForceGuard` + `RedisTemplateConfig`（新增）、`UserController.resetMyPassword` 接线、`CustomError`/`ErrorContracts` 契约同步、`ResetCodeBruteForceGuardTest`（7 用例）。前端：view 层 duration 棘轮（基线 14）、`SecurityDashboard.spec.ts` 哨兵（3 用例）。其余：报告本节 + 证据 80 + `.tmp-r43-*` 清理。§19.7 表中前两行挂账至此关闭。
+
+## §21 Round 45：防爆破守卫参数化 + 运行时故障降级收口（round 45）
+
+### 21.1 需求
+
+§20.4 第一条风险存案留了个尾巴：「守卫降级方向」当时只认领了**未配置 Redis**（template 为 null ⇒ 方法短路）这一种形态。R45 复核发现更常见的形态在裸奔——生产 redis **运行时**故障（宕机/网络分区）时 template 非 null，`hasKey`/`increment` 抛 `RedisConnectionFailureException` 无人捕获：文档口径写「可用性优先」，实际后果恰好相反——登录/重置全员 500。伴生第二笔账：两守卫全部阈值是写死的 `private static final` 常量（登录守卫 javadoc 自 R22 就预留「后续可配置化」，一直未兑现），运维无任何调参面。伴生第三笔账（§20.3 收尾）：B0 第四处静默丢失至今只有**文档**记着，测试网里没有任何一条断言钉住「配置了 redis host 时 template 必须装配成功」；另有 designTokenContract L139 的「24 处」过期注释（R44 已复算为 14，L180 棘轮注释写明旧口径废弃，L139 一直没跟）。用户批准本轮三项决策：D1 = 降级**放行 + 告警**（否决 fail-closed）；D2 = 两守卫阈值一起收编；D3 = 装配哨兵双向钉 + 过期注释对账。
+
+### 21.2 拆解与选型
+
+**D1 运行时故障降级（`RedisDegradationReporter`，新件）**
+
+- 守卫三方法（`assertNotLocked`/`recordFailure`/`clear`）各自 `catch (DataAccessException)` → 上报后放行。锁定期拒绝的业务异常 `BusinessException extends RuntimeException`（`framework/error/BusinessException.java:11`），与 `DataAccessException` 分属两支——**catch 结构上吞不掉它**，锁定拒绝照常生效，这条不靠测试靠类型层级保证（测试只做行为侧确认）。
+- 上报器语义分两层：WARN 日志**每次都打**（排障要看全貌）；webhook 按 `degrade-alert-interval-seconds`（默认 60s）做 `AtomicLong` CAS 单点节流——redis 抖动期每个请求都走降级路径，不节流就是告警风暴。告警自身抛错只记日志绝不上抛：**降级路径上再炸一次是本末倒置**。
+- 「未配置 Redis」保持静默短路不上报：那是刻意的部署形态（本地调试），告警只会是噪音。两种降级形态在守卫类 javadoc 分开写明。
+- `NotificationHelper` 缺席（未配通知通道）时 `@Autowired(required=false)` null-safe——降级上报器自己绝不能成为新的启动硬依赖。
+
+**D2 阈值参数化（`SecurityGuardProperties`，新件）**
+
+- `@ConfigurationProperties("kubo.security.brute-force")`，挂既有 `kubo.security` 树（与 `allow-weak-default-secret`、`trusted-proxies` 同域；那两键走 `@Value` 消费，与绑定器无冲突）。**每个字段默认值 = 改造前常量原值**（登录 5/900/900/50，重置 5/300/900/50）——「不配置 = 行为逐位不变」是本次改造的验收线。
+- `application-production.yml` 只暴露 4 个环境变量占位符（两守卫的 `lock-seconds`/`ip-max-fail-attempts`，默认值与代码一致）：这四项是「按部署拓扑才需要调」的；其余键留代码默认。配置面**宁窄勿宽**——每多一个环境变量就多一个部署误操作面。
+
+**D3 装配哨兵（`RedisTemplateWiringSentinelTest` / `RedisTemplateAbsentWiringSentinelTest`，新增测试）**
+
+- B0 第四处静默丢失（§20.3）的另一半在**装配层**：编译期与启动期都零报错，940 个全 mock 单测永远盖不到。哨兵把「装配图在场」升格为容器级断言，且**双向**：设 `spring.data.redis.host` → `RedisHelper.getRedisTemplate()` 非 null、与容器 bean 同一对象（`assertSame`），序列化口径随行就钉（key=StringRedisSerializer 保证 redis-cli 可读，value=GenericJackson2Json 保类型回读）；默认测试档（未配 host）→ template 必须是 `@ConditionalOnProperty` 门控下刻意的 null。两哨兵各钉门控的一半，动哪半红哪半。
+- 哨兵钉的是装配图不是连通性：Lettuce 连接池惰性建连，设 host 不在启动期发起连接——测试不需要真实 Redis 在场（连通性归真机冒烟）。
+- 证咬两探针（各自落盘、各自复跑、各自复原，`git diff` 为空证逐字节还原）：③a 门控属性名 `host`→`hostX`（模拟 B0 第四例「provider 条件漂移」）→ 正向哨兵 2 例**容器直接拒绝启动**（UnsatisfiedDependency——比断言消息更硬：装配错时容器自己不肯起），负向仍绿零溢出；③b 整个 `@ConditionalOnProperty` 摘除（bean 无条件注册）→ 负向哨兵红，判决词原文命中 `expected: <null> but was: <RedisTemplate@2a807c5a>`，正向在该形态下本就非 null 仍绿、零溢出。
+
+**验证（20 个新增用例 + 五探针真机证咬）**
+
+- 单测：两守卫测试各 7→12（既有断言一字未改——用真实绑定器 `@Spy SecurityGuardProperties` 注入，默认值即旧常量，断言不动本身就在证「参数化无行为漂移」），`RedisDegradationReporterTest` 7 用例。常驻负样本三枚：锁定期业务异常**不被 catch 吞**（`never()` 上报）、节流命中**连 sendWarning 都不调**（不是发了再丢）、reporter 吞掉告警自身异常。
+- 证咬三探针（单元侧；一次落盘、单次运行验证同红、一次复原。装配侧两探针 ③a/③b 见 D3）：①守卫 catch 改 `IllegalStateException` → `assertNotLockedDegradesOnRuntimeFailure` 红 `Unexpected exception thrown: RedisConnectionFailureException: redis down`（正是 R45 修的裸奔 500）；②阈值比较回落硬编码 `>= 5` → `thresholdComesFromProperties` 红 `Wanted but not invoked: redisHelper.set("kubo:login:lock:a@b.com", <any>, <any long>)`（配置值确实在被消费）；③节流间隔改 `-1` → `throttlesRepeatedReports` + `suppressedReportNeverCallsNotification` 红 `TooManyActualInvocations: Wanted 1 time ... But was 2 times`。探针运行 `Tests run: 19, Failures: 4, BUILD FAILURE` 恰中四个、无一越界；复原复跑 12/12、12/12、7/7 全绿。
+- 这组负样本恰好是 §20.3 教训的镜像：`LoginBruteForceGuardTest` 早已存在且全绿，但 mock 的 `RedisHelper` 从不抛 `DataAccessException`——**运行时故障路径在测试网里的形状与「装配缺失」同款**。区别是这次缺口在本轮出生时就用真机负样本封死。
+
+### 21.3 对既有流程的兑现
+
+本轮是「单测绿 ≠ 完成，负样本命中才算完成」（§20.3 升格）第一次在**新功能出生当轮**完整执行的记录：代码、测试、证咬在同一条时间线上闭环，而不是事后补考。
+
+### 21.4 风险与否决记录
+
+- **降级放行 = 防爆破闸在 redis 故障窗口内暂开**（D1 存案主体）。否决 fail-closed：redis 抖动会让所有用户无法登录/重置密码，比暂开更糟；且重置链路发码侧 `EMAIL_SEND_BUSY`/`SMS_SEND_BUSY` 配额闸门仍在，爆破并非只剩这一道闸。暂开不再是静默的：每次降级一条 WARN，每 60s 一条 webhook——**静默降级是 B0 四连失的病理，本轮所有降级路径必须留痕**。
+- **CAS 节流并发窗口**：多线程下同一窗口最多一条穿越，可接受（告警是广播不是计数器）。
+- **阈值改配置 = 配置项成为攻击面？** 误配只能把闸调松不能绕过闸；且生产只暴露四键，改动需发环境变量 + 重启，不是请求期可触达的开关。
+- **template-null 静默与 B0 教训的边界**：B0 的 null 是事故（provider 被删没人知道），本轮的 null 是部署形态（javadoc 与 yml 注释写明）。区分手段仍是真机：`kubo:*` key 落没落 redis，MONITOR 一眼看穿。
+
+### 21.5 全量回归（round 45 门禁，安静机器）
+
+后端：`mvnw test -o` 串行安静机器 —— **Tests run 960 / Failures 0 / Errors 0 / Skipped 1**，BUILD SUCCESS。对账：960 = R44 基线 940 + R45 新增 20（两守卫各 +5、上报器 +7、装配哨兵 2+1=3 例两容器）；Skipped 仍为 `ApplicationTest @Disabled`。
+本轮回归期采到两类**机器压力伪影**各一次（并发期，均已复跑排除代码因）：①mvn 与 pnpm 并发时 surefire `Error occurred in starting fork / forked VM terminated without properly saying goodbye`（-Xmx512m fork 起不来）；②同窗口定向跑哨兵时 `MockitoInitializationException: Could not self-attach to current VM`（byte-buddy agent 自附加被内存压力拒供）——全量串行跑中两哨兵以容器全绿入册。结论重申 R44 §19.6：**安静机器不是礼貌，是门禁有效性的一部分**。
+**前端（本轮改动仅两 spec）**：链上 `pnpm check` 前七段（lint:ci / airpower ×2 / pom / deadcode / exports / typecheck）**全绿**；`test:coverage` 崩于第二份 spec 起跑时——`NewSpace::EnsureCurrentCapacity ... Allocation failed`，崩前堆仅 60~72MB，同窗口 `Win32_OperatingSystem` 实测 `CommitFreeGB 1.7→1.4 / Limit 40.2`（用户侧 idea64 4.3G + oracle 3.8G + vmmemWSL 3.0G 私占大半提交额度）；物理内存尚有 7GB 空闲却批不出 40MB 提交区，`--max-old-space-size` 加码无效（崩点在新生代与 V8 Zone，非老生代）。单 worker（`VITEST_MAX_THREADS=1`）重跑同点复崩；`build` 段渲染期 `Fatal process out of memory: Zone` 同因倒下（收口前额度部分回血再补跑一次：2510 modules transformed 后同点复崩——阻塞持续且与堆参数无关，待用户侧进程让出额度后下轮补跑）。被改两 spec 定向重跑 **24/24 全绿**（762ms）；随后以**分批策略绕过额度墙**：88 个 spec 按每批 12 文件切 8 个独立小进程串行跑（单进程模块图足迹≈全量 1/7），**8 批全过合计 88 文件 / 933 测试零失败**——与 R44 基线 88/933 逐位吻合（本轮前端只迁断言、零新增用例，总数不变即对账证据）。链尾 11 个静态门禁段（perms 104 码 / auth 133 端点 / errcode 419 文件 / contract 424 路由 / text 1106 文件 / ddl / migration / monitoring / canary / docker / drill）**全部 ✓ 且 EXIT=0**。仍被环境阻塞未跑的段：coverage 数值打印与阈值硬闸（50/65/50/75，数值基线仍以 §19.7/R44 打印为准）、build / demo:check / size（渲染期 Zone OOM 同因）。本轮前端改动为两 spec（无运行时代码面），其断言证据已闭环；build/size 面沿 R44 基线未被触碰。
+
+### 21.6 改动清单（收口）
+
+后端新增：`common/security/SecurityGuardProperties.java`、`common/security/RedisDegradationReporter.java`。改写：`LoginBruteForceGuard.java`、`ResetCodeBruteForceGuard.java`（常量→绑定器 + 三方法降级 catch）、`application-production.yml`（`kubo.security.brute-force` 四键占位符块）。测试新增：`RedisDegradationReporterTest`（7）、`config/RedisTemplateWiringSentinelTest`（2）+ `config/RedisTemplateAbsentWiringSentinelTest`（1）；改写：`LoginBruteForceGuardTest`/`ResetCodeBruteForceGuardTest`（各 +5）。前端：`backendRegressionPhase3.spec.ts` 登录守卫文本哨兵随参数化**迁移**（阈值数字钉→`SecurityGuardProperties.java`，守卫侧改钉 `config.getMaxFailAttempts()` 消费 + `not.toMatch` 禁硬编码回落 + 降级 catch 在场钉——迁移后覆盖面只增不减）；`designTokenContract.spec.ts` L139 过期「24 处」注释对账为 14（与 L180 棘轮注释口径归一，纯注释改动零断言变化）。

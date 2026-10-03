@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -24,21 +25,25 @@ import static cn.hamm.spms.common.exception.CustomError.LOGIN_ATTEMPT_TOO_MANY;
  *
  * <h2>维度与阈值</h2>
  * <ul>
- *   <li><b>账号维度</b>（核心，防撞库）：同一账号 {@value #MAX_FAIL_ATTEMPTS} 次失败 → 锁定
- *       {@value #LOCK_SECONDS} 秒；</li>
- *   <li><b>IP 维度</b>（兜底，防扫号）：同一 IP {@value #IP_MAX_FAIL_ATTEMPTS} 次失败 → 锁定。
- *       阈值刻意设高 —— 企业内网常经 NAT 共享出口 IP，纯 IP 限流阈值过低会误伤同网段正常用户。</li>
+ *   <li><b>账号维度</b>（核心，防撞库）：同一账号窗口内失败达 {@code login.max-fail-attempts}
+ *       次 → 锁定 {@code login.lock-seconds} 秒；</li>
+ *   <li><b>IP 维度</b>（兜底，防扫号）：同一 IP 失败达 {@code login.ip-max-fail-attempts}
+ *       次 → 锁定。阈值刻意设高 —— 企业内网常经 NAT 共享出口 IP，纯 IP 限流阈值过低会误伤
+ *       同网段正常用户。</li>
  * </ul>
+ * <p>阈值来自 {@link SecurityGuardProperties}（{@code kubo.security.brute-force.login.*}），
+ * R45 参数化；<b>默认值即参数化前的常量值</b>，不配置 = 行为逐位不变。</p>
  *
- * <h2>Redis 不可用降级</h2>
- * <p>单机调试未配 Redis 时 {@link RedisHelper#getRedisTemplate()} 返回 {@code null}，此时全部方法
- * 短路（不锁定、不计数、不清零），保持改造前「无防爆破」行为。生产环境 Redis 是数据权限 / 缓存的
- * 硬依赖，守卫必然生效；此分支仅服务本地无 Redis 的调试场景（与 {@code OrderService} 报工并发锁
- * 的降级口径一致）。</p>
- *
- * <h2>可配置化</h2>
- * <p>阈值当前为常量。如需按部署拓扑调整（公网环境可收紧 IP 阈值），将常量迁至
- * {@code @ConfigurationProperties} 即可，语义不变。</p>
+ * <h2>Redis 不可用降级（两种形态，口径不同）</h2>
+ * <ul>
+ *   <li><b>未配置 Redis</b>（本地调试）：{@link RedisHelper#getRedisTemplate()} 返回
+ *       {@code null}，全部方法静默短路 —— 这是刻意的部署形态，告警只会是噪音；</li>
+ *   <li><b>运行时故障</b>（R45/D1）：生产 Redis 配置在场但访问抛
+ *       {@link DataAccessException}（宕机/网络分区）时，记 WARN + 节流 webhook
+ *       （{@link RedisDegradationReporter}）后<b>放行</b> —— 可用性优先，redis 抖动不该让
+ *       全员无法登录；防爆破闸暂开的风险窗口经决策存案（报告 §21），与被否决的
+ *       fail-closed 一并记录。</li>
+ * </ul>
  *
  * @author Hamm.cn
  */
@@ -53,14 +58,8 @@ public class LoginBruteForceGuard {
     /** IP 维度锁定 key 前缀 */
     private static final String IP_LOCK_KEY_PREFIX = "kubo:login:ip:lock:";
 
-    /** 账号维度：允许的最大失败次数（窗口内） */
-    private static final int MAX_FAIL_ATTEMPTS = 5;
-    /** 失败计数窗口（秒）：窗口内失败累计到阈值即锁定 */
-    private static final int FAIL_WINDOW_SECONDS = 15 * 60;
-    /** 锁定时长（秒） */
-    private static final int LOCK_SECONDS = 15 * 60;
-    /** IP 维度：允许的最大失败次数（高阈值，防 NAT 误伤） */
-    private static final int IP_MAX_FAIL_ATTEMPTS = 50;
+    /** 降级告警的守卫名（进日志与 webhook 标题） */
+    private static final String GUARD_NAME = "login";
 
     @Autowired
     private RedisHelper redisHelper;
@@ -70,6 +69,12 @@ public class LoginBruteForceGuard {
 
     @Autowired(required = false)
     private NotificationHelper notificationHelper;
+
+    @Autowired
+    private SecurityGuardProperties properties;
+
+    @Autowired
+    private RedisDegradationReporter degradationReporter;
 
     /**
      * 从请求解析客户端真实 IP（阶段 F-1：收敛到 {@link ClientIpResolver}，
@@ -91,6 +96,8 @@ public class LoginBruteForceGuard {
     /**
      * 登录前校验：账号或 IP 处于锁定期则直接抛出「登录失败次数过多」异常（不进入失败计数）。
      *
+     * <p>Redis 运行时故障 → 记降级告警后放行（R45/D1），登录流程照常往下走。</p>
+     *
      * @param account 登录账号（邮箱 / 手机号），为空则跳过（空账号由参数校验拦截，不构成爆破）
      * @param ip      客户端 IP，为空则跳过 IP 维度
      */
@@ -98,16 +105,23 @@ public class LoginBruteForceGuard {
         if (redisUnavailable() || !StringUtils.hasText(account)) {
             return;
         }
-        if (redisHelper.hasKey(LOCK_KEY_PREFIX + account)) {
-            LOGIN_ATTEMPT_TOO_MANY.show();
-        }
-        if (StringUtils.hasText(ip) && redisHelper.hasKey(IP_LOCK_KEY_PREFIX + ip)) {
-            LOGIN_ATTEMPT_TOO_MANY.show();
+        try {
+            if (redisHelper.hasKey(LOCK_KEY_PREFIX + account)) {
+                LOGIN_ATTEMPT_TOO_MANY.show();
+            }
+            if (StringUtils.hasText(ip) && redisHelper.hasKey(IP_LOCK_KEY_PREFIX + ip)) {
+                LOGIN_ATTEMPT_TOO_MANY.show();
+            }
+        } catch (DataAccessException e) {
+            // 业务异常（LOGIN_ATTEMPT_TOO_MANY）不是 DataAccessException，不会被本 catch 吞掉
+            degradationReporter.report(GUARD_NAME, "assertNotLocked", e);
         }
     }
 
     /**
      * 登录失败后计数。达到阈值则写锁定 key（带 TTL）并重置计数窗口。
+     *
+     * <p>Redis 运行时故障 → 记降级告警后放弃本次计数（防爆破闸暂开，见类 javadoc）。</p>
      *
      * @param account 登录账号
      * @param ip      客户端 IP
@@ -116,40 +130,49 @@ public class LoginBruteForceGuard {
         if (redisUnavailable() || !StringUtils.hasText(account)) {
             return;
         }
-        RedisTemplate<String, Object> redisTemplate = redisHelper.getRedisTemplate();
+        SecurityGuardProperties.Login config = properties.getLogin();
+        try {
+            RedisTemplate<String, Object> redisTemplate = redisHelper.getRedisTemplate();
 
-        Long accountFail = redisTemplate.opsForValue().increment(FAIL_KEY_PREFIX + account);
-        if (accountFail != null && accountFail == 1L) {
-            // 首次失败：给计数窗口设 TTL，窗口过后自动清零（不设则 key 永不过期）
-            redisTemplate.expire(FAIL_KEY_PREFIX + account, FAIL_WINDOW_SECONDS, TimeUnit.SECONDS);
-        }
-        if (accountFail != null && accountFail >= MAX_FAIL_ATTEMPTS) {
-            redisHelper.set(LOCK_KEY_PREFIX + account, "1", LOCK_SECONDS);
-            redisHelper.delete(FAIL_KEY_PREFIX + account);
-            if (notificationHelper != null) {
-                notificationHelper.sendWarning("安全风控告警：账号防爆破锁定",
-                        String.format("账号 [%s] 密码连续错误达到 %d 次，已被锁定 %d 秒", account, MAX_FAIL_ATTEMPTS, LOCK_SECONDS));
+            Long accountFail = redisTemplate.opsForValue().increment(FAIL_KEY_PREFIX + account);
+            if (accountFail != null && accountFail == 1L) {
+                // 首次失败：给计数窗口设 TTL，窗口过后自动清零（不设则 key 永不过期）
+                redisTemplate.expire(FAIL_KEY_PREFIX + account, config.getFailWindowSeconds(), TimeUnit.SECONDS);
             }
-        }
-
-        if (StringUtils.hasText(ip)) {
-            Long ipFail = redisTemplate.opsForValue().increment(IP_FAIL_KEY_PREFIX + ip);
-            if (ipFail != null && ipFail == 1L) {
-                redisTemplate.expire(IP_FAIL_KEY_PREFIX + ip, FAIL_WINDOW_SECONDS, TimeUnit.SECONDS);
-            }
-            if (ipFail != null && ipFail >= IP_MAX_FAIL_ATTEMPTS) {
-                redisHelper.set(IP_LOCK_KEY_PREFIX + ip, "1", LOCK_SECONDS);
-                redisHelper.delete(IP_FAIL_KEY_PREFIX + ip);
+            if (accountFail != null && accountFail >= config.getMaxFailAttempts()) {
+                redisHelper.set(LOCK_KEY_PREFIX + account, "1", config.getLockSeconds());
+                redisHelper.delete(FAIL_KEY_PREFIX + account);
                 if (notificationHelper != null) {
-                    notificationHelper.sendWarning("安全风控告警：IP防爆破锁定",
-                            String.format("客户端 IP [%s] 请求失败达到 %d 次，已被锁定 %d 秒", ip, IP_MAX_FAIL_ATTEMPTS, LOCK_SECONDS));
+                    notificationHelper.sendWarning("安全风控告警：账号防爆破锁定",
+                            String.format("账号 [%s] 密码连续错误达到 %d 次，已被锁定 %d 秒",
+                                    account, config.getMaxFailAttempts(), config.getLockSeconds()));
                 }
             }
+
+            if (StringUtils.hasText(ip)) {
+                Long ipFail = redisTemplate.opsForValue().increment(IP_FAIL_KEY_PREFIX + ip);
+                if (ipFail != null && ipFail == 1L) {
+                    redisTemplate.expire(IP_FAIL_KEY_PREFIX + ip, config.getFailWindowSeconds(), TimeUnit.SECONDS);
+                }
+                if (ipFail != null && ipFail >= config.getIpMaxFailAttempts()) {
+                    redisHelper.set(IP_LOCK_KEY_PREFIX + ip, "1", config.getLockSeconds());
+                    redisHelper.delete(IP_FAIL_KEY_PREFIX + ip);
+                    if (notificationHelper != null) {
+                        notificationHelper.sendWarning("安全风控告警：IP防爆破锁定",
+                                String.format("客户端 IP [%s] 请求失败达到 %d 次，已被锁定 %d 秒",
+                                        ip, config.getIpMaxFailAttempts(), config.getLockSeconds()));
+                    }
+                }
+            }
+        } catch (DataAccessException e) {
+            degradationReporter.report(GUARD_NAME, "recordFailure", e);
         }
     }
 
     /**
      * 登录成功后清零该账号与 IP 的失败计数与锁定态。
+     *
+     * <p>清零失败（Redis 运行时故障）只记降级告警，绝不让已成功的登录响应变成 500。</p>
      *
      * @param account 登录账号
      * @param ip      客户端 IP
@@ -158,13 +181,17 @@ public class LoginBruteForceGuard {
         if (redisUnavailable()) {
             return;
         }
-        if (StringUtils.hasText(account)) {
-            redisHelper.delete(FAIL_KEY_PREFIX + account);
-            redisHelper.delete(LOCK_KEY_PREFIX + account);
-        }
-        if (StringUtils.hasText(ip)) {
-            redisHelper.delete(IP_FAIL_KEY_PREFIX + ip);
-            redisHelper.delete(IP_LOCK_KEY_PREFIX + ip);
+        try {
+            if (StringUtils.hasText(account)) {
+                redisHelper.delete(FAIL_KEY_PREFIX + account);
+                redisHelper.delete(LOCK_KEY_PREFIX + account);
+            }
+            if (StringUtils.hasText(ip)) {
+                redisHelper.delete(IP_FAIL_KEY_PREFIX + ip);
+                redisHelper.delete(IP_LOCK_KEY_PREFIX + ip);
+            }
+        } catch (DataAccessException e) {
+            degradationReporter.report(GUARD_NAME, "clear", e);
         }
     }
 

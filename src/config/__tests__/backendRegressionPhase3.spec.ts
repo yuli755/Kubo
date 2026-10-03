@@ -65,16 +65,25 @@ describe('p3 · 后端业务核心能力全量回归', () => {
     })
 
     it('登录防爆破守卫：账号阈值 5 次 / 15分钟，IP 阈值 50 次，成功清理计数', () => {
+      // R45 参数化：阈值常量搬进 SecurityGuardProperties（默认值 = 改造前原值），
+      // 数字钉跟着搬家——仍然当场可复算，只是读的文件换了。
+      const props = code('common/security/SecurityGuardProperties.java')
+      expect(props).toContain('private int maxFailAttempts = 5')
+      expect(props).toContain('private int failWindowSeconds = 15 * 60')
+      expect(props).toContain('private int lockSeconds = 15 * 60')
+      expect(props).toContain('private int ipMaxFailAttempts = 50')
+      // 守卫必须从绑定器取值消费，不得把数字重新写回守卫体内
       const guard = code('common/security/LoginBruteForceGuard.java')
-      expect(guard).toContain('MAX_FAIL_ATTEMPTS = 5')
-      expect(guard).toContain('FAIL_WINDOW_SECONDS = 15 * 60')
-      expect(guard).toContain('LOCK_SECONDS = 15 * 60')
-      expect(guard).toContain('IP_MAX_FAIL_ATTEMPTS = 50')
+      expect(guard).toContain('config.getMaxFailAttempts()')
+      expect(guard).not.toMatch(/maxFailAttempts\s*\(\s*\)\s*==\s*5|>=\s*5\b/)
       expect(guard).toContain('FAIL_KEY_PREFIX = "kubo:login:fail:"')
       expect(guard).toContain('LOCK_KEY_PREFIX = "kubo:login:lock:"')
       expect(guard).toContain('assertNotLocked(@Nullable String account, @Nullable String ip)')
       expect(guard).toContain('recordFailure(@Nullable String account, @Nullable String ip)')
       expect(guard).toContain('clear(@Nullable String account, @Nullable String ip)')
+      // R45/D1：运行时故障必须捕获降级，裸奔上抛=全员 500（§21）
+      expect(guard).toContain('catch (DataAccessException e)')
+      expect(guard).toContain('degradationReporter.report(GUARD_NAME, "assertNotLocked", e)')
     })
 
     it('用户控制器登录：先验锁定，成功清理计数，失败统计自持业务异常', () => {

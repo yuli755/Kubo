@@ -82,6 +82,17 @@ kubo:
     # C-1（阶段D）：生产绝不放行弱默认 JWT 密钥；未注入
     # AIRPOWER_API_ACCESS_TOKEN_SECRET 时 AccessTokenSecretGuard 直接拒绝启动。
     allow-weak-default-secret: false
+    # R45：防爆破守卫阈值。代码默认（SecurityGuardProperties）= 参数化前的常量，
+    # 不配置 = 行为逐位不变。这里只暴露「按部署拓扑才需要调」的四键（宁窄勿宽：
+    # 每多一个环境变量就多一个部署误操作面）；占位符默认值与代码默认一致，
+    # 部署侧不注入任何环境变量也照常运行。
+    brute-force:
+      login:
+        lock-seconds: '${LOGIN_LOCK_SECONDS:900}'
+        ip-max-fail-attempts: '${LOGIN_IP_MAX_FAIL_ATTEMPTS:50}'
+      reset:
+        lock-seconds: '${RESET_LOCK_SECONDS:900}'
+        ip-max-fail-attempts: '${RESET_IP_MAX_FAIL_ATTEMPTS:50}'
   data-permission:
     # 档位由 .env 的 DATA_PERMISSION_MODE 一键控制（占位符显式绑定，部署零改码）：
     #   shadow  —— 默认档：全量影子比对打点，收集 SHADOW_EVIDENCE 放量证据；
