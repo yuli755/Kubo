@@ -214,7 +214,11 @@ function buildParityOption() {
     animationEasing: 'cubicOut' as const,
     tooltip: { trigger: 'axis' as const },
     legend: { bottom: 0 },
-    grid: { left: '8%', right: '4%', top: '8%', bottom: '22%', containLabel: true },
+    // R46·修复建议12（L报告 P2-12）：echarts 6 把 containLabel 降级为 legacy 通道，
+    // 不 use(LegacyGridContainLabel) 就每次开发态渲染打一条警告。官方等价替换
+    // （echarts 自己的类型原文，types/dist/shared.d.ts:2958）：
+    //   containLabel:true ≡ {outerBoundsMode:'same', outerBoundsContain:'axisLabel'} ⇒ 布局等价、警告消除。
+    grid: { left: '8%', right: '4%', top: '8%', bottom: '22%', outerBoundsMode: 'same' as const, outerBoundsContain: 'axisLabel' as const },
     xAxis: {
       type: 'category' as const,
       data: ['一致', '偏严', '偏松', '错误'],

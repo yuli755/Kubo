@@ -133,6 +133,17 @@ describe('index/SecurityDashboard · 图表实例可达性哨兵（R44）', () =
     expect(instances()).toHaveLength(2)
     expect(instances()[0].setOption).toHaveBeenCalledTimes(1)
     expect(instances()[1].setOption).toHaveBeenCalledTimes(1)
+    // 修复建议12（R46，L报告 P2-12）：grid 必须走 echarts 6 的 outerBounds 族。
+    // containLabel 已降级为 legacy 通道——不注册 LegacyGridContainLabel 插件，开发态每次
+    // 渲染就是一条控制台警告。替换的等价性由官方类型注释背书
+    // （echarts types/dist/shared.d.ts:2958：containLabel:true ≡
+    // {outerBoundsMode:'same', outerBoundsContain:'axisLabel'}），布局像素不变。
+    const parityGrid = (instances()[1].setOption.mock.calls[0][0] as {
+      grid: Record<string, unknown>
+    }).grid
+    expect(parityGrid.containLabel).toBeUndefined()
+    expect(parityGrid.outerBoundsMode).toBe('same')
+    expect(parityGrid.outerBoundsContain).toBe('axisLabel')
     wrapper.unmount()
   })
 
