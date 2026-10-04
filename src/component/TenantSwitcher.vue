@@ -65,6 +65,13 @@ async function onTenantChange(value: number | undefined) {
 .tenant-switcher {
   width: 190px;
 
+  /* 手机档顶栏寸土寸金：375 实测右簇 403px 溢出裁掉用户卡。
+   * 收窄后 EP 自带的 ellipsis 会把长租户名省略成「…」，
+   * 点开下拉仍能看到全名并切换。 */
+  @media (max-width: 640px) {
+    width: 96px;
+  }
+
   :deep(.el-select__wrapper) {
     background: transparent;
     box-shadow: var(--kubo-ring-inset-on-brand);

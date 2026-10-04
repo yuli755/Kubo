@@ -30,7 +30,10 @@
   <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
   <link href="/favicon.ico" rel="shortcut icon">
   <meta content="telephone=no" name="format-detection">
-  <meta content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" name="viewport">
+  <!-- 允许双指缩放：user-scalable=no + maximum-scale=1 会把页面锁死在 1 倍，
+       小屏上内容偏小时用户无法放大查看（无障碍硬伤）；viewport-fit=cover 配合
+       刘海屏安全区。见测试报告 §9。 -->
+  <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport">
   <style>
     /* V1：首屏内联骨架屏也走变量，避免硬编码浅灰在深色下刺眼。
        （EP 暗色 css-vars 此时尚未加载，故在此内联声明暗色映射） */

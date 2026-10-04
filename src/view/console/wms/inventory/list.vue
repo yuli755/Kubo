@@ -340,6 +340,19 @@ function clearNodeFilter() {
   min-width: 0;
 }
 
+/* 窄屏堆叠：同 personnel/user/list.vue —— 240px 固定侧栏与主表并排在手机档
+ * 会把主表挤没（测试报告 §9）；stretch 同理由防内容宽撑破容器。 */
+@media (max-width: 767px) {
+  .k-page {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .k-page__aside {
+    flex: 1 1 auto;
+  }
+}
+
 .inventory-controls-row {
   display: flex;
   justify-content: space-between;

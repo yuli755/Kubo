@@ -377,6 +377,10 @@ onBeforeUnmount(() => {
 .k-shell {
   display: flex;
   height: 100vh;
+  /* dvh = 移动端动态视口（浏览器地址栏收起/展开后变化）：写死 100vh 在
+   * 手机浏览器上会高估可见高度，页脚被顶到 URL 栏底下看不见也滚不到
+   * （测试报告 §9「内容丢失」根因之一）。dvh 不支持时自动落回 100vh。 */
+  height: 100dvh;
   overflow: hidden;
   background: var(--kubo-color-bg-page);
   color: var(--kubo-color-text-primary);
@@ -544,6 +548,17 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+/* 窄屏挤压时牺牲面包屑（左），绝不裁功能簇（右）：375 屏实测右簇曾被裁出
+ * 30px 不可达（测试报告 §9）。左簇允许收缩并裁剪，右簇不参与收缩。 */
+.k-topbar__left {
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+
+.k-topbar__right {
+  flex: 0 0 auto;
+}
+
 .k-topbar__search-trigger {
   display: inline-flex;
   align-items: center;
@@ -658,6 +673,21 @@ onBeforeUnmount(() => {
 
   .k-shell__topbar {
     padding: 0 12px;
+  }
+}
+
+/* 手机档：搜索框退成纯图标（点击行为不变，仍开命令面板），
+ * 右簇间距收紧，375 视口实测不再横向溢出 */
+@media (max-width: 640px) {
+  .k-topbar__search-trigger {
+    .placeholder,
+    .shortcut {
+      display: none;
+    }
+  }
+
+  .k-topbar__right {
+    gap: 6px;
   }
 }
 </style>

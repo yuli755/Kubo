@@ -193,3 +193,57 @@
 - 门禁：eslint 改动 4 文件 0 错；`vue-tsc --noEmit` EXIT 0；vitest `menuContract + menuNavigation + consoleMount` 22/22；后端 `mvn compile` EXIT 0；Flyway 实跑 `flyway_schema_history` 17|menu icons seed|success=1，`menu.icon<>''` 计数 34。
 - 改动：`V17__menu_icons_seed.sql`（新）、`MenuService.java`（listPage 图标筛选 + initMenu 种子）、`src/component/shell/icons.ts`（+5 图标注册）、`src/demo/fixtures/menu.ts`（对齐）、`src/styles/tokens.scss` + `src/component/KAppShell.vue`（内容宽度令牌 2200px）、`src/config/__tests__/menuContract.spec.ts`（图标三方一致契约 ×4）。
 - 截图 99–101（`docs/evidence/`）。
+
+## 9. 追加轮（Round 50）：多设备响应式审计 —— 「过度放大/缩小 + 内容丢失」专项
+
+用户复测反馈（原话）：「标准的页面一般哪些部分组合成一个完整的前端页面？你再仔细看看当前修复后的页面情况……我不希望你把页面样式过度写死写出固定值。因为一旦用户使用不同设备尺寸的 web 端或 app 端，都会导致页面出现过度放大或放小尺寸的效果，再加上因过度放大页面展示而不能滚动页面，导致用户无法看到丢失页面部分内容……从用户的角度，不断挖掘修复系统隐藏的前端各页面问题。」
+
+### 9.0 先自证：§8 的修复不是「写死新固定值」
+
+`--kubo-content-max-width: 2200px` 是**上限**不是定宽：内容区照常随视口流式伸缩，实测 768/1366/1920/2560 内容宽 744/1099/1663/2200（<2200 时全由容器决定），任何设备不会因此放大或缩小。但本轮按用户要求把全站其它「写死像素」翻了一遍，真机跑 **375/768/1024/1366/1920/2560 六档视口矩阵**（工作台/计量单位/用户/库存/入库单五类页），挖出 5 处真实的设备适配缺陷。
+
+### 9.1 双指缩放被锁死（P1 无障碍硬伤）
+
+- **根因**：`index.html` viewport 写 `minimum-scale=1, maximum-scale=1, user-scalable=no` —— 页面被永久锁在 1 倍。小屏上内容偏小时，用户唯一的自救手段（捏合放大）也被禁用，这就是「放小尺寸 → 看不清 → 无法操作」链条的第一环。
+- **修复**：改 `width=device-width,initial-scale=1,viewport-fit=cover`（去缩放锁 + 刘海屏安全区）。桌面端行为不变。
+
+### 9.2 弹窗固定 600~900px 在小屏溢出且不可滚动（P1 内容彻底丢失）
+
+- **量测**：全站 **29 处**弹窗声明固定宽 600~900px。375 屏实测：新增弹窗 560px 溢出右缘，且遮罩层横向**不可滚**（scrollWidth−clientWidth=0）——超出屏幕的表单与确定按钮彻底不可达，完全命中用户描述的「放大后不能滚动导致内容丢失」。 safezone 768 屏实测 900px 弹窗同样溢出。
+- **修复（全局一条兜底，不逐页改 29 个文件）**：`styles/index.scss` 加 `.el-dialog { max-width: calc(100vw - 24px) }`、`.el-message-box { max-width: calc(100vw - 32px) }`。小屏自动收缩、大屏不干涉（2560 实测 900px 弹窗仍按业务声明=900px）。
+- **复测**（截图 102/104）：375 弹窗 351px 完整在屏、确定按钮可见；登录同意框 343px 完整在屏；768 弹窗 744px 完整在屏。1024×600 矮视口打开 640px 高表单弹窗：EP 自身遮罩纵向可滚，确定按钮滚后可达。
+
+### 9.3 顶栏 375 屏右簇被裁 28px，用户卡不可达（P2）
+
+- **量测**：375 屏 topbar scrollWidth−clientWidth=28~30，用户卡右侧被裁出屏（搜索框 99px + 租户选择器 190px 固定宽是主因）。
+- **修复**：左簇允许收缩裁剪（面包屑先让位），右簇不再被裁；≤640 手机档搜索框退化为纯图标（点击仍开命令面板）、租户选择器 190→96px（EP 自带 ellipsis，点开下拉仍可看全名并切换）、右簇间距收紧。
+- **复测**：375 屏 topbar 溢出 **0**、末元素右缘 363≤375；1920 租户选择器仍 190px、溢出 0。
+
+### 9.4 双栏页 240px 固定侧栏把主表挤成 55px 细条（P1 功能不可用）
+
+- **量测**：用户管理/库存查询的 `.k-page` 为「240px 侧栏 + 主表」并排；375 屏主卡被挤到 **55px**，表格、表单、分页全部不可用。
+- **修复**：≤767 改上下堆叠（`flex-direction: column` + `align-items: stretch` —— 桌面态的 flex-start 在列方向会把卡片收缩成内容宽 838px，实测曾把内容区撑出 485px 溢出，已一并修正）。
+- **复测**（截图 103）：375 屏两页侧栏/主卡均 341px 全宽、主卡位于侧栏之下、内容区溢出 0。
+
+### 9.5 移动端 100vh 高估可见高度，页脚藏进 URL 栏（P3）
+
+- **根因**：手机浏览器地址栏收起/展开会改变可视视口，`100vh` 按「地址栏收起时」计高 —— 地址栏展开时页脚被顶到 URL 栏底下，看不见也滚不到（又一类「内容丢失」）。
+- **修复**：`.k-shell` 用 `height: 100dvh`（动态视口单位，旧浏览器自动落回 100vh）。
+
+### 9.6 视口矩阵复扫（修复后全档）
+
+375/768/1024/1366/1920/2560 × 工作台/计量单位/用户：文档与内容区横向溢出**全 0**，顶栏溢出全 0；2560 内容宽仍 2200、1920 仍 1663（§8 行为不回退）。截图 102–105。
+
+### 9.7 未修遗留（量测在案）
+
+| # | 發現 | verdict |
+|---|---|---|
+| 1 | 29 处弹窗 600~900px 声明本身 | 宽屏是业务要的（表格编辑器要宽），已被 9.2 全局上限兜底，不必逐页改 |
+| 2 | KTable 搜索字段固定 150px | 有 flex-wrap，窄屏自动换行，可接受 |
+| 3 | `.k-page` 布局 22+ 文件重复（§8.4-1） | 仍建议收敛为共享样式，收敛时顺带把本轮手机档堆叠规则收进一处 |
+
+### 9.8 本轮门禁与改动清单
+
+- 门禁：eslint 改动 4 文件 0 错；`vue-tsc --noEmit` EXIT 0；vitest `styleContract + consoleMount + personnelDomain + wmsDomain + tableLayout + smartSelectorInteractions + productionDeliveryAndCanary`（即所有触及改动画像的套件）7 文件 **86/86**。
+- 改动：`index.html`（viewport 解锁缩放）、`src/styles/index.scss`（弹窗/消息盒全局 max-width 兜底）、`src/component/KAppShell.vue`（顶栏左右簇收缩策略 + 手机档搜索退化 + 100dvh）、`src/component/TenantSwitcher.vue`（手机档 96px）、`src/view/console/personnel/user/list.vue` + `src/view/console/wms/inventory/list.vue`（≤767 堆叠）。
+- 截图 102–105（`docs/evidence/`）。

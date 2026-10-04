@@ -30,3 +30,20 @@
 @use './motion.scss';
 
 @import 'element-plus/theme-chalk/dark/css-vars.css';
+
+/* ── 响应式兜底（V9）：固定像素弹层在窄视口下会溢出且无法横向滚动 ──
+ *
+ * 业务侧 29 处弹窗声明了 600~900px 的固定 width（KDialog/KFormDialog/KSelector
+ * 透传给 el-dialog），375 屏实测弹窗 560px 溢出屏幕、确定按钮不可达，且遮罩层
+ * 横向不可滚（scrollWidth-clientWidth=0），内容彻底丢失。逐页改 29 个文件不如
+ * 在全局层加一条 max-width 上限：小屏收缩、大屏不干涉（width 仍按声明生效），
+ * 与 EP 自身对 .el-popup-parent--hidden 的处理方式一致。
+ * 同理由：el-message-box（登录同意弹窗等）默认 420px，375 屏同样溢出。
+ */
+.el-dialog {
+  max-width: calc(100vw - 24px);
+}
+
+.el-message-box {
+  max-width: calc(100vw - 32px);
+}

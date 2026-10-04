@@ -400,6 +400,21 @@ function onSaved() {
   min-width: 0;
 }
 
+/* 窄屏：240px 固定侧栏 + 主表并排会把主表挤成 55px 细条（375 实测，表单一律
+ * 不可用）。手机档改上下堆叠，侧栏转全宽；align-items 必须改回 stretch ——
+ * 桌面态的 flex-start 在列方向下会让子卡收缩到内容宽（实测主卡 838px），
+ * 把内容区横向撑出 485px 溢出。 */
+@media (max-width: 767px) {
+  .k-page {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .k-page__aside {
+    flex: 1 1 auto;
+  }
+}
+
 .block {
   margin-top: 12px;
   padding: 12px;
