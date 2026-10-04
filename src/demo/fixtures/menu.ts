@@ -72,36 +72,36 @@ export function demoMenuTree(): DemoMenuNode[] {
     ]),
     group(300, '渠道管理', 'Van', 30, [
       listPage(301, '客户管理', 'channel', 'customer', 'User', 1),
-      listPage(302, '供应商管理', 'channel', 'supplier', 'OfficeBuilding', 2),
+      listPage(302, '供应商管理', 'channel', 'supplier', 'School', 2),
       listPage(303, '采购单', 'channel', 'purchase', 'ShoppingBag', 3),
-      listPage(304, '采购价', 'channel', 'purchasePrice', 'Coin', 4),
+      listPage(304, '采购价', 'channel', 'purchasePrice', 'PriceTag', 4),
       listPage(305, '销售单', 'channel', 'sale', 'Sell', 5),
       listPage(306, '销售价', 'channel', 'salePrice', 'Money', 6),
     ]),
-    group(400, '资产管理', 'Monitor', 40, [
-      listPage(402, '物料主数据', 'asset', 'material', 'Box', 2),
+    group(400, '资产管理', 'Management', 40, [
+      listPage(402, '物料主数据', 'asset', 'material', 'Goods', 2),
       listPage(403, '合同管理', 'asset', 'contract', 'Document', 3),
     ]),
-    group(500, '工厂与库位', 'School', 50, [
+    group(500, '工厂与库位', 'OfficeBuilding', 50, [
       listPage(501, '仓库管理', 'factory', 'storage', 'House', 1),
       listPage(502, '库位结构', 'factory', 'structure', 'Coordinate', 2),
     ]),
-    group(600, '人员组织', 'UserFilled', 60, [
-      listPage(601, '用户管理', 'personnel', 'user', 'User', 1),
-      listPage(602, '角色管理', 'personnel', 'role', 'Avatar', 2),
-      listPage(603, '部门管理', 'personnel', 'department', 'OfficeBuilding', 3),
+    group(600, '人员组织', 'Avatar', 60, [
+      listPage(601, '用户管理', 'personnel', 'user', 'UserFilled', 1),
+      listPage(602, '角色管理', 'personnel', 'role', 'Postcard', 2),
+      listPage(603, '部门管理', 'personnel', 'department', 'Connection', 3),
     ]),
     group(700, '系统管理', 'Setting', 70, [
       listPage(701, '计量单位', 'system', 'unit', 'ScaleToOriginal', 1),
       listPage(702, '权限管理', 'system', 'permission', 'Key', 2),
       listPage(703, '菜单管理', 'system', 'menu', 'Menu', 3),
       listPage(704, '系统配置', 'system', 'config', 'Tools', 4),
-      listPage(705, '编号规则', 'system', 'coderule', 'Postcard', 5),
+      listPage(705, '编号规则', 'system', 'coderule', 'Tickets', 5),
       listPage(706, '操作日志', 'system', 'log', 'Notebook', 6),
       group(720, '数据权限', 'Lock', 8, [
-        listPage(721, '数据资源', 'system/datapermission', 'resource', 'Coin', 1),
+        listPage(721, '数据资源', 'system/datapermission', 'resource', 'Files', 1),
         listPage(722, '行级策略', 'system/datapermission', 'policy', 'Filter', 2),
-        listPage(723, '列级脱敏', 'system/datapermission', 'fieldPolicy', 'View', 3),
+        listPage(723, '列级脱敏', 'system/datapermission', 'fieldPolicy', 'Hide', 3),
       ]),
     ]),
   ]

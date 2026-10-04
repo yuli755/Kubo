@@ -622,7 +622,9 @@ onBeforeUnmount(() => {
 }
 
 .k-content__inner {
-  max-width: 1600px;
+  /* 宽度单一数据源 tokens.scss 的 --kubo-content-max-width；
+   * 写死 1600 时 2560 宽屏右侧实测空 377px（见测试报告 §8） */
+  max-width: var(--kubo-content-max-width, 2200px);
   margin: 0 auto;
 }
 

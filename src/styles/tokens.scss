@@ -50,6 +50,10 @@
   --kubo-header-height: 56px;
   --kubo-sider-width: 216px;
   --kubo-sider-width-collapsed: 64px;
+  /* 内容层最大宽度：原先写死 1600px，2560 宽屏实测左右各空 377px（用户反馈的
+   * "页面右边大量空白"）。2200 让 2560 屏两侧留白与 1920 观感一致（~50px），
+   * 1366/1920 本来就到不了上限，行为不变；再宽（带鱼屏）仍由居中兜底。 */
+  --kubo-content-max-width: 2200px;
 
   /* ── 面层色：**引用 EP 变量**，亮/暗两套由 EP 的 css-vars 自动接管 ──
    *

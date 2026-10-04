@@ -43,11 +43,18 @@ public class MenuService extends BaseService<MenuEntity, MenuRepository> {
      * <p>前端侧的同名契约在 {@code src/demo/fixtures/menu.ts}（演示菜单），
      * CI 由 {@code src/config/__tests__/backendMenuContract.spec.ts} 解析本文件对账，
      * 任何一侧改了名字或路径都会红。
+     *
+     * <p>{@code icon} 是 Element Plus 图标的 <b>PascalCase 名</b>，必须同时登记在
+     * {@code src/component/shell/icons.ts} 的 {@code ICON_MAP}（受控子集）里：
+     * 未登记的名字会<b>静默</b>回退成通用菜单图标（不报错），只会在界面上表现为
+     * "整棵菜单图标都一样"。这层约束由 {@code menuContract.spec.ts} 逐个名字守住。
+     * 存量库的同名回填见 {@code db/migration/V17__menu_icons_seed.sql}。
      */
-    private MenuEntity listPage(String name, String path, long parentId) {
+    private MenuEntity listPage(String name, String path, long parentId, String icon) {
         return new MenuEntity()
                 .setName(name)
                 .setPath(path)
+                .setIcon(icon)
                 .setParentId(parentId);
     }
 
@@ -59,6 +66,7 @@ public class MenuService extends BaseService<MenuEntity, MenuRepository> {
         // 工作台（唯一一个 path ≠ 视图目录的页面：/console/index → /console/index/index）
         MenuEntity dashboard = new MenuEntity()
                 .setName("工作台")
+                .setIcon("DataBoard")
                 .setOrderNo(1)
                 .setPath("/console/index")
                 .setComponent("/console/index/index")
@@ -66,53 +74,53 @@ public class MenuService extends BaseService<MenuEntity, MenuRepository> {
         add(dashboard);
 
         // 仓储管理 WMS —— 产品主线
-        group = addAndGet(new MenuEntity().setName("仓储管理 WMS").setOrderNo(20).setParentId(ROOT_ID));
-        add(listPage("入库单", "/console/wms/input/list", group.getId()));
-        add(listPage("出库单", "/console/wms/output/list", group.getId()));
-        add(listPage("移库单", "/console/wms/move/list", group.getId()));
-        add(listPage("库存查询", "/console/wms/inventory/list", group.getId()));
+        group = addAndGet(new MenuEntity().setName("仓储管理 WMS").setIcon("Box").setOrderNo(20).setParentId(ROOT_ID));
+        add(listPage("入库单", "/console/wms/input/list", group.getId(), "Download"));
+        add(listPage("出库单", "/console/wms/output/list", group.getId(), "Upload"));
+        add(listPage("移库单", "/console/wms/move/list", group.getId(), "Sort"));
+        add(listPage("库存查询", "/console/wms/inventory/list", group.getId(), "Grid"));
 
         // 渠道管理
-        group = addAndGet(new MenuEntity().setName("渠道管理").setOrderNo(30).setParentId(ROOT_ID));
-        add(listPage("客户管理", "/console/channel/customer/list", group.getId()));
-        add(listPage("供应商管理", "/console/channel/supplier/list", group.getId()));
-        add(listPage("采购单", "/console/channel/purchase/list", group.getId()));
-        add(listPage("采购价", "/console/channel/purchasePrice/list", group.getId()));
-        add(listPage("销售单", "/console/channel/sale/list", group.getId()));
-        add(listPage("销售价", "/console/channel/salePrice/list", group.getId()));
+        group = addAndGet(new MenuEntity().setName("渠道管理").setIcon("Van").setOrderNo(30).setParentId(ROOT_ID));
+        add(listPage("客户管理", "/console/channel/customer/list", group.getId(), "User"));
+        add(listPage("供应商管理", "/console/channel/supplier/list", group.getId(), "School"));
+        add(listPage("采购单", "/console/channel/purchase/list", group.getId(), "ShoppingBag"));
+        add(listPage("采购价", "/console/channel/purchasePrice/list", group.getId(), "PriceTag"));
+        add(listPage("销售单", "/console/channel/sale/list", group.getId(), "Sell"));
+        add(listPage("销售价", "/console/channel/salePrice/list", group.getId(), "Money"));
 
         // 资产管理
-        group = addAndGet(new MenuEntity().setName("资产管理").setOrderNo(40).setParentId(ROOT_ID));
-        add(listPage("物料主数据", "/console/asset/material/list", group.getId()));
-        add(listPage("合同管理", "/console/asset/contract/list", group.getId()));
+        group = addAndGet(new MenuEntity().setName("资产管理").setIcon("Management").setOrderNo(40).setParentId(ROOT_ID));
+        add(listPage("物料主数据", "/console/asset/material/list", group.getId(), "Goods"));
+        add(listPage("合同管理", "/console/asset/contract/list", group.getId(), "Document"));
 
         // 工厂与库位
-        group = addAndGet(new MenuEntity().setName("工厂与库位").setOrderNo(50).setParentId(ROOT_ID));
-        add(listPage("仓库管理", "/console/factory/storage/list", group.getId()));
-        add(listPage("库位结构", "/console/factory/structure/list", group.getId()));
+        group = addAndGet(new MenuEntity().setName("工厂与库位").setIcon("OfficeBuilding").setOrderNo(50).setParentId(ROOT_ID));
+        add(listPage("仓库管理", "/console/factory/storage/list", group.getId(), "House"));
+        add(listPage("库位结构", "/console/factory/structure/list", group.getId(), "Coordinate"));
 
         // 人员组织
-        group = addAndGet(new MenuEntity().setName("人员组织").setOrderNo(60).setParentId(ROOT_ID));
-        add(listPage("用户管理", "/console/personnel/user/list", group.getId()));
-        add(listPage("角色管理", "/console/personnel/role/list", group.getId()));
-        add(listPage("部门管理", "/console/personnel/department/list", group.getId()));
+        group = addAndGet(new MenuEntity().setName("人员组织").setIcon("Avatar").setOrderNo(60).setParentId(ROOT_ID));
+        add(listPage("用户管理", "/console/personnel/user/list", group.getId(), "UserFilled"));
+        add(listPage("角色管理", "/console/personnel/role/list", group.getId(), "Postcard"));
+        add(listPage("部门管理", "/console/personnel/department/list", group.getId(), "Connection"));
 
         // 系统管理（含数据权限子分组）
-        group = addAndGet(new MenuEntity().setName("系统管理").setOrderNo(70).setParentId(ROOT_ID));
-        add(listPage("计量单位", "/console/system/unit/list", group.getId()));
-        add(listPage("权限管理", "/console/system/permission/list", group.getId()));
-        add(listPage("菜单管理", "/console/system/menu/list", group.getId()));
-        add(listPage("系统配置", "/console/system/config/list", group.getId()));
-        add(listPage("编号规则", "/console/system/coderule/list", group.getId()));
-        add(listPage("操作日志", "/console/system/log/list", group.getId()));
+        group = addAndGet(new MenuEntity().setName("系统管理").setIcon("Setting").setOrderNo(70).setParentId(ROOT_ID));
+        add(listPage("计量单位", "/console/system/unit/list", group.getId(), "ScaleToOriginal"));
+        add(listPage("权限管理", "/console/system/permission/list", group.getId(), "Key"));
+        add(listPage("菜单管理", "/console/system/menu/list", group.getId(), "Menu"));
+        add(listPage("系统配置", "/console/system/config/list", group.getId(), "Tools"));
+        add(listPage("编号规则", "/console/system/coderule/list", group.getId(), "Tickets"));
+        add(listPage("操作日志", "/console/system/log/list", group.getId(), "Notebook"));
         // 数据权限（资源登记 / 行级策略 / 列级脱敏策略）
         // 没有这三个页面时策略只能靠 SQL 或 DevDataInitRunner 硬编码来改，"灰度"就无从下手：
         // 观察 shadow 差异、按角色放开明文、给某个资源临时收口，都必须能在界面上完成。
         MenuEntity dataPermission = addAndGet(
-                new MenuEntity().setName("数据权限").setOrderNo(8).setParentId(group.getId())
+                new MenuEntity().setName("数据权限").setIcon("Lock").setOrderNo(8).setParentId(group.getId())
         );
-        add(listPage("数据资源", "/console/system/datapermission/resource/list", dataPermission.getId()));
-        add(listPage("行级策略", "/console/system/datapermission/policy/list", dataPermission.getId()));
-        add(listPage("列级脱敏", "/console/system/datapermission/fieldPolicy/list", dataPermission.getId()));
+        add(listPage("数据资源", "/console/system/datapermission/resource/list", dataPermission.getId(), "Files"));
+        add(listPage("行级策略", "/console/system/datapermission/policy/list", dataPermission.getId(), "Filter"));
+        add(listPage("列级脱敏", "/console/system/datapermission/fieldPolicy/list", dataPermission.getId(), "Hide"));
     }
 }

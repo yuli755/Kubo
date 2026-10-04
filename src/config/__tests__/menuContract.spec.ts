@@ -69,6 +69,20 @@ function collectPageViews(dir: string): string[] {
   return out
 }
 
+/** 收集演示菜单树上出现过的全部图标名（含分组节点） */
+function collectDemoIcons(nodes: Array<{ icon?: string, children?: unknown[] }>): string[] {
+  const out: string[] = []
+  for (const node of nodes) {
+    if (node.icon) {
+      out.push(node.icon)
+    }
+    if (Array.isArray(node.children)) {
+      out.push(...collectDemoIcons(node.children as Array<{ icon?: string, children?: unknown[] }>))
+    }
+  }
+  return out
+}
+
 /** 后端菜单种子的一条记录（`listPage(...)` 或 `setName(...).setPath(...)` 链） */
 interface BackendSeed {
   name: string
@@ -174,5 +188,89 @@ describe('菜单契约 · 后端种子 ↔ 演示菜单逐条对账', () => {
     const backendPathSet = new Set(seeds.map(seed => seed.path))
     const onlyInDemo = demoPages.filter(page => !backendPathSet.has(page.path!)).map(page => `${page.name} ${page.path}`)
     expect(onlyInDemo, '这些页面只在演示菜单里，生产环境用户看不到').toEqual([])
+  })
+})
+
+describe('菜单契约 · 图标名三方一致（种子 ↔ ICON_MAP ↔ V17 迁移）', () => {
+  /**
+   * 2026-10 实测：menu.icon 全空 → 侧栏 41 个 svg 去重后只剩 2 种 path，
+   * 整棵菜单"图标全一样"。修好之后这条链有四个环节，任何一个掉队都会让
+   * 图标**静默**退化（回退 MenuIcon，不报错），所以在这里钉死：
+   * 1. MenuService.initMenu() 每个节点 setIcon(...)；
+   * 2. 每个图标名登记在 src/component/shell/icons.ts 的 ICON_MAP；
+   * 3. 存量库回填迁移 V17 覆盖同一个名字集合（按 name 定位）；
+   * 4. 演示菜单（demo fixtures）的图标名同样必须在 ICON_MAP 里 —— 演示模式
+   *    是用户看到的第一印象，未注册名会当场退化成兜底图标。
+   */
+  const ICONS_TS = join(ROOT, 'src/component/shell/icons.ts')
+  const V17_SQL = join(ROOT, 'SPMS-Server/src/main/resources/db/migration/V17__menu_icons_seed.sql')
+
+  /** 后端种子的 名称 → 图标名（工作台 = 链式写法第一组，其余 = listPage 第 4 参 / 分组 setIcon） */
+  function backendIcons(): Map<string, string> {
+    const source = readFileSync(MENU_SERVICE, 'utf8')
+    const out = new Map<string, string>()
+    for (const m of source.matchAll(/setName\("([^"]+)"\)\s*\.setIcon\("([^"]+)"\)/g)) {
+      out.set(m[1], m[2])
+    }
+    for (const m of source.matchAll(/listPage\("([^"]+)",\s*"[^"]+",[^,]+,\s*"([^"]+)"\)/g)) {
+      out.set(m[1], m[2])
+    }
+    return out
+  }
+
+  /** ICON_MAP 的键集合：条目是 `Name,` 或 `Alias: MenuIcon`，且必须是 EP 的 PascalCase 名 */
+  function registeredIcons(): Set<string> {
+    const source = readFileSync(ICONS_TS, 'utf8')
+    const block = source.slice(source.indexOf('const ICON_MAP'), source.indexOf('export function'))
+    return new Set([...block.matchAll(/^\s{2}([A-Z]\w*)(?::|,)/gm)].map(m => m[1]))
+  }
+
+  it('后端种子每个菜单都带图标名，且全部已在 ICON_MAP 登记（未登记 = 静默回退兜底图标）', () => {
+    const icons = backendIcons()
+    // 34 = 1 工作台 + 7 一级分组(含数据权限) + 26 叶子页
+    expect(icons.size, 'MenuService 种子解析出的带图标节点数不对（写法变了要同步这里的解析）').toBe(34)
+    const registered = registeredIcons()
+    const unregistered = [...icons].filter(([, icon]) => !registered.has(icon)).map(([name, icon]) => `${name}→${icon}`)
+    expect(unregistered, `这些图标名没在 icons.ts 的 ICON_MAP 登记，会静默显示成回退图标：${unregistered.join(', ')}`).toEqual([])
+  })
+
+  it('同名的叶子菜单在后端种子里图标互不重复（用户投诉的就是"图标全一样"）', () => {
+    const icons = backendIcons()
+    const byIcon = new Map<string, string[]>()
+    for (const [name, icon] of icons) {
+      byIcon.set(icon, [...(byIcon.get(icon) ?? []), name])
+    }
+    const dup = [...byIcon].filter(([, names]) => names.length > 1).map(([icon, names]) => `${icon}: ${names.join('/')}`)
+    expect(dup, `同一图标名挂在多个菜单上：${dup.join('; ')}`).toEqual([])
+  })
+
+  it('迁移 V17 回填覆盖后端种子的全部名称与图标（存量库与新库首启必须同图）', () => {
+    const sql = readFileSync(V17_SQL, 'utf8')
+    const seeded = new Map<string, string>()
+    for (const m of sql.matchAll(/UPDATE `menu` SET `icon` = '([^']+)' +WHERE `name` = '([^']+)'/g)) {
+      seeded.set(m[2], m[1])
+    }
+    const drift: string[] = []
+    for (const [name, icon] of backendIcons()) {
+      const sqlIcon = seeded.get(name)
+      if (!sqlIcon) {
+        drift.push(`${name}（V17 缺回填）`)
+      }
+      else if (sqlIcon !== icon) {
+        drift.push(`${name}：种子=${icon} V17=${sqlIcon}`)
+      }
+    }
+    expect(drift, `种子与 V17 漂移：${drift.join('; ')}`).toEqual([])
+    // 反向：V17 也不得回填种子里不存在的名字（孤儿行会一直躺在库里没人对账）
+    const orphans = [...seeded.keys()].filter(name => !backendIcons().has(name))
+    expect(orphans, `V17 回填了种子外的名称：${orphans.join(', ')}`).toEqual([])
+  })
+
+  it('演示菜单的每个图标名都已登记（demo 是第一印象，未注册名当场退化）', () => {
+    const registered = registeredIcons()
+    const icons = [...new Set(collectDemoIcons(demoMenuTree() as unknown as MenuLeaf[]))]
+    expect(icons.length).toBeGreaterThan(20)
+    const unregistered = icons.filter(icon => !registered.has(icon))
+    expect(unregistered, `演示菜单用了未登记的图标名：${unregistered.join(', ')}`).toEqual([])
   })
 })

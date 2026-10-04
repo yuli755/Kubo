@@ -155,3 +155,41 @@
 - 门禁：eslint 8 文件 0 错；`vue-tsc --noEmit` EXIT 0；vitest `personnelDomain + appRouter + routes` 32/32、`frameworkBatch2 + formDefaultValueGuard + frameworkComponents` 23/23（KFormDialog 相关守卫全绿）。
 - 改动：`src/view/error.vue`（fixed→文档流 + standalone 态）、`src/component/Console.vue`（FIX B fallback）、`src/model/personnel/user/UserEntity.ts`（password 元数据）、`src/view/console/personnel/user/list.vue`（passwordRules + beforeSubmit 语义）、`src/component/framework/KFormDialog.vue`（password 控件渲染）、`src/component/framework/KTable.vue` / `KDetailTable.vue`（$index 守卫）、`src/config/__tests__/personnelDomain.spec.ts`（password 入列断言）。
 - 截图 92–98（`docs/evidence/`）。§5-3（数据权限灰度）与 §5-5（隐私弹窗）维持原议：前者按计划 ENFORCE，后者待产品拍板，本轮不动代码。
+
+## 8. 追加轮（Round 49）：菜单图标全雷同 + 宽屏右侧大片空白 —— 根因与修复
+
+用户复测反馈（原话）：「菜单项的图标应该是不同才对？还有页面布局结构存在大量问题？比如：为啥页面右边存在大量空白处？除了面包屑、导航栏页面还有哪些部分组成？」。本轮真机（:3001）量测验证，截图 99–101。
+
+### 8.1 图标雷同 —— 根因是数据全空，不是组件缺失
+
+- **量测**：1920×1080 下侧栏渲染 41 个 `el-icon`，SVG path 去重后只有 **2 种**（MenuIcon 兜底 + 子菜单箭头）。查 `menu` 表：**34 行全部 `icon=''`**。
+- **链路本身是通的**：`menu.icon` → `getMyMenuList` → `MenuItem.icon` → `KAppMenuNode.vue` 的 `resolveMenuIcon(item.icon)`，菜单管理页 `MenuEntity.icon` 也早有 `@KForm` 可编辑。缺的只是**数据**（全空）与少量 **ICON_MAP 注册**（`shell/icons.ts` 是白名单，未注册名静默回落 Menu 图标）。
+- **修复（数据驱动，零新组件）**：① 新增 Flyway `V17__menu_icons_seed.sql` —— 按 name 幂等 UPDATE，34 个菜单各给一个语义不同的 element-plus 图标（工作台=DataBoard、入库=Download、出库=Upload、供应商=School、采购价=PriceTag、列级脱敏=Hide…全表见迁移文件）；② `icons.ts` 补注册 Goods/Hide/Management/PriceTag/School 五个新名（与 V17 必须同版本发布，否则静默兜底）；③ `MenuService.initMenu()` 同步补 `setIcon`，让全新环境首启即带图标；④ demo 夹具 `src/demo/fixtures/menu.ts` 对齐同一套图标名。
+- **契约防回归**：`menuContract.spec.ts` 新增 4 条断言 —— 后端种子 34 项图标名全部已注册进 ICON_MAP、图标互不重复、V17 与种子双向一致、demo 图标已注册。以后任何人加菜单忘了注册图标，测试直接红。
+- **复测**（截图 99）：展开全部一级/二级菜单，34 个菜单项 → **34 种不同 SVG**，重复组 0；「菜单管理」用 Menu 图标属语义选择非兜底。
+
+### 8.2 右侧大片空白 —— 根因是 1600px 内容上限在宽屏居中
+
+- **量测**：`.k-content__inner { max-width:1600px; margin:0 auto }`（`KAppShell.vue`）。1920 屏左右各留 ~52px 无感；**2560 屏右侧空白 377px**（左侧对称也 377px）——即用户看到的「右边大量空白」。
+- **修复（令牌级，不碰 22 个页面）**：`tokens.scss` 新增 `--kubo-content-max-width: 2200px`，`KAppShell.vue` 改读该变量。1920 及以下行为完全不变（内容本来 <2200 就撑满）；2560 下内容区 1600→2200，右侧空白 377→72px。
+- **复测**（截图 100/101）：1366/1920/2560 三档 `.k-content__inner` 宽 1110/1663/2200，`scrollWidth==clientWidth` 全档无横向溢出。
+
+### 8.3 页面解剖图（用户问「除了面包屑导航栏还有什么」）
+
+外壳 `KAppShell.vue`（所有 /console 页共用）：**侧栏**（品牌区 logo+标题、el-menu 菜单树、折叠钮）→ **顶栏**（折叠钮、面包屑（带图标）、⌘K 全局搜索触发器、离线/演示标记、租户切换、主题切换、用户卡）→ **内容区**（滚动容器 `.k-shell__content` + 定宽内芯 `.k-content__inner` + 路由过渡）→ **页脚**（34px：当前页标题 + 产品名）。全局面板：⌘K 命令面板、全局加载遮罩。窄屏（<1024）侧栏变抽屉。
+内容区内典型列表页（`list.vue` 惯例）：**搜索表单 → 工具条（新增/导入/导出）→ 表格（含行操作列）→ 分页**，可选**左侧工具栏 `.k-page__aside`**（用户管理=部门树、库存查询=维度筛选），弹窗/抽屉按需挂载。登录/403/404 为壳外独立页。
+**DOM 实证**（2560，计量单位/用户/工作台三页）：侧栏、品牌、菜单、折叠钮、顶栏、面包屑、⌘K、租户、主题、用户卡、页脚（文本含当前页名）逐项为 true；列表页搜索表单/工具条/表格/分页逐项为 true；工作台无这四件属预期（仪表盘页）。
+
+### 8.4 布局遗留优化项（本轮量测发现，未动代码）
+
+| # | 发现 | 证据 | 建议 |
+|---|---|---|---|
+| 1 | `.k-page` 布局样式在 **22+ 个 list.vue 的 scoped style 里各自重复**一份 | grep 计数 | 收敛为全局/共享样式或 `KPage` 容器组件，一处改动全站生效 |
+| 2 | 用户管理页 `.k-page__aside` 高 190 vs 主卡 641，侧栏卡未拉伸、下方悬空 | 1920 DOM | aside 改 `align-self:stretch` 或树卡 `height:100%` |
+| 3 | 工作台 `.hero-workflow` 行末留白 662px（wrap 容器内两子块合计 919/1591） | 1920 DOM | 流程块改 grid 自适应列或 flex:1 |
+
+### 8.5 本轮门禁与改动清单
+
+- 门禁：eslint 改动 4 文件 0 错；`vue-tsc --noEmit` EXIT 0；vitest `menuContract + menuNavigation + consoleMount` 22/22；后端 `mvn compile` EXIT 0；Flyway 实跑 `flyway_schema_history` 17|menu icons seed|success=1，`menu.icon<>''` 计数 34。
+- 改动：`V17__menu_icons_seed.sql`（新）、`MenuService.java`（listPage 图标筛选 + initMenu 种子）、`src/component/shell/icons.ts`（+5 图标注册）、`src/demo/fixtures/menu.ts`（对齐）、`src/styles/tokens.scss` + `src/component/KAppShell.vue`（内容宽度令牌 2200px）、`src/config/__tests__/menuContract.spec.ts`（图标三方一致契约 ×4）。
+- 截图 99–101（`docs/evidence/`）。
