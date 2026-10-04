@@ -13,6 +13,13 @@
  *   ② 迁移 DDL 里有、实体没声明     → **失败**（列写了却没人用，或实体漏映射；框架基类列除外）
  *   ③ H2 测试 schema 与迁移 DDL 不一致 → **只告警**（红线：`schema-test.sql` 不是生产 schema；
  *      把它做成硬门禁会诱使人"改测试 schema 让门禁变绿"，那正是我们反复在修的反模式）
+ *   ④ 实体 columnDefinition（显式整型列）与迁移脚本声明的整型族/UNSIGNED 符号位不一致 → **失败**
+ *   ⑤ --live-detail（CI 里给）：迁移脚本声明的列类型必须等于 information_schema 的 COLUMN_TYPE，
+ *      脚本里声明的外键必须在库里存在 → **失败**
+ *   ④⑤ 的由来（2026-09 实证缺陷，V16 修复）：data_policy/data_field_policy.resource_id 的实体长期
+ *      缺 UNSIGNED，用 ddl-auto 建过表的老 dev 库里列是有符号 bigint，对 data_resource.id 的外键永远
+ *      加不上；而 FK 包在 CREATE TABLE IF NOT EXISTS / 存储过程里，表已存在时整段被跳过 →
+ *      **列名全对、参照完整性静默失效**，只有列类型签名和 FK 存在性能看见它（见 V16 头注释）。
  *
  * 框架基类列（`CurdEntity` 来自 `airpower-curd` jar，源码不在本仓，扫不到）走显式白名单：
  * FRAMEWORK_COLUMNS。白名单本身也做校验 —— 出现任何表里都不存在的列名即失败，防止它变成"藏问题的抽屉"。

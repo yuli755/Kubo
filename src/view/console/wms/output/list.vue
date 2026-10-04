@@ -141,9 +141,11 @@ function onSaved() {
       @saved="onSaved"
     />
 
+    <!-- 同 InputDetail：详情里「作业」出库后 emit('saved')，接住才能刷新列表状态。 -->
     <OutputDetail
       :id="detailId"
       v-model="detailVisible"
+      @saved="onSaved"
     />
 
     <BillRejectDialog

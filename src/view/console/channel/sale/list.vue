@@ -74,7 +74,8 @@ async function onCloneBill(row: SaleEntity) {
 }
 
 function openDetail(row: SaleEntity) {
-  void DialogUtil.show(SaleDetail, row)
+  // 同采购列表：详情关闭时刷新，接住「销售出库登记」对本域进度的回写。
+  void DialogUtil.show(SaleDetail, row).finally(() => table.reload())
 }
 
 async function onAudit(row: SaleEntity) {

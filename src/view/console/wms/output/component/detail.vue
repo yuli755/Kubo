@@ -115,9 +115,18 @@ function openFinish(row: OutputDetailEntity) {
   finishing.value = row
 }
 
+/**
+ * 出库完成牵连三个域，一次失效干净（缓存键与各自 list.vue 里 useTable 的保持一致）：
+ * - `wms:output` —— 自己；明细全出完时后端把单据置「已完成」（AbstractBaseBillService）；
+ * - `wms:inventory` —— 确认出库按选中的那条库存做 `quantity>=?` 原子扣减，库存页必须跟着新；
+ * - `channel:sale` —— 出库明细登记成功会把销售明细累加并置终态，销售单跟着变「已完成」。
+ * 过去只 refetch 自己，于是"出库成功但列表还写出库中、库存点数不变"，得整页重载。
+ */
+const CROSS_DOMAIN_KEYS = [['wms:inventory'], ['channel:sale']]
+
 async function onFinishConfirmed() {
   finishing.value = null
-  await detail.reload()
+  await detail.reload(CROSS_DOMAIN_KEYS)
   emit('saved')
 }
 

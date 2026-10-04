@@ -66,6 +66,17 @@ const props = withDefaults(defineProps<IDialogActionProps & {
   hideCancel?: boolean
   /** 隐藏底部按钮区（内容自带操作时用） */
   hideFooter?: boolean
+  /**
+   * 点「确认」时是否由本组件自动关窗（默认 `true`）。
+   *
+   * ⚠️ **异步提交**的 emit-only 弹窗必须传 `false`：自动关窗会同步触发
+   * `update:modelValue` → 外层 `v-if` 立刻卸载弹窗内容，内容里 `await 提交` 之后
+   * 才执行的 `emit('confirmed')` 会被 Vue 的 emit 守卫（`if (instance.isUnmounted) return`，
+   * runtime-core）**静默丢弃**，表现为「接口成功、弹窗已关、列表不刷新」且无任何报错。
+   * 传 `false` 后由内容在提交成功后自己 `emit('update:modelValue', false)` 关窗，
+   * 提交失败则保持打开可重试。
+   */
+  closeOnConfirm?: boolean
 }>(), {
   modelValue: true,
   title: '',
@@ -76,6 +87,7 @@ const props = withDefaults(defineProps<IDialogActionProps & {
   disableConfirm: false,
   hideCancel: false,
   hideFooter: false,
+  closeOnConfirm: true,
 })
 
 const emit = defineEmits<{
@@ -99,7 +111,10 @@ const visible = computed({
 function confirm(): void {
   if (props.disableConfirm)
     return
-  visible.value = false
+  // `closeOnConfirm=false`（异步提交弹窗）时不自动关窗：此刻关窗会同步卸载内容，
+  // 内容里 await 之后才 emit 的 'confirmed' 会被 Vue 的 isUnmounted 守卫静默吞掉
+  if (props.closeOnConfirm)
+    visible.value = false
   // emit 会派发到外层的 `@confirm` 监听或 `:on-confirm` 回调（两者是同一个 vnode prop），
   // 不要再手动调 `props.onConfirm`（会回调两次）
   emit('confirm')

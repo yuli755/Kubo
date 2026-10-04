@@ -244,6 +244,15 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <!--
+                  版本必须显式钉死（2026-10-03）：不写版本时 Maven 3.8.3（见 .mvn/wrapper）
+                  的 super POM 把 compiler 插件解析到 **3.1**，而 <parameters> 选项是 3.6.0
+                  才引入的 —— 3.1 会静默忽略下面这行 <parameters>true</parameters>，
+                  于是上面整段注释所防范的 500 又原样复发（真机复现：enforce-readiness /
+                  deny-logs 报 "Name for argument ... not specified"，javap 命中 0 处
+                  MethodParameters）。3.13.0 = Spring Boot 3.4.4 官方 parent 所管理的版本。
+                -->
+                <version>3.13.0</version>
                 <configuration>
                     <!--
                       【B0 退役 airpower 时丢失的第三处配置，也是唯一在运行期才暴露的一处 —— 现予还原】

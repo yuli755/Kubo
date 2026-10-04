@@ -81,7 +81,11 @@ async function onCloneBill(row: PurchaseEntity) {
 }
 
 function openDetail(row: PurchaseEntity) {
-  void DialogUtil.show(PurchaseDetail, row)
+  // DialogUtil.show 的 Promise 在详情关闭（onConfirm）时 resolve；详情里做过
+  // 「到货登记」会回写本域进度并自动生成采购入库单，关闭后必须刷一次列表，
+  // 否则采购单停在旧进度。之前 `void` 丢掉了这个 Promise —— 正是「审核后列表
+  // 会刷、到货后列表不刷」的根因（同 wms 三个列表的 @saved 缺口）。
+  void DialogUtil.show(PurchaseDetail, row).finally(() => table.reload())
 }
 
 async function onAudit(row: PurchaseEntity) {

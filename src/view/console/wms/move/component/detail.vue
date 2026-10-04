@@ -114,6 +114,17 @@ function canFinish(): boolean {
   return status !== undefined && MoveStatusEnum.MOVING.equalsKey(status)
 }
 
+/**
+ * 移库作业牵连三个域（缓存键与各 list.vue 里 useTable 的一致）：
+ * - `wms:move` —— 自己（option.queryKey 自带，不用列在这里）；
+ * - `wms:inventory` —— 同时改写两条库存记录（源仓扣、目标仓加）；
+ * - `wms:input` / `wms:output` —— MoveService.afterAllBillDetailFinished 在整单移完时
+ *   自动生成一张「移动入库」和一张「移动出库」单（InputType/OutputType.MOVE、状态直接
+ *   DONE，见 MoveService.java L293-307），入库/出库列表不跟着失效就会漏掉这两张新单，
+ *   直到整页重载才出现。
+ */
+const CROSS_DOMAIN_KEYS = [['wms:inventory'], ['wms:input'], ['wms:output']]
+
 async function onFinishConfirm(quantity: number) {
   const row = finishing.value
   finishing.value = null
@@ -123,7 +134,7 @@ async function onFinishConfirm(quantity: number) {
   // 载荷只给 id 与本次数量（来源库存由后端按明细 id 从库里读，见 AbstractBillService 的说明）
   await new KMoveService().addDetailFinishQuantity({ id: row.id, quantity } as never)
   ElMessage.success('已添加完成数量')
-  await detail.reload()
+  await detail.reload(CROSS_DOMAIN_KEYS)
   emit('saved')
 }
 </script>

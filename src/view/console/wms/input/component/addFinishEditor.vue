@@ -98,6 +98,8 @@ async function onConfirm() {
       storage: { id: target.id },
     } as never)
     FeedbackUtil.toastSuccess('明细入库成功')
+    // 顺序不可换：先 confirmed 再关窗。KDialog 已配 :close-on-confirm="false"，
+    // 此刻组件仍在树上，emit 才能送达详情层（否则 isUnmounted 守卫静默吞掉）
     emit('confirmed')
     emit('update:modelValue', false)
   }
@@ -109,6 +111,7 @@ async function onConfirm() {
 
 <template>
   <KDialog
+    :close-on-confirm="false"
     :disable-confirm="quantity <= 0"
     :model-value="modelValue"
     confirm-text="确认入库"

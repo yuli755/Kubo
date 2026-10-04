@@ -645,17 +645,24 @@ const emptyText = computed(() => {
           placement="bottom-end"
           :width="200"
         >
+          <!-- ElPopover 的 #reference 插槽会把 click 触发指令挂到插槽内容的**根节点**上；
+               ElTooltip 的根是 Fragment（非元素根），指令挂不上去 —— 表现为控制台警告
+               "Runtime directive used on component with non-element root node"，且弹层
+               永远打不开（DOM 里 popper 节点存在但 display:none）。包一层真实元素根，
+               让指令有处可挂，同时保住 ElButton 上的悬停 tooltip。 -->
           <template #reference>
-            <ElTooltip
-              content="列显隐设置"
-              placement="top"
-            >
-              <ElButton
-                :icon="Operation"
-                circle
-                aria-label="列显隐设置"
-              />
-            </ElTooltip>
+            <span class="k-table__col-settings-reference">
+              <ElTooltip
+                content="列显隐设置"
+                placement="top"
+              >
+                <ElButton
+                  :icon="Operation"
+                  circle
+                  aria-label="列显隐设置"
+                />
+              </ElTooltip>
+            </span>
           </template>
           <div class="k-table__col-settings">
             <div class="k-table__col-settings-header">

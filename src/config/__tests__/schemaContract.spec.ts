@@ -189,7 +189,7 @@ describe('schema 契约 · 实体 ↔ Flyway 基线', () => {
     )
   })
 
-  it('存量脚本按原日期顺序收编（V1 基线 + V2..V15，不能颠倒）', () => {
+  it('存量脚本按原日期顺序收编（V1 基线 + V2..V16，不能颠倒）', () => {
     // 按**版本号**排序（不能按文件名字典序：V10 < V2）
     const ordered = readdirSync(MIGRATION_DIR)
       .filter(file => file.endsWith('.sql'))
@@ -197,10 +197,12 @@ describe('schema 契约 · 实体 ↔ Flyway 基线', () => {
       .sort((a, b) => Number(a.match(/^V(\d+)/)![1]) - Number(b.match(/^V(\d+)/)![1]))
     expect(ordered[0]).toBe('V1__baseline_schema.sql')
     expect(ordered.at(-1), '最后一个迁移必须是下面这份清单的末项（新增脚本只能追加在尾部）')
-      .toBe('V15__operation_log_action_vocabulary.sql')
+      .toBe('V16__align_policy_resource_fk_signedness.sql')
     // 历史脚本必须保持原日期序：V2..V10 的描述里带日期或语义顺序。
     // V11/V12 是 2026-09-28 真机联调后新增的修复脚本，V13 是其后的退场资源收敛，
     // V14/V15 是 2026-09-30 那一轮（隐形过滤条件 P0 + 审计动作词表）新增的，
+    // V16 是 data_policy/data_field_policy 的 resource_id 符号位与外键收敛（V2 把 FK 写进
+    // CREATE TABLE IF NOT EXISTS，老库里表已存在时整段被跳过 → 参照完整性静默失效）。
     // 一律追加在尾部，不得插入历史序列中间
     // （Flyway 已应用的历史版本号一旦重排，存量库会报 checksum mismatch 或跳过迁移）。
     // ⇒ 新增迁移时：把文件名追加到这份清单末尾，并同步上面 `at(-1)` 的期望。
@@ -220,6 +222,7 @@ describe('schema 契约 · 实体 ↔ Flyway 基线', () => {
       'V13__retired_resource_policy_convergence.sql',
       'V14__menu_unpublish_canonical_groups.sql',
       'V15__operation_log_action_vocabulary.sql',
+      'V16__align_policy_resource_fk_signedness.sql',
     ])
   })
 })

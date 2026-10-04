@@ -101,6 +101,13 @@ const hasPendingDetails = computed(() => {
   })
 })
 
+/**
+ * 到货登记牵连两个域（缓存键与各 list.vue 里 useTable 的一致）：
+ * - `channel:purchase` —— 自己；明细全部到货时后端置终态并**自动生成采购入库单**；
+ * - `wms:input` —— 上面那张入库单就落在入库域里，不失效它就得手动刷入库列表才看得见。
+ */
+const CROSS_DOMAIN_KEYS = [['wms:input']]
+
 async function finishAllDetails() {
   const pending = (bill.value?.details ?? []).filter((d) => {
     const waiting = Math.max(0, Number(d.quantity ?? 0) - Number(d.finishQuantity ?? 0))
@@ -123,7 +130,7 @@ async function finishAllDetails() {
     } as never)
   }
   FeedbackUtil.toastSuccess('整单采购物资已全部登记到货')
-  await detail.reload()
+  await detail.reload(CROSS_DOMAIN_KEYS)
 }
 
 function openFinish(row: PurchaseDetailEntity) {
@@ -132,7 +139,7 @@ function openFinish(row: PurchaseDetailEntity) {
 
 async function onFinishConfirmed() {
   finishing.value = null
-  await detail.reload()
+  await detail.reload(CROSS_DOMAIN_KEYS)
 }
 
 function close() {

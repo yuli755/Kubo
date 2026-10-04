@@ -144,9 +144,14 @@ function onSaved() {
       @saved="onSaved"
     />
 
+    <!-- @saved 与 <InputEditor> 用同一根 onSaved：详情里点「作业」登记入库后，
+         InputDetail 会 emit('saved')，这里必须接住刷新列表，否则整单入完
+         后端已置「已完成」、列表还停在「入库中」（真机复现：审核走 table.reload
+         能刷新，作业因为这条没接住就一直不刷）。 -->
     <InputDetail
       :id="detailId"
       v-model="detailVisible"
+      @saved="onSaved"
     />
 
     <BillRejectDialog

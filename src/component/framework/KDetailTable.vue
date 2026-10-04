@@ -51,8 +51,15 @@ const props = withDefaults(defineProps<{
   /**
    * 实体类（读 `@KTable` 元数据）。
    * 传类而不是实例：装饰器把元数据写在与 `constructor` 关联的注册表里。
+   *
+   * 不能写成 `entity: object`：type-based 声明把它编译成 `type: Object`，
+   * 而类构造器运行时是 Function，于是 Vue 每次挂载都误报
+   * `Invalid prop: type check failed for prop "entity". Expected Object, got Function`。
+   * 构造签名（TSConstructorType）编译器推不出运行期类型，编译为 `type: null`
+   * （跳过运行期校验，实测 vue 3.5.25 compiler-sfc），但 TS 侧仍只收类构造器，
+   * 比原来那个一直在撒谎的 `object` 更诚实。
    */
-  entity: object
+  entity: abstract new (...args: never[]) => E
   /** 明细行 */
   rows: E[]
   /** 不显示的列（如 `createTime`） */

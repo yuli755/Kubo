@@ -118,9 +118,20 @@ function openFinish(row: InputDetailEntity) {
   finishing.value = row
 }
 
+/**
+ * 入库完成牵连三个域（缓存键与各 list.vue 里 useTable 的一致）：
+ * - `wms:input` —— 自己，明细全部入完时后端置「入库完成」；
+ * - `wms:inventory` —— 每次确认入库都新建/累加一条库存，库存页必须跟着新；
+ * - `channel:purchase` —— 采购入库回写来源采购单：InputService.afterDetailFinishAdded
+ *   对 PURCHASE 类型逐次 `purchaseDetailService.updateDetailQuantity(...)`，整单完成时
+ *   还会 `purchaseService.setBillFinished(...)`（InputService.java L283-288 / L230-232），
+ *   采购单列表/详情不跟着失效就停在旧进度。移动入库等无来源的类型多失效一次无害。
+ */
+const CROSS_DOMAIN_KEYS = [['wms:inventory'], ['channel:purchase']]
+
 async function onFinishConfirmed() {
   finishing.value = null
-  await detail.reload()
+  await detail.reload(CROSS_DOMAIN_KEYS)
   emit('saved')
 }
 

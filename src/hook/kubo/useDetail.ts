@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 import type { AbstractCurdService, IIdentifiableEntity, ITransformerConstructor } from '@/framework'
-import { useQuery } from '@tanstack/vue-query'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, unref } from 'vue'
 
 /**
@@ -33,6 +33,7 @@ export function useDetail<E extends IIdentifiableEntity, S extends AbstractCurdS
   const service = new ServiceClass()
   const currentId = computed(() => unref(option.id))
   const enabled = computed(() => (option.enabled === undefined ? true : unref(option.enabled)))
+  const queryClient = useQueryClient()
 
   const query = useQuery({
     queryKey: computed(() => [...option.queryKey, 'detail', currentId.value]),
@@ -40,12 +41,30 @@ export function useDetail<E extends IIdentifiableEntity, S extends AbstractCurdS
     enabled: computed(() => enabled.value && currentId.value !== null && currentId.value !== undefined),
   })
 
+  /**
+   * 单据状态变了以后刷新自己**和同域的一切**（列表、别的弹窗里的同一份数据）。
+   *
+   * 只 `query.refetch()` 是自己的：真机踩到过 —— 出库单「作业」完成后详情自己新了，
+   * 列表那行还停在「出库中」，得整页重载才对得上（`useTable.reload()` 走的是同一前缀
+   * 失效，审核能用、作业不能用，差别就在这）。这里改成失效 `option.queryKey` 整个前缀：
+   * 自己（`[...queryKey, 'detail', id]`）与列表都在前缀里，挂载着的会立刻重新取数，
+   * 没挂载的被标脏，下次进入自动新 —— 与 `useTable.invalidate()` 同一把尺子。
+   *
+   * `extra` 给后端的跨域联动留口子：出库完成会把销售单置「已完成」、把库存扣减，
+   * 这些属别的域（`channel:sale` / `wms:inventory`），调用方按事实多传几个键即可，
+   * 不必让详情页去 import 别人的列表。
+   */
+  async function reload(extra?: string[][]): Promise<void> {
+    const keys = [option.queryKey, ...(extra ?? [])]
+    await Promise.all(keys.map(key => queryClient.invalidateQueries({ queryKey: key })))
+  }
+
   return {
     /** 详情实体（未加载完为 undefined） */
     entity: computed(() => query.data.value as E | undefined),
     isLoading: computed(() => query.isFetching.value),
     error: query.error,
-    reload: () => query.refetch(),
+    reload,
     service,
     entityClass: service.entityClass,
   }

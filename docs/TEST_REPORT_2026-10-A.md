@@ -1,0 +1,114 @@
+# SPMS 测试报告 2026-10-A（Round 47：真机全链路测试 + 六项缺陷修复 + 证据）
+
+> 上一轮：TEST_REPORT_2026-09-N5.md（R46，commit `56a2769c`）。
+> 本轮输入（用户原话，m01638）：「继续。模拟各种用户角色真机（浏览器）上跑通 SPMS 全链路：重启前后端 → 多角色登录 → 逐模块走完核心业务闭环（采购→入库→库存→销售→出库、主数据、系统治理工程化）测试，每步用 DOM 量测判定渲染与交互是否符合预期，发现缺陷就定位根因并自主修复，最后交付一份带证据的测试报告与 dev 提交。对于需要修复的地方，有没有现成方案可以复用？怎么写更简洁、更易维护、可扩展？还有哪些地方或方面需要补充优化修复设计的建议？」
+> 方法：Playwright（`browser_evaluate`）真机点击 + **页内 DOM 探针**（XHR 拦截 `window.__reqs`、`queryClient.invalidateQueries` 包装 `window.__invalidations`、组件树遍历 `#app.__vue_app__._instance` 递归 `subTree`）+ MySQL 直查三方对齐。每条结论 = DOM 量测 ∧ DB 复核（∧ 截图）。
+
+## 0. 环境与可复现性
+
+- 前端 `kubo-web@1.0.0`：Vite dev **3000**（`/api`、`/oauth2` → 8080）。**5173 是无关的 OpsBrain 项目，勿测**。
+- 后端 `SPMS-Server`：Spring Boot 3.4.4 / Java 17，profile `local`，Flyway V1..V16。
+- 本机只有 MySQL 3306 跨轮存活；redis/backend/前端每轮需重启（`run-backend.cmd`/`run-frontend.cmd` 启动器，后端 ~90–105 s）。
+- 账号：admin 凌小云 `17666666666`；无角色用户 张三 `13888888888`；WMS_OPERATOR（密码未知，见 §5-6）。
+
+## 1. 业务闭环（全部真机走通，DOM + DB 双证）
+
+| 闭环 | 单据链 | 量测证据 |
+|---|---|---|
+| 采购→到货→自动入库 | `PC202610030001` 审核→到货 → 自动生成采购入库 `IN202610030002` | 截图 82/83；DOM：审核状态位翻转、入库列表出现新单 |
+| 销售→自动出库→原子扣库存 | `SL202610030001`（¥59,998.00）→ 自动销售出库 `OUT202610030001` 完成，库存原子扣减（TRACE_ID=384bf969） | 截图 84；DB 库存行前后差 = 出库数量 |
+| 移库→移动入库 | `MV202610030001` 5 台@东部大仓 100→95 @东部1仓；`MV202610030002` → `IN202610030004` 已完成 | 截图 85 |
+| 主数据 | 物料 4、合同 1、仓库 7（树形）、库位 3、计量单位 3 | 列表 DOM 行数 = DB count |
+| 系统治理 | 权限 309、菜单 34、配置 13、编号规则 20、操作日志 20、数据资源 17、行级策略 20、列级脱敏 4（`2***0`/`2***9` 掩码渲染；服务端 `138****3333`、`te***@hamm.cn`） | 各列表页 DOM 抓取 |
+| 多角色 | admin 侧栏 27 菜单；张三（无角色）→ 404 | 截图 86（缺陷候选 §5-2） |
+| V16 迁移（真库） | flyway `version=16, success=1`；`data_policy.resource_id`/`data_field_policy.resource_id` = `bigint unsigned`；FK `fk_data_policy_resource`、`fk_data_field_policy_resource` 存在 | information_schema 直查 |
+
+## 2. 六项缺陷修复（根因 → 复用 → 实现论证 → 量测 → 建议）
+
+### FIX 1 — `-parameters` 编译标志静默失效（后端 500）
+- **症状**：后端启动正常，但带 `@RequestParam`/`@PathVariable` 无显式名的接口 500：`IllegalArgumentException: Name for argument of type [java.lang.String] not specified, and parameter name information not found via reflection. Ensure that the compiler uses the '-parameters' flag.`
+- **根因**：`SPMS-Server/pom.xml` 有 `<parameters>true</parameters>`，但仓内 Maven 3.8.3（`.mvn/wrapper`）super-POM 把 maven-compiler-plugin 解析到 **3.1**，`<parameters>` 是 3.6.0 才引入的选项——3.1 **静默忽略**它（不报错、不警告）。B0 退役 airpower 时丢失的三处配置之一，且是唯一运行期才暴露的。
+- **复用方案**：不逐个给 8 个接口补 `@RequestParam("x")` 显式名（治标且易再犯），而是钉死插件版本 `<version>3.13.0</version>`（= Spring Boot 3.4.4 官方 parent 管理的版本，单一事实源）。
+- **验证**：`javap -v -p` 目标 class：修复前 `MethodParameters` 属性 0 处，修复后存在；enforce-readiness / deny-logs 接口 200。
+- **进一步建议**：用 **maven-enforcer `RequirePluginVersions`**（官方现成规则）把「所有插件必须显式版本」变成构建期硬门禁，或并入 `infra/scripts/check-*` 系列——否则下一个升级还会踩同一坑。
+
+### FIX 2 — KDetailTable `entity` prop 类型告警（Vue 运行时告警刷屏）
+- **症状**：任何单据详情页控制台刷 `Invalid prop: type check failed for prop "entity". Expected Object, got Function.`
+- **根因**：`KDetailTable.vue` 把 `entity` 当普通对象 prop 声明，但调用方传的是**类构造器**（`InputDetailEntity` 等，运行时是 Function）。系统性问题：全仓 ~8 个视图都往 props 传构造器。
+- **复用方案**：Vue 3.5 官方推荐的 props 泛型写法（本仓已在用），把类型声明改成诚实的构造器签名即可：`defineProps<{ entity: abstract new (...args: never[]) => E; ... }>()`。构造器类型编译为运行时 `type: null`（放弃浅检查而不是撒谎说是 Object）。
+- **实现论证**：改 1 个组件的 1 行类型 = 8 个调用方全部消音；调用方零改动；类型系统继续拿到 `E` 做行类型推断。
+- **验证**：详情页控制台 0 该类告警；截图 81。
+- **进一步建议**：给「props 传类构造器」立个约定名（如 `entityCtor`）或包一层 `InstanceType` 工厂；可在 eslint 层禁止把构造函数标成 `PropType<object>`。
+
+### FIX 3 — 作业后详情陈旧（`refetch()` + staleTime 陷阱）
+- **症状**：明细「作业」成功（接口 200、toast 正常）后再开详情，`finishQuantity` 还是旧值——`queryClient` `staleTime: 30_000` 下 `refetch()` 命中缓存直接返回。
+- **根因**：`useDetail.ts` 的 `reload()` 用 `refetch()`；列表侧 `useTable.reload`（`useTable.ts:293`）早已改用 `invalidateQueries` 前缀失效——详情侧漏改。
+- **复用方案**：照抄仓内已验证的 `useTable.reload` 惯例，复用单例 `queryClient`（`src/query/queryClient.ts`，staleTime 30_000 不动）。
+- **实现**：
+  ```ts
+  async function reload(extra?: string[][]): Promise<void> {
+    const keys = [option.queryKey, ...(extra ?? [])]
+    await Promise.all(keys.map(key => queryClient.invalidateQueries({ queryKey: key })))
+  }
+  ```
+  明细 key 是 `[...queryKey, 'detail', id]`，前缀失效天然覆盖列表+全部详情；可选 `extra` 参数是**扩展缝**——跨域联动方（入库→库存/采购）按需传自己的前缀，数据层不 import 任何业务域。
+- **验证**：入库 `detail.vue:130` `CROSS_DOMAIN_KEYS=[['wms:inventory'],['channel:purchase']]`；DOM spy 实测失效序列 `["wms:input","wms:inventory","channel:purchase",...]`；截图 85。
+- **进一步建议**：约定「查询驱动列表禁用 `refetch()`」，可上一条 eslint/no-restricted-syntax 规则防回退。
+
+### FIX 4 — 列设置弹层全仓失效（EP ElOnlyChild + Fragment 根）
+- **症状**：所有 KTable 右上角「列设置」齿轮点击无反应，控制台 `Runtime directive used on component with non-element root node. The directives will not function as intended.`
+- **根因**：`KTable.vue` 的 `#reference` 插槽根是 Fragment（多根），element-plus `ElOnlyChild` 对非元素根**丢失指令**（popover 定位/触发指令），弹层永远不出现。
+- **复用方案**：EP 文档对 `#reference` 的契约就是"单个元素"——包一个 `<span class="k-table__col-settings-reference">` 元素根即完全合规，不 patch、不升级、不加依赖。
+- **验证**：修复后齿轮点击弹出含列勾选框的 popper，勾选即隐藏列（DOM：可见 `.el-popper` + 表头列数变化）；截图 87；控制台指令警告 0。
+- **进一步建议**：此坑上游可报告；仓内可加一个组件单测断言 `#reference` 渲染根为元素节点（负样本探针法同 R46 §2）。
+
+### FIX 5 — 列表从不刷新（`@saved` 断线 + DialogUtil promise 被丢弃）
+- **症状**：入库/出库/移库列表、采购/销售列表在详情弹窗里完成作业后，**列表行状态纹丝不动**，必须手动刷新。
+- **根因**：两条断线——① wms 三域 `list.vue` 只把 `@saved` 绑在 `<*Editor>`（新建）上，`<*Detail>`（详情内作业）的 `saved` 没人听；② channel 两域用 `DialogUtil.show(XDetail, row)` 打开详情，返回的 promise 被**丢弃**，详情内部再正确也传不到列表层。
+- **复用方案**：零新 API——① 绑**已存在**的 `saved` 发射缝：`<*Detail ... @saved="onSaved">`（input/list.vue:147、output/list.vue:144、move/list.vue:151）；② 复用 DialogUtil 的 promise 契约（`src/framework/feedback.ts:187-211`：confirm/cancel/关闭都必然 settle，`.finally` 安全）：`void DialogUtil.show(XDetail, row).finally(() => table.reload())`（purchase/list.vue:83、sale/list.vue:76）。与既有 Editor 路径完全对称。
+- **扩展性论证**：以后任何新域只要详情组件 emit `saved`（或走 DialogUtil），列表刷新**自动成立**；这条约定写进了组件契约而不是散落在页面里。
+- **验证（本轮全四域真机点击 + spy）**：
+  - INPUT `IN202609150007`：全部入库(20)→西部1仓 → 失效序列 `["wms:input","wms:inventory","channel:purchase","wms:input"]`，请求 `addFinish→getPage→getDetail×2`，行 入库中→已完成；DB status=4、明细 20/20。截图 88。
+  - OUTPUT `OUT202609150011`：确认出库 60 → 失效 `["wms:output","wms:inventory","channel:sale",...]`，行→已完成；DB status=4、库存 95→35。截图 89。
+  - MOVE `MV202609280001`：添加完成 2 → 失效 `["wms:move","wms:inventory","wms:input","wms:output",...]`，行→已完成；DB status=4、2/2。截图 90。
+  - PURCHASE `PC202609300003`：到货登记 1 →（详情层）失效 `["channel:purchase","wms:input"]`；**关闭采购详情时**列表层 `.finally(table.reload())` 触发追加 `getPage` + 失效 `["channel:purchase"]`，行 采购中→已完成；DB status=5、1/1。截图 91。
+- **进一步建议**：中期可让 `useTable` 暴露 `onDomainRefresh(key)`，把「弹窗关闭即 reload」下沉为框架行为；短期以 `saved` 约定 + code review 检查表覆盖。
+
+### FIX 6 — KDialog 提前关窗吞掉异步提交结果（无报错的静默失效，最隐蔽）
+- **症状**：入库「确认入库」接口成功、toast 弹出、弹窗关闭，但列表**不刷新**、无任何控制台报错。
+- **根因**：`KDialog.confirm()` 同步 `visible=false` → 外层 `v-if` **立即卸载**内容组件 → 内容里 `await 提交` 之后才执行的 `emit('confirmed')` 命中 Vue 的 emit 守卫 `if (instance.isUnmounted) return`（`runtime-core.esm-bundler.js:4442`）被**静默丢弃** → 失效链从未触发。
+- **复用方案**：不重构两套弹窗接线（emit-only 型 vs props-call 型，见 KDialog 头注 6–49），而是在共享组件上**加一个向后兼容的退出开关**：`closeOnConfirm?: boolean` 默认 `true`（所有既有调用方行为不变），异步提交的 emit-only 弹窗传 `false`，由内容在提交成功后自己 `emit('update:modelValue', false)` 关窗。
+- **实现**：`confirm()` → `if (props.disableConfirm) return; if (props.closeOnConfirm) visible.value = false; emit('confirm')`；三个异步编辑器（input/output/purchase 的 `addFinishEditor.vue`）传 `:close-on-confirm="false"` 并把 emit 顺序固化为「先 `confirmed` 再关窗」。
+- **附带收益**：提交失败时弹窗保持打开可重试（旧行为是失败也关窗，用户丢失输入）。
+- **验证**：FIX 5 四域序列全部以 `confirmed→失效→关窗→列表翻页` 的正确顺序发生（见上）；`editorOpen=false` 均在 toast 之后。
+- **进一步建议**：更彻底但破坏性的方案是 KDialog 对「内容为 emit-only 异步型」**永不自动关窗**；务实替代是静态守卫——检测「内容含 `await` 后 emit 且未传 `close-on-confirm=false`」并 lint 报错。JSDoc 已把契约写死在属性上。
+
+## 3. 收尾门禁（本轮实跑）
+
+- `pnpm exec vue-tsc --noEmit -p tsconfig.json` → **EXIT 0**。
+- `pnpm exec eslint <18 个改动文件>` → **0 errors**（唯一 warning 是 `infra/scripts/*.mjs` 本就在 eslint ignore 清单，非代码问题）。
+- `vitest run src/config/__tests__/schemaContract.spec.ts` → **7/7 绿**（V16 追加已同步进清单断言——设计要求新增迁移必须改这里一次）；此前全量 `src/config/__tests__/` 27/27。
+- 后端 V16 已在真库应用并复核（§1 末行）。
+
+## 4. 改动清单
+
+- 后端：`SPMS-Server/pom.xml`（compiler 插件钉 3.13.0）、新增 `V16__align_policy_resource_fk_signedness.sql`（逐字复用 V12 的 `kubo_align_resource_id` 存储过程，幂等：MODIFY 仅在 `COLUMN_TYPE <> 'bigint unsigned'` 时执行、FK 固定名 `fk_<t>_resource` 判存在、补建前清悬挂引用；修复 §1-V16 行的静默参照完整性失效——P1-3 收口）。
+- 工程化：`infra/scripts/check-ddl-entity-drift.mjs` 增 ④实体 columnDefinition vs 迁移整型族/UNSIGNED 一致性（失败）、⑤`--live-detail` information_schema 实库比对（失败）——正是 V16 这类「列名全对、FK 静默缺失」的探测器；`schemaContract.spec.ts` V16 入列。
+- 前端：`KDetailTable.vue`、`KDialog.vue`、`KTable.vue`、`useDetail.ts`、4 个 `detail.vue`、5 个 `list.vue`、3 个 `addFinishEditor.vue`（详见 §2）。
+- 本报告 + 截图 81–91（`docs/evidence/`）。
+
+## 5. 非代码发现（本轮实测，建议立案）
+
+| # | 发现 | 证据 | 级别/建议 |
+|---|---|---|---|
+| 1 | 「新增用户」弹窗**没有密码字段**，且 `UserService` 无管理员重置密码接口 → 新建用户**永远无法登录** | 弹窗 DOM 字段清单 + 后端方法扫描 | **P2 产品缺口**：补初始密码字段或「邀请制」（首登邮件设密） |
+| 2 | 无角色用户登录后落到**通用 404**，而非「无授权」引导页 | 张三登录截图 86 | P3 UX：路由守卫区分「无权限」与「不存在」 |
+| 3 | 数据权限执行处于观察态：0 enforced 资源、0 deny 事件；导出缺口 4（asset.material ×2） | 治理面板 DOM | 按计划灰度 ENFORCE；先补导出缺口 |
+| 4 | 请求日志**后端从未实现**：`/api/log/getPage|getDetail` 404，前端是活桩（`src/view/console/system/log/list.vue:16`） | XHR 404 | 实现或下架菜单，别让菜单点出 404 |
+| 5 | 登录强制「隐私政策」确认弹窗 | 登录流程截图链 | 合规权衡，产品拍板 |
+| 6 | WMS_OPERATOR 角色存在但无已知密码账号 → 仓管角色回归未覆盖 | 账号盘点 | 测试环境补种子账号 |
+| 7 | **自动化测试陷阱（非产品缺陷）**：element-plus `TableColumnRenderer` 用 `slots.default({row:{},$index:-1})` 探测子列（`table-column/…lang.mjs:97-103`），操作列插槽因此在 `.hidden-columns`（`visibility:hidden; position:absolute`）里多渲染一套绑定**空行**的按钮；`offsetParent!==null` 过滤会先命中它，点击产生「空 detail」幽灵 | 源码定位 + 点击复现 | 自动化侧统一用 `!b.closest('.hidden-columns') && getComputedStyle(b).visibility!=='hidden'`；可选产品侧防御：行操作 handler 开头 `if (!row?.id) return` |
+
+## 6. 结论
+
+三条业务闭环 + 主数据 + 系统治理 + 多角色在真机浏览器全程走通；六项缺陷全部**根因级修复**且每项都复用了仓内/上游现成方案（parent 版本管理、props 泛型、queryClient 失效惯例、EP `#reference` 契约、既有 `saved` 缝与 DialogUtil promise、V12 存储过程），无新增依赖；每项修复都是**加法式、默认行为不变**的形态，新场景按约定自动获得同等能力。全部改动过 vue-tsc/eslint/契约测试门禁，已在 `dev` 分支提交（未推送——本地领先 `github/dev` 较多，推送前先打招呼）。
