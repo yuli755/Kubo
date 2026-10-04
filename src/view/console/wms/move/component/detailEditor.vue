@@ -1,8 +1,9 @@
 <script lang="ts" setup>
+import type { FormInstance } from 'element-plus'
 import { ElButton, ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
-import { getFieldLabel, WebValidator } from '@/framework'
+import { getFieldLabel, validateFormWithFeedback, WebValidator } from '@/framework'
 import { MoveDetailEntity } from '@/model/wms/move/MoveDetailEntity'
 
 /**
@@ -51,10 +52,22 @@ const availableQuantity = computed(() => Number(form.value?.inventory?.quantity)
 const unitName = computed(() => form.value?.inventory?.material?.unit?.name ?? '')
 const materialName = computed(() => form.value?.inventory?.material?.name ?? '-')
 
-function onConfirm() {
-  if (form.value) {
-    emit('confirm', form.value)
+const formRef = ref<FormInstance>()
+
+/**
+ * R52 反馈修复：数量清空/为 0 时原来照样「确定」—— 规则生成了却没人 validate()，
+ * 半截明细被静默收进明细表。现在先走框架层统一校验反馈，通过才关窗回传。
+ * 配套：KDialog 传 `close-on-confirm=false`（异步校验没出结果前不能先关窗），
+ * 通过后自己 `emit('update:modelValue', false)` 收口。
+ */
+async function onConfirm() {
+  if (!form.value) {
+    return
   }
+  if (!await validateFormWithFeedback(formRef.value, MoveDetailEntity)) {
+    return
+  }
+  emit('confirm', form.value)
   emit('update:modelValue', false)
 }
 </script>
@@ -62,14 +75,17 @@ function onConfirm() {
 <template>
   <KDialog
     :model-value="modelValue"
+    :close-on-confirm="false"
     confirm-text="确定"
     title="移库明细"
     width="600px"
     @cancel="emit('update:modelValue', false)"
     @confirm="onConfirm"
+    @update:model-value="value => emit('update:modelValue', value)"
   >
     <ElForm
       v-if="form"
+      ref="formRef"
       :model="form"
       :rules="rules"
       label-width="110px"

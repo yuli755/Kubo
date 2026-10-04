@@ -293,3 +293,50 @@
 
 - 门禁：`eslint .` EXIT 0；`vue-tsc --noEmit` EXIT 0；vitest `SecurityDashboard + WarehouseHeatmap + tableLayout + styleContract + consoleMount + frameworkComponents + personnelDomain + wmsDomain` 8 文件 **65/65**（82.98s）；质量 skill 扫描 0 错。
 - 改动（27 文件）：`src/styles/index.scss`（全局 `.k-page` + 手机档堆叠）、`src/view/console/index/SecurityDashboard.vue`（RO + 主题重绘）、`src/component/framework/KTable.vue`（重测加固）、`src/view/console/index/__tests__/SecurityDashboard.spec.ts`（注入 pinia）、21 个单栏列表页（删 scoped 拷贝）、`personnel/user/list.vue` + `wms/inventory/list.vue`（显式 row 声明）。
+
+## 11. 追加轮（Round 52）：「校验/密码错误系统不提示」人性化反馈专项
+
+用户原话：「此次检验过程中，发现页面缺少人性化提示，一旦用户字段校验或密码输入错误，系统不会提示用户，哪里操作失误，这个需要你自行检查排查修复完善」。同条消息还给出一个归因猜测：「我发现是因为我没有登录 google 浏览器导致的页面展示问题，一旦切换登录的浏览器展示效果问题就不存在了」——先回应这条，再讲本轮修的三处静默。
+
+### 11.0 先澄清：与「有没有登录 Google / 用哪个浏览器」无关（结论）
+
+- 浏览器登录态（Chrome/Edge 账号同步）只同步书签、历史、扩展、偏好设置，**不参与页面布局与渲染**，也不改 CSS 视口。换个登录态的浏览器"就好了"，改变的是那个 profile 的**页面缩放 / 窗口尺寸 / 扩展**这几项，不是"登录"本身。
+- 复现与消除都不需要 F12：本机 1920×1080 + 系统缩放 125%（`AppliedDPI=120`），CSS 视口约 1536；若该站点页面缩放被 Ctrl+滚轮拨到 150%（**缩放按 origin 持久化**，下次进来还是它），可视宽 = 1920 ÷ (1.25 × 1.5) ≈ **1024**，正好踩中 `KAppShell.vue` 的 `innerWidth < 1024` 窄屏断点（侧栏转抽屉）→ 用户感知"内容被裁/丢失"。**按 Ctrl+0 复位缩放即可**；F12 与设备仿真切换只是恰好派发了 `window.resize` + 强制重排，把 §10.2 那类"只认 resize 的 JS 测量布局"顺手治好。
+- 页面侧真正需要修的自适应缺陷已在 §10（V10-1/V10-2/V10-3）闭环；本轮据此复查未再发现新的"resize 才自愈"的漏网组件（图表仅两处，`WarehouseHeatmap.vue` 本就有 resize 路径）。
+
+### 11.1 排查方法与三个真缺陷（非视觉层·交互反馈）
+
+排查口径：全站手写 `ElForm` 表单只有 7 处（`KFormDialog` + 5 个明细编辑器 + `ModifyPassword`），逐个核对 element-plus 出提示的**两个必要条件**——① `ElForm` 绑了 `:rules`/`:model` 且 `ElFormItem` 带 `:prop`（缺 prop 该字段永远无法被归属错误）；② 提交路径真的 `await formRef.validate()`。结果：
+
+| # | 缺陷 | 静默机制 | 影响面 |
+|---|---|---|---|
+| F52-1 | **5 个明细编辑器点了「确定」根本不校验** | 规则早由 `WebValidator.createRules(XxxDetailEntity)` 从 `@KForm` 元数据生成并绑上了，但 `onConfirm()` 从不调 `validate()`；且 `KDialog` 默认 `closeOnConfirm=true`（先同步关窗再 emit `confirm`），异步校验即便写了也来不及拦 | 入库/出库/移库/采购/销售明细：物料未选、数量为空 → 弹窗照常关闭，坏行静默进入上层单据，用户完全不知道哪里没填 |
+| F52-2 | `KFormDialog.onSubmit()` 校验失败**静默 return** | 行内红字确实渲染了，但表单在可滚动容器里，第一个出错项常在视口外 → 用户点保存"没反应" | 全站所有走框架弹窗的表单（几十个实体页），影响面最大的一处 |
+| F52-3 | `ModifyPassword.vue` **既无 rules 也无 prop，按钮还把入口焊死** | `:model` 单绑 + 4 个 `ElFormItem` 全无 `:prop` → 行内零提示；同时 `:disabled="!canSubmit()"` → 用户看到的是"按钮点不动，不知道为什么"；两次密码不一致只有一条 toast，确认框下方无红字 | 改密面板（高敏感操作，最不该沉默） |
+| 附 | `channel/sale/component/detailEditor.vue` 销售物料 `ElFormItem` **缺 `prop="material"`** | 即使调用 `validate()`，`requiredPayload` 错误也无处渲染 | 销售明细 |
+
+顺带排查并**判定为无缺陷**的一处（避免过度修）：登录页密码错误**是有提示的**——`loginInlineError`（`src/api/errorPolicy.ts:488`）把业务码 `200001` 映射为卡片内联 `loginFeedback`（`src/view/login.vue:536-541` 渲染），全局 toast 的静默是 `SILENT_CODES`（`errorPolicy.ts:155-157`）**刻意设计**（避免"内联 + 顶部"双重噪音），并由 `errorPolicy.spec.ts:338-368` 锁定；后端 `UserService.updateMyPassword` 走 `axios.notifyBusinessError`（`src/api/axios.ts:139-166`）也有 4s toast。用户感知到的"密码错误没提示"实际来自 F52-3（改密面板）与 F52-1 那类静默提交。
+
+### 11.2 修复：一处框架 helper 收口，七处接入
+
+- **框架层新增**（`src/framework/validate.ts`）：`WebFormRefLike` + `validateFormWithFeedback(form, entityClass)` —— `await form.validate()`，失败时把 element-plus reject 出来的**字段表**取第一个出错 prop，用 `getFieldLabel(entityClass, prop)` 反查 `@Field` 中文标题，`FeedbackUtil.toastWarning('请先完善必填项：物料')` 并 `form.scrollToField(prop)` 把它滚进视野；reject 的不是字段表（少数异步校验器抛 `Error`）时兜底通用文案，**绝不允许静默**。空标签等边界在 helper 内统一处理，接入方不再各写一份 toast。
+- **5 个明细编辑器接入**（`wms/{input,output,move}`、`channel/{purchase,sale}` 的 `component/detailEditor.vue`）：`const formRef = ref<FormInstance>()` + `<ElForm ref="formRef">` + `<KDialog :close-on-confirm="false">`（关键——异步校验没出结果前不能先关窗），`onConfirm()` 首行 `if (!await validateFormWithFeedback(formRef.value, XxxDetailEntity)) return`。emit-only 与 props-call 两种契约各自的收窗方式保持不变（wms 三件自关 + emit，channel 两件交给宿主）。
+- **`KFormDialog.vue`**：`onSubmit()` 改为拿 reject 的字段表，`toastWarning('请先完善必填项：<字段中文>')` + `scrollToField`；校验 → `beforeSubmit` → 提交 的**控制顺序不变**（`frameworkBatch2` 的 beforeSubmit 调用次数锁不受影响，已复测）。
+- **`ModifyPassword.vue`**：`confirmPassword` 并入响应式 `form`；`ElForm :rules` + 三项 `prop`；不一致规则文案与 toast 同为「两次密码不一致」（toast + 行内红字**双通道**）；不再用 `disabled` 拦人——点按钮即校验并点名出错项；按钮文案「确认新密码」、占位「请再次输入新密码」。规则刻意写成**普通常量而非 computed**：element-plus 的 `validate-on-rule-change` 默认为 true 并 watch `rules` 引用，用 computed 会导致"刚敲第一个字符三个框全红"。`onSubmit` 里"不一致"判定刻意**同步在前**（点下即出声），整表校验在后。
+- **防回归**：新增 `src/config/__tests__/validationFeedbackGuard.spec.ts`（12 例）——5 个编辑器必须出现 `validateFormWithFeedback(` / `ref="formRef"` / `:close-on-confirm="false"`；销售物料须有 `prop="material"`；`KFormDialog` 须有「请先完善必填项」+ `scrollToField(key)`；`ModifyPassword` 须有 `:rules` + 三个 `prop` 且**不得**再出现 `:disabled="!canSubmit()"`；外加 helper 的 4 条行为锁（通过不吭声 / reject `Error` 兜底出声 / reject `{material}` 报「请先完善必填项：物料」并滚动 / form 未挂载放行）。
+
+### 11.3 分层核查表（本轮视角）
+
+| 层 | 核查内容 | 结果 |
+|---|---|---|
+| 非视觉·校验反馈 | 7 处手写表单的 rules/prop/validate 三条件 | **F52-1/2/3 + 销售缺 prop 全闭环**；框架表单弹窗自此对所有页面生效 |
+| 非视觉·错误反馈 | 登录错密 / 业务错误 toast / 后端 4002 字段落点 | 已具备（`errorPolicy` + `notifyBusinessError` + `fieldError` → `scrollToField`），无需改动 |
+| 非视觉·交互契约 | `KDialog` emit-only vs props-call、`closeOnConfirm` 语义 | 与 `KDialog.vue:19-43` 文档一致；5 处按契约正确接入 |
+| 视觉·自适应 | 是否还有"只有 resize 才自愈"的组件 | 未发现新增；§10 三项修复维持 |
+| 环境·归因 | Google/Edge 登录态与布局的关系 | 无因果（11.0），页面缩放/DPI 才是变量 |
+
+### 11.4 门禁与改动清单
+
+- 门禁：`eslint .` EXIT 0；`vue-tsc --noEmit` EXIT 0；vitest 定向 15 文件 **131/131**（`ModifyPassword 3`、`frameworkBatch2 7`、`frameworkComponents 13`、`formDefaultValueGuard 3`、`smartSelectorInteractions 24`、`validate 4`、`styleContract 6`、`tableLayout 5`、`channelDomain 13`、`personnelDomain 17`、`wmsDomain 14`、`SecurityDashboard 3` + `WarehouseHeatmap 4` + `consoleMount 3`，以及新增 `validationFeedbackGuard 12`），0 失败；质量 skill `quality_checker.js src --json` → **297 文件 / 33918 行，0 error / 2 warning**（仍是两个 >500 行测试文件，容忍项）。
+- 改动（10 文件）：`src/framework/validate.ts`（`validateFormWithFeedback` + `WebFormRefLike`）、`src/component/framework/KFormDialog.vue`（校验失败点名 + 滚动）、`src/component/user/ModifyPassword.vue`（rules/prop/双通道/去 disabled）、5 个 `detailEditor.vue`（校验接入 + `close-on-confirm=false` + 销售 `prop="material"`）、`src/config/__tests__/validationFeedbackGuard.spec.ts`（新，12 例守卫）。
+- 本轮无浏览器工具（MCP catalog 0 servers、本地无 playwright），验证 = 源码审查 + 131 单元/契约用例 + 质量扫描；反馈文案与滚动行为以断言与 element-plus 语义为准，未附新截图。

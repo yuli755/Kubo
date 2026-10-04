@@ -1,9 +1,10 @@
 <script lang="ts" setup>
+import type { FormInstance } from 'element-plus'
 import { ElButton, ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus'
 import { computed, ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import KSelector from '@/component/framework/KSelector.vue'
-import { getFieldLabel, WebValidator } from '@/framework'
+import { getFieldLabel, validateFormWithFeedback, WebValidator } from '@/framework'
 import { KMaterialService } from '@/hook/asset/useMaterial'
 import { OutputDetailEntity } from '@/model/wms/output/OutputDetailEntity'
 
@@ -52,10 +53,22 @@ function onMaterialPicked(rows: unknown[]) {
   form.value.materialName = material.name
 }
 
-function onConfirm() {
-  if (form.value) {
-    emit('confirm', form.value)
+const formRef = ref<FormInstance>()
+
+/**
+ * R52 反馈修复：原来点「确定」直接关窗交数据，`rules` 生成了却没人调用 validate() ——
+ * 物料/数量没填也被静默收进上一层，用户完全不知道哪里没填。现在先走框架层的统一校验
+ * 反馈（标红 + 滚动定位 + toast 点名第一个出错字段），通过才关窗回传。
+ * 配套：KDialog 传 `close-on-confirm=false` —— 异步校验还没出结果时不能先把窗关掉。
+ */
+async function onConfirm() {
+  if (!form.value) {
+    return
   }
+  if (!await validateFormWithFeedback(formRef.value, OutputDetailEntity)) {
+    return
+  }
+  emit('confirm', form.value)
   emit('update:modelValue', false)
 }
 </script>
@@ -63,6 +76,7 @@ function onConfirm() {
 <template>
   <KDialog
     :model-value="modelValue"
+    :close-on-confirm="false"
     confirm-text="确定"
     title="出库明细"
     width="600px"
@@ -72,6 +86,7 @@ function onConfirm() {
   >
     <ElForm
       v-if="form"
+      ref="formRef"
       :model="form"
       :rules="rules"
       label-width="110px"

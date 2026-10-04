@@ -10,7 +10,8 @@
 
 import type { ITransformerConstructor } from './types'
 import { isMobilePhone as isMobilePhoneCanonical } from '@/utils/validators'
-import { getFormConfigList } from './metadata'
+import { FeedbackUtil } from './feedback'
+import { getFieldLabel, getFormConfigList } from './metadata'
 
 export type WebValidatorTrigger = 'blur' | 'change'
 
@@ -349,4 +350,49 @@ export class WebValidator {
       validator: this.validator,
     }
   }
+}
+
+/** ElForm 实例上本工具用到的最小形状（避免为了一个类型把 element-plus 拖进框架层） */
+export interface WebFormRefLike {
+  validate: () => Promise<boolean>
+  scrollToField?: (prop: string) => void
+}
+
+/**
+ * 提交前的统一校验反馈（R52 · 人性化提示补齐）。
+ *
+ * 存量的手写弹窗（各明细编辑器）都从 `@KForm` 元数据生成了 `rules`，却从来没人在
+ * 「确定」时调 `validate()` —— 空值/漏选被静默收进上一层，用户完全不知道哪里没填。
+ * 这里把「校 → 不过就把第一个出错字段滚进视野 + toast 点名」收敛成一个函数，
+ * 各编辑器一行接入，文案也保证一致（「请先完善必填项：物料」）。
+ *
+ * @param form ElForm 实例（未挂载时视为通过，由调用方的 form 空值守卫兜底）
+ * @param entityClass 出错的 prop 用它反查 `@Field` 中文标题，报「物料」而不是「material」
+ * @returns 是否通过校验
+ */
+export async function validateFormWithFeedback(
+  form: WebFormRefLike | undefined,
+  entityClass: object,
+): Promise<boolean> {
+  if (!form) {
+    return true
+  }
+  let invalid: Record<string, unknown> | null = null
+  try {
+    await form.validate()
+  }
+  catch (error) {
+    // element-plus 把「不通过的字段表」整体 reject 出来（键 = prop）；
+    // 不是对象的情况（少数异步校验器抛 Error）也要拦住，宁可多提示一次
+    invalid = (error && typeof error === 'object' ? error : {}) as Record<string, unknown>
+  }
+  if (!invalid) {
+    return true
+  }
+  const keys = Object.keys(invalid)
+  FeedbackUtil.toastWarning(keys.length ? `请先完善必填项：${getFieldLabel(entityClass, keys[0])}` : '请先完善必填项')
+  if (keys.length) {
+    form.scrollToField?.(keys[0])
+  }
+  return false
 }

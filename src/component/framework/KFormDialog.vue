@@ -414,9 +414,22 @@ watch(fieldError, async (notice) => {
 })
 
 async function onSubmit() {
-  const valid = await formRef.value?.validate().catch(() => false)
-  if (valid === false)
+  const invalid = await formRef.value?.validate()
+    .then(() => null)
+    // element-plus 校验不通过时把「出错字段表」整体 reject 出来（键 = prop）；
+    // 非对象（个别异步校验器抛 Error）也按「有错」处理，宁可多提示一次
+    .catch((fields: Record<string, unknown>) => (fields && typeof fields === 'object' ? fields : {}))
+  if (invalid) {
+    // R52 人性化提示补齐：原来这里只 `return` —— EP 的行内红字在小屏/长表单里很容易被
+    // 滚出视野，用户看到的就是「点了保存，什么也没发生」。现在把第一个出错项滚进视野，
+    // 并用一条 toast 点名它（文案与各明细编辑器同源）。
+    const key = Object.keys(invalid)[0]
+    const label = key ? (fields.value.find(field => field.key === key)?.label ?? key) : ''
+    FeedbackUtil.toastWarning(key ? `请先完善必填项：${label}` : '请先完善必填项')
+    if (key)
+      formRef.value?.scrollToField(key)
     return
+  }
 
   // 页面可以在这里拦一道（返回 null = 中止），如物料价格被脱敏策略限制时不许保存
   let payload = form.value

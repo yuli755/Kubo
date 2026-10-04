@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { FormInstance } from 'element-plus'
 import type { IDialogActionProps } from '@/framework'
 import type { MaterialEntity } from '@/model/asset/material/MaterialEntity'
 import type { SaleDetailEntity } from '@/model/channel/sale/SaleDetailEntity'
@@ -6,7 +7,7 @@ import { ElButton, ElForm, ElFormItem, ElInput, ElInputNumber, ElTag } from 'ele
 import { computed, ref, watch } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
 import KSelector from '@/component/framework/KSelector.vue'
-import { FeedbackUtil, getFieldLabel, WebValidator } from '@/framework'
+import { FeedbackUtil, getFieldLabel, validateFormWithFeedback, WebValidator } from '@/framework'
 import { KMaterialService } from '@/hook/asset/useMaterial'
 import { KSalePriceService } from '@/hook/channel/useSalePrice'
 import { SaleDetailEntity as SaleDetail } from '@/model/channel/sale/SaleDetailEntity'
@@ -85,10 +86,22 @@ function onMaterialPicked(rows: unknown[]) {
   void lookupPrice()
 }
 
-function onConfirm() {
-  if (form.value) {
-    props.onConfirm?.(form.value)
+const formRef = ref<FormInstance>()
+
+/**
+ * R52 反馈修复：原来「确定」直接 `props.onConfirm(form)` 交数据并让宿主卸窗，
+ * `rules` 生成了却没人调 validate() —— 物料/单价/数量没填也被静默收进明细，
+ * 用户完全不知道哪里没填。现在先走框架层统一校验反馈（标红 + 滚动定位 + toast 点名
+ * 第一个出错字段），不通过就保留弹窗，通过才回传。
+ */
+async function onConfirm() {
+  if (!form.value) {
+    return
   }
+  if (!await validateFormWithFeedback(formRef.value, SaleDetail)) {
+    return
+  }
+  props.onConfirm?.(form.value)
 }
 </script>
 
@@ -96,17 +109,22 @@ function onConfirm() {
   <KDialog
     title="销售明细"
     width="620px"
+    :close-on-confirm="false"
     @cancel="() => props.onCancel?.()"
     @confirm="onConfirm"
   >
     <ElForm
       v-if="form"
+      ref="formRef"
       :model="form"
       :rules="rules"
       label-width="110px"
       @submit.prevent
     >
-      <ElFormItem label="销售物料">
+      <ElFormItem
+        label="销售物料"
+        prop="material"
+      >
         <div class="field-select-row">
           <ElInput
             :model-value="form.material?.name ?? ''"
