@@ -267,13 +267,6 @@ function onSaved() {
 </template>
 
 <style scoped>
-.k-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-}
-
 .menu-component-option {
   display: flex;
   justify-content: space-between;

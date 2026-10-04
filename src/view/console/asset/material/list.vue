@@ -217,13 +217,6 @@ function onSaved() {
 </template>
 
 <style lang="scss" scoped>
-.k-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-}
-
 .export-warning {
   margin-bottom: 8px;
 }

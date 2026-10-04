@@ -227,13 +227,6 @@ function appendParam(param: CodeRuleParam) {
 </template>
 
 <style scoped>
-.k-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-}
-
 .preset-templates {
   display: flex;
   flex-wrap: wrap;

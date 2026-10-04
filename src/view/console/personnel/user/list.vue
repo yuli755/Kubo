@@ -353,6 +353,8 @@ function onSaved() {
 <style lang="scss" scoped>
 .k-page {
   display: flex;
+  /* 全局 .k-page 是纵向骨架，双栏页显式声明横向（scoped 赢同名属性） */
+  flex-direction: row;
   gap: 16px;
   align-items: flex-start;
   width: 100%;

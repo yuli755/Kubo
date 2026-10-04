@@ -178,13 +178,6 @@ function onSaved() {
 </template>
 
 <style lang="scss" scoped>
-.k-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-}
-
 .contract-expire-cell {
   display: inline-flex;
   align-items: center;

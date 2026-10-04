@@ -101,12 +101,3 @@ function onSaved() {
     </KFormDialog>
   </div>
 </template>
-
-<style scoped>
-.k-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-}
-</style>

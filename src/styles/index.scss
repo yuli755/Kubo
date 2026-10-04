@@ -47,3 +47,28 @@
 .el-message-box {
   max-width: calc(100vw - 32px);
 }
+
+/* ── R51 · `.k-page` 页面骨架唯一化（V10）──
+ *
+ * 23 个列表页曾在各自 scoped 样式里抄同一份 `.k-page` 基础块；上一轮手机档
+ * 堆叠规则就因此需要逐页补（实测 22 处只有 2 处有）。基础形态收进全局层一次
+ * 声明。两个带侧栏的页面（personnel/user、wms/inventory）在 scoped 里显式声明
+ * `flex-direction: row` 覆盖这里的 column —— scoped 属性选择器特异度更高，
+ * 同名属性天然赢。
+ */
+.k-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+/* 手机档：240px 级固定侧栏与主表并排会把主表挤成细条（375 实测 55px，表单不可用），
+ * 一律上下堆叠。align-items 必须 stretch —— 桌面态 flex-start 在列方向下会让
+ * 子卡收缩到内容宽（实测主卡 838px 时横向撑出 485px 溢出）。 */
+@media (max-width: 767px) {
+  .k-page {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

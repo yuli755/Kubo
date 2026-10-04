@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 
@@ -111,6 +112,8 @@ vi.mock('@/composables/useOutboxDead', async () => {
 })
 
 async function mountDashboard() {
+  // R51：组件订阅 theme store（isDark 变化重绘图表），挂载需要活的 pinia
+  setActivePinia(createPinia())
   const SecurityDashboard = (await import('@/view/console/index/SecurityDashboard.vue')).default
   const wrapper = mount(SecurityDashboard, { attachTo: document.body })
   await flushPromises()

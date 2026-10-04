@@ -448,6 +448,8 @@ const hasRowActions = computed(() => !props.hideActions)
  */
 const MIN_TREE_TABLE_HEIGHT = 360
 const treeAutoHeight = ref<number | undefined>(undefined)
+let treeLayoutObserver: ResizeObserver | undefined
+let treeMeasureRaf = 0
 
 function measureTreeHeight() {
   if (!isTree.value || props.height !== undefined) {
@@ -463,17 +465,44 @@ function measureTreeHeight() {
   treeAutoHeight.value = Math.max(MIN_TREE_TABLE_HEIGHT, available)
 }
 
+/** rAF 合帧：ResizeObserver 一次布局抖动会连发多次回调，测量只需要跑一帧一次 */
+function scheduleTreeMeasure() {
+  if (typeof requestAnimationFrame === 'undefined') {
+    measureTreeHeight()
+    return
+  }
+  cancelAnimationFrame(treeMeasureRaf)
+  treeMeasureRaf = requestAnimationFrame(() => measureTreeHeight())
+}
+
 const tableHeight = computed(() => props.height ?? treeAutoHeight.value ?? undefined)
 
 onMounted(() => {
   if (isTree.value && props.height === undefined) {
     void nextTick(measureTreeHeight)
     window.addEventListener('resize', measureTreeHeight)
+    // R51：只监听 window.resize 不够 —— 「挂载时测到 wrong-top、此后只有 F12 改窗口
+    // 尺寸才恢复」是这类 JS 量高组件的通病（真机用户复现：首进页面表格/内容被裁，
+    // 动一下视口就正常）。route 过渡（translateY(6px) 期间测的 top 偏 6px）、字体
+    // 加载回流、上方筛选区换行变高、侧栏折叠都会挪动 top 却不触发 window.resize。
+    // ResizeObserver 盯 `.k-table` 容器本身：宽度/高度任一变化（含折叠屏、抽屉、
+    // 断点变列数）下一帧重测；window.resize 监听保留兜底。jsdom 无 ResizeObserver，守卫后自动跳过。
+    if (typeof ResizeObserver !== 'undefined') {
+      const root = (tableRef.value?.$el as HTMLElement | undefined)?.closest('.k-table')
+      if (root) {
+        treeLayoutObserver = new ResizeObserver(scheduleTreeMeasure)
+        treeLayoutObserver.observe(root)
+      }
+    }
   }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', measureTreeHeight)
+  treeLayoutObserver?.disconnect()
+  treeLayoutObserver = undefined
+  if (treeMeasureRaf && typeof cancelAnimationFrame !== 'undefined')
+    cancelAnimationFrame(treeMeasureRaf)
 })
 
 /**

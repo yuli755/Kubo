@@ -247,3 +247,49 @@
 - 门禁：eslint 改动 4 文件 0 错；`vue-tsc --noEmit` EXIT 0；vitest `styleContract + consoleMount + personnelDomain + wmsDomain + tableLayout + smartSelectorInteractions + productionDeliveryAndCanary`（即所有触及改动画像的套件）7 文件 **86/86**。
 - 改动：`index.html`（viewport 解锁缩放）、`src/styles/index.scss`（弹窗/消息盒全局 max-width 兜底）、`src/component/KAppShell.vue`（顶栏左右簇收缩策略 + 手机档搜索退化 + 100dvh）、`src/component/TenantSwitcher.vue`（手机档 96px）、`src/view/console/personnel/user/list.vue` + `src/view/console/wms/inventory/list.vue`（≤767 堆叠）。
 - 截图 102–105（`docs/evidence/`）。
+
+## 10. 追加轮（Round 51）：「内容被裁剪 / F12 恢复」定点排查 + 三项修复 + 全层复核
+
+### 10.1 用户症状与结论（先给判定）
+
+症状：首次用 `localhost:3000` 打开页面，内容展示被裁剪、丢失部分内容；**点 F12 再切换设备仿真后页面恢复预期展示**。需判定是 Chrome/Edge 浏览器的问题还是页面问题。
+
+**结论：Chrome / Edge 浏览器本身无罪，是「页面侧缺陷 + 系统缩放/页面缩放」共同造成"裁剪感"；F12 能恢复是因为开 DevTools / 切设备仿真会派发 `window.resize` 并强制整页重排重绘，把只认 resize 的 JS 测量布局和 GPU 层的过期裁切"顺手治好"。** 三条具体机制：
+
+1. **页面缩放按站点持久化**（Ctrl+滚轮改动后浏览器按 origin 记住）。本机 1920×1080、系统缩放 125%（`AppliedDPI=120`）：若页面缩放再被拨到 150%，CSS 视口宽 = 1920 ÷ (1.25 × 1.5) ≈ **1024px** —— 正好踩中壳层窄屏断点（`KAppShell.vue` `innerWidth < 1024` 切抽屉式布局，侧栏收起），用户感知为"页面过度放大 + 内容丢失"。F12/设备仿真切换会复位可视缩放并改变视口 → 布局恢复。**按 Ctrl+0 复位缩放即可，不必 F12。**
+2. **JS 测量型布局不自愈**（本轮实锤，见 10.2 V10-1/V10-2）：工作台图表 canvas 与 KTable 树表高度都在挂载时测一次、只听 `window.resize`。容器变宽变窄但没派发 resize（侧栏折叠、900px 双栏折行、路由过渡位移、字体加载后回流）→ 尺寸停在旧值被 overflow 裁掉。F12 触发 resize → 监听器重测 → "恢复"。用户看到的正是这个反向过程。
+3. 端口澄清：`vite.config.mts:135` 默认端口即 3000，`run-frontend.cmd` 启动的就是本项目 —— :3000 上不存在第三方页面。
+
+### 10.2 本轮修复三项（修复前都有浏览器实测数字）
+
+| # | 缺陷 | 修复前实测 | 修复 |
+|---|---|---|---|
+| V10-1 | 工作台 `SecurityDashboard.vue` 两张 echarts 图**没有任何 resize 监听** | 窗口 1920→1100：卡片容器缩到约 356~397px，canvas 仍 766px（`style.width:'766px'`），约 **389px** 内容被卡片裁掉；模拟 F12（视口来回切）**不恢复** —— 用户症状的反向病灶 | `observeCharts()` 用 ResizeObserver（`typeof` 特性探测，jsdom 安全）盯两个容器 → `resize()`；watch `theme.isDark` 后 `setOption` 重绘（`statusColor()` 渲染期解析 CSS 变量，主题切换不重绘=残留旧色）；卸载时断开监听并 dispose |
+| V10-2 | `KTable.vue` 树表自动高度仅挂载时测一次 + `window.resize` | 直达路由实测 `top=279`、`h=860−279−56=525` 正确；但挂载恰逢路由过渡（fade-slide translateY(6px)）/字体回流/筛选换行时测到的 `top` 失真，之后无 resize 事件 → 高度 stale，表格底部顶出屏幕（同属"F12 才恢复"一类） | 新增 ResizeObserver（观察 `.k-table` 根，jsdom 守卫）+ rAF 合并重测 `scheduleTreeMeasure()`；`measureTreeHeight` 幂等收敛（`top` 与自身高度无关）；卸载清理 observer/rAF/listener；`init-once / dispose-once` 语义不变（spec 契约） |
+| V10-3 | `.k-page` 骨架 23 份 scoped 重复（§9.7-3 遗留） | 上一轮手机档堆叠规则因此需逐页补（22 处只有 2 处有），下次加页面必再漏 | 全局层 `src/styles/index.scss` 唯一声明 `.k-page`（含 ≤767 堆叠规则）；删 21 份 scoped 拷贝（其中 12 个文件样式块随之清空、整块 `<style>` 移除）；2 个双栏页（user/inventory）scoped 显式 `flex-direction: row` 覆盖（scoped 同名属性特异度天然赢）。27 文件 **+123/−161** |
+
+顺带核查：`WarehouseHeatmap.vue` 已有 window resize → `resize()`（正确，未动）；`permissionEditor.vue` 用固定 max-height 的裸 ElTable，不受影响。
+
+### 10.3 分层核查表（标准视觉层 × 非视觉层）
+
+| 层 | 核查内容 | 结果 |
+|---|---|---|
+| 视觉·壳 | 顶栏/侧栏/面包屑/页脚/壳外页（login·legal·error） | 无新增缺陷；R50 修复静态回归通过 |
+| 视觉·内容 | 23 个列表页 `.k-page` 骨架 + 内容区 | **V10-3 闭环**；`--kubo-content-max-width` 为上限非定宽（§9.0 数据不回退） |
+| 视觉·浮层 | 弹窗/消息盒/抽屉 | R50 全局上限在位（产物 CSS 断言命中）；consent 消息盒 343px 拟合（§9.2） |
+| 视觉·图表 | 工作台双图 / 库存热力图 | **V10-1 闭环**；热力图本就有 resize 路径 ✓ |
+| 视觉·重排 | 路由过渡/滚动裁切/100dvh | **V10-2 闭环**；§7 error.vue fixed 层根因、§9.5 dvh 均已闭合 |
+| 非视觉·主题 | 暗色联动 | 图表此前不随主题重绘 → V10-1 一并修复 |
+| 非视觉·状态/权限/数据 | 域套件回归 | vitest 8 文件 65 用例含人员/WMS/框架域全绿 |
+| 非视觉·契约 | `styleContract`（禁裸 hex/悬空 token）+ `tableLayout` 列宽预算 | 全绿（本轮全局 SCSS 追加无 hex，合规） |
+| 非视觉·性能 | 新增观察器的开销 | ResizeObserver 单例守卫 + rAF 合并；零新依赖 |
+| 非视觉·质量 skill | verify-quality `quality_checker.js src --json` | EXIT 0：**297 文件 / 33872 行，0 error / 2 warning**（均为 >500 行测试文件，容忍项） |
+
+### 10.4 验证方法说明（诚实声明）
+
+本轮 MCP 浏览器工具离线（catalog 0 servers）、本地未装 playwright → 未做新的浏览器实测。10.2 表中"修复前"数字为**修复前** playwright 实测留档；本轮验证 = 源码审查 + Vite 服务级断言（`/src/styles/index.scss?direct` 产物含全局 `.k-page`，`@media (max-width: 767px)` 堆叠规则命中于产物 idx 23949；5 个改动 .vue transform 全 200）+ 单元/契约测试 65 用例。本轮无新增截图。
+
+### 10.5 门禁与改动清单
+
+- 门禁：`eslint .` EXIT 0；`vue-tsc --noEmit` EXIT 0；vitest `SecurityDashboard + WarehouseHeatmap + tableLayout + styleContract + consoleMount + frameworkComponents + personnelDomain + wmsDomain` 8 文件 **65/65**（82.98s）；质量 skill 扫描 0 错。
+- 改动（27 文件）：`src/styles/index.scss`（全局 `.k-page` + 手机档堆叠）、`src/view/console/index/SecurityDashboard.vue`（RO + 主题重绘）、`src/component/framework/KTable.vue`（重测加固）、`src/view/console/index/__tests__/SecurityDashboard.spec.ts`（注入 pinia）、21 个单栏列表页（删 scoped 拷贝）、`personnel/user/list.vue` + `wms/inventory/list.vue`（显式 row 声明）。

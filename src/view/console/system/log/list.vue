@@ -320,13 +320,6 @@ async function refresh() {
 </template>
 
 <style scoped>
-.k-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-}
-
 .log-list__toolbar {
   display: flex;
   flex-wrap: wrap;

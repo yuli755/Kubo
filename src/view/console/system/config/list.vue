@@ -197,13 +197,6 @@ const numberConfig = computed<number>({
 </template>
 
 <style scoped>
-.k-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-}
-
 .system-hint {
   color: var(--el-text-color-secondary);
 }

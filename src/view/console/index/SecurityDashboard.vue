@@ -16,6 +16,7 @@ import { useOutboxDead } from '@/composables/useOutboxDead'
 import { usePolicyResourceRiskReport } from '@/composables/usePolicyResourceRiskReport'
 import { useRowPolicyRiskReport } from '@/composables/useRowPolicyRiskReport'
 import { statusColor } from '@/config/palette'
+import { useThemeStore } from '@/stores/theme'
 
 /**
  * # 数据权限安全态势看板（P2 · 前端二次改造）
@@ -161,6 +162,7 @@ const modeChartEl = ref<HTMLDivElement>()
 const parityChartEl = ref<HTMLDivElement>()
 let modeChart: EChartsType | undefined
 let parityChart: EChartsType | undefined
+let chartObserver: ResizeObserver | undefined
 
 async function renderCharts() {
   if (!runtime.ready)
@@ -178,6 +180,28 @@ async function renderCharts() {
   }
   modeChart?.setOption(buildModeOption(runtime.resources))
   parityChart?.setOption(buildParityOption())
+  observeCharts()
+}
+
+/**
+ * R51 · 图表跟随容器重排（真机实测缺陷）：canvas 停在挂载时的 766px，容器缩到
+ * 356px 后有 389px 被卡片裁掉 —— 窗口缩放/侧栏折叠都不会让 echarts 自己重算，
+ * 只有 window resize 才会，而本组件原先连 resize 监听都没有。
+ * 用 ResizeObserver 盯**容器**而不是 window：侧栏折叠、抽屉开合、`.charts` 在
+ * 900px 断点从双列变单列这些「视口不变但容器变」的场景同样要跟着 resize。
+ * jsdom 无 ResizeObserver（与仓库其它 view 组件同款守卫），spec 环境自动跳过。
+ */
+function observeCharts() {
+  if (typeof ResizeObserver === 'undefined' || chartObserver)
+    return
+  chartObserver = new ResizeObserver(() => {
+    modeChart?.resize()
+    parityChart?.resize()
+  })
+  if (modeChartEl.value)
+    chartObserver.observe(modeChartEl.value)
+  if (parityChartEl.value)
+    chartObserver.observe(parityChartEl.value)
 }
 
 function buildModeOption(resources: ResourceRuntimeStatus[]) {
@@ -267,12 +291,25 @@ watch(
   },
 )
 
+// R51 · 深浅色切换重绘：状态色由 statusColor() 在渲染时解析 CSS 变量，主题变了
+// 却不重绘，canvas 会一直保持旧主题那份色（tokens.scss 暗色侧对色阶的对比度微调
+// 全部丢失）。「是否暗色」的真相只在 theme store 一份，这里只订阅。
+const theme = useThemeStore()
+watch(() => theme.isDark, () => {
+  if (modeChart)
+    modeChart.setOption(buildModeOption(runtime.resources))
+  if (parityChart)
+    parityChart.setOption(buildParityOption())
+})
+
 onMounted(() => {
   if (runtime.ready)
     void renderCharts()
 })
 
 onBeforeUnmount(() => {
+  chartObserver?.disconnect()
+  chartObserver = undefined
   modeChart?.dispose()
   parityChart?.dispose()
   modeChart = undefined
