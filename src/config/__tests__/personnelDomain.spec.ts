@@ -240,10 +240,11 @@ describe('f4 · 批 3（personnel）迁移完成度', () => {
     // 一旦声明就会"总是可见"。需要看时走详情 + 脱敏策略。
     expect(getTableConfig(UserEntity, 'idCard'), 'idCard 不应出现在用户列表列里').toBeUndefined()
 
-    // 表单可写字段与旧 airpower 编辑器一致（nickname/email/phone），
-    // `realName/idCard/gender/bio` 仍是"代码里有、界面没开口"
-    const keys = getFormConfigList(UserEntity).map(item => item.key)
+    // 表单可写字段：nickname/email/phone（与旧 airpower 编辑器一致）+ password（§5-1 补：
+    // 管理员需能给新用户设初始密码），`realName/idCard/gender/bio` 仍是"代码里有、界面没开口"
+    const keys = getFormConfigList(UserEntity).map(row => row.key)
     expect(keys).toContain('nickname')
+    expect(keys).toContain('password')
     expect(keys).not.toContain('idCard')
   })
 })

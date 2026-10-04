@@ -173,7 +173,12 @@ function cellStyle(row: E, column: ITableColumn): CSSProperties {
       fixed="right"
       align="center"
     >
-      <template #default="{ row }">
+      <template #default="{ row, $index }">
+        <!-- $index >= 0 的守卫：ElTableColumn 挂载时会用 `slots.default({ row: {}, $index: -1 })`
+             做一次子列探测渲染（element-plus table-column/index.vue…lang.mjs:97-103），
+             在 .hidden-columns 里留下一个绑定到空对象 `{}` 的重复按钮。visibility:hidden 下
+             真人点不到，但自动化点击（offsetParent 判定漏过 visibility）会命中它，
+             handler 收到 `{}` —— 排查时酷似"点了没反应的 Vue bug"。真实渲染 $index 必 >= 0。 -->
         <ElButton
           v-for="action in rowActions"
           :key="action.label"
@@ -181,7 +186,7 @@ function cellStyle(row: E, column: ITableColumn): CSSProperties {
           link
           :type="action.danger ? 'danger' : 'primary'"
           :disabled="action.disabled?.(row as E)"
-          @click.stop="action.handler(row as E)"
+          @click.stop="$index >= 0 && action.handler(row as E)"
         >
           {{ action.label }}
         </ElButton>

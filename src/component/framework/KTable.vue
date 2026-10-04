@@ -781,7 +781,13 @@ const emptyText = computed(() => {
         fixed="right"
         align="center"
       >
-        <template #default="{ row }">
+        <template #default="{ row, $index }">
+          <!-- $index >= 0 的守卫：ElTableColumn 挂载时会用 `slots.default({ row: {}, $index: -1 })`
+               做一次子列探测渲染（element-plus table-column/index…lang.mjs:97-103），
+               在 .hidden-columns 里留下一个绑定到空对象 `{}` 的重复按钮。visibility:hidden 下
+               真人点不到，但自动化点击（offsetParent 判定漏过 visibility:hidden）会命中它，
+               等于无行触发一次「编辑/删除/启用」—— 真机排查时酷似产品 bug。
+               真实渲染的 $index 必 >= 0，一处守卫胜过每页写 `if (!row?.id) return`（§5-7）。 -->
           <div class="k-table__actions">
             <ElButton
               v-for="action in actions ?? []"
@@ -791,7 +797,7 @@ const emptyText = computed(() => {
               type="primary"
               size="small"
               :disabled="action.disabled?.(row as E)"
-              @click="action.handler(row as E)"
+              @click="$index >= 0 && action.handler(row as E)"
             >
               {{ action.label }}
             </ElButton>
@@ -802,7 +808,7 @@ const emptyText = computed(() => {
               type="primary"
               size="small"
               :disabled="disableAddChild?.(row as E)"
-              @click="emit('addChild', row as E)"
+              @click="$index >= 0 && emit('addChild', row as E)"
             >
               添加子级
             </ElButton>
@@ -813,7 +819,7 @@ const emptyText = computed(() => {
               type="primary"
               size="small"
               :disabled="disableEdit?.(row as E)"
-              @click="emit('edit', row as E)"
+              @click="$index >= 0 && emit('edit', row as E)"
             >
               编辑
             </ElButton>
@@ -823,7 +829,7 @@ const emptyText = computed(() => {
               link
               size="small"
               :type="isDisabled(row as E) ? 'success' : 'warning'"
-              @click="table.onToggleEnable((row as E).id, isDisabled(row as E))"
+              @click="$index >= 0 && table.onToggleEnable((row as E).id, isDisabled(row as E))"
             >
               {{ isDisabled(row as E) ? '启用' : '禁用' }}
             </ElButton>
@@ -834,7 +840,7 @@ const emptyText = computed(() => {
               size="small"
               type="danger"
               :disabled="isDeleteDisabled(row as E)"
-              @click="table.onDelete((row as E).id)"
+              @click="$index >= 0 && table.onDelete((row as E).id)"
             >
               删除
             </ElButton>

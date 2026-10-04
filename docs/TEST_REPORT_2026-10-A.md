@@ -9,7 +9,7 @@
 - 前端 `kubo-web@1.0.0`：Vite dev **3000**（`/api`、`/oauth2` → 8080）。**5173 是无关的 OpsBrain 项目，勿测**。
 - 后端 `SPMS-Server`：Spring Boot 3.4.4 / Java 17，profile `local`，Flyway V1..V16。
 - 本机只有 MySQL 3306 跨轮存活；redis/backend/前端每轮需重启（`run-backend.cmd`/`run-frontend.cmd` 启动器，后端 ~90–105 s）。
-- 账号：admin 凌小云 `17666666666`；无角色用户 张三 `13888888888`；WMS_OPERATOR（密码未知，见 §5-6）。
+- 账号：admin 凌小云 `17666666666`；无角色用户 张三 `13888888888`；WMS_OPERATOR（原密码未知，见 §5-6；Round 48 已补种子账号，见 §7.4）。
 
 ## 1. 业务闭环（全部真机走通，DOM + DB 双证）
 
@@ -101,14 +101,57 @@
 
 | # | 发现 | 证据 | 级别/建议 |
 |---|---|---|---|
-| 1 | 「新增用户」弹窗**没有密码字段**，且 `UserService` 无管理员重置密码接口 → 新建用户**永远无法登录** | 弹窗 DOM 字段清单 + 后端方法扫描 | **P2 产品缺口**：补初始密码字段或「邀请制」（首登邮件设密） |
-| 2 | 无角色用户登录后落到**通用 404**，而非「无授权」引导页 | 张三登录截图 86 | P3 UX：路由守卫区分「无权限」与「不存在」 |
-| 3 | 数据权限执行处于观察态：0 enforced 资源、0 deny 事件；导出缺口 4（asset.material ×2） | 治理面板 DOM | 按计划灰度 ENFORCE；先补导出缺口 |
-| 4 | 请求日志**后端从未实现**：`/api/log/getPage|getDetail` 404，前端是活桩（`src/view/console/system/log/list.vue:16`） | XHR 404 | 实现或下架菜单，别让菜单点出 404 |
-| 5 | 登录强制「隐私政策」确认弹窗 | 登录流程截图链 | 合规权衡，产品拍板 |
-| 6 | WMS_OPERATOR 角色存在但无已知密码账号 → 仓管角色回归未覆盖 | 账号盘点 | 测试环境补种子账号 |
-| 7 | **自动化测试陷阱（非产品缺陷）**：element-plus `TableColumnRenderer` 用 `slots.default({row:{},$index:-1})` 探测子列（`table-column/…lang.mjs:97-103`），操作列插槽因此在 `.hidden-columns`（`visibility:hidden; position:absolute`）里多渲染一套绑定**空行**的按钮；`offsetParent!==null` 过滤会先命中它，点击产生「空 detail」幽灵 | 源码定位 + 点击复现 | 自动化侧统一用 `!b.closest('.hidden-columns') && getComputedStyle(b).visibility!=='hidden'`；可选产品侧防御：行操作 handler 开头 `if (!row?.id) return` |
+| 1 | 「新增用户」弹窗**没有密码字段**，且 `UserService` 无管理员重置密码接口 → 新建用户**永远无法登录** | 弹窗 DOM 字段清单 + 后端方法扫描 | **P2 产品缺口**：补初始密码字段或「邀请制」（首登邮件设密）**→ 已修，见 §7.1** |
+| 2 | 无角色用户登录后落到**通用 404**，而非「无授权」引导页 | 张三登录截图 86 | P3 UX：路由守卫区分「无权限」与「不存在」**→ 已修，见 §7.2** |
+| 3 | 数据权限执行处于观察态：0 enforced 资源、0 deny 事件；导出缺口 4（asset.material ×2） | 治理面板 DOM | 按计划灰度 ENFORCE；先补导出缺口（本轮未动，维持原议） |
+| 4 | 请求日志**后端从未实现**：`/api/log/getPage|getDetail` 404，前端是活桩（`src/view/console/system/log/list.vue:16`） | XHR 404 | 实现或下架菜单，别让菜单点出 404 **→ 口径更正 + 实测通过，见 §7.3**（该页已换数据源为操作审计；请求日志后端仍未实现） |
+| 5 | 登录强制「隐私政策」确认弹窗 | 登录流程截图链 | 合规权衡，产品拍板（本轮未动，维持原议） |
+| 6 | WMS_OPERATOR 角色存在但无已知密码账号 → 仓管角色回归未覆盖 | 账号盘点 | 测试环境补种子账号 **→ 已补并回归，见 §7.4** |
+| 7 | **自动化测试陷阱（非产品缺陷）**：element-plus `TableColumnRenderer` 用 `slots.default({row:{},$index:-1})` 探测子列（`table-column/…lang.mjs:97-103`），操作列插槽因此在 `.hidden-columns`（`visibility:hidden; position:absolute`）里多渲染一套绑定**空行**的按钮；`offsetParent!==null` 过滤会先命中它，点击产生「空 detail」幽灵 | 源码定位 + 点击复现 | 自动化侧统一用 `!b.closest('.hidden-columns') && getComputedStyle(b).visibility!=='hidden'`；可选产品侧防御：行操作 handler 开头 `if (!row?.id) return` **→ 框架侧 $index 守卫已落地，见 §7.5** |
 
 ## 6. 结论
 
 三条业务闭环 + 主数据 + 系统治理 + 多角色在真机浏览器全程走通；六项缺陷全部**根因级修复**且每项都复用了仓内/上游现成方案（parent 版本管理、props 泛型、queryClient 失效惯例、EP `#reference` 契约、既有 `saved` 缝与 DialogUtil promise、V12 存储过程），无新增依赖；每项修复都是**加法式、默认行为不变**的形态，新场景按约定自动获得同等能力。全部改动过 vue-tsc/eslint/契约测试门禁，已在 `dev` 分支提交（未推送——本地领先 `github/dev` 较多，推送前先打招呼）。
+
+## 7. 追加轮（Round 48）：§5 立案项修复 + 「无滚轮/丢内容/缺底栏」缺陷根治
+
+用户复测反馈（原话）：「修复报告5存在的问题，并修复页面无滚轮滑动存在页面展示丢失的问题？应该是缺少底部栏？」。本轮全部真机（:3001，1280×720/1280×500）验证，截图 92–98。
+
+### 7.0 「无滚轮 / 内容丢失 / 缺底栏」——根因不在外壳，在错误页的 fixed 铺满
+
+- **量测排除法**：`/console/wms/input/list` 真滚轮下 `.k-shell__content` scrollTop 0→500，页脚 rect `top=685.2 h=34.8 bottom=720` 可见 —— 外壳与页脚本来就正确；全仓 grep `wheel|preventDefault` 无任何滚轮劫持。症状只在**壳内 404**（catch-all → `error.vue`）复现。
+- **根因**（`src/view/error.vue`）：旧样式 `.error-page { position: fixed; inset: 0; justify-content: center }` 在壳内挂载时一石三鸟 —— ① fixed 层盖住侧栏/顶栏/`.k-shell__footer`（「缺底栏」）；② fixed 层不是滚动容器、也不给外层滚动区贡献 scrollHeight（「滚轮没反应」）；③ flex `justify-content:center` 内容超高时**两端都裁**，「返回首页」恰在被裁端（「内容丢失」）。
+- **修复（纯 CSS + 一个计算属性，不动外壳）**：改普通文档流；居中用 `margin: auto`（溢出时归零、从顶部可滚，永不裁剪）；仅独立页（`/403`，判别式 `route.name === '无权限'`）挂 `--standalone` 类自铺一屏。
+- **量测**（截图 92）：1280×500 壳内 404，真滚轮 `scrollTop 0→38.4`、`footerTop=465` 可见、链接保持InView；1280×720 下 `.error-page` rect 在文档流内、页脚 `bottom=720`、链接 hit-test `(935,439)` 命中自身，点击后落回 `/console/index`；独立 `/403` 仍 `top=0 bottom=720` 满屏。
+
+### 7.1 §5-1 初始密码（P2 产品缺口 → 已修）
+
+- **根因两层**：① `UserEntity.password` 从无 `@KForm` 声明，表单根本不渲染；② 补声明后发现 `KFormDialog.fieldType()` 虽有 `'password'` 分支，**模板却只映射 textarea/text** —— password 会静默降级成明文输入框。
+- **复用**：框架既有 `IFormField.password` 标志 + `fieldType()` 优先级 + `extraRules`/`beforeSubmit` 缝；后端 `UserService`（`applyFreshPassword`/`normalizeSubmittedPassword`/`isPreHashedPair`）**零改动**；页面零新组件、API 零新面。
+- **简洁性论证**：「新增必填 / 编辑留空=不修改」是**页面语义**，放 `list.vue` 的 `passwordRules`（computed extraRules）+ `beforeSubmit` 删空键；实体只留长度 6~32。服务端 `WRITE_ONLY` 使详情永不回传密码 → 表单永远从空开始 → 「空=未改」天然成立。
+- **量测**：新增留空 → 表单错误「请设置初始密码」、弹窗不关（截图 94）；填 `Wms#2026test` + 角色 19 → 「新增成功」，DB `user.id=74` password=40 位 hex、salt 4 位（截图 95）；编辑弹窗 `input[type=password].value === ""`，留空改名保存 → DB hash **前后一致** `ecca171c…6533a`/`FBdL`（截图 97）。
+- 附带修复 `KFormDialog.vue` 模板：`type` 三元补 password 分支 + `show-password` 小眼睛（`type="password"` 实测生效）。
+
+### 7.2 §5-2 无角色用户落 404（P3 UX → 已修）
+
+- **根因**：`Console.getMenuList()` 里 `firstNavigableMenuPath(menuList)` 对无菜单用户返回默认 `/console/index` → 重定向后又撞 catch-all → 壳内 404，语义错（是「无权」不是「不存在」）。
+- **复用**：既有 `/403` 路由 + 既有 fallback 形参 —— `firstNavigableMenuPath(menuList, '')`，空则 `replace('/403')`。无新页面、无新守卫。
+- **量测**（截图 93）：张三 `13888888888` 登录后 `location.href = /403`、标题「无权限 - Kubo」、`error-page--standalone` 满屏、`hasShell=false`。
+
+### 7.3 §5-4 日志页（口径更正 + 实测通过）
+
+原报告「前端是活桩、点出 404」已过时：该页早已**换数据源不新造后端**（复用 `useOperationLogReport` + `GET /dataResource/operation-logs`，删除 LogService/LogEntity/useLog 三件死代码；口径：opt-in 审计、前端筛选、200 条硬上限明示）。「请求日志后端从未实现」仍成立 —— 现在页面展示的是**操作审计**，不是请求日志。实测（截图 98）：菜单 → `/console/system/log/list`，20 行真实记录，表头 `# 时间 动作 资源 目标 操作者 租户 快照 操作`，首行即本轮 7.1 的用户修改（`personnel.user UserEntity#74`，含变更快照「查看变更」）。
+
+### 7.4 §5-6 WMS 角色回归（已补种子账号，顺带端到端验证 7.1）
+
+新建 `仓储测试员-1790583398729`（id=74，手机 13900001234，邮箱 wms.test19@kubo.local，初始密码 `Wms#2026test`，角色 19 `WMS_OPERATOR`，DB `user_role_list 74→19`）。**用新密码真机登录** → 落 `/console/wms/move/list`，侧栏仅仓储管理 4 菜单（入库/出库/移库/库存），页脚正常（截图 96）。登录→建号→授权→回归一条链同时验证了 7.1 与 7.2 的正常分支。
+
+### 7.5 §5-7 自动化陷阱的产品侧防御（可选项已落地）
+
+`KTable.vue` 与 `KDetailTable.vue` 操作列插槽改取 `$index`，每个按钮点击包 `$index >= 0 &&` —— element-plus 探测渲染（`$index:-1`，stub 行 `{}`）落在 `.hidden-columns`，真人点不到，但自动化点击会命中；一处框架守卫胜过每页写 `if (!row?.id) return`。
+
+### 7.6 本轮门禁与改动清单
+
+- 门禁：eslint 8 文件 0 错；`vue-tsc --noEmit` EXIT 0；vitest `personnelDomain + appRouter + routes` 32/32、`frameworkBatch2 + formDefaultValueGuard + frameworkComponents` 23/23（KFormDialog 相关守卫全绿）。
+- 改动：`src/view/error.vue`（fixed→文档流 + standalone 态）、`src/component/Console.vue`（FIX B fallback）、`src/model/personnel/user/UserEntity.ts`（password 元数据）、`src/view/console/personnel/user/list.vue`（passwordRules + beforeSubmit 语义）、`src/component/framework/KFormDialog.vue`（password 控件渲染）、`src/component/framework/KTable.vue` / `KDetailTable.vue`（$index 守卫）、`src/config/__tests__/personnelDomain.spec.ts`（password 入列断言）。
+- 截图 92–98（`docs/evidence/`）。§5-3（数据权限灰度）与 §5-5（隐私弹窗）维持原议：前者按计划 ENFORCE，后者待产品拍板，本轮不动代码。

@@ -69,7 +69,13 @@ async function getMenuList() {
   const onWorkbenchFallback = (current.matched.at(-1)?.path ?? '').includes('catchAll')
     && (DEFAULT_HOME_PATHS as readonly string[]).includes(current.path)
   if (onWorkbenchFallback) {
-    await getRouter().replace(firstNavigableMenuPath(menuList.value))
+    // 回退要区分两种情形：有授权菜单 → 去第一个可导航页；一个可导航菜单都没有
+    // （例如没分配任何角色的用户）→ 去 /403 无授权页。若仍用默认兜底 '/console/index'，
+    // 等于换条路再撞同一个 catch-all —— 无角色用户永远看到「404 地址不存在」，
+    // 语义错了，而且该页此前以 fixed 覆盖整个外壳，还连带制造"滚不动/底部栏没了"的观感
+    // （见 view/error.vue 的注释）。
+    const target = firstNavigableMenuPath(menuList.value, '')
+    await getRouter().replace(target || '/403')
   }
   // 必须排在 reloadCurrentRoute 之后：那时当前路由已经从 catchAll 换成真实页面，
   // 再放开 router-view，用户看到的第一帧就是正确内容，而不是「404 → 真页面」的跳变。

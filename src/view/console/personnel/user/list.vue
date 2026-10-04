@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { WebValidateRuleSet } from '@/framework'
 import type { DepartmentEntity } from '@/model/personnel/department/DepartmentEntity'
 import type { RoleEntity } from '@/model/personnel/role/RoleEntity'
 import { RefreshLeft, Search } from '@element-plus/icons-vue'
@@ -10,6 +11,7 @@ import KSelector from '@/component/framework/KSelector.vue'
 import KTable from '@/component/framework/KTable.vue'
 import { useMaskPolicy } from '@/composables/useMaskPolicy'
 import { Permissions } from '@/config/permissions'
+import { WebValidator } from '@/framework'
 import { DISABLED_FILTER_DEFAULT, useDisabledVisibility } from '@/hook/kubo/useDisabledVisibility'
 import { useTable } from '@/hook/kubo/useTable'
 import { KDepartmentService } from '@/hook/personnel/useDepartment'
@@ -134,11 +136,33 @@ function removeDepartment(index: number) {
   departmentList.value.splice(index, 1)
 }
 
+/**
+ * 密码校验分「新增/编辑」两套语义（测试报告 §5-1：管理员新建用户原先无处设初始密码）。
+ *
+ * - **新增**：密码必填、6~32 位。元数据里 `password` 没写 `requiredString`（见实体注释），
+ *   因为编辑态要允许留空表示「不修改」；所以「必填」是页面语义，用 `:extra-rules` 按
+ *   `editingId` 动态注入 —— 新增才加 `ifEmpty`，编辑不加。规则本身仍由框架层合并。
+ * - **编辑**：留空即不修改。服务端 `UserEntity` 的 password 是 `WRITE_ONLY`，详情接口永不回传，
+ *   表单永远从空开始，故「空 = 未填新密码」。提交前在 `beforeSubmit` 里把空白 password
+ *   键删掉，避免把空串当新密码发给后端（`beforeUpdate` 的 `StringUtils.hasText` 会忽略空串，
+ *   但删干净更明确，也不会在草稿/日志里留下空密码痕迹）。
+ */
+const passwordRules = computed<WebValidateRuleSet>(() => {
+  if (editingId.value != null) {
+    return {}
+  }
+  return { password: [WebValidator.show('请设置初始密码').ifEmpty()] }
+})
+
 function beforeSubmit(payload: Record<string, unknown>) {
   const warning = blockedSubmit(payload)
   if (warning) {
     ElMessage.warning(warning)
     return null
+  }
+  // 编辑态留空的密码 = 不修改，直接不带这个键（详见 passwordRules 注释）
+  if (editingId.value != null && !String(payload.password ?? '').trim()) {
+    delete payload.password
   }
   payload.roleList = (payload.roleList as Array<{ copyOnlyId: () => unknown }> ?? []).map(item => item.copyOnlyId())
   payload.departmentList = (payload.departmentList as Array<{ copyOnlyId: () => unknown }> ?? []).map(item => item.copyOnlyId())
@@ -241,6 +265,7 @@ function onSaved() {
       v-model="editorVisible"
       :before-submit="beforeSubmit"
       :columns="2"
+      :extra-rules="passwordRules"
       :service="KUserService"
       title="用户"
       width="640px"

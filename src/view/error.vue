@@ -39,6 +39,14 @@ function parseCode(path: string): number {
 const message = computed(() => MESSAGES[errorCode.value])
 
 /**
+ * 独立挂载（无外壳）判定：只有顶层 `/403`（name '无权限'）在 Console 之外。
+ * 壳内的 `:catchAll(.*)` 没有 name，父路由 name 是 'console'。
+ * 用途只有一个 —— 独立页要自己铺满一屏（min-height:100vh），壳内页交给滚动区，
+ * 不需要（也不该）再撑一屏高，见 style 里的注释。
+ */
+const isStandalone = computed(() => route.name === '无权限')
+
+/**
  * 路径变化时重新判码。
  *
  * `useAppRoute()` 返回的是响应式代理，但这里用 `watch` 而不是在模板里直算：
@@ -51,7 +59,10 @@ onScopeDispose(stopWatch)
 </script>
 
 <template>
-  <div class="error-page">
+  <div
+    class="error-page"
+    :class="{ 'error-page--standalone': isStandalone }"
+  >
     <div class="box">
       <div class="code">
         {{ errorCode }}
@@ -70,27 +81,41 @@ onScopeDispose(stopWatch)
 </template>
 
 <style lang="scss" scoped>
+/**
+ * ## 为什么这里曾经是 `position: fixed` 铺满视口 —— 以及为什么必须改掉
+ * 本页有两种挂载方式：独立页（`/403`，没有外壳）和**壳内**页（`/` 下的 `:catchAll(.*)`，
+ * 渲染在 KAppShell 的滚动区里）。fixed 铺满在两种挂载下都成立，但壳内时它同时踩中三个坑
+ * （真机实测，用户原话「滚轮没反应 / 页面内容看不全 / 底部栏不见了」）：
+ * 1. fixed 层盖住侧栏、顶栏和 `.k-shell__footer` —— 底部栏「消失」；
+ * 2. fixed 层自身不是滚动容器，也不给外层滚动区贡献 scrollHeight —— 滚轮无效；
+ * 3. `justify-content: center` 在内容高于容器时**两端都裁**（flex 溢出经典坑），
+ *    「返回首页」链接正好在被裁掉的那一端，短视口下永远点不到 —— 内容「丢失」。
+ * 改成普通文档流后：壳内它就是滚动区里的一段内容（页脚/侧栏都在，滚轮自然有效）；
+ * 独立页时 min-height:100vh 依旧铺满整屏，观感不变。
+ * 居中一律用 `margin: auto` 而不是 `justify-content: center`：内容超高时 auto 边距
+ * 归零、从顶部开始可滚，永不裁剪。
+ */
 .error-page {
-  position: fixed;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
+  box-sizing: border-box;
+  padding: 24px 16px;
   /* 走 EP 页面底色变量，深浅色自动适配 */
   background-color: var(--el-bg-color-page, #f5f7fa);
+
+  /* 独立页（无外壳，目前只有 /403 本身）：自己铺满一屏，垂直居中交给 .box 的 margin: auto */
+  &--standalone {
+    min-height: 100vh;
+  }
 
   .box {
     width: 1200px;
     max-width: 90vw;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
-    margin-bottom: 100px;
+    margin: auto;
 
     .code {
       color: var(--el-color-primary);

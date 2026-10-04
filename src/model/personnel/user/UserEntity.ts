@@ -8,8 +8,10 @@ import { RoleEntity } from '@/model/personnel/role/RoleEntity'
  * # 用户实体
  *
  * ⚠️ K 侧（`@K*`）与 airpower 侧刻意**不完全对称**，这是迁移中的有意取舍：
- * - 表单只暴露 `nickname / email / phone`（与旧 airpower 编辑器逐字段一致），
- *   其余字段（`realName` / `idCard` / `gender` / `bio`）保持"代码里有、界面没开口"的原状 ——
+ * - 表单暴露 `nickname / email / phone`（与旧 airpower 编辑器逐字段一致）与 `password`
+ *   （测试报告 §5-1 后补 —— 管理员新建用户时原先没有任何地方能设定初始密码；
+ *   新增必填、编辑留空即"不修改"，校验语义在表单页，见 view/console/personnel/user/list.vue）。
+ *   其余字段（`realName` / `idCard` / `gender` / `bio`）依旧保持"代码里有、界面没开口"的原状 ——
  *   换底座不该顺手改业务表单的可写字段；要放开时单独评估（尤其 `idCard` 受列级脱敏与写守卫约束）。
  * - 表格也不给 `idCard` 开列。**注意这里靠的不是 `hide: true`**：`@KTable({ hide: true })`
  *   的语义是「默认隐藏，用户能在列选择器里勾回来」（`KTable` 的 `defaultHiddenColumnKeys`，
@@ -53,6 +55,16 @@ export class UserEntity extends BaseEntity implements IUser, IPayload {
 
   avatar!: string
 
+  /**
+   * 密码（只写字段）。
+   *
+   * 表单开口见文件头。校验分工：长度上下限走元数据；「新增必填 / 编辑留空=不修改」属于页面语义，
+   * 在 list.vue（passwordRules + beforeSubmit）。服务端 `@JsonProperty(access = WRITE_ONLY)`
+   * 使详情接口永不回传密码，表单永远从空开始 —— 这正是「编辑留空 = 未修改」成立的前提；
+   * 落库前 UserService.beforeAppSaveToDatabase 对有文本的 password 统一加盐散列。
+   */
+  @KForm({ password: true, minLength: 6, maxLength: 32 })
+  @KField({ label: '密码' })
   password!: string
 
   gender!: number

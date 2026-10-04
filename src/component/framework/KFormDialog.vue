@@ -164,6 +164,9 @@ const title = computed(() => {
 /**
  * 控件类型：`@Form` 里是一组**布尔标志**（`switch` / `textarea` / `password` / `radio`…），
  * 没有 `type` 字符串 —— 按标志优先级推导，顺序即优先级（多行 > 开关 > 下拉 > 普通输入）。
+ * `password` 由同一个 ElInput 承接（`type="password"` + `show-password` 小眼睛），
+ * 模板没有单独分支 —— §5-1 补 password 字段时发现旧模板只映射 textarea/text，
+ * `password` 会静默降级成明文输入框，故 fallback 的 type 三元里必须带上它。
  */
 function fieldType(field: IFormField): 'date' | 'textarea' | 'switch' | 'select' | 'password' | 'number' | 'input' {
   if (field.dateType)
@@ -560,7 +563,9 @@ function onCancel() {
           <ElInput
             v-else
             v-model="form[field.key] as string"
-            :type="fieldType(field) === 'textarea' ? 'textarea' : 'text'"
+            :type="fieldType(field) === 'textarea' ? 'textarea' : fieldType(field) === 'password' ? 'password' : 'text'"
+            :show-password="fieldType(field) === 'password'"
+            autocomplete="off"
             :rows="3"
             :placeholder="field.placeholder || `请输入${field.label}`"
             clearable
