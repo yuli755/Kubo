@@ -636,7 +636,15 @@ function onResetSuccess(account: string) {
   min-height: 100vh;
 
   .card {
-    overflow: hidden;
+    /* F54-1：竖屏断点里 `width: 100%` + 左右 24px 内边距在 content-box 下算出
+       「视口 + 8px」的外宽，卡片左右各被裁掉 4px（768/640/480/375 均复现）。
+       项目没有全局 border-box 重置，这里就地修正，不动全局盒模型。 */
+    box-sizing: border-box;
+    /* F54-2：视口高度小于卡片高度时（页缩放 150%、矮屏、键盘弹出），
+       原来 overflow:hidden 的 fixed 容器里卡片上下各被裁一截且**无处可滚**——
+       这就是「内容被裁剪、点 F12 改变尺寸才恢复」的本体。改为卡片内部滚动。 */
+    overflow: auto;
+    max-height: calc(100vh - 32px);
     background: var(--el-bg-color);
     box-shadow: var(--kubo-shadow-lg);
     backdrop-filter: blur(20px);

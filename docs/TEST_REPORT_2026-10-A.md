@@ -369,3 +369,40 @@
 - 门禁：`eslint .` EXIT 0；`vue-tsc --noEmit` EXIT 0；vitest 定向 15 文件 **178/178**（`dialogWiring 6`、`formDefaultValueGuard 3`、`styleContract 6`、`errorPolicy 42`、`validate 4`、`validationFeedbackGuard 18`、`smartSelectorInteractions 24`、`ResetPassword 9`、`ModifyPassword 3`、`frameworkBatch2 7`、`sharedComponents 13`、`consoleMount 3`、`frameworkComponents 13`、`channelDomain 13`、`wmsDomain 14`），0 失败；质量 skill → **298 文件 / 34093 行，0 error / 2 warning**（仍是那两个 >500 行测试文件，容忍项）。
 - 改动（7 文件）：3 × `addFinishEditor.vue`、`BillAddFinishDialog.vue`、`login.vue`、`inventory/component/selector.vue`、`validationFeedbackGuard.spec.ts`。
 - 浏览器工具本轮仍不可用（MCP catalog 0 servers、无 playwright），验证 = 源码审查 + 178 用例 + 质量扫描。
+
+## 13. 追加轮（Round 54）：真浏览器逐步骤渲染核验 —— 首次把「截图看界面」做成了自动化，并当场抓到登录页两个裁剪缺陷
+
+用户要求（m03777）：「继续，每完成一步都要自己验证能否正常工作，通过截图查看界面渲染效果，判断布局和交互是否符合预期，发现问题就自主修复。」本轮据此搭起了真浏览器核验链路，并逐页执行。
+
+### 13.1 核验链路（新增，属测试基建，不入 src）
+
+- 无法使用 playwright（未安装且不可新增依赖）→ 自研 CDP 驱动 `infra/browser-shots/cdp-lib.cjs`：Node 24 全局 `WebSocket` 直连 **独立启动的 headless Edge 154**（`--remote-debugging-port=9223 --user-data-dir=临时目录`，与用户日常浏览器完全隔离；库内置安全闸门：发现目标实例带扩展/edge:// 目标即拒跑，杜绝误操作用户真实浏览器）。
+- 模型侧不能直接看图 → 「截图看渲染」落地为**数值化视觉断言**：对每个视口采集 `getBoundingClientRect`、computed style、裁剪量（scrollH-clientH / rect 越界）、横向溢出扫描（`body *` 中 `right > innerWidth`），同时留存 PNG 截图（`infra/browser-shots/shots/`）作证据档案。
+- 途中排障：Vite 3001 实例假死（HTTP 200 但应用不挂载、页面停在「Kubo 平台加载中…」且 console 零报错）→ 杀掉 vite 进程重启即愈；ElTable fixed 列会在 `.hidden-columns` 里放 $index=-1 的探测按钮，脚本点中它会被 `KDetailTable` 的 `$index >= 0` 守卫静默吞掉 —— 自动化必须排除 `.hidden-columns`。
+
+### 13.2 登录页：两个真实裁剪缺陷（F54 系列，已修复）
+
+| 编号 | 症状（修复前实测） | 根因 | 修复 |
+|---|---|---|---|
+| F54-1 | 竖屏断点（≤768）卡片外宽 = 视口 + 8px，左右各被裁 4px（768/640/480/375 全复现） | 卡片 `width:100%` + 左右 24px 内边距在 **content-box** 下计算；全仓没有全局 border-box 重置 | `.card` 就地 `box-sizing: border-box` |
+| F54-2 | **页缩放 150% / 矮视口（900×500）时卡片上下各裁 46px 且无处可滚**（`canScrollY:false`）；改变窗口尺寸（如按 F12）才恢复 | `overflow:hidden` 的 fixed 容器 + 卡片无高度上限 | `.card` `overflow:auto` + `max-height: calc(100vh - 32px)`，矮视口下卡片内部滚动 |
+
+- F54-2 就是用户最初症状「**内容展示被裁剪，丢失部分内容显示…首次需点 F12 才恢复预期展示**」在 150% 页缩放档位下的机械本体（§11.0 定位的是诱因——按域名持久化的页面缩放；本轮抓到的是页面自身没有兜底的那一半）。
+- 修复后复测：900/700/1024/768/640/375 六档视口裁剪量全部归零（0/0/0/0）；900×500 下卡片内部可滚（scrollH 590 > clientH 456，滚到 scrollTop=134 后标签区/协议勾选/登录钮均完整可见）；真登录链路跑通 → `/console/index`。
+
+### 13.3 控制台外壳 + 业务列表：四档视口全绿
+
+- `/console/index` @1600×1000 / 1280×900 / 1024×800 / 768×900：无横向滚动条、无元素越界（overflow 扫描 0 命中）、侧栏 w217、topbar h57、内容区与页脚右缘/下缘与视口严丝合缝（如 1024 档 content x217 w807 right=1024）；两张 ECharts 画布按容器等比缩放（606/446/318/664）。
+- 768 档进入窄屏抽屉模式：侧栏隐藏、汉堡按钮出现，抽屉展开后 **34 个菜单项全部可达**（w260）。
+- `/console/wms/input/list` @1600/1280：20 行数据、无越界、操作列（查看/审核/驳回/编辑）完整。全程 console 错误为 **0**。
+
+### 13.4 R52/R53 人性化反馈：真浏览器交互回执
+
+- **R52 校验反馈**：入库单「新增」→「手动选择」→ 空表单直接点「确定」→ toast `请先完善必填项：物料`，弹窗不关，红框字段 = [入库物料, 入库数量]（截图 `r54-L-detailEditor-toast.png`）。
+- **R53 数量门**：入库中单据 IN202609300006 →「查看」→ 明细「作业」→「确认入库」弹窗：目标仓库经选择器回填（华中新仓 R16）后，把「本次数量」清空 →「确认入库」按钮**保持可点**（不再是哑按钮），点击 → toast `本次数量必须大于 0`，弹窗不关（截图 `r54-M-addFinish-toast.png`）。
+
+### 13.5 回归锁与门禁
+
+- `styleContract.spec.ts` 由 6 例扩到 **7 例**：新增「登录页卡片必须自带盒模型与滚动兜底」源码守卫（断言 `.card` 块含 `box-sizing: border-box;` / `overflow: auto;` / `max-height: calc(100vh - 32px);`，且不得回到 `overflow: hidden`；比对前去注释，防「记录旧值的注释」误伤）。
+- 门禁：`eslint .` EXIT 0（本轮内存吃紧，需 `NODE_OPTIONS=--max-old-space-size=2048`）；`vue-tsc --noEmit` EXIT 0；vitest 定向 15 文件 **180/180**（较 R53 +2：styleContract 6→7、dialogWiring 6、formDefaultValueGuard 3、validationFeedbackGuard 18、smartSelectorInteractions 24、errorPolicy 42、ModifyPassword 3、ResetPassword 9、sharedComponents 13、frameworkBatch2 7、tableLayout 5、consoleMount 3、frameworkComponents 13、channelDomain 13、wmsDomain 14），0 失败；质量扫描 → **298 文件 / 34115 行，0 error / 2 warning**（仍是那两个 >500 行测试文件，容忍项）。
+- 改动（2 文件）：`src/view/login.vue`（F54-1/F54-2 CSS）、`src/config/__tests__/styleContract.spec.ts`（守卫 +1）。核验脚本与截图存于 `infra/browser-shots/`（非产品代码，不入库）。

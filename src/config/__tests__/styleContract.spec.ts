@@ -153,4 +153,26 @@ describe('p7 · 视觉一致性契约（设计 token 单一数据源）', () => 
     // ECharts 色带同源
     expect(heatmap).toContain('color: occupancyRamp()')
   })
+
+  it('登录页卡片必须自带盒模型与滚动兜底（F54-1/F54-2：内容被裁剪且无处可滚的本体）', () => {
+    const login = readFileSync(resolve('src/view/login.vue'), 'utf8')
+    // 截取 `.card { … }` 块（.login 的直接子块，内部嵌套以两级缩进计，取到下一个同级 `}` 前的声明区即可）
+    const start = login.indexOf('\n  .card {')
+    expect(start, 'login.vue 必须存在 `.login > .card` 样式块').toBeGreaterThan(-1)
+    // 注释里记录旧值（「原来 overflow:hidden」）是必要的文档，负向断言前先去注释
+    const block = login.slice(start, start + 1200).replace(/\/\*[\s\S]*?\*\//g, '')
+
+    // F54-1：全仓没有全局 border-box 重置，竖屏断点 width:100% + 24px 内边距
+    // 在 content-box 下算出「视口 + 8px」外宽，卡片左右各裁 4px —— 必须就地 border-box。
+    expect(block, 'F54-1 复发：.card 缺 box-sizing: border-box，竖屏下卡片会被裁边')
+      .toContain('box-sizing: border-box;')
+    // F54-2：页缩放 150% / 矮屏时卡片比视口高，原 overflow:hidden 的 fixed 容器
+    // 里上下各裁一截且**无处可滚**（用户「内容被裁剪、F12 才恢复」症状的机械本体）。
+    expect(block, 'F54-2 复发：.card 必须允许内部滚动，矮视口下内容要能滚出来')
+      .toContain('overflow: auto;')
+    expect(block, 'F54-2 复发：.card 缺 max-height，overflow:auto 永远不会触发')
+      .toContain('max-height: calc(100vh - 32px);')
+    const backToHidden = /overflow:\s*hidden/.test(block)
+    expect(backToHidden, '.card 不得回到 overflow: hidden —— 那是 F54-2 的缺陷本体').toBe(false)
+  })
 })
