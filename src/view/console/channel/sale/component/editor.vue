@@ -385,8 +385,9 @@ function beforeSubmit(payload: Record<string, unknown>) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap; /* F55-1：390 竖屏实测整簇工具条被顶出视口右缘，换行兜底 */
   margin-bottom: 10px;
-  gap: 12px;
+  gap: 8px 12px;
 }
 
 .sale-editor__head-left {
@@ -398,11 +399,13 @@ function beforeSubmit(payload: Record<string, unknown>) {
 .sale-editor__head-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap; /* F55-1：窄弹窗里扫码框与按钮排不下一行时换行，不被裁掉 */
   gap: 8px;
 }
 
 .scan-input {
   width: 250px;
+  max-width: 100%; /* F55-1：扫码框跟随容器收缩，不撑破窄弹窗 */
 }
 
 .sale-editor__title {

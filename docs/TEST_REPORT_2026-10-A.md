@@ -406,3 +406,31 @@
 - `styleContract.spec.ts` 由 6 例扩到 **7 例**：新增「登录页卡片必须自带盒模型与滚动兜底」源码守卫（断言 `.card` 块含 `box-sizing: border-box;` / `overflow: auto;` / `max-height: calc(100vh - 32px);`，且不得回到 `overflow: hidden`；比对前去注释，防「记录旧值的注释」误伤）。
 - 门禁：`eslint .` EXIT 0（本轮内存吃紧，需 `NODE_OPTIONS=--max-old-space-size=2048`）；`vue-tsc --noEmit` EXIT 0；vitest 定向 15 文件 **180/180**（较 R53 +2：styleContract 6→7、dialogWiring 6、formDefaultValueGuard 3、validationFeedbackGuard 18、smartSelectorInteractions 24、errorPolicy 42、ModifyPassword 3、ResetPassword 9、sharedComponents 13、frameworkBatch2 7、tableLayout 5、consoleMount 3、frameworkComponents 13、channelDomain 13、wmsDomain 14），0 失败；质量扫描 → **298 文件 / 34115 行，0 error / 2 warning**（仍是那两个 >500 行测试文件，容忍项）。
 - 改动（2 文件）：`src/view/login.vue`（F54-1/F54-2 CSS）、`src/config/__tests__/styleContract.spec.ts`（守卫 +1）。核验脚本与截图存于 `infra/browser-shots/`（非产品代码，不入库）。
+
+## 14. 追加轮（Round 55）：矮视口与手机竖屏两档实测 —— 一次假说被证伪、一次真缺陷被抓现行
+
+用户要求（m04113）：「继续优化」。本轮把 R54 的核验链路推向两个此前没量过的档位：**用户真实档位（1080p@125% DPI + 150% 页缩放 ⇒ CSS ≈1024×500/600，被压扁的是高度）**与**手机竖屏 390×844**。
+
+### 14.1 假说证伪：KDialog 并不缺视口夹取（F55-1 候选 → 撤销）
+
+- 源码审计发现 `KDialog.vue` 把 `width="900px"` 一类的固定像素宽直接透传给 `ElDialog`，全仓 grep 又找不到任何 `max-width`，一度立论「窄视口下弹窗整只溢出」为框架级缺陷。
+- 真浏览器实测直接推翻：入库新增弹窗（width=900px）@1024×768 面板宽 900、左右裁剪 0；@760×900 面板**自动夹到 736 = 100vw−24**，computed maxWidth 随视口变化（1000px→736px）。**Element Plus 2.14.4 自带 `.el-dialog` 视口夹取**（规则在 EP 自己的 CSS 里，所以仓内 grep 命不中）。KDialog 无需修改。
+- 教训：CSS 断链不能只 grep 业务源码，组件库自带样式同样参与层叠；**实测优先于读码**。
+
+### 14.2 矮视口纵向可达性审计：全绿（无缺陷）
+
+- 工作台 / 入库列表 / 库存列表 / 日志列表 @1024×600 与 1024×500：`.k-shell__content`（`overflow:auto`）全部可滚（scrollH 2588/1375/969/1551 vs clientH 508/408），分页条虽在折叠线下但随内容滚动可达，页脚始终贴视口底；新增弹窗 @1024×500：`.el-overlay-dialog` 自身 `overflowY:auto`（scrollH 784 > clientH 500），「保存」钮初始在折叠线下、滚 284px 后完整可见。
+- 静默禁用候选全部清账：`BillAddFinishDialog.vue` R53 已修（toast `本次完成数量必须大于 0`，且被 validationFeedbackGuard:97-99 锁住不得回到 disable-confirm）；库存选择器 `:disable-confirm` 有邻近计数提示「已勾选 n 项…」自解释；`PersonalToken.vue` 的 `:disabled="!name"` 与占位符「请输入令牌名称...」相邻自解释。均不动。
+
+### 14.3 F55-1（真缺陷，已修复）：单据编辑器明细工具条在窄弹窗里被裁出视口
+
+- 390×844 实测：入库新增弹窗面板被 EP 正确夹到 366px，但**面板内部** `.__head-actions`（扫码框 280px + 批量添加 + 手动选择，flex 不换行）整簇冲出右缘 —— 按钮簇右缘到达 x≈811，「批量添加 / 手动选择」在小屏**根本点不到**；与 `.el-table__header` 一样越界，但表格有 ElTable 自带横向滚动兜底，工具条没有。
+- 修复（5 个单据编辑器同一副骨架，一次修齐）：`.__head` 与 `.__head-actions` 加 `flex-wrap: wrap`，`.scan-input` 加 `max-width: 100%` 跟随容器收缩 ——
+  `wms/input/component/editor.vue`、`wms/output/component/editor.vue`、`wms/move/component/editor.vue`、`channel/purchase/component/editor.vue`、`channel/sale/component/editor.vue`。
+- 复测 @390×844：弹窗内越界元素从 [head-actions、按钮、扫码框…] 收敛为**只剩表格**（有内部滚动，属预期）；扫码框/按钮全部换行落回面板内。抽屉导航 34 项、390 档工作台与列表页 `hScroll:false`、overflow 扫描 0 命中；console 错误 0。
+
+### 14.4 回归锁与门禁
+
+- `styleContract.spec.ts` 7→**8 例**：新增「单据编辑器明细工具条必须允许换行」源码守卫 —— 五个编辑器逐一断言 `__head-actions` 块含 `flex-wrap: wrap`、`.scan-input` 块含 `max-width: 100%`（比对前去注释，与 F54 守卫同款手法）。
+- 门禁：`vue-tsc --noEmit` EXIT 0；`eslint .` EXIT 0；vitest 定向 15 文件 **181/181**（较 R54 +1 = styleContract 新守卫；本轮 vitest 需 `NODE_OPTIONS=--max-old-space-size=4096`，默认堆在共享机器上 OOM）；质量扫描 → **298 文件 / 34139 行，0 error / 2 warning**（两个 >500 行测试文件，容忍项）。
+- 改动（6 文件）：5 × `editor.vue`（F55-1 CSS）+ `styleContract.spec.ts`（守卫 +1）。基建事故记录：本轮 dev 栈一度整体熄火（Vite 假死→死、Redis 容器 Exited(255)、后端连不上 Redis 启动失败），恢复配方 = 先 `docker start kubo-redis`（**不是** devops-redis，那个映射 26379 端口不对）再 `cmd /c run-backend.cmd`，前端 `pnpm dev --port 3001 --strictPort` 重拉。

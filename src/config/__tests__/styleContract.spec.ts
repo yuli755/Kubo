@@ -175,4 +175,28 @@ describe('p7 · 视觉一致性契约（设计 token 单一数据源）', () => 
     const backToHidden = /overflow:\s*hidden/.test(block)
     expect(backToHidden, '.card 不得回到 overflow: hidden —— 那是 F54-2 的缺陷本体').toBe(false)
   })
+
+  it('单据编辑器明细工具条必须允许换行（F55-1：390 竖屏扫码框 280px 把按钮簇顶出弹窗）', () => {
+    // 390×844 实测：入库新增弹窗面板被 EP 夹到 366px，标题+扫码框+按钮不换行时
+    // 整簇工具条右缘冲到 811px —— 批量添加/手动选择在窄屏点不到。
+    // 五个单据编辑器（入库/出库/移库/采购/销售）同一副骨架，一起上锁。
+    const editors: ReadonlyArray<readonly [string, string]> = [
+      ['入库', 'src/view/console/wms/input/component/editor.vue'],
+      ['出库', 'src/view/console/wms/output/component/editor.vue'],
+      ['移库', 'src/view/console/wms/move/component/editor.vue'],
+      ['采购', 'src/view/console/channel/purchase/component/editor.vue'],
+      ['销售', 'src/view/console/channel/sale/component/editor.vue'],
+    ]
+    for (const [label, file] of editors) {
+      const text = readFileSync(resolve(file), 'utf8')
+      const start = text.indexOf('__head-actions {')
+      expect(start, `${label}编辑器缺少 __head-actions 样式块`).toBeGreaterThan(-1)
+      const block = text.slice(start, start + 240).replace(/\/\*[\s\S]*?\*\//g, '')
+      expect(block, `${label}编辑器：工具条必须 flex-wrap，否则窄弹窗里按钮被裁出视口`).toContain('flex-wrap: wrap')
+      const scan = text.indexOf('.scan-input {')
+      expect(scan, `${label}编辑器缺少 .scan-input 样式块`).toBeGreaterThan(-1)
+      const scanBlock = text.slice(scan, scan + 160).replace(/\/\*[\s\S]*?\*\//g, '')
+      expect(scanBlock, `${label}编辑器：扫码框必须 max-width:100% 跟随容器收缩`).toContain('max-width: 100%')
+    }
+  })
 })

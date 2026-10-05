@@ -308,6 +308,8 @@ function beforeSubmit(payload: Record<string, unknown>) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap; /* F55-1：390 竖屏实测整簇工具条被顶出视口右缘 445px，换行兜底 */
+  gap: 8px 12px;
   margin-bottom: 10px;
 }
 
@@ -319,12 +321,14 @@ function beforeSubmit(payload: Record<string, unknown>) {
 
 .input-editor__head-actions {
   display: flex;
+  flex-wrap: wrap; /* F55-1：窄弹窗里扫码框与按钮排不下一行时换行，不被裁掉 */
   gap: 10px;
   align-items: center;
 }
 
 .scan-input {
   width: 280px;
+  max-width: 100%; /* F55-1：扫码框跟随容器收缩，不撑破窄弹窗 */
 }
 
 .input-editor__title {
