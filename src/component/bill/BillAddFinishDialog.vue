@@ -3,6 +3,7 @@ import type { IDialogActionProps } from '@/framework'
 import { ElInput } from 'element-plus'
 import { ref } from 'vue'
 import KDialog from '@/component/framework/KDialog.vue'
+import { FeedbackUtil } from '@/framework'
 
 /**
  * # 添加完成数量弹窗
@@ -19,17 +20,30 @@ const props = withDefaults(defineProps<IDialogActionProps<number>>(), {
 })
 
 const num = ref(props.param ?? 0)
+
+/**
+ * R53 反馈修复：原来数量 <= 0 时把「添加完成」按钮静默禁用，
+ * 用户把数字清空或填 0 后只会看到一个点不动的按钮，不知道为什么。
+ * 现在按钮始终可点，由这里说清楚原因（与 R52 「按钮要自己解释自己」同一条铁律）。
+ */
+function onConfirm(): void {
+  const value = Number(num.value)
+  if (!(value > 0)) {
+    FeedbackUtil.toastWarning('本次完成数量必须大于 0')
+    return
+  }
+  props.onConfirm?.(value)
+}
 </script>
 
 <template>
   <KDialog
-    :disable-confirm="Number(num) <= 0"
     confirm-text="添加完成"
     width="480px"
     min-height="100px"
     title="添加完成数量"
     @cancel="() => props.onCancel?.()"
-    @confirm="() => props.onConfirm?.(Number(num))"
+    @confirm="onConfirm"
   >
     <div class="k-finish-dialog">
       <div

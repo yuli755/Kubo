@@ -32,6 +32,8 @@ const currentAction = ref(LoginAction.LOGIN_VIA_PASSWORD)
  * （onSubmit），点了「我已阅读并同意」同样生效，多一条补救路径而非拦路。
  */
 const isAgreed = ref(false)
+/** R53：密码框的「请输入密码」红字只在用户碰过密码框之后出现（原来越早显示越像报错） */
+const passwordTouched = ref(false)
 
 // 「记住我」控件已移除（R39 §15.8 → §16）：登录态有效期由后端 JWT 说了算，前端无裁量权；
 // 该勾选框绑定后无任何消费者，纯属空转。若实装为 sessionStorage，还会静默破坏 R-38
@@ -371,12 +373,13 @@ function onResetSuccess(account: string) {
                 type="password"
                 show-password
                 placeholder="请输入密码"
-                :class="{ 'is-error': !user.password }"
+                :class="{ 'is-error': passwordTouched && !user.password }"
                 autocomplete="current-password"
+                @input="passwordTouched = true"
                 @keyup.enter="onSubmit"
               />
               <div
-                v-if="!user.password"
+                v-if="passwordTouched && !user.password"
                 class="form-error"
               >
                 请输入密码

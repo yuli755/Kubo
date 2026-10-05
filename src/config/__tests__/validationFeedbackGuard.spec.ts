@@ -71,6 +71,52 @@ describe('明细编辑器确定前必须校验并反馈（R52）', () => {
   })
 })
 
+/**
+ * # R53 追加：把「静默禁用」这一族也钉住
+ *
+ * R52 管的是「点了确定却没校验也没提示」；R53 沿着同一条铁律扫剩下 33 处
+ * `:disable-confirm` / `:disabled`，只处理**既不自我解释、又没被别的测试锁住**的那些：
+ * 三个「作业」弹窗 + 通用 `BillAddFinishDialog` 把确认按钮绑在 `quantity <= 0` 上，
+ * 数字被清空后按钮变成哑的；登录页密码框在**还没碰过**时就显示红边红字。
+ * 另外几个（BillRejectDialog / ResetPassword / KDialog 本体）的禁用态是别的测试
+ * 明确锁住的行为，不在本文件射程内。
+ */
+const FINISH_EDITORS: Array<[string, string]> = [
+  ['确认入库', 'src/view/console/wms/input/component/addFinishEditor.vue'],
+  ['确认出库', 'src/view/console/wms/output/component/addFinishEditor.vue'],
+  ['采购作业', 'src/view/console/channel/purchase/component/addFinishEditor.vue'],
+]
+
+describe('作业弹窗的数量门必须出声而不是禁按钮（R53）', () => {
+  it.each(FINISH_EDITORS)('%s：不再用 disable-confirm 绑数量，改为 onConfirm 里点名原因', (_name, file) => {
+    const text = source(file)
+    expect(text).not.toContain(':disable-confirm="quantity <= 0"')
+    expect(text).toContain('本次数量必须大于 0')
+  })
+
+  it('通用添加完成弹窗（BillAddFinishDialog）：按钮可点，数量不合法时 toast 说明', () => {
+    const text = source('src/component/bill/BillAddFinishDialog.vue')
+    expect(text).not.toContain('disable-confirm')
+    expect(text).toContain('本次完成数量必须大于 0')
+    // props-call 型契约不能破：过了数量门才回调宿主
+    expect(text).toContain('props.onConfirm?.(value)')
+  })
+
+  it('登录页（login.vue）：密码框的红边红字要等用户碰过之后才出现', () => {
+    const text = source('src/view/login.vue')
+    expect(text).toContain('const passwordTouched = ref(false)')
+    expect(text).toContain(':class="{ \'is-error\': passwordTouched && !user.password }"')
+    // 原缺陷：首次进页面（密码必然为空）就点亮红字，看起来像系统报错
+    expect(text).not.toContain(':class="{ \'is-error\': !user.password }"')
+  })
+
+  it('库存选择器（inventory selector）：多选禁确定时给出勾选计数指引', () => {
+    const text = source('src/view/console/wms/inventory/component/selector.vue')
+    expect(text).toContain('class="inventory-selector__hint"')
+    expect(text).toContain('已勾选')
+  })
+})
+
 describe('validateFormWithFeedback 行为契约（R52）', () => {
   const warn = vi.spyOn(FeedbackUtil, 'toastWarning')
 

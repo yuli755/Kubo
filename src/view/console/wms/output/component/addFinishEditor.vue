@@ -110,6 +110,12 @@ async function onConfirm() {
     FeedbackUtil.toastWarning('请选择库存来源')
     return
   }
+  // R53 反馈修复：数量被清空/为 0 时，原来只是把「确认出库」按钮静默禁用，
+  // 用户不知道按钮为什么点不动 —— 改为按钮可点、点下去说清楚哪里不对。
+  if (!(Number(quantity.value) > 0)) {
+    FeedbackUtil.toastWarning('本次数量必须大于 0')
+    return
+  }
   submitting.value = true
   try {
     await new KOutputService().addDetailFinishQuantity({
@@ -132,7 +138,6 @@ async function onConfirm() {
 <template>
   <KDialog
     :close-on-confirm="false"
-    :disable-confirm="quantity <= 0"
     :model-value="modelValue"
     confirm-text="确认出库"
     title="确认出库"

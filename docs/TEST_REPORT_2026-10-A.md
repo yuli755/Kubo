@@ -340,3 +340,32 @@
 - 门禁：`eslint .` EXIT 0；`vue-tsc --noEmit` EXIT 0；vitest 定向 15 文件 **131/131**（`ModifyPassword 3`、`frameworkBatch2 7`、`frameworkComponents 13`、`formDefaultValueGuard 3`、`smartSelectorInteractions 24`、`validate 4`、`styleContract 6`、`tableLayout 5`、`channelDomain 13`、`personnelDomain 17`、`wmsDomain 14`、`SecurityDashboard 3` + `WarehouseHeatmap 4` + `consoleMount 3`，以及新增 `validationFeedbackGuard 12`），0 失败；质量 skill `quality_checker.js src --json` → **297 文件 / 33918 行，0 error / 2 warning**（仍是两个 >500 行测试文件，容忍项）。
 - 改动（10 文件）：`src/framework/validate.ts`（`validateFormWithFeedback` + `WebFormRefLike`）、`src/component/framework/KFormDialog.vue`（校验失败点名 + 滚动）、`src/component/user/ModifyPassword.vue`（rules/prop/双通道/去 disabled）、5 个 `detailEditor.vue`（校验接入 + `close-on-confirm=false` + 销售 `prop="material"`）、`src/config/__tests__/validationFeedbackGuard.spec.ts`（新，12 例守卫）。
 - 本轮无浏览器工具（MCP catalog 0 servers、本地无 playwright），验证 = 源码审查 + 131 单元/契约用例 + 质量扫描；反馈文案与滚动行为以断言与 element-plus 语义为准，未附新截图。
+
+## 12. 追加轮（Round 53）：「静默禁用按钮」全族清扫 —— 按钮必须自己解释自己
+
+延续 §11 的同一条铁律（用户的原话是「一旦用户字段校验或密码输入错误，系统不会提示用户，哪里操作失误」），本轮把剩余的全部 33 处 `:disable-confirm` / `:disabled` 逐一过筛：**先看它是否已经自我解释（邻近提示/内联错误/空态文案），再看是否被既有测试锁定**。两者皆非的，才算缺陷。
+
+### 12.1 缺陷清单与修复（F53 系列）
+
+| 编号 | 位置 | 症状 | 修复 |
+|---|---|---|---|
+| F53-1 | `wms/input/component/addFinishEditor.vue` | `:disable-confirm="quantity <= 0"`：把「本次数量」清空或改成 0 后，「确认入库」变成哑按钮，零提示 | 移除该 disable；`onConfirm()` 内守卫 `FeedbackUtil.toastWarning('本次数量必须大于 0')`（原「请选择目标仓库」守卫原样保留） |
+| F53-2 | `wms/output/component/addFinishEditor.vue` | 同上（「确认出库」） | 同 F53-1，紧随「请选择库存来源」守卫之后 |
+| F53-3 | `channel/purchase/component/addFinishEditor.vue` | 同上（「添加完成」） | 同 F53-1 |
+| F53-4 | `src/component/bill/BillAddFinishDialog.vue`（通用） | `:disable-confirm="Number(num) <= 0"`：裸数字输入框，清空即哑 | 改为 `onConfirm()` 内 toast「本次完成数量必须大于 0」，过了数量门才 `props.onConfirm?.(value)`（props-call 契约不变，`dialogWiring` 分类仍命中） |
+| F53-5 | `src/view/login.vue` 密码框 | `:class="{ 'is-error': !user.password }"` + `v-if="!user.password"`：**首次进页**（密码必然为空）就亮红边红字「请输入密码」，看起来像系统报错 | 新增 `passwordTouched`，`@input` 置真；红边红字改为 `passwordTouched && !user.password` 才出现（账号/邮箱/手机号框原本就带 `user.email &&` 这类触碰守卫，唯独密码框漏了） |
+| F53-6 | `wms/inventory/component/selector.vue`（多选） | 没勾选时「确定」禁用且无任何指引 | 表头上方新增计数指引「已勾选 N 项，勾选表格行后点「确定」回填」（`.inventory-selector__hint`，主题变量取色） |
+
+### 12.2 核查后判定「无需修复」的禁用态（留档，防止反复立案）
+
+- `BillRejectDialog.vue:24`（驳回原因为空禁确定）与 `ResetPassword.vue:291`（`:disabled="!canSubmit"`）：**被测试明确锁定**（`sharedComponents.spec.ts:194/200`「原因为空时应禁用」、`ResetPassword.spec.ts:114-123` 断言 disabled 属性），且各自有 textarea placeholder / 逐字段内联 `.form-error` 说明原因 —— 属于「已自我解释」，不动。
+- `KDialog.vue` 本体的 `disableConfirm` 语义是框架契约（`sharedComponents.spec.ts:139-149` 锁「数量为 0 不许提交靠它」），保留能力、只撤调用方的滥用。
+- `KSelector.vue:165`：禁用旁有实时 hintText（「请勾选记录或双击单行」/「已选择 N 项」）；`WarehouseHeatmap.vue:786`：旁边就是空态「该储位当前无在库物料」—— 已自我解释。
+- `permissionEditor/menuEditor` 的 `disable-confirm=isSubmitting`（防重复提交，按钮同时转 loading）；`TenantSwitcher/UserCard` 为在途状态；`config/coderule list` 的 disabled 是「系统行/已存行走编辑锁」语义；`login.vue` 两个发码按钮虽禁用，但点击路径与内联错误都有明说；`PersonalToken.vue:72` 输入框 placeholder 即指引 —— 均非缺陷。
+
+### 12.3 回归锁与门禁
+
+- `validationFeedbackGuard.spec.ts` 由 12 例扩到 **18 例**：新增「三个作业弹窗不得再出现 `:disable-confirm="quantity <= 0"` 且必须含『本次数量必须大于 0』」「BillAddFinishDialog 全文不得含 disable-confirm 且保留 props-call 回调」「login.vue 必须存在 passwordTouched 版本的红字条件、不得保留无条件版本」「库存选择器必须带勾选计数指引」四组源码守卫（改动即红）。
+- 门禁：`eslint .` EXIT 0；`vue-tsc --noEmit` EXIT 0；vitest 定向 15 文件 **178/178**（`dialogWiring 6`、`formDefaultValueGuard 3`、`styleContract 6`、`errorPolicy 42`、`validate 4`、`validationFeedbackGuard 18`、`smartSelectorInteractions 24`、`ResetPassword 9`、`ModifyPassword 3`、`frameworkBatch2 7`、`sharedComponents 13`、`consoleMount 3`、`frameworkComponents 13`、`channelDomain 13`、`wmsDomain 14`），0 失败；质量 skill → **298 文件 / 34093 行，0 error / 2 warning**（仍是那两个 >500 行测试文件，容忍项）。
+- 改动（7 文件）：3 × `addFinishEditor.vue`、`BillAddFinishDialog.vue`、`login.vue`、`inventory/component/selector.vue`、`validationFeedbackGuard.spec.ts`。
+- 浏览器工具本轮仍不可用（MCP catalog 0 servers、无 playwright），验证 = 源码审查 + 178 用例 + 质量扫描。

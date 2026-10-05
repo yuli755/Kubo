@@ -31,7 +31,8 @@ import { InputDetailEntity } from '@/model/wms/input/InputDetailEntity'
  * 旧版 `quantity` 的 ref 初值是 `detail.quantity - detail.finishQuantity`，但 `formData.quantity`
  * 被赋成这个值之后又被 `expose('id','quantity')` 裁剪，用户改数量前若直接确认，提交的其实是
  * 「待入数量」而不是 0 —— 看起来对，但一旦用户手动改过又清空，输入框会静默变成 0 并仍然提交。
- * 现在 `quantity` 是显式校验的（`<= 0` 时确认按钮禁用），空值不会被当成合法输入提交。
+ * 现在 `quantity` 是显式校验的：空值/非正数不会被当成合法输入提交，而且（R53 起）
+ * 按钮不再被静默禁用 —— 点下去会 toast 说明「本次数量必须大于 0」。
  */
 const props = defineProps<{
   modelValue: boolean
@@ -90,6 +91,12 @@ async function onConfirm() {
     FeedbackUtil.toastWarning('请选择目标仓库')
     return
   }
+  // R53 反馈修复：数量被清空/为 0 时，原来只是把「确认入库」按钮静默禁用，
+  // 用户不知道按钮为什么点不动 —— 改为按钮可点、点下去说清楚哪里不对。
+  if (!(Number(quantity.value) > 0)) {
+    FeedbackUtil.toastWarning('本次数量必须大于 0')
+    return
+  }
   submitting.value = true
   try {
     await new KInputService().addDetailFinishQuantity({
@@ -112,7 +119,6 @@ async function onConfirm() {
 <template>
   <KDialog
     :close-on-confirm="false"
-    :disable-confirm="quantity <= 0"
     :model-value="modelValue"
     confirm-text="确认入库"
     title="确认入库"

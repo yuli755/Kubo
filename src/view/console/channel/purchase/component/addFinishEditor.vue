@@ -62,6 +62,12 @@ async function onConfirm() {
   if (!detail?.id) {
     return
   }
+  // R53 反馈修复：数量 <= 0 时原来只是静默禁用「添加完成」按钮 ——
+  // 改为按钮可点，点下去明确提示原因（与 R52 「按钮要自己解释自己」同一条铁律）。
+  if (!(Number(quantity.value) > 0)) {
+    FeedbackUtil.toastWarning('本次数量必须大于 0')
+    return
+  }
   submitting.value = true
   try {
     await new KPurchaseService().addDetailFinishQuantity({
@@ -84,7 +90,6 @@ async function onConfirm() {
 <template>
   <KDialog
     :close-on-confirm="false"
-    :disable-confirm="quantity <= 0"
     :model-value="modelValue"
     confirm-text="添加完成"
     title="添加完成数量"

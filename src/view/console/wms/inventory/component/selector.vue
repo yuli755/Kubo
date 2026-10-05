@@ -251,6 +251,14 @@ void loadList()
       </aside>
 
       <div class="inventory-selector__main">
+        <!-- R53 反馈修复：多选模式下没勾选时「确定」是禁用的 —— 旁边给出计数与操作指引，
+             不让按钮静默失效 -->
+        <div
+          v-if="isMultiple"
+          class="inventory-selector__hint"
+        >
+          已勾选 {{ selected.length }} 项，勾选表格行后点「确定」回填
+        </div>
         <ElTable
           v-loading="isLoading"
           :data="list"
@@ -381,6 +389,14 @@ void loadList()
 .inventory-selector__main {
   flex: 1;
   min-width: 0;
+}
+
+/* R53：多选勾选计数提示（禁用的「确定」按钮旁要能看懂为什么点不动） */
+.inventory-selector__hint {
+  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
 }
 
 .inventory-selector__table {
