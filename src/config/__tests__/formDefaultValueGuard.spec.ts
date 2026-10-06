@@ -44,10 +44,14 @@ describe('新增默认值守卫（KFormDialog）', () => {
     expect(body).toContain('field.defaultValue')
   })
 
-  it('优先级必须是 实例值 > 元数据默认值 > 空串（不允许只读实例属性）', () => {
+  it('优先级必须是 实例值 > 元数据默认值 > 空值兜底（数字字段兜 null，其余兜空串）', () => {
     const body = resetFormBody()
-    // 实例值在前、defaultValue 中继、空串兜底；禁止退回旧的 `instance[field.key] ?? ''` 写法
-    expect(body).toMatch(/instance\[field\.key\]\s*\?\?\s*field\.defaultValue\s*\?\?\s*'/)
+    // 实例值在前、defaultValue 中继、空值兜底；禁止退回旧的 `instance[field.key] ?? ''` 写法
+    expect(body).toMatch(/instance\[field\.key\]\s*\?\?\s*field\.defaultValue\s*\?\?/)
+    // F56-1（建议12·控制台噪音收尾实测）：ElInputNumber 的 modelValue 契约是 Number|Null，
+    // 数字字段兜 '' 会让每次打开「新增」弹窗刷一条 Invalid prop 警告。
+    const numberNullFallback = /fieldType\(field\)\s*===\s*'number'\s*\?\s*null\s*:\s*''/.test(body)
+    expect(numberNullFallback, '数字字段空值兜底必须是 null（见 KFormDialog.resetForm F56-1 注释）').toBe(true)
   })
 
   it('锚点仍在：resetForm 通过 fields 遍历生成新增表单（防止函数被改名后守卫静默失效）', () => {

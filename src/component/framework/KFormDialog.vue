@@ -237,8 +237,12 @@ function resetForm() {
     // 实体类字段大多用 `!` 声明（无初始化器），`new Ctor()[field.key]` 恒为 undefined，
     // 此时必须落到 `@Form({ defaultValue })` 元数据 —— 否则合同类型/起止时间这类默认值
     // 在「新增」时永远为空，requiredNumber 字段直接拦住保存，默认值声明形同虚设。
-    // 顺序：实例上已有值（成员初始化器/编辑回填）> 元数据默认值 > 空字符串。
-    next[field.key] = instance[field.key] ?? field.defaultValue ?? ''
+    // 顺序：实例上已有值（成员初始化器/编辑回填）> 元数据默认值 > 空值兜底。
+    // F56-1：数字字段的兜底必须是 null 而不是 '' —— ElInputNumber 的 modelValue 契约是
+    // Number|Null，喂 '' 会让每次打开「新增」弹窗都刷一条 Invalid prop 警告
+    // （L 报告 P2-12「控制台噪音」收尾实测抓到：销售单新增，<ElInputNumber> at <KFormDialog>）；
+    // 且数字输入框清空时自身 emit 的同样是 null，两者语义一致，required 校验对 ''/null 同判为空。
+    next[field.key] = instance[field.key] ?? field.defaultValue ?? (fieldType(field) === 'number' ? null : '')
   }
   // 预置字段（如 parentId）覆盖实体默认值：值可能是 0，所以要按 key 存在与否判断而不是真值
   for (const [key, value] of Object.entries(props.preset ?? {})) {

@@ -434,3 +434,35 @@
 - `styleContract.spec.ts` 7→**8 例**：新增「单据编辑器明细工具条必须允许换行」源码守卫 —— 五个编辑器逐一断言 `__head-actions` 块含 `flex-wrap: wrap`、`.scan-input` 块含 `max-width: 100%`（比对前去注释，与 F54 守卫同款手法）。
 - 门禁：`vue-tsc --noEmit` EXIT 0；`eslint .` EXIT 0；vitest 定向 15 文件 **181/181**（较 R54 +1 = styleContract 新守卫；本轮 vitest 需 `NODE_OPTIONS=--max-old-space-size=4096`，默认堆在共享机器上 OOM）；质量扫描 → **298 文件 / 34139 行，0 error / 2 warning**（两个 >500 行测试文件，容忍项）。
 - 改动（6 文件）：5 × `editor.vue`（F55-1 CSS）+ `styleContract.spec.ts`（守卫 +1）。基建事故记录：本轮 dev 栈一度整体熄火（Vite 假死→死、Redis 容器 Exited(255)、后端连不上 Redis 启动失败），恢复配方 = 先 `docker start kubo-redis`（**不是** devops-redis，那个映射 26379 端口不对）再 `cmd /c run-backend.cmd`，前端 `pnpm dev --port 3001 --strictPort` 重拉。
+
+## 15. 追加轮（Round 56）：执行修复建议 12，顺手清掉框架级控制台噪音
+
+### 15.1 建议 12 的真实状态与闭环
+
+本轮将「修复建议 12」按 `TEST_REPORT_2026-09-L.md` P2-12 解释为“控制台噪音”：ECharts `grid.containLabel` legacy 警告，以及 `Runtime directive used on component with non-element root node … at <ElTooltip>`。两项原始噪音并非本轮新造：
+
+- ECharts 部分早已由 R46 的 `SecurityDashboard.vue` 改为 `outerBoundsMode/outerBoundsContain`，并由 `SecurityDashboard.spec.ts` 锁住；
+- KTable 的 ElPopover `#reference` 已包真实 `<span>`，消除了把指令挂到 ElTooltip Fragment 根节点的问题。
+
+本轮以真实浏览器控制台抓取复核：工作台图表（2 个 canvas）重绘、入库列表列设置弹层、库存货位矩阵（72 个 slot-cell）、用户列表、销售新增流程均纳入探针；`targetNoiseHits=[]`，即两类原始建议 12 噪音命中 **0**。其中销售新增还暴露了一个同类的新噪音：`Invalid prop: type check failed for prop "modelValue". Expected Number | Null, got String with value ""`，来源为 `KFormDialog.resetForm()` 将数字字段兜底为 `''`。
+
+### 15.2 F56-1：KFormDialog 数字字段类型契约修复
+
+- 根因：`src/component/framework/KFormDialog.vue:241-245` 原先统一使用 `instance[field.key] ?? field.defaultValue ?? ''`；数字字段进入 `ElInputNumber` 后收到字符串空值，触发 Vue prop warning。
+- 修复：数字字段改为 `instance[field.key] ?? field.defaultValue ?? (fieldType(field) === 'number' ? null : '')`。`ElInputNumber` 原生清空也发 `null`；`requiredNumber` 的 `toNumber().ifEmpty()` 对空值仍保持阻断语义，草稿 `hasContent` 同时排除 `null` 与 `''`。
+- 回归守卫：`src/config/__tests__/formDefaultValueGuard.spec.ts` 保留“实例值 > 元数据默认值”优先级，并锁定数字字段必须 `null` 兜底，防止建议 12 相关控制台噪音回归。
+
+### 15.3 门禁与验证边界
+
+- 已通过：`vue-tsc --noEmit -p tsconfig.json` EXIT 0；改动文件 ESLint EXIT 0；定向 8 文件 **82/82**；质量扫描 **298 文件 / 34143 行，0 error / 2 warning**。
+- 浏览器复测第一次探针已得到建议 12 原始噪音 **0 命中**；F56-1 修复后的第二次探针因本地后端启动与隔离 Edge 环境不稳定未完成完整销售链路（后端曾因 JVM native memory 不足退出），因此不把“修后全页 console=0”冒充为已完成证据。源码门禁与单元守卫通过；生产发布前仍需在稳定 staging/CI 浏览器环境补一次完整 console-clean smoke。
+
+### 15.4 本轮结论与停止无限优化循环的决策
+
+前端视觉/交互巡检已从 R48–R56 覆盖登录、矮视口、手机竖屏、弹窗、表格、按钮反馈及框架表单契约；继续主动寻找像素级问题的边际收益已明显下降。后续不再以“再巡检一轮”为默认工作单位，改用真实用户 UAT 或可复现缺陷触发修复；建议 12 的原始两类噪音已关闭，F56-1 需要在稳定浏览器环境补最终 smoke。
+
+### 15.5 本轮改动清单
+
+- `src/component/framework/KFormDialog.vue`：数字字段空值改为 `null`，消除 `ElInputNumber` 的 Invalid prop 警告。
+- `src/config/__tests__/formDefaultValueGuard.spec.ts`：数字字段空值守卫更新。
+- `docs/TEST_REPORT_2026-10-A.md`：新增本节与生产推进边界。
