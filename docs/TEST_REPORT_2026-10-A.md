@@ -504,3 +504,16 @@
 - Docker 生产体检 **10 项**、备份/恢复静态门禁 **5 例**、数据权限静态门禁 **12 项**继续通过。
 - 仍未宣称真实短信投递成功：生产必须配置并验证真实 `SPMS_SMS_PROVIDER`（当前实现为 `aliyun`）及其凭据、签名、模板；日志/短信供应商回调与告警投递仍需真实环境验收。
 - 其余发布闸门不变：六项资源 live readiness、Compose runtime smoke、加密异地备份/PITR restore、真实告警到达、TLS/HTTPS、镜像签名/CVE 策略和业务 UAT。
+
+## 18. 异步导出任务状态保留边界
+
+### 18.1 本批次修复
+
+- `ExportHelper.createExportTask(Supplier<String>)` 创建任务、写入成功结果和写入错误结果时，统一通过 `RedisHelper.set(key, value, expireSeconds)` 设置 TTL；默认保留 **3600 秒**，并将配置值钳制到至少 1 秒，避免任务状态无限期占用 Redis。
+- `ExportConfig` 新增 `app.export.task-ttl-seconds`；生产配置通过 `SPMS_EXPORT_TASK_TTL_SECONDS` 注入，默认 3600 秒。
+- 生产交付契约由 **19/19** 增至 **20/20**，后端 compile 通过。
+
+### 18.2 明确未解决边界
+
+- 该补丁只解决 Redis 任务状态的无限增长，不等于完成导出授权模型：`fileCode` 仍是轮询凭证，当前未绑定创建者/租户，也未改变无上下文系统任务的兼容行为。
+- 导出文件本身仍需真实环境配置清理/保留策略；Redis TTL 到期后，磁盘文件不会自动删除。发布前仍需产品与安全决策：过期/越权轮询的错误口径、文件清理作业、以及是否要求 owner/tenant 绑定。

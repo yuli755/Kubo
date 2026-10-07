@@ -92,7 +92,8 @@ public class ExportHelper {
         if (Objects.nonNull(object)) {
             return createExportTask(supplier);
         }
-        redisHelper.set(fileCacheKey, "");
+        long taskTtlSeconds = taskTtlSeconds();
+        redisHelper.set(fileCacheKey, "", taskTtlSeconds);
 
         // 捕获请求线程的数据权限上下文与 MDC 链路追踪上下文，向异步线程池穿透
         final PermissionContext capturedContext = PermissionContextHolder.current().orElse(null);
@@ -107,16 +108,21 @@ public class ExportHelper {
                     : () -> {})) {
                 try {
                     String result = supplier.get();
-                    redisHelper.set(fileCacheKey, result != null ? result : "");
+                    redisHelper.set(fileCacheKey, result != null ? result : "", taskTtlSeconds);
                 } catch (Exception e) {
                     log.error("执行导出任务失败", e);
-                    redisHelper.set(fileCacheKey, "ERROR: " + e.getMessage());
+                    redisHelper.set(fileCacheKey, "ERROR: " + e.getMessage(), taskTtlSeconds);
                 }
             } finally {
                 MDC.clear();
             }
         });
         return fileCode;
+    }
+
+    private long taskTtlSeconds() {
+        long configured = exportConfig != null ? exportConfig.getTaskTtlSeconds() : 3600L;
+        return Math.max(1L, configured);
     }
 
     /**

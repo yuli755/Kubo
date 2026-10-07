@@ -65,6 +65,9 @@ spms:
 app:
   upload-platform: local
   login-url: 'https://kubo.hamm.cn/login'
+  export:
+    # 异步导出状态/结果仅保留有限时间，避免 Redis 与导出索引永久增长。
+    task-ttl-seconds: '${SPMS_EXPORT_TASK_TTL_SECONDS:3600}'
 
 # SpringDoc OpenAPI 3 生产环境配置
 springdoc:

@@ -122,6 +122,30 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
     })
   })
 
+  describe('export task retention contract', () => {
+    it('production export task state has a bounded Redis TTL', () => {
+      const prodYml = readFileSync(
+        join(ROOT, 'SPMS-Server/src/main/resources/application-production.yml'),
+        'utf8',
+      )
+      const exportConfig = readFileSync(
+        join(ROOT, 'SPMS-Server/src/main/java/cn/hamm/spms/common/export/ExportConfig.java'),
+        'utf8',
+      )
+      const exportHelper = readFileSync(
+        join(ROOT, 'SPMS-Server/src/main/java/cn/hamm/spms/common/export/ExportHelper.java'),
+        'utf8',
+      )
+
+      expect(prodYml).toContain('task-ttl-seconds: \'${SPMS_EXPORT_TASK_TTL_SECONDS:3600}\'')
+      expect(exportConfig).toContain('private long taskTtlSeconds = 3600L')
+      expect(exportHelper).toContain('redisHelper.set(fileCacheKey, "", taskTtlSeconds)')
+      expect(exportHelper).toContain('redisHelper.set(fileCacheKey, result != null ? result : "", taskTtlSeconds)')
+      expect(exportHelper).toContain('redisHelper.set(fileCacheKey, "ERROR: " + e.getMessage(), taskTtlSeconds)')
+      expect(exportHelper).toContain('private long taskTtlSeconds()')
+    })
+  })
+
   describe('top 1: 数据权限真实灰度放量准入与合规验证', () => {
     it('pnpm canary:check 静态门禁执行通过且无报错', () => {
       const output = execSync('node infra/scripts/check-canary-readiness.mjs', {
