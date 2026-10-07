@@ -59,7 +59,16 @@ if [[ -z "${LATEST}" ]]; then
   echo "✗ 找不到备份文件（${BACKUP_DIR}/kubo-*.sql.gz），请先跑 backup-mysql.sh" >&2
   exit 1
 fi
-log "使用备份：${LATEST}"
+CHECKSUM_FILE="${LATEST}.sha256"
+if [[ ! -f "${CHECKSUM_FILE}" ]]; then
+  echo "✗ 缺少备份完整性校验文件：${CHECKSUM_FILE}，拒绝恢复" >&2
+  exit 1
+fi
+if ! (cd "$(dirname "${LATEST}")" && sha256sum -c "$(basename "${CHECKSUM_FILE}")"); then
+  echo "✗ 备份 SHA-256 校验失败：${LATEST}，拒绝恢复" >&2
+  exit 1
+fi
+log "使用并通过完整性校验的备份：${LATEST}"
 
 # 2. 确认演练容器可用
 if ! docker ps --format '{{.Names}}' | grep -qx "${DRILL_CONTAINER}"; then

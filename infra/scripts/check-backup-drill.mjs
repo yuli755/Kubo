@@ -46,6 +46,9 @@ function checkScript(kind, name, src) {
     if (!/gzip\s+-t/.test(src)) {
       fail('缺少 `gzip -t` 压缩产物校验（备份损坏应当天发现，而非灾难那天）')
     }
+    if (!/sha256sum\s+\"\$\{DUMP_FILE\}\"/.test(src)) {
+      fail('缺少备份 SHA-256 完整性校验文件（恢复前无法确认产物未被篡改或损坏）')
+    }
     if (/MYSQL_PASSWORD=\"\$\{MYSQL_PASSWORD:-root\}/.test(src)) {
       fail('备份脚本禁止使用 root 默认密码，必须显式注入 MYSQL_PASSWORD')
     }
@@ -64,6 +67,9 @@ function checkScript(kind, name, src) {
     }
     if (!/SELECT\s+COUNT\(\*\)/.test(src)) {
       fail('缺少关键表行数校验（SELECT COUNT(*)），无法证明「能恢复」')
+    }
+    if (!/sha256sum\s+-c/.test(src)) {
+      fail('缺少恢复前 SHA-256 校验（备份完整性未确认，不得导入）')
     }
   }
 
@@ -97,13 +103,13 @@ function selfCheck() {
     {
       name: '合法备份脚本',
       kind: 'backup',
-      src: '#!/usr/bin/env bash\nset -euo pipefail\nmysqldump kubo > k.sql\ngzip -t k.sql.gz\nrsync -az k.sql.gz backup:/mysql\n',
+      src: '#!/usr/bin/env bash\nset -euo pipefail\nDUMP_FILE=k.sql.gz\nmysqldump kubo > k.sql\ngzip -t "${DUMP_FILE}"\nsha256sum "${DUMP_FILE}" > "${DUMP_FILE}.sha256"\nrsync -az "${DUMP_FILE}" "${DUMP_FILE}.sha256" backup:/mysql\n',
       expect: null,
     },
     {
       name: '合法恢复脚本',
       kind: 'drill',
-      src: '#!/usr/bin/env bash\nset -euo pipefail\nDRILL_ALLOW_PROD=0\nmysql -e "DROP DATABASE kubo_drill"\nSELECT COUNT(*) FROM users;\n',
+      src: '#!/usr/bin/env bash\nset -euo pipefail\nDRILL_ALLOW_PROD=0\nsha256sum -c kubo.sql.gz.sha256\nmysql -e "DROP DATABASE kubo_drill"\nSELECT COUNT(*) FROM users;\n',
       expect: null,
     },
   ]

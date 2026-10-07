@@ -58,10 +58,14 @@ if ! gzip -t "${DUMP_FILE}"; then
   echo "✗ 压缩校验失败：${DUMP_FILE}" >&2
   exit 1
 fi
+CHECKSUM_FILE="${DUMP_FILE}.sha256"
+sha256sum "${DUMP_FILE}" > "${CHECKSUM_FILE}"
 log "备份完成：${DUMP_FILE} ($(du -h "${DUMP_FILE}" | cut -f1))"
+log "完整性校验文件：${CHECKSUM_FILE}"
 
 # 3. 本地保留策略（超过保留天数删除）
 find "${BACKUP_DIR}" -name 'kubo-*.sql.gz' -mtime +"${RETENTION_DAYS}" -delete 2>/dev/null || true
+find "${BACKUP_DIR}" -name 'kubo-*.sql.gz.sha256' -mtime +"${RETENTION_DAYS}" -delete 2>/dev/null || true
 
 # 4. 推送备份机/对象存储（可选，--remote 时执行；失败必须响）
 if [[ "${1:-}" == "--remote" ]]; then
@@ -69,8 +73,6 @@ if [[ "${1:-}" == "--remote" ]]; then
     echo "✗ --remote 但 REMOTE_BACKUP 未配置（填入 rsync 目标或 rclone remote:path）" >&2
     exit 1
   fi
-  CHECKSUM_FILE="${DUMP_FILE}.sha256"
-  sha256sum "${DUMP_FILE}" > "${CHECKSUM_FILE}"
   log "推送备份到 ${REMOTE_BACKUP} …"
   if [[ "${REMOTE_BACKUP_TYPE}" == "rclone" ]]; then
     command -v rclone >/dev/null 2>&1 || { echo "✗ REMOTE_BACKUP_TYPE=rclone，但未安装 rclone" >&2; exit 1; }
