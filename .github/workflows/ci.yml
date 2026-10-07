@@ -509,6 +509,8 @@ jobs:
             sleep 10
           done
           curl --fail --retry 5 --retry-delay 2 http://127.0.0.1:18080/
+          # Compose 的容器状态为 healthy 还不够：显式探测 Spring Actuator，避免仅靠 Nginx 首页掩盖后端启动/路由故障。
+          docker compose -f docker-compose.prod.yml exec -T server wget -qO- http://127.0.0.1:8080/actuator/health | grep -q '"status":"UP"'
 
       - name: Scan built images for HIGH/CRITICAL CVEs
         uses: aquasecurity/trivy-action@0.28.0
