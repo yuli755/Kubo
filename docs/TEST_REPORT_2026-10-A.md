@@ -549,6 +549,7 @@
 ### 21.1 本批次修复
 
 - `infra/scripts/check-canary-readiness.mjs` 新增配置不变量：生产 `DATA_PERMISSION_MODE=enforce` 时，`kubo.data-permission.tenant-required` 必须为 `true`；否则静态门禁失败。
+- 生产配置现在显式接入 `DATA_PERMISSION_TENANT_REQUIRED`，并由 `docker-compose.prod.yml` 传入 Spring；默认仍为 `false` 以保持迁移期 SHADOW 兼容，ENFORCE 发布必须在 `.env` 中显式设为 `true`。
 - 该门禁阻止“用户无 `user_tenant` 归属时回落平台默认租户”的迁移期兼容逻辑与正式 ENFORCE 并存，避免归属回填遗漏被静默放行。
 - 当前生产仍为 `SHADOW`，因此没有擅自改变线上兼容策略；只有切换 ENFORCE 时才触发该强约束。
 

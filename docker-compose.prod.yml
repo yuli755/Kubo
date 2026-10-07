@@ -114,6 +114,8 @@ services:
       #  之前的 KUBO_DATA_PERMISSION_MODE 是失效写法 —— Spring 宽松绑定映射不到
       #  kubo.data-permission.mode，改 env 不生效，属于只有实机才暴露的事故）
       DATA_PERMISSION_MODE: ${DATA_PERMISSION_MODE:-shadow}
+      # ENFORCE 发布时必须显式设为 true，防止无 user_tenant 归属账号回落默认租户。
+      DATA_PERMISSION_TENANT_REQUIRED: ${DATA_PERMISSION_TENANT_REQUIRED:-false}
     deploy:
       resources:
         limits:
