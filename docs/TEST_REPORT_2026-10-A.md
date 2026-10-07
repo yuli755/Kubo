@@ -658,3 +658,11 @@
 
 - 本轮完成：隔离本机 production-profile 可启动部署、schema/Hibernate/健康/指标验证、短信与邮箱的可执行接入说明。
 - 本轮未完成：真实存量租户回填、六项资源 live readiness、跨租户 UAT、真实短信/SMTP/告警触达、正式域名/TLS、异地恢复/PITR、远端 CI/browser smoke 和真实角色签字。因此不能标记为“完整正式生产落地上线”，也不应切换真实生产到 ENFORCE。
+
+## 28. 数据权限回归测试与隔离部署复核（2026-10-08）
+
+- 后端定向数据权限测试全部通过：`DataPermissionEnforceReadinessTest` 12/12、`DataPermissionIntegrationTest` 7/7、`DataPermissionDenialTest` 3/3、`TenantContextResolverTest` 7/7，合计 **29/29**，Maven `BUILD SUCCESS`。
+- 覆盖内容包括：ENFORCE readiness 阻断规则、租户绑定、无租户拒绝/默认租户回退语义、跨租户拒绝、数据权限集成查询以及租户请求头解析。测试使用 H2/测试上下文，不等同于正式存量库 UAT。
+- 复核时 `spms-localprod` 六个隔离容器仍为 Docker `healthy`，production profile 环境变量为 `DATA_PERMISSION_MODE=shadow`、`DATA_PERMISSION_TENANT_REQUIRED=true`；未改动现有 `kubo-*` 数据。
+- 该结果增强了代码级回归证据，但不能替代真实用户/资源/业务数据上的 `user_tenant` 全量回填、六项 live readiness 和双租户越权 UAT。
+- 隔离 production-like 数据库复核结果：`user=0`、`user_tenant=0`、`user_tenant.tenant_id IS NULL=0`。这是全新空库的结果，不是存量租户回填成功证据；因无用户和业务数据，无法在本机完成真实双租户越权 UAT。
