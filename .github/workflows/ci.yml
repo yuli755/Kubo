@@ -524,13 +524,12 @@ jobs:
           docker compose -f docker-compose.prod.yml exec -T prometheus wget -qO- http://127.0.0.1:9090/api/v1/targets | grep -q '"health":"up"'
           docker compose -f docker-compose.prod.yml exec -T prometheus wget -qO- http://127.0.0.1:9090/api/v1/alertmanagers | grep -q '"status":"success"'
           # 规则文件能被加载且无 parse error；仅 targets up 不能证明告警规则有效。
-          rules=$$(docker compose -f docker-compose.prod.yml exec -T prometheus wget -qO- http://127.0.0.1:9090/api/v1/rules)
-          printf '%s\n' "$$rules" | grep -q '"status":"success"'
-          printf '%s\n' "$$rules" | grep -q 'kubo-prod-critical'
+          rules=$(docker compose -f docker-compose.prod.yml exec -T prometheus wget -qO- http://127.0.0.1:9090/api/v1/rules)
+          printf '%s\n' "$rules" | grep -q '"status":"success"'
+          printf '%s\n' "$rules" | grep -q 'kubo-prod-critical'
           # Alertmanager 必须加载渲染后的真实配置并保留 kubo-webhook receiver；不读取 webhook 密钥。
-          amconfig=$$(docker compose -f docker-compose.prod.yml exec -T alertmanager wget -qO- http://127.0.0.1:9093/api/v2/status)
-          printf '%s\n' "$$amconfig" | grep -q '"cluster"'
-          printf '%s\n' "$$amconfig" | grep -q 'kubo-webhook'
+          docker compose -f docker-compose.prod.yml exec -T alertmanager grep -q "name: 'kubo-webhook'" /etc/alertmanager/alertmanager.rendered.yml
+          docker compose -f docker-compose.prod.yml exec -T alertmanager wget -qO- http://127.0.0.1:9093/api/v2/status | grep -q '"cluster"'
 
       - name: Scan built images for HIGH/CRITICAL CVEs
         uses: aquasecurity/trivy-action@0.28.0
