@@ -519,6 +519,10 @@ jobs:
           # 监控组件也必须完成自身 readiness；否则业务容器健康但告警链路可能是死的。
           docker compose -f docker-compose.prod.yml exec -T prometheus wget -qO- http://127.0.0.1:9090/-/ready | grep -q 'Prometheus Server is Ready'
           docker compose -f docker-compose.prod.yml exec -T alertmanager wget -qO- http://127.0.0.1:9093/-/ready | grep -q 'Ready'
+          # readiness 之后再验证真实抓取与告警连接；仅进程存活不能证明监控链路已接通。
+          docker compose -f docker-compose.prod.yml exec -T prometheus wget -qO- http://127.0.0.1:9090/api/v1/targets | grep -q '"status":"success"'
+          docker compose -f docker-compose.prod.yml exec -T prometheus wget -qO- http://127.0.0.1:9090/api/v1/targets | grep -q '"health":"up"'
+          docker compose -f docker-compose.prod.yml exec -T prometheus wget -qO- http://127.0.0.1:9090/api/v1/alertmanagers | grep -q '"status":"success"'
 
       - name: Scan built images for HIGH/CRITICAL CVEs
         uses: aquasecurity/trivy-action@0.28.0
