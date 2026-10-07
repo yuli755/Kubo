@@ -33,7 +33,8 @@
 ## 2. 演练前置检查
 
 - [ ] 最近全量备份存在且 `gzip -t` 通过（`ls -lt /backup/mysql/` + `gzip -t <latest>`）；
-- [ ] binlog 已外置到备份机（若做 PITR，`backup-mysql.sh --remote` 的产物在备份机可见）；
+- [ ] 若执行 `backup-mysql.sh --remote`，已配置真实 `BINLOG_SOURCE_DIR`，目录内存在 `mysql-bin.*`；脚本会把 binlog 与全量备份、`.sha256` 一并推送，否则 fail-closed；
+- [ ] binlog 已外置到备份机，且远端 `binlog/` 目录可读取（若做 PITR，不能只确认 `.sql.gz` 存在）；
 - [ ] 隔离演练环境可用（独立的 MySQL 8.0.36 容器，**绝不与 kubo-mysql 同容器/同库**）；
 - [ ] 通知相关方：演练期间隔离环境可能短暂占用备份机带宽。
 
