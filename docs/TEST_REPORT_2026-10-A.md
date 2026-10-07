@@ -536,6 +536,7 @@
 
 - `backup-mysql.sh` 现在每次全量备份完成后都生成同名 `.sql.gz.sha256` 校验文件，而不是只在 `--remote` 时生成；本地备份在保留策略中同步清理校验文件。
 - `backup-mysql.sh --remote` 现在强制要求真实存在的 `BINLOG_SOURCE_DIR`，且目录内必须有 `mysql-bin.*`；rsync/rclone 会把 binlog 与全量备份、校验文件一并外置，缺 binlog 时 fail-closed，避免把仅有全量备份误称为 PITR 能力。
+- `backup-mysql.sh` 与 `restore-drill.sh` 改用 Docker `MYSQL_PWD` 环境变量向容器内 MySQL 客户端传递密码，不再把密码拼接到 shell 命令参数或 `sh -c` 字符串中，降低进程命令行和错误日志泄露风险；静态门禁锁定该约束。
 - `restore-drill.sh` 在 `DROP DATABASE` 和导入前强制要求校验文件，并执行 `sha256sum -c`；校验文件缺失或摘要不匹配时 fail-closed，拒绝恢复。
 - `check-backup-drill.mjs` 新增备份产物 SHA-256、远端 binlog 存在性与传输契约，并通过自检。
 

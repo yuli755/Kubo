@@ -79,9 +79,9 @@ fi
 
 # 3. 恢复（drop + create + 导入；gunzip 管道导入，避免落盘解压）
 log "恢复到 ${DRILL_CONTAINER}.${DRILL_DATABASE} …"
-docker exec -i "${DRILL_CONTAINER}" mysql -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" \
+docker exec -e "MYSQL_PWD=${MYSQL_PASSWORD}" -i "${DRILL_CONTAINER}" mysql -u"${MYSQL_USER}" \
   -e "DROP DATABASE IF EXISTS \`${DRILL_DATABASE}\`; CREATE DATABASE \`${DRILL_DATABASE}\` CHARACTER SET utf8mb4;"
-gunzip -c "${LATEST}" | docker exec -i "${DRILL_CONTAINER}" mysql -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${DRILL_DATABASE}"
+gunzip -c "${LATEST}" | docker exec -e "MYSQL_PWD=${MYSQL_PASSWORD}" -i "${DRILL_CONTAINER}" mysql -u"${MYSQL_USER}" "${DRILL_DATABASE}"
 
 # 4. （可选）PITR：回放 binlog 到指定时间点；请求 PITR 但缺少 binlog 时必须失败，不能假成功。
 if [[ "${1:-}" == "--pitr" ]]; then

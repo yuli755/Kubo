@@ -52,6 +52,9 @@ function checkScript(kind, name, src) {
     if (/MYSQL_PASSWORD=\"\$\{MYSQL_PASSWORD:-root\}/.test(src)) {
       fail('备份脚本禁止使用 root 默认密码，必须显式注入 MYSQL_PASSWORD')
     }
+    if (!/docker\s+exec\s+-e\s+"MYSQL_PWD=\$\{MYSQL_PASSWORD\}"/.test(src)) {
+      fail('备份脚本必须通过 MYSQL_PWD 注入密码，禁止把密码拼进 shell 命令字符串')
+    }
     if (!/rsync|rclone/.test(src)) {
       fail('缺少远端备份传输实现（rsync 或 rclone）')
     }
@@ -65,6 +68,9 @@ function checkScript(kind, name, src) {
   }
 
   if (kind === 'drill') {
+    if (!/docker\s+exec\s+-e\s+"MYSQL_PWD=\$\{MYSQL_PASSWORD\}"/.test(src)) {
+      fail('恢复脚本必须通过 MYSQL_PWD 注入密码，禁止把密码拼进命令行参数')
+    }
     // ③ 恢复脚本：必须有「拒绝生产库」护栏（最高优先级安全底线）
     if (!/DRILL_ALLOW_PROD/.test(src)) {
       fail('缺少 DRILL_ALLOW_PROD 护栏（恢复演练绝不能误伤生产库）')
@@ -110,13 +116,13 @@ function selfCheck() {
     {
       name: '合法备份脚本',
       kind: 'backup',
-      src: '#!/usr/bin/env bash\nset -euo pipefail\nDUMP_FILE=k.sql.gz\nBINLOG_SOURCE_DIR=/var/lib/mysql\nREMOTE_BACKUP=backup:/mysql\nmysqldump kubo > k.sql\ngzip -t "${DUMP_FILE}"\nsha256sum "${DUMP_FILE}" > "${DUMP_FILE}.sha256"\ncompgen -G "${BINLOG_SOURCE_DIR}/mysql-bin.*"\nrsync -az --checksum "${DUMP_FILE}" "${DUMP_FILE}.sha256" "${REMOTE_BACKUP}"\nrsync -az --checksum "${BINLOG_SOURCE_DIR}/" "${REMOTE_BACKUP%/}/binlog/"\n',
+      src: '#!/usr/bin/env bash\nset -euo pipefail\nDUMP_FILE=k.sql.gz\nMYSQL_PASSWORD=secret\nBINLOG_SOURCE_DIR=/var/lib/mysql\nREMOTE_BACKUP=backup:/mysql\ndocker exec -e "MYSQL_PWD=${MYSQL_PASSWORD}" kubo-mysql mysqldump kubo > k.sql\ngzip -t "${DUMP_FILE}"\nsha256sum "${DUMP_FILE}" > "${DUMP_FILE}.sha256"\ncompgen -G "${BINLOG_SOURCE_DIR}/mysql-bin.*"\nrsync -az --checksum "${DUMP_FILE}" "${DUMP_FILE}.sha256" "${REMOTE_BACKUP}"\nrsync -az --checksum "${BINLOG_SOURCE_DIR}/" "${REMOTE_BACKUP%/}/binlog/"\n',
       expect: null,
     },
     {
       name: '合法恢复脚本',
       kind: 'drill',
-      src: '#!/usr/bin/env bash\nset -euo pipefail\nDRILL_ALLOW_PROD=0\nsha256sum -c kubo.sql.gz.sha256\nmysql -e "DROP DATABASE kubo_drill"\nSELECT COUNT(*) FROM users;\n',
+      src: '#!/usr/bin/env bash\nset -euo pipefail\nDRILL_ALLOW_PROD=0\nMYSQL_PASSWORD=secret\nsha256sum -c kubo.sql.gz.sha256\ndocker exec -e "MYSQL_PWD=${MYSQL_PASSWORD}" kubo-mysql-drill mysql -e "DROP DATABASE kubo_drill"\nSELECT COUNT(*) FROM users;\n',
       expect: null,
     },
   ]

@@ -47,9 +47,9 @@ log() { echo "[$(date +%F\ %T)] $*"; }
 
 # 1. 全量备份（--single-transaction 热备无锁；--routines/--triggers/--events 保完整）
 log "开始全量备份 ${MYSQL_DATABASE} …"
-if ! docker exec "${MYSQL_CONTAINER}" sh -c \
-  "mysqldump --single-transaction --quick --routines --triggers --events \
-     -u'${MYSQL_USER}' -p'${MYSQL_PASSWORD}' '${MYSQL_DATABASE}'" > "${TMP_DUMP}"; then
+if ! docker exec -e "MYSQL_PWD=${MYSQL_PASSWORD}" "${MYSQL_CONTAINER}" \
+  mysqldump --single-transaction --quick --routines --triggers --events \
+    -u"${MYSQL_USER}" "${MYSQL_DATABASE}" > "${TMP_DUMP}"; then
   echo "✗ mysqldump 失败" >&2
   rm -f "${TMP_DUMP}"
   exit 1
