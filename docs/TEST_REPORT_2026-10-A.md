@@ -606,3 +606,18 @@
 - 恢复库复核：`information_schema.tables` 为 `50` 张表，`flyway_schema_history` 成功迁移记录为 `18`；源库与恢复库的关键表元数据已抽查，其中 `menu=4`、`material=0`、`user=0`，空业务表与 schema 恢复结果已记录。`information_schema.table_rows` 对 InnoDB 仅为估算值，不能替代逐表精确 COUNT；本轮不把这些估算值误报为业务数据完整性证明。
 - 恢复后 staging 应用、Prometheus、Alertmanager 仍分别返回 `{"status":"UP"}`、`Prometheus Server is Ready.`、`OK`。
 - 该演练证明本机隔离环境中的全量备份校验、导入和 schema 恢复链路可执行；尚未证明真实异地对象存储可恢复性或 binlog/PITR 回放，因此不能作为正式 RPO/RTO 或 PITR 证据。
+
+## 25. 正式上线判定矩阵与剩余行动
+
+| 门槛 | 当前状态 | 可执行证据/放行条件 |
+|---|---|---|
+| Flyway/Hibernate schema | **staging 通过** | V1/V1_1/V2 在新隔离库启动，应用 health=UP；生产发布仍需变更窗口和回滚点 |
+| 数据权限 | **SHADOW，未放行 ENFORCE** | 先完成 `user_tenant` 回填、六项资源 live readiness、跨租户越权 UAT，再运行 canary gate 并由负责人批准切换 |
+| 真实短信 | **未完成** | 配置生产 provider、完成验证码发送/失败重试/审计验证；`SPMS_SMS_PROVIDER=log` 仅限 staging |
+| 外部告警 | **未完成** | 真实 Webhook/邮件/短信接收端确认告警到达、恢复通知和抑制策略 |
+| TLS/域名 | **未完成** | 正式域名证书、反向代理、安全响应头、续期和回滚演练 |
+| 备份恢复 | **本机隔离恢复通过** | 异地对象存储恢复、真实 binlog/PITR 回放、RPO/RTO 计时与留痕 |
+| CI / browser smoke | **接线与静态契约已通过，远端结果待确认** | GitHub Actions `dev` workflow 实际成功，含 Compose health、Nginx、Actuator、监控和 Trivy |
+| 真实角色 UAT | **未完成/证据不足** | admin、WMS、采购、销售、租户隔离角色在正式-like 数据上完成核心闭环并签字 |
+
+**结论：当前版本可作为“隔离 staging 验证完成、正式上线准备未完成”的候选构建；不能标记为完整正式生产就绪。** 生产环境继续使用 SHADOW，禁止以本报告替代真实环境放行审批。
