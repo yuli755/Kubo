@@ -68,6 +68,8 @@ app:
   export:
     # 异步导出状态/结果仅保留有限时间，避免 Redis 与导出索引永久增长。
     task-ttl-seconds: '${SPMS_EXPORT_TASK_TTL_SECONDS:3600}'
+    file-retention-days: '${SPMS_EXPORT_FILE_RETENTION_DAYS:1}'
+    file-retention-cleanup-cron: '${SPMS_EXPORT_FILE_RETENTION_CLEANUP_CRON:0 30 3 * * *}'
 
 # SpringDoc OpenAPI 3 生产环境配置
 springdoc:

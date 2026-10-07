@@ -139,6 +139,13 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
 
       expect(prodYml).toContain('task-ttl-seconds: \'${SPMS_EXPORT_TASK_TTL_SECONDS:3600}\'')
       expect(exportConfig).toContain('private long taskTtlSeconds = 3600L')
+      expect(exportConfig).toContain('private int fileRetentionDays = 1')
+      expect(prodYml).toContain('file-retention-days: \'${SPMS_EXPORT_FILE_RETENTION_DAYS:1}\'')
+      expect(prodYml).toContain('file-retention-cleanup-cron: \'${SPMS_EXPORT_FILE_RETENTION_CLEANUP_CRON:0 30 3 * * *}\'')
+      expect(exportHelper).toContain('@Scheduled(cron = "${app.export.file-retention-cleanup-cron:0 30 3 * * *}")')
+      expect(exportHelper).toContain('Path.of(FilePaths.formatDirectory(configuredRoot)).resolve(EXPORT_DIR).normalize()')
+      expect(exportHelper).toContain('Files.deleteIfExists(path)')
+      expect(exportHelper).toContain('private long taskTtlSeconds()')
       expect(exportHelper).toContain('redisHelper.set(fileCacheKey, "", taskTtlSeconds)')
       expect(exportHelper).toContain('redisHelper.set(fileCacheKey, result != null ? result : "", taskTtlSeconds)')
       expect(exportHelper).toContain('redisHelper.set(fileCacheKey, "ERROR: " + e.getMessage(), taskTtlSeconds)')

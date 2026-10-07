@@ -22,13 +22,18 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.time.format.DateTimeFormatter;
+import java.nio.file.attribute.FileTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import static cn.hamm.spms.common.exception.Errors.DATA_NOT_FOUND;
 
@@ -123,6 +128,51 @@ public class ExportHelper {
     private long taskTtlSeconds() {
         long configured = exportConfig != null ? exportConfig.getTaskTtlSeconds() : 3600L;
         return Math.max(1L, configured);
+    }
+
+    /**
+     * 定期清理已过期的导出文件。Redis 任务状态到期后，磁盘文件也必须有明确的保留上限。
+     *
+     * <p>只扫描配置的文件根目录下的 {@code export/} 子目录，且只删除超过保留期的普通文件；
+     * 目录、根目录之外的文件和最近文件均不触碰。清理失败只影响存储回收，不影响请求链路，下一轮会重试。</p>
+     */
+    @Scheduled(cron = "${app.export.file-retention-cleanup-cron:0 30 3 * * *}")
+    public void purgeExpiredFiles() {
+        int retentionDays = exportConfig != null ? exportConfig.getFileRetentionDays() : 1;
+        if (retentionDays <= 0) {
+            log.error("[export][retention] file-retention-days 必须为正数，已跳过本次清理：{}", retentionDays);
+            return;
+        }
+
+        String configuredRoot = exportConfig != null ? exportConfig.getExportPath() : null;
+        if (!StringUtils.hasText(configuredRoot)) {
+            configuredRoot = appConfig != null ? appConfig.getFileDirectory() : "/home/static/";
+        }
+        Path exportRoot = Path.of(FilePaths.formatDirectory(configuredRoot)).resolve(EXPORT_DIR).normalize();
+        if (!Files.isDirectory(exportRoot)) {
+            return;
+        }
+
+        Instant cutoff = Instant.now().minus(Period.ofDays(retentionDays));
+        int deleted = 0;
+        try (Stream<Path> paths = Files.walk(exportRoot)) {
+            for (Path path : (Iterable<Path>) paths::iterator) {
+                if (!Files.isRegularFile(path)) {
+                    continue;
+                }
+                FileTime modified = Files.getLastModifiedTime(path);
+                if (modified.toInstant().isBefore(cutoff)) {
+                    Files.deleteIfExists(path);
+                    deleted++;
+                }
+            }
+        } catch (IOException e) {
+            log.warn("[export][retention] 清理过期导出文件失败，下一轮重试：{}", e.getMessage());
+            return;
+        }
+        if (deleted > 0) {
+            log.info("[export][retention] 清理过期导出文件：{} 个，保留 {} 天，目录 {}", deleted, retentionDays, exportRoot);
+        }
     }
 
     /**

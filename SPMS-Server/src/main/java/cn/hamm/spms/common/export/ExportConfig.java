@@ -30,4 +30,9 @@ public class ExportConfig {
      * 任务状态与文件路径都不应永久占用 Redis；正数才启用 TTL。
      */
     private long taskTtlSeconds = 3600L;
+
+    /**
+     * 导出文件在磁盘上的最长保留时间（天）。必须为正数，避免 Redis 状态过期后文件永久残留。
+     */
+    private int fileRetentionDays = 1;
 }
