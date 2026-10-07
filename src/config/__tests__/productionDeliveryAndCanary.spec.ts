@@ -160,6 +160,8 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       expect(workflow).toContain("github.ref == 'refs/heads/dev'")
       expect(workflow).toContain('docker compose -f docker-compose.prod.yml build --pull')
       expect(workflow).toContain('docker compose -f docker-compose.prod.yml exec -T server wget -qO- http://127.0.0.1:8080/actuator/health')
+      expect(workflow).toContain('docker compose -f docker-compose.prod.yml exec -T prometheus wget -qO- http://127.0.0.1:9090/-/ready')
+      expect(workflow).toContain('docker compose -f docker-compose.prod.yml exec -T alertmanager wget -qO- http://127.0.0.1:9093/-/ready')
       expect(workflow).toContain('Scan built images for HIGH/CRITICAL CVEs')
     })
 
