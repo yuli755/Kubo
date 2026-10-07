@@ -572,5 +572,5 @@
 
 ### 22.2 验证与边界
 
-- 已通过：`pnpm exec vitest run src/config/__tests__/productionDeliveryAndCanary.spec.ts` 当前 22/22；workflow 分支列表与 `production-smoke` 的 Compose build、Nginx 安全响应头、Spring Actuator health、Prometheus/Alertmanager readiness、真实 targets/alertmanagers API、CVE 扫描接线均由契约测试锁定；本地 `git diff --check` 通过。
+- 已通过：`pnpm exec vitest run src/config/__tests__/productionDeliveryAndCanary.spec.ts` 当前 22/22；workflow 分支列表与 `production-smoke` 的 Compose build、Nginx 安全响应头、Spring Actuator health、Prometheus/Alertmanager readiness、真实 targets/alertmanagers/rules API、CVE 扫描接线均由契约测试锁定；本地 `git diff --check` 通过。
 - 该修复需要推送后由 GitHub Actions 实际运行确认 runner、依赖下载、JDK、Docker 与 Trivy 环境；本地静态检查不能冒充远端 workflow 成功。
