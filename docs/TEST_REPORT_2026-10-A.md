@@ -621,3 +621,12 @@
 | 真实角色 UAT | **未完成/证据不足** | admin、WMS、采购、销售、租户隔离角色在正式-like 数据上完成核心闭环并签字 |
 
 **结论：当前版本可作为“隔离 staging 验证完成、正式上线准备未完成”的候选构建；不能标记为完整正式生产就绪。** 生产环境继续使用 SHADOW，禁止以本报告替代真实环境放行审批。
+
+## 26. 隔离 staging Web 内部 smoke 与安全响应头
+
+- `spms-staging-web` Docker health 为 `healthy`；容器内请求 `/` 返回 `HTTP/1.1 200 OK`，Nginx 正确反代静态前端。
+- 响应头抽查通过：`X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`、`X-Frame-Options: DENY`、`Content-Security-Policy`、`frame-ancestors 'none'` 均存在。
+- Web 容器通过 upstream `kubo-server:8080` 访问后端，后端 `/actuator/health` 返回 `{"status":"UP"}`；直接容器内探针也返回 `{"status":"UP"}`。
+- MySQL、Redis、server、web、Prometheus、Alertmanager 六个隔离 staging 服务均为 Docker `healthy`。该 smoke 仍属于本机容器内证据，不替代正式域名/TLS、真实浏览器跨网络访问或远端 CI smoke。
+- 额外复核发现 staging 使用 `SPRING_PROFILES_ACTIVE=staging` 时未自动继承 production 的 actuator 暴露清单，导致 Prometheus target 初始为 `down`（HTTP 404）。仅在隔离 staging override 注入 `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus` 后，`/actuator/prometheus` 返回 Prometheus 指标，target 恢复 `up`；生产 Compose 已显式使用 `production` profile 和 `application-production.yml`，该文件本身包含 `health,info,prometheus`，因此没有把 staging 临时 override 混入生产配置。
+- Prometheus `/api/v1/targets` 最终显示 `prometheus`、`alertmanager`、`spring-boot-actuator` 三个 target 均 `health=up`，无 `lastError`。
