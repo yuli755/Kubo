@@ -543,3 +543,17 @@
 
 - 备份/恢复静态门禁：**5/5** 自检通过；`git diff --check` 通过。
 - 该修复提升了备份产物完整性检测，但没有冒充真实灾备演练：仍需在隔离 MySQL 完成真实恢复、关键表数据校验、PITR/binlog 回放、应用启动冒烟和异地存储可恢复性验证。
+
+## 21. ENFORCE 租户归属缺失 fail-closed 门禁
+
+### 21.1 本批次修复
+
+- `infra/scripts/check-canary-readiness.mjs` 新增配置不变量：生产 `DATA_PERMISSION_MODE=enforce` 时，`kubo.data-permission.tenant-required` 必须为 `true`；否则静态门禁失败。
+- 该门禁阻止“用户无 `user_tenant` 归属时回落平台默认租户”的迁移期兼容逻辑与正式 ENFORCE 并存，避免归属回填遗漏被静默放行。
+- 当前生产仍为 `SHADOW`，因此没有擅自改变线上兼容策略；只有切换 ENFORCE 时才触发该强约束。
+
+### 21.2 验证与边界
+
+- `node infra/scripts/check-canary-readiness.mjs --verbose`：通过；生产当前 SHADOW，12 项检查通过。
+- `pnpm exec vitest run src/config/__tests__/productionDeliveryAndCanary.spec.ts`：20/20 通过。
+- 该门禁是静态配置保护，不替代真实环境的 `user_tenant` 回填核对、六项资源 live readiness 或跨租户越权 UAT；生产模式继续保持 `SHADOW`。

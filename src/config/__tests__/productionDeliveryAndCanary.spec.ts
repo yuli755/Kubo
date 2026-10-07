@@ -171,6 +171,16 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       expect(prodYml).toContain('allow-weak-default-secret: false')
     })
 
+    it('ENFORCE 灰度门禁会阻止租户归属缺失时回落默认租户', () => {
+      const gate = readFileSync(
+        join(ROOT, 'infra/scripts/check-canary-readiness.mjs'),
+        'utf8',
+      )
+      expect(gate).toContain("prodMode === 'enforce' && tenantRequired !== true")
+      expect(gate).toContain('tenant-required=true')
+      expect(gate).toContain('回落默认租户')
+    })
+
     it('数据资源编辑器提供核心业务预设速选，免去手动输入列名与表名', () => {
       const editorSource = readFileSync(
         join(ROOT, 'src/view/console/system/datapermission/resource/component/editor.vue'),

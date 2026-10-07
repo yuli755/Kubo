@@ -108,6 +108,15 @@ function checkCanaryConfig() {
     passes.push('生产环境处于 OFF 回滚安全态')
   }
 
+  // 4.1 ENFORCE 不得与“无租户归属回落默认租户”并存；否则账号回填遗漏会被静默放行。
+  const tenantRequired = prodDp['tenant-required']
+  if (prodMode === 'enforce' && tenantRequired !== true) {
+    problems.push('生产环境进入 ENFORCE 前必须将 tenant-required=true；无租户账号回落默认租户会掩盖归属缺失并破坏强隔离')
+  }
+  else if (tenantRequired === true) {
+    passes.push('租户归属缺失时 fail-closed：tenant-required=true')
+  }
+
   // 5. 写侧防护依赖检查
   const rowWriteEnabled = prodDp['row-write']?.enabled ?? baseDp['row-write']?.enabled ?? false
   if (rowWriteEnabled && prodMode === 'off') {
