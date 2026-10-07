@@ -630,3 +630,31 @@
 - MySQL、Redis、server、web、Prometheus、Alertmanager 六个隔离 staging 服务均为 Docker `healthy`。该 smoke 仍属于本机容器内证据，不替代正式域名/TLS、真实浏览器跨网络访问或远端 CI smoke。
 - 额外复核发现 staging 使用 `SPRING_PROFILES_ACTIVE=staging` 时未自动继承 production 的 actuator 暴露清单，导致 Prometheus target 初始为 `down`（HTTP 404）。仅在隔离 staging override 注入 `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus` 后，`/actuator/prometheus` 返回 Prometheus 指标，target 恢复 `up`；生产 Compose 已显式使用 `production` profile 和 `application-production.yml`，该文件本身包含 `health,info,prometheus`，因此没有把 staging 临时 override 混入生产配置。
 - Prometheus `/api/v1/targets` 最终显示 `prometheus`、`alertmanager`、`spring-boot-actuator` 三个 target 均 `health=up`，无 `lastError`。
+
+## 27. 隔离本机 production-profile 部署与短信/邮箱接入说明（2026-10-08）
+
+### 27.1 本机 production-profile 部署证据
+
+- 使用独立 Compose project `spms-localprod`、独立网络/卷和唯一容器名 `spms-localprod-*`，端口为 `18082`；未停止、删除或挂载现有 `kubo-*` 容器及其卷。
+- 通过 `docker compose ... up -d --build` 完成后端 Maven 打包与前端 Vite/PWA production 构建；后端以 `SPRING_PROFILES_ACTIVE=production` 启动，Flyway 校验 `18` 条迁移并显示 schema up to date，Hibernate `ddl-auto=validate` 通过。
+- 最终六个隔离服务均为 Docker `healthy`：MySQL、Redis、server、web、Prometheus、Alertmanager；server `/actuator/health` 返回 `{"status":"UP","groups":["liveness","readiness"]}`，Web 容器内 `/` 返回 `HTTP/1.1 200 OK` 且安全响应头存在，Prometheus 三个 target 均 `health=up` 且无 `lastError`。
+- 首次启动暴露并已修复两个隔离编排问题：production server 必须覆盖 datasource/Redis 主机为 Compose 服务名；Nginx 固定 upstream `kubo-server` 需要隔离 server 网络 alias。修复仅写入临时本机 override，未改变生产 Compose 的固定服务名契约。
+- 该部署使用临时本机凭据和虚构 Aliyun endpoint/短信配置，仅用于验证 production profile 的 fail-closed 装配和启动路径；没有真实短信、邮件或外部告警投递，因此不能作为正式生产通道验收。
+
+### 27.2 租户回填与 ENFORCE 闸门结果
+
+- 隔离库查询结果：`tenant=1`（默认租户已创建）、`user=0`、`user_tenant=0`、孤立用户 `0`、`data_resource=0`、成功 Flyway 记录 `18`。这证明空库迁移链路可执行，但不是存量生产用户回填证明。
+- `/dataResource/enforce-readiness` 未登录返回 `401`；空库没有 `data_resource`，因此无法形成六项资源的 live readiness 证据。production profile 通过启动期 fail-closed 机制拒绝将配置白名单误认为已就绪；本机仍保持 `DATA_PERMISSION_MODE=shadow`，没有伪造 ENFORCE 成功。
+- 要执行 item 1 的真实闭环，下一步必须导入脱敏的正式-like 用户/资源/业务样本，在隔离库核对 `user_tenant` 全量覆盖、六项资源 readiness，并用两个不同租户账号执行跨租户读写/导出拒绝 UAT；本轮不能把空库结果标为完成。
+
+### 27.3 短信与邮箱注册验证接入路径
+
+- 后端功能无需移除：短信接口为 `POST /user/sendSms`，邮箱验证码接口为 `POST /user/sendEmail`，邮箱验证码登录为 `POST /user/loginViaEmail`；短信 provider 已实现 Aliyun，生产 profile 禁止日志短信回退。
+- 短信正式接入步骤：阿里云开通短信服务并完成资质/签名/模板审核 → 将 `SPMS_SMS_PROVIDER=aliyun`、`ALIBABA_CLOUD_ACCESS_KEY_ID`、`ALIBABA_CLOUD_ACCESS_KEY_SECRET`、`SPMS_SMS_ALIYUN_SIGN_NAME`、`SPMS_SMS_ALIYUN_TEMPLATE_CODE` 注入 Secret Manager/部署环境 → 先向测试号码执行验证码发送、登录/自动注册、过期/重试/限流和审计验证 → 再由负责人确认真实触达。密钥不得写入仓库或日志。
+- 邮箱正式接入步骤：准备专用 SMTP 发信账号或服务 → 注入 `SPRING_MAIL_HOST`、`SPRING_MAIL_PORT`、`SPRING_MAIL_USERNAME`、`SPRING_MAIL_PASSWORD` 及 `SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH/SSL_ENABLE/STARTTLS_ENABLE` → 使用测试邮箱验证发送、验证码过期/重试、自动注册和失败告警。当前代码在缺少 SMTP bean/账号时会返回“未配置邮件服务的信息(spring.mail.username)”，不会静默声称发送成功。
+- 已在 `.env.production.example` 增加上述变量的占位示例；占位值不具备投递能力，不能作为真实 provider/SMTP 证据。
+
+### 27.4 当前结论
+
+- 本轮完成：隔离本机 production-profile 可启动部署、schema/Hibernate/健康/指标验证、短信与邮箱的可执行接入说明。
+- 本轮未完成：真实存量租户回填、六项资源 live readiness、跨租户 UAT、真实短信/SMTP/告警触达、正式域名/TLS、异地恢复/PITR、远端 CI/browser smoke 和真实角色签字。因此不能标记为“完整正式生产落地上线”，也不应切换真实生产到 ENFORCE。
