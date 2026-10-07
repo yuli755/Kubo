@@ -598,3 +598,11 @@
 - 本轮是本机隔离 staging 证据，不等于正式生产验收：尚缺正式域名/TLS、真实阿里云短信或其他外部短信触达、真实告警 Webhook 触达、租户回填与跨租户 UAT、异地备份可恢复性、真实 binlog/PITR 回放及 CVE/signing policy 结果。
 - 生产 `DATA_PERMISSION_MODE` 继续保持 `shadow`，不能仅凭 staging 启动成功切换 `enforce`；必须先完成真实 `user_tenant` 回填、六项资源 live readiness 与跨租户越权 UAT。
 - staging 中曾为定位旧数据库状态临时执行 `ALTER TABLE` 补列；这些操作只存在于隔离数据库，不作为生产迁移。生产可交付列修复仅以受控 V1 baseline 与 V1_1/V2 Flyway 文件为准。
+
+## 24. 隔离 staging 备份与恢复演练证据（2026-10-08）
+
+- 从 `spms-staging-mysql` 导出数据库到隔离临时目录，使用 `mysqldump --set-gtid-purged=OFF --single-transaction --quick --routines --triggers --events`；原始 SQL 备份大小 `386,816` bytes，并生成 SHA-256 校验文件。
+- 启动独立恢复目标 `spms-staging-drill-mysql`，未连接生产容器或生产卷；校验摘要后导入 `kubo_restore` 成功。
+- 恢复库复核：`information_schema.tables` 为 `50` 张表，`flyway_schema_history` 成功迁移记录为 `18`；源库与恢复库的关键表元数据已抽查，其中 `menu=4`、`material=0`、`user=0`，空业务表与 schema 恢复结果已记录。`information_schema.table_rows` 对 InnoDB 仅为估算值，不能替代逐表精确 COUNT；本轮不把这些估算值误报为业务数据完整性证明。
+- 恢复后 staging 应用、Prometheus、Alertmanager 仍分别返回 `{"status":"UP"}`、`Prometheus Server is Ready.`、`OK`。
+- 该演练证明本机隔离环境中的全量备份校验、导入和 schema 恢复链路可执行；尚未证明真实异地对象存储可恢复性或 binlog/PITR 回放，因此不能作为正式 RPO/RTO 或 PITR 证据。
