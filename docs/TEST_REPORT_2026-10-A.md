@@ -484,3 +484,23 @@
 - 仍需发布前在真实环境完成：六项数据资源 `/dataResource/enforce-readiness` 实测并解决 blocker；真实 Compose build/up/health smoke；加密、异地备份、保留策略和 PITR/restore drill；告警实际到达确认；TLS/HTTPS 入口；镜像 CVE 扫描与签名；业务 UAT。当前生产模式继续保持 `SHADOW`，不直接切 `ENFORCE`。
 - `.github/workflows/ci.yml` 新增正式分支/手动触发的 `production-smoke`：在隔离 runner 生成临时密钥，执行 Compose interpolation、真实镜像 build、六服务 health 等待、前端 HTTP smoke，并对后端/前端镜像执行 Trivy HIGH/CRITICAL 扫描。该 job 只证明可启动与供应链门禁，不冒充真实告警投递、PITR 恢复或业务 UAT。
 - 本批次没有宣称完成正式生产发布；这些剩余条件是发布闸门，不是可用占位值。
+
+## 17. 生产 PII 安全补丁（短信通道）
+
+### 17.1 根因与修复
+
+审计发现 `SPMS-Server/src/main/resources/application.yml` 原先把 `SPMS_SMS_PROVIDER` 默认到 `log`，生产缺少环境变量时会启用日志短信提供商，并将完整手机号与 OTP 写入日志。该行为会把认证秘密变成可检索的日志数据。
+
+本批次已完成并验证：
+
+- `LoggingSmsProvider` 增加 `@Profile("!production")`，生产 profile 不再装配日志短信通道；日志只保留脱敏手机号提示，不再记录验证码。
+- `SmsHelper` 去掉“任意 provider/日志 provider”回退，改为按配置精确匹配；缺少 provider 时抛出明确 `IllegalStateException`，并将 `@Value` 的缺省值改为空字符串，避免隐式选择 `log`。
+- `application-production.yml` 显式声明生产短信 provider 由 `SPMS_SMS_PROVIDER` 注入；`AliyunSmsProvider` 成功与异常日志均使用 `SmsPhoneMasker` 脱敏手机号。
+- 新增 `SPMS-Server/src/main/java/cn/hamm/spms/common/sms/SmsPhoneMasker.java` 与 `SPMS-Server/src/test/java/cn/hamm/spms/common/sms/SmsPhoneMaskerTest.java`，覆盖标准、短号、空值脱敏。
+
+### 17.2 验证与边界
+
+- Maven 定向测试：`SmsPhoneMaskerTest` + `SmsHelperTest` 共 **4/4** 通过，且完整后端 compile/testCompile 成功；前端生产交付契约 **19/19** 通过。
+- Docker 生产体检 **10 项**、备份/恢复静态门禁 **5 例**、数据权限静态门禁 **12 项**继续通过。
+- 仍未宣称真实短信投递成功：生产必须配置并验证真实 `SPMS_SMS_PROVIDER`（当前实现为 `aliyun`）及其凭据、签名、模板；日志/短信供应商回调与告警投递仍需真实环境验收。
+- 其余发布闸门不变：六项资源 live readiness、Compose runtime smoke、加密异地备份/PITR restore、真实告警到达、TLS/HTTPS、镜像签名/CVE 策略和业务 UAT。

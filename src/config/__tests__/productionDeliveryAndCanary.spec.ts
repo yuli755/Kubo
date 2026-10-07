@@ -81,6 +81,47 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
     })
   })
 
+  describe('production SMS PII fail-closed contract', () => {
+    it('production config requires an explicit SMS provider and excludes log fallback', () => {
+      const prodYml = readFileSync(
+        join(ROOT, 'SPMS-Server/src/main/resources/application-production.yml'),
+        'utf8',
+      )
+      const helper = readFileSync(
+        join(ROOT, 'SPMS-Server/src/main/java/cn/hamm/spms/common/sms/SmsHelper.java'),
+        'utf8',
+      )
+      const loggingProvider = readFileSync(
+        join(ROOT, 'SPMS-Server/src/main/java/cn/hamm/spms/common/sms/LoggingSmsProvider.java'),
+        'utf8',
+      )
+
+      expect(prodYml).toContain('provider: \'${SPMS_SMS_PROVIDER:}\'')
+      expect(helper).toContain('@Value("${spms.sms.provider:}")')
+      expect(helper).toContain('生产环境禁止回退到日志短信提供商')
+      expect(loggingProvider).toContain('@Profile("!production")')
+      expect(loggingProvider).not.toContain('发送验证码：{}')
+      expect(loggingProvider).not.toContain('发送验证码：", phone, code')
+      expect(loggingProvider).toContain('SmsPhoneMasker.mask(phone)')
+    })
+
+    it('all SMS phone log sites use masking and OTP is absent from logging provider', () => {
+      const helper = readFileSync(
+        join(ROOT, 'SPMS-Server/src/main/java/cn/hamm/spms/common/sms/SmsHelper.java'),
+        'utf8',
+      )
+      const aliyun = readFileSync(
+        join(ROOT, 'SPMS-Server/src/main/java/cn/hamm/spms/common/sms/AliyunSmsProvider.java'),
+        'utf8',
+      )
+
+      expect(helper).toContain('mask(phone)')
+      expect(aliyun).toContain('SmsPhoneMasker.mask(phone)')
+      expect(aliyun).not.toContain('phone={}, template=", phone')
+      expect(aliyun).not.toContain('phone={}, error=", phone')
+    })
+  })
+
   describe('top 1: 数据权限真实灰度放量准入与合规验证', () => {
     it('pnpm canary:check 静态门禁执行通过且无报错', () => {
       const output = execSync('node infra/scripts/check-canary-readiness.mjs', {

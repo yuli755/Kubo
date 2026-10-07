@@ -47,6 +47,9 @@ spring:
       port: 6379
       database: 5
 spms:
+  # 生产禁止日志短信提供商；缺少真实通道配置时应用必须拒绝启动。
+  sms:
+    provider: '${SPMS_SMS_PROVIDER:}'
   api:
     # P3：生产关闭请求/响应包体日志。airpower 的 request-log/response-log 会把完整请求/响应
     # body 打印到日志（登录密码、token、客户 PII、查询结果），是 PII 泄露面 + 无谓日志 I/O。

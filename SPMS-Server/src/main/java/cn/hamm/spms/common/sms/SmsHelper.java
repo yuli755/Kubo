@@ -12,6 +12,7 @@ import java.util.Objects;
 
 import static cn.hamm.spms.common.exception.Errors.PARAM_INVALID;
 import static cn.hamm.spms.common.exception.Errors.SERVICE_ERROR;
+import static cn.hamm.spms.common.sms.SmsPhoneMasker.mask;
 
 /**
  * <h1>短信发送助手（策略驱动、解耦服务商）</h1>
@@ -27,7 +28,7 @@ public class SmsHelper {
 
     @Autowired
     public SmsHelper(List<SmsProvider> providers,
-                     @Value("${spms.sms.provider:log}") String targetProvider) {
+                     @Value("${spms.sms.provider:}") String targetProvider) {
         SmsProvider selected = null;
         if (providers != null) {
             for (SmsProvider provider : providers) {
@@ -36,12 +37,10 @@ public class SmsHelper {
                     break;
                 }
             }
-            if (selected == null && !providers.isEmpty()) {
-                selected = providers.get(0);
-            }
         }
         if (selected == null) {
-            selected = new LoggingSmsProvider();
+            throw new IllegalStateException("未找到短信提供商: " + targetProvider
+                    + "；生产环境禁止回退到日志短信提供商，请配置真实 SPMS_SMS_PROVIDER");
         }
         this.activeProvider = selected;
         log.info("SmsHelper 初始化就绪，当前激活的短信提供商为 [{}]（配置期望: {}）", activeProvider.getName(), targetProvider);
@@ -62,7 +61,7 @@ public class SmsHelper {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("短信发送异常 [provider={}]: phone={}, error={}", activeProvider.getName(), phone, e.getMessage(), e);
+            log.error("短信发送异常 [provider={}]: phone={}, error={}", activeProvider.getName(), mask(phone), e.getMessage(), e);
             throw new BusinessException(SERVICE_ERROR, "短信发送失败，请稍后重试");
         }
     }

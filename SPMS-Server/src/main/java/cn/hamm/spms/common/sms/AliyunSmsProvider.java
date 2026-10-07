@@ -117,7 +117,7 @@ public class AliyunSmsProvider implements SmsProvider {
             String responseBody = response.body();
 
             if (response.statusCode() == 200 && responseBody != null && responseBody.contains("\"Code\":\"OK\"")) {
-                log.info("【阿里云短信】验证码发送成功：phone={}, template={}", phone, properties.getTemplateCode());
+                log.info("【阿里云短信】验证码发送成功：phone={}, template={}", SmsPhoneMasker.mask(phone), properties.getTemplateCode());
             } else {
                 log.error("【阿里云短信】发送失败：httpStatus={}, body={}", response.statusCode(), responseBody);
                 throw new BusinessException(SERVICE_ERROR, "短信发送失败：" + (responseBody != null ? responseBody : "服务无响应"));
@@ -125,7 +125,7 @@ public class AliyunSmsProvider implements SmsProvider {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("【阿里云短信】调用异常：phone={}, error={}", phone, e.getMessage(), e);
+            log.error("【阿里云短信】调用异常：phone={}, error={}", SmsPhoneMasker.mask(phone), e.getMessage(), e);
             throw new BusinessException(SERVICE_ERROR, "短信发送服务不可用");
         }
     }
