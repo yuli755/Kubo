@@ -482,4 +482,5 @@
 - 已通过：Docker 生产体检 10 项；数据权限静态灰度门禁 12 项；备份/恢复静态门禁（自检 5 例）；生产交付契约 17/17。
 - 当前本地 `pnpm deploy:drill` **按预期失败**：缺少真实 `KUBO_ALERT_WEBHOOK_URL` 时拒绝部署，证明告警链路不会静默放行；不能把这个失败改成伪造 webhook 通过。
 - 仍需发布前在真实环境完成：六项数据资源 `/dataResource/enforce-readiness` 实测并解决 blocker；真实 Compose build/up/health smoke；加密、异地备份、保留策略和 PITR/restore drill；告警实际到达确认；TLS/HTTPS 入口；镜像 CVE 扫描与签名；业务 UAT。当前生产模式继续保持 `SHADOW`，不直接切 `ENFORCE`。
+- `.github/workflows/ci.yml` 新增正式分支/手动触发的 `production-smoke`：在隔离 runner 生成临时密钥，执行 Compose interpolation、真实镜像 build、六服务 health 等待、前端 HTTP smoke，并对后端/前端镜像执行 Trivy HIGH/CRITICAL 扫描。该 job 只证明可启动与供应链门禁，不冒充真实告警投递、PITR 恢复或业务 UAT。
 - 本批次没有宣称完成正式生产发布；这些剩余条件是发布闸门，不是可用占位值。
