@@ -568,7 +568,7 @@
 
 - `.github/workflows/ci.yml` 的 push 分支触发器新增 `dev`。
 - 本仓库的交付纪律要求本地 `dev` 同步到 `github/dev` 与 `origin/dev`；此前 workflow 只监听 `main`、`master`、`feat/**` 与 `arena/**`，因此推送到共享集成分支不会自动产生 CI 硬门禁结果。
-- `dev` 现在会执行既有 Web、Server、迁移、监控、数据权限、Docker、备份脚本和构建门禁；这只是 CI 自动验证接线，不等于真实 Compose、PITR、告警到达或业务 UAT 已完成。
+- `dev` 现在会执行既有 Web、Server、迁移、监控、数据权限、Docker、备份脚本和构建门禁；同时触发 `production-smoke` 的真实 Compose build/health/CVE job。这只是 CI 自动验证接线，不等于真实 PITR、告警到达或业务 UAT 已完成。
 
 ### 22.2 验证与边界
 

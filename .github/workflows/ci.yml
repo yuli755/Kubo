@@ -457,7 +457,8 @@ jobs:
   # ==========================================================================
   production-smoke:
     name: Production Compose (build / health / CVE scan)
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    # dev 是共享集成分支，也必须跑真实 Compose health/CVE smoke；否则 dev 只有静态门禁没有运行时证据。
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
