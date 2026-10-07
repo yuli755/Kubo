@@ -475,8 +475,8 @@ jobs:
           JWT_SECRET=$(openssl rand -hex 32)
           DATA_PERMISSION_MODE=shadow
           WEB_PORT=18080
-          # Smoke only: this is a syntactically real endpoint; no alert delivery is claimed here.
-          KUBO_ALERT_WEBHOOK_URL=https://ci-alert-sink.invalid/webhook
+          # Smoke only: local unroutable sink keeps startup deterministic; no alert delivery is claimed here.
+          KUBO_ALERT_WEBHOOK_URL=http://127.0.0.1:19999/webhook
           EOF
           chmod 600 .env
 
