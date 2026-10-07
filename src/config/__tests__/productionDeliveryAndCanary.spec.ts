@@ -169,6 +169,8 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       expect(workflow).toContain('http://127.0.0.1:9090/api/v1/alertmanagers')
       expect(workflow).toContain('http://127.0.0.1:9090/api/v1/rules')
       expect(workflow).toContain('kubo-prod-critical')
+      expect(workflow).toContain('http://127.0.0.1:9093/api/v2/status')
+      expect(workflow).toContain('kubo-webhook')
       expect(workflow).toContain('"health":"up"')
       expect(workflow).toContain('Scan built images for HIGH/CRITICAL CVEs')
     })
