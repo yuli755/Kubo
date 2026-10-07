@@ -449,3 +449,85 @@ jobs:
         run: |
           set -e
           node infra/scripts/check-ddl-entity-drift.mjs --live-columns /tmp/live.txt --json /tmp/ddl-drift.json
+
+  # ==========================================================================
+  # 生产编排实机门禁：真实 Docker build + Compose health + 镜像漏洞扫描。
+  # 该 job 不冒充真实通知/PITR/UAT；它只证明提交物能在干净 runner 上启动并通过探针。
+  # ==========================================================================
+  production-smoke:
+    name: Production Compose (build / health / CVE scan)
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate isolated smoke secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .env <<EOF
+          MYSQL_ROOT_PASSWORD=$(openssl rand -hex 24)
+          MYSQL_DATABASE=kubo
+          MYSQL_USER=kubo
+          MYSQL_PASSWORD=$(openssl rand -hex 24)
+          REDIS_PASSWORD=$(openssl rand -hex 24)
+          JWT_SECRET=$(openssl rand -hex 32)
+          DATA_PERMISSION_MODE=shadow
+          WEB_PORT=18080
+          # Smoke only: this is a syntactically real endpoint; no alert delivery is claimed here.
+          KUBO_ALERT_WEBHOOK_URL=https://ci-alert-sink.invalid/webhook
+          EOF
+          chmod 600 .env
+
+      - name: Validate production Compose interpolation
+        run: docker compose -f docker-compose.prod.yml config --quiet
+
+      - name: Build production images
+        run: docker compose -f docker-compose.prod.yml build --pull
+
+      - name: Start stack and wait for health
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.prod.yml up -d
+          expected='alertmanager mysql prometheus redis server web'
+          for attempt in {1..36}; do
+            services=$(docker compose -f docker-compose.prod.yml ps --format '{{.Service}} {{.Health}}' | sort)
+            echo "$services"
+            actual=$(printf '%s\n' "$services" | awk '{print $1}' | sort | tr '\n' ' ' | sed 's/ $//')
+            if [ "$actual" = "$expected" ] && ! echo "$services" | grep -Eq ' (starting|unhealthy|unknown)'; then
+              break
+            fi
+            if [ "$attempt" -eq 36 ]; then
+              docker compose -f docker-compose.prod.yml ps
+              docker compose -f docker-compose.prod.yml logs --tail=120
+              exit 1
+            fi
+            sleep 10
+          done
+          curl --fail --retry 5 --retry-delay 2 http://127.0.0.1:18080/
+
+      - name: Scan built images for HIGH/CRITICAL CVEs
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: kubo-server:latest
+          format: table
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Scan frontend image for HIGH/CRITICAL CVEs
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: kubo-web:latest
+          format: table
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Tear down smoke stack
+        if: always()
+        run: docker compose -f docker-compose.prod.yml down -v
