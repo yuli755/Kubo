@@ -30,10 +30,11 @@ set -euo pipefail
 MYSQL_CONTAINER="${MYSQL_CONTAINER:-kubo-mysql}"        # 生产容器（只读探测用）
 DRILL_CONTAINER="${DRILL_CONTAINER:-kubo-mysql-drill}"  # 隔离演练容器
 MYSQL_USER="${MYSQL_USER:-root}"
-MYSQL_PASSWORD="${MYSQL_PASSWORD:-root}"
+MYSQL_PASSWORD="${MYSQL_PASSWORD:?MYSQL_PASSWORD is required; use a secret, never a default password}"
 MYSQL_DATABASE="${MYSQL_DATABASE:-kubo}"
 DRILL_DATABASE="${DRILL_DATABASE:-kubo_drill}"          # 演练目标库（隔离）
 BACKUP_DIR="${BACKUP_DIR:-/backup/mysql}"
+BINLOG_DIR="${BINLOG_DIR:-${BACKUP_DIR}/binlog}"
 DRILL_ALLOW_PROD="${DRILL_ALLOW_PROD:-0}"               # 显式 1 才允许触碰生产库
 # 关键表行数抽查（验证业务主表被完整恢复；按需增删）
 CHECK_TABLES="${CHECK_TABLES:-users roles menus materials devices orders}"
@@ -73,23 +74,31 @@ docker exec -i "${DRILL_CONTAINER}" mysql -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}
   -e "DROP DATABASE IF EXISTS \`${DRILL_DATABASE}\`; CREATE DATABASE \`${DRILL_DATABASE}\` CHARACTER SET utf8mb4;"
 gunzip -c "${LATEST}" | docker exec -i "${DRILL_CONTAINER}" mysql -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${DRILL_DATABASE}"
 
-# 4. （可选）PITR：回放 binlog 到指定时间点
-if [[ "${1:-}" == "--pitr" && -n "${2:-}" ]]; then
+# 4. （可选）PITR：回放 binlog 到指定时间点；请求 PITR 但缺少 binlog 时必须失败，不能假成功。
+if [[ "${1:-}" == "--pitr" ]]; then
+  [[ -n "${2:-}" ]] || { echo "✗ --pitr 必须提供目标时间，例如 2026-10-05T14:00:00" >&2; exit 1; }
   PITR_UNTIL="${2}"
-  log "PITR 回放 binlog 至 ${PITR_UNTIL}（需备份机已外置 binlog，见 backup-mysql.sh --remote）"
-  # TODO(运维): 从备份机取 binlog 后回放：
-  #   mysqlbinlog --stop-datetime="${PITR_UNTIL}" mysql-bin.* | \
-  #     docker exec -i "${DRILL_CONTAINER}" mysql -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${DRILL_DATABASE}"
+  command -v mysqlbinlog >/dev/null 2>&1 || { echo "✗ --pitr 需要 mysqlbinlog" >&2; exit 1; }
+  mapfile -t BINLOG_FILES < <(find "${BINLOG_DIR}" -maxdepth 1 -type f -name 'mysql-bin.*' -print | sort)
+  ((${#BINLOG_FILES[@]} > 0)) || { echo "✗ --pitr 找不到 ${BINLOG_DIR}/mysql-bin.*，不能宣称 PITR 已验证" >&2; exit 1; }
+  log "PITR 回放 binlog 至 ${PITR_UNTIL} …"
+  mysqlbinlog --stop-datetime="${PITR_UNTIL}" "${BINLOG_FILES[@]}" \
+    | docker exec -i "${DRILL_CONTAINER}" mysql -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${DRILL_DATABASE}"
 fi
 
-# 5. 校验：关键表行数 + schema（行数 0 说明恢复不完整/表名不对）
+# 5. 校验：关键表行数 + schema（默认每张关键表至少 1 行；空表不能被误报为恢复成功）
 log "校验关键表行数 …"
 FAILED=0
+MIN_ROWS="${MIN_ROWS:-1}"
+[[ "${MIN_ROWS}" =~ ^[0-9]+$ ]] || { echo "✗ MIN_ROWS 必须是非负整数" >&2; exit 1; }
 for t in ${CHECK_TABLES}; do
   CNT="$(docker exec "${DRILL_CONTAINER}" mysql -N -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" \
     "${DRILL_DATABASE}" -e "SELECT COUNT(*) FROM \`${t}\`;" 2>/dev/null || echo 'ERR')"
-  log "  ${t}: ${CNT} 行"
-  [[ "${CNT}" == "ERR" ]] && { echo "  ✗ ${t} 行数查询失败（表不存在？）"; FAILED=1; }
+  log "  ${t}: ${CNT} 行（最低要求 ${MIN_ROWS}）"
+  if [[ "${CNT}" == "ERR" || ! "${CNT}" =~ ^[0-9]+$ || "${CNT}" -lt "${MIN_ROWS}" ]]; then
+    echo "  ✗ ${t} 行数校验失败（表不存在、返回非数字或少于 ${MIN_ROWS} 行）"
+    FAILED=1
+  fi
 done
 
 if [[ "${FAILED}" == "1" ]]; then

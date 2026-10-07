@@ -208,13 +208,28 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
       expect(existsSync(join(ROOT, 'scripts/alert-helper.mjs'))).toBe(true)
     })
 
-    it('pnpm deploy:drill 部署预演全链路真实空跑通过（19 项）', () => {
-      const output = execSync('node scripts/deploy-drill.mjs', {
-        cwd: ROOT,
-        encoding: 'utf8',
-      })
-      expect(output).toContain('生产部署预演通过')
-      expect(output).toContain('19 项')
+    it('pnpm deploy:drill 在缺少真实 webhook 时 fail-closed（不可静默放行）', () => {
+      let output = ''
+      let failed = false
+      try {
+        output = execSync('node scripts/deploy-drill.mjs', {
+          cwd: ROOT,
+          encoding: 'utf8',
+          env: { ...process.env, KUBO_ALERT_WEBHOOK_URL: '' },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        })
+      }
+      catch (error) {
+        failed = true
+        const commandError = error as { stdout?: unknown, stderr?: unknown }
+        const stdout = String(commandError.stdout ?? '')
+        const stderr = String(commandError.stderr ?? '')
+        output = `${stdout}\n${stderr}`
+      }
+      expect(failed).toBe(true)
+      expect(output).toContain('缺少真实 KUBO_ALERT_WEBHOOK_URL')
+      expect(output).toContain('alertmanager 渲染缺少真实 webhook 地址')
+      expect(output).not.toContain('生产部署预演通过')
     })
 
     it('紧急回滚杠杆真实可用：.env 一键切档，Spring 显式占位符绑定而非失效的宽松绑定名', () => {

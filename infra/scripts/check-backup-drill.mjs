@@ -46,6 +46,12 @@ function checkScript(kind, name, src) {
     if (!/gzip\s+-t/.test(src)) {
       fail('缺少 `gzip -t` 压缩产物校验（备份损坏应当天发现，而非灾难那天）')
     }
+    if (/MYSQL_PASSWORD=\"\$\{MYSQL_PASSWORD:-root\}/.test(src)) {
+      fail('备份脚本禁止使用 root 默认密码，必须显式注入 MYSQL_PASSWORD')
+    }
+    if (!/rsync|rclone/.test(src)) {
+      fail('缺少远端备份传输实现（rsync 或 rclone）')
+    }
   }
 
   if (kind === 'drill') {
@@ -91,7 +97,7 @@ function selfCheck() {
     {
       name: '合法备份脚本',
       kind: 'backup',
-      src: '#!/usr/bin/env bash\nset -euo pipefail\nmysqldump kubo > k.sql\ngzip -t k.sql.gz\n',
+      src: '#!/usr/bin/env bash\nset -euo pipefail\nmysqldump kubo > k.sql\ngzip -t k.sql.gz\nrsync -az k.sql.gz backup:/mysql\n',
       expect: null,
     },
     {

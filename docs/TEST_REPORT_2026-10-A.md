@@ -466,3 +466,20 @@
 - `src/component/framework/KFormDialog.vue`：数字字段空值改为 `null`，消除 `ElInputNumber` 的 Invalid prop 警告。
 - `src/config/__tests__/formDefaultValueGuard.spec.ts`：数字字段空值守卫更新。
 - `docs/TEST_REPORT_2026-10-A.md`：新增本节与生产推进边界。
+
+## 16. 生产可落地推进（安全配置与备份恢复第一批）
+
+### 16.1 本批次已落地
+
+- `docker-compose.prod.yml` 对 MySQL、Redis、数据库/JWT 密钥和 Alertmanager webhook 改为 fail-closed 注入；不再接受 root/root、弱默认密钥或 `example.invalid` 占位地址。MySQL 开启 ROW binlog、GTID、binlog 过期和单文件大小护栏，为 PITR 提供运行时前提。
+- `.env.production.example` 仅保留 `CHANGE_ME_GENERATE_WITH_pnpm_docker_env` 引导值；真实生产 webhook 必须由 Secret Manager、发布环境或人工注入，空值拒绝启动。
+- `infra/backup/backup-mysql.sh` 要求显式 `MYSQL_PASSWORD`，生成 SHA-256 校验文件，并支持经检查的 `rsync`/`rclone` 远端传输。
+- `infra/backup/restore-drill.sh` 的 `--pitr` 现在要求时间戳、mysqlbinlog 和真实 binlog 文件；恢复校验对错误、非数字和低于 `MIN_ROWS` 的行数均失败，消除零行假通过。
+- `infra/scripts/check-backup-drill.mjs` 增加无默认密码和远端传输实现的静态门禁；`scripts/deploy-drill.mjs` 支持发布环境覆盖 `.env`，并对缺少真实 webhook fail-closed。
+
+### 16.2 验证结果与未闭环发布条件
+
+- 已通过：Docker 生产体检 10 项；数据权限静态灰度门禁 12 项；备份/恢复静态门禁（自检 5 例）；生产交付契约 17/17。
+- 当前本地 `pnpm deploy:drill` **按预期失败**：缺少真实 `KUBO_ALERT_WEBHOOK_URL` 时拒绝部署，证明告警链路不会静默放行；不能把这个失败改成伪造 webhook 通过。
+- 仍需发布前在真实环境完成：六项数据资源 `/dataResource/enforce-readiness` 实测并解决 blocker；真实 Compose build/up/health smoke；加密、异地备份、保留策略和 PITR/restore drill；告警实际到达确认；TLS/HTTPS 入口；镜像 CVE 扫描与签名；业务 UAT。当前生产模式继续保持 `SHADOW`，不直接切 `ENFORCE`。
+- 本批次没有宣称完成正式生产发布；这些剩余条件是发布闸门，不是可用占位值。

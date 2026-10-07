@@ -25,10 +25,11 @@ set -euo pipefail
 # ---- 可配置项（运维按真实拓扑改） ------------------------------------------
 MYSQL_CONTAINER="${MYSQL_CONTAINER:-kubo-mysql}"
 MYSQL_USER="${MYSQL_USER:-root}"
-MYSQL_PASSWORD="${MYSQL_PASSWORD:-root}"
+MYSQL_PASSWORD="${MYSQL_PASSWORD:?MYSQL_PASSWORD is required; use a secret, never a default password}"
 MYSQL_DATABASE="${MYSQL_DATABASE:-kubo}"
 BACKUP_DIR="${BACKUP_DIR:-/backup/mysql}"
-REMOTE_BACKUP="${REMOTE_BACKUP:-}"          # TODO(运维): 如 user@backup-host:/backup/ 或 oss://bucket/path
+REMOTE_BACKUP="${REMOTE_BACKUP:-}"
+REMOTE_BACKUP_TYPE="${REMOTE_BACKUP_TYPE:-rsync}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 # ----------------------------------------------------------------------------
 
@@ -65,13 +66,24 @@ find "${BACKUP_DIR}" -name 'kubo-*.sql.gz' -mtime +"${RETENTION_DAYS}" -delete 2
 # 4. 推送备份机/对象存储（可选，--remote 时执行；失败必须响）
 if [[ "${1:-}" == "--remote" ]]; then
   if [[ -z "${REMOTE_BACKUP}" ]]; then
-    echo "✗ --remote 但 REMOTE_BACKUP 未配置（填入备份机地址或对象存储命令）" >&2
+    echo "✗ --remote 但 REMOTE_BACKUP 未配置（填入 rsync 目标或 rclone remote:path）" >&2
     exit 1
   fi
+  CHECKSUM_FILE="${DUMP_FILE}.sha256"
+  sha256sum "${DUMP_FILE}" > "${CHECKSUM_FILE}"
   log "推送备份到 ${REMOTE_BACKUP} …"
-  # TODO(运维): 二选一
-  #   rsync -az "${DUMP_FILE}" "${REMOTE_BACKUP}"
-  #   rclone copy "${DUMP_FILE}" "${REMOTE_BACKUP}"
+  if [[ "${REMOTE_BACKUP_TYPE}" == "rclone" ]]; then
+    command -v rclone >/dev/null 2>&1 || { echo "✗ REMOTE_BACKUP_TYPE=rclone，但未安装 rclone" >&2; exit 1; }
+    rclone copy "${DUMP_FILE}" "${REMOTE_BACKUP}"
+    rclone copy "${CHECKSUM_FILE}" "${REMOTE_BACKUP}"
+  elif [[ "${REMOTE_BACKUP_TYPE}" == "rsync" ]]; then
+    command -v rsync >/dev/null 2>&1 || { echo "✗ REMOTE_BACKUP_TYPE=rsync，但未安装 rsync" >&2; exit 1; }
+    rsync -az --checksum "${DUMP_FILE}" "${CHECKSUM_FILE}" "${REMOTE_BACKUP}"
+  else
+    echo "✗ REMOTE_BACKUP_TYPE 必须是 rsync 或 rclone" >&2
+    exit 1
+  fi
+  log "远端备份与 SHA-256 校验文件推送完成"
 fi
 
 log "备份流程完成"

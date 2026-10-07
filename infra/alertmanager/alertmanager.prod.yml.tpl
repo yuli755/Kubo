@@ -6,7 +6,7 @@
 # 占位符与 .env 变量对应关系（见 .env.production.example 告警段）：
 #   __KUBO_ALERT_WEBHOOK_URL__  <- KUBO_ALERT_WEBHOOK_URL  （钉钉/企微/飞书机器人
 #       或自研告警网关地址；注意群机器人通常需要 prometheus-webhook-dingtalk 之类
-#       适配器，或直接填自研网关 URL。未配置时回落 example.invalid，投递失败但服务不崩）
+#       适配器，或直接填自研网关 URL。生产编排未配置真实地址时必须拒绝启动。）
 global:
   resolve_timeout: 5m
   smtp_require_tls: false

@@ -50,12 +50,23 @@ function fail(message) {
 
 /** 极简 ${VAR:-def} 插值（compose 语义子集，覆盖编排文件里实际用到的形态） */
 function interpolate(text, env) {
-  return text.replace(/\$\{(\w+)(?::-([^}]*))?\}/g, (_, name, def) => {
-    const value = env[name] ?? def ?? ''
-    if (value === '' && def === undefined) {
-      fail(`环境变量 ${name} 未在 .env 定义且无默认值，实机 up 时会插值成空串`)
+  // The bounded placeholder grammar cannot cross `}`; this is intentionally a small
+  // Compose-compatible parser rather than a general-purpose expression evaluator.
+  return text.replace(/\$\{(\w+)(?:(:-|:\?|-)([^}]*))?\}/g, (_, name, operator, fallback) => {
+    const value = env[name]
+    const hasValue = value !== undefined && value !== ''
+    if (operator === ':?' && !hasValue) {
+      fail(`环境变量 ${name} 未配置：${fallback || '生产启动拒绝使用空值'}`)
+      return ''
     }
-    return value
+    if (hasValue) {
+      return value
+    }
+    if (operator === ':-') {
+      return fallback || ''
+    }
+    fail(`环境变量 ${name} 未在 .env 定义且无默认值，实机 up 时会插值成空串`)
+    return ''
   })
 }
 
@@ -88,6 +99,12 @@ function readEnvFile() {
   ]
 
   let env = existsSync(envPath) ? parseEnv(readFileSync(envPath, 'utf8')) : {}
+  // CI/发布平台可通过进程环境注入真实 webhook；本地 .env 仍作为默认来源。
+  for (const key of requiredKeys) {
+    if (process.env[key]) {
+      env[key] = process.env[key]
+    }
+  }
   const missing = requiredKeys.filter(key => !env[key])
 
   if (!existsSync(envPath) || missing.length > 0) {
@@ -132,11 +149,11 @@ function drillEnv(env) {
     fail(`DATA_PERMISSION_MODE=${mode} 非法，必须是 off / shadow / enforce`)
   }
 
-  if (env.KUBO_ALERT_WEBHOOK_URL) {
-    pass('告警通知地址 KUBO_ALERT_WEBHOOK_URL 已就位（alertmanager 渲染用）')
+  if (env.KUBO_ALERT_WEBHOOK_URL && !env.KUBO_ALERT_WEBHOOK_URL.includes('example.invalid')) {
+    pass('告警通知地址 KUBO_ALERT_WEBHOOK_URL 已就位且不是占位域名')
   }
   else {
-    fail('.env 缺 KUBO_ALERT_WEBHOOK_URL，告警链路渲染将回落占位地址')
+    fail('.env 缺少真实 KUBO_ALERT_WEBHOOK_URL，禁止以 example.invalid 静默启动告警链路')
   }
 }
 
@@ -220,7 +237,11 @@ function drillCompose(env) {
 /** ③ 告警渲染演练（与容器 entrypoint 同款 sed 逻辑） */
 function drillAlertRender(env) {
   const tpl = readFileSync(join(REPO, 'infra', 'alertmanager', 'alertmanager.prod.yml.tpl'), 'utf8')
-  const webhook = env.KUBO_ALERT_WEBHOOK_URL || 'http://kubo-alert-hook.example.invalid/alert'
+  const webhook = env.KUBO_ALERT_WEBHOOK_URL || ''
+  if (!webhook || webhook.includes('example.invalid')) {
+    fail('alertmanager 渲染缺少真实 webhook 地址，禁止用占位域名通过部署预演')
+    return
+  }
   // 与 docker-compose.prod.yml entrypoint 相同：sed "s|__KUBO_ALERT_WEBHOOK_URL__|$URL|g"
   const rendered = tpl.replaceAll('__KUBO_ALERT_WEBHOOK_URL__', webhook)
   const parsed = parseYaml(rendered)
