@@ -13,6 +13,7 @@
 # 约定：
 #   - 备份产物：${BACKUP_DIR}/kubo-YYYYmmdd-HHMMSS.sql.gz（mysqldump --single-transaction）
 #   - 备份机/对象存储：${REMOTE_BACKUP}（rsync 目标或 oss/rclone 命令，运维填真实值）
+#   - binlog 源目录：${BINLOG_SOURCE_DIR}（启用 --remote 时必须显式配置并同步）
 #   - 保留：本地保留 ${RETENTION_DAYS} 天
 #
 # 用法：./backup-mysql.sh            # 仅本机备份
@@ -30,6 +31,8 @@ MYSQL_DATABASE="${MYSQL_DATABASE:-kubo}"
 BACKUP_DIR="${BACKUP_DIR:-/backup/mysql}"
 REMOTE_BACKUP="${REMOTE_BACKUP:-}"
 REMOTE_BACKUP_TYPE="${REMOTE_BACKUP_TYPE:-rsync}"
+# --remote 必须同时外置 binlog，否则全量备份无法兑现 PITR 目标。
+BINLOG_SOURCE_DIR="${BINLOG_SOURCE_DIR:-}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 # ----------------------------------------------------------------------------
 
@@ -73,14 +76,24 @@ if [[ "${1:-}" == "--remote" ]]; then
     echo "✗ --remote 但 REMOTE_BACKUP 未配置（填入 rsync 目标或 rclone remote:path）" >&2
     exit 1
   fi
-  log "推送备份到 ${REMOTE_BACKUP} …"
+  if [[ -z "${BINLOG_SOURCE_DIR}" || ! -d "${BINLOG_SOURCE_DIR}" ]]; then
+    echo "✗ --remote 但 BINLOG_SOURCE_DIR 未配置或不是目录；拒绝在缺 binlog 外置时宣称 PITR 备份完成" >&2
+    exit 1
+  fi
+  if ! compgen -G "${BINLOG_SOURCE_DIR}/mysql-bin.*" >/dev/null; then
+    echo "✗ ${BINLOG_SOURCE_DIR} 未找到 mysql-bin.*；拒绝在缺 binlog 外置时宣称 PITR 备份完成" >&2
+    exit 1
+  fi
+  log "推送全量备份与 binlog 到 ${REMOTE_BACKUP} …"
   if [[ "${REMOTE_BACKUP_TYPE}" == "rclone" ]]; then
     command -v rclone >/dev/null 2>&1 || { echo "✗ REMOTE_BACKUP_TYPE=rclone，但未安装 rclone" >&2; exit 1; }
     rclone copy "${DUMP_FILE}" "${REMOTE_BACKUP}"
     rclone copy "${CHECKSUM_FILE}" "${REMOTE_BACKUP}"
+    rclone copy "${BINLOG_SOURCE_DIR}" "${REMOTE_BACKUP}/binlog"
   elif [[ "${REMOTE_BACKUP_TYPE}" == "rsync" ]]; then
     command -v rsync >/dev/null 2>&1 || { echo "✗ REMOTE_BACKUP_TYPE=rsync，但未安装 rsync" >&2; exit 1; }
     rsync -az --checksum "${DUMP_FILE}" "${CHECKSUM_FILE}" "${REMOTE_BACKUP}"
+    rsync -az --checksum "${BINLOG_SOURCE_DIR}/" "${REMOTE_BACKUP%/}/binlog/"
   else
     echo "✗ REMOTE_BACKUP_TYPE 必须是 rsync 或 rclone" >&2
     exit 1

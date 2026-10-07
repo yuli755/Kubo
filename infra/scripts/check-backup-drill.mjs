@@ -55,6 +55,13 @@ function checkScript(kind, name, src) {
     if (!/rsync|rclone/.test(src)) {
       fail('缺少远端备份传输实现（rsync 或 rclone）')
     }
+    if (!/BINLOG_SOURCE_DIR/.test(src) || !/mysql-bin\.\*/.test(src)) {
+      fail('远端备份缺少 binlog 源目录与 mysql-bin.* 存在性护栏（PITR 不能只推送全量备份）')
+    }
+    if (!/rclone\s+copy\s+"\$\{BINLOG_SOURCE_DIR\}"\s+"\$\{REMOTE_BACKUP\}\/binlog"/.test(src)
+      && !/rsync\s+-az\s+--checksum\s+"\$\{BINLOG_SOURCE_DIR\}\/"\s+"\$\{REMOTE_BACKUP%\/\}\/binlog\//.test(src)) {
+      fail('远端备份未传输 BINLOG_SOURCE_DIR（PITR 产物必须与全量备份一同外置）')
+    }
   }
 
   if (kind === 'drill') {
@@ -103,7 +110,7 @@ function selfCheck() {
     {
       name: '合法备份脚本',
       kind: 'backup',
-      src: '#!/usr/bin/env bash\nset -euo pipefail\nDUMP_FILE=k.sql.gz\nmysqldump kubo > k.sql\ngzip -t "${DUMP_FILE}"\nsha256sum "${DUMP_FILE}" > "${DUMP_FILE}.sha256"\nrsync -az "${DUMP_FILE}" "${DUMP_FILE}.sha256" backup:/mysql\n',
+      src: '#!/usr/bin/env bash\nset -euo pipefail\nDUMP_FILE=k.sql.gz\nBINLOG_SOURCE_DIR=/var/lib/mysql\nREMOTE_BACKUP=backup:/mysql\nmysqldump kubo > k.sql\ngzip -t "${DUMP_FILE}"\nsha256sum "${DUMP_FILE}" > "${DUMP_FILE}.sha256"\ncompgen -G "${BINLOG_SOURCE_DIR}/mysql-bin.*"\nrsync -az --checksum "${DUMP_FILE}" "${DUMP_FILE}.sha256" "${REMOTE_BACKUP}"\nrsync -az --checksum "${BINLOG_SOURCE_DIR}/" "${REMOTE_BACKUP%/}/binlog/"\n',
       expect: null,
     },
     {
