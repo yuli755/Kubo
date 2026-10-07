@@ -154,6 +154,14 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
   })
 
   describe('top 1: 数据权限真实灰度放量准入与合规验证', () => {
+    it('dev 分支会触发完整 CI 与生产 Compose smoke，而不是只有本地静态检查', () => {
+      const workflow = readFileSync(join(ROOT, '.github/workflows/ci.yml'), 'utf8')
+      expect(workflow).toContain('branches: [main, master, dev,')
+      expect(workflow).toContain("github.ref == 'refs/heads/dev'")
+      expect(workflow).toContain('docker compose -f docker-compose.prod.yml build --pull')
+      expect(workflow).toContain('Scan built images for HIGH/CRITICAL CVEs')
+    })
+
     it('pnpm canary:check 静态门禁执行通过且无报错', () => {
       const output = execSync('node infra/scripts/check-canary-readiness.mjs', {
         cwd: ROOT,
