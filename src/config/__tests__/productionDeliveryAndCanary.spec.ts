@@ -176,7 +176,7 @@ describe('top 1 (数据权限灰度放量) & Top 2 (Docker 镜像瘦身编排) �
         join(ROOT, 'infra/scripts/check-canary-readiness.mjs'),
         'utf8',
       )
-      expect(gate).toContain("prodMode === 'enforce' && tenantRequired !== true")
+      expect(gate).toContain('hasEffectiveEnforce')
       expect(gate).toContain('tenant-required=true')
       expect(gate).toContain('回落默认租户')
     })

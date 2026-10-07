@@ -108,8 +108,8 @@ kubo:
     #              真实影子证据复核，证据不足直接拒绝启动，红着开闸是不可能的）；
     #   off     —— 紧急回滚档：一键关闭全部拦截，恢复旧行为。
     mode: "${DATA_PERMISSION_MODE:shadow}"
-    # ENFORCE 发布必须同时显式注入 DATA_PERMISSION_TENANT_REQUIRED=true；迁移期默认 false 保持 SHADOW 兼容。
-    tenant-required: "${DATA_PERMISSION_TENANT_REQUIRED:false}"
+    # 当前生产白名单包含实际 ENFORCE 资源，租户归属缺失必须默认拒绝；回滚只能显式改为 false 并重新过发布门禁。
+    tenant-required: "${DATA_PERMISSION_TENANT_REQUIRED:true}"
     shadow-diff-log: true
     enforce-resources:
       - wms.inventory

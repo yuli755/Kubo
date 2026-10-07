@@ -36,6 +36,7 @@ class DataPermissionEnforceReadinessTest {
                                                        String... resourceKeys) {
         DataPermissionProperties properties = new DataPermissionProperties();
         properties.setMode(mode);
+        properties.setTenantRequired(true);
         properties.setEnforceResources(new java.util.LinkedHashSet<>(Set.of(resourceKeys)));
         return properties;
     }
@@ -94,6 +95,32 @@ class DataPermissionEnforceReadinessTest {
                 List.of(ready("asset.material")));
 
         assertEquals(List.of(), problems);
+    }
+
+    @Test
+    @DisplayName("ENFORCE 未启用 tenant-required：拒绝启动，避免回落默认租户")
+    void enforceRequiresTenantBinding() {
+        DataPermissionProperties properties = properties(DataPermissionProperties.Mode.ENFORCE, "asset.material");
+        properties.setTenantRequired(false);
+
+        List<String> problems = DataPermissionEnforceReadiness.validate(
+                properties, List.of(ready("asset.material")));
+
+        assertEquals(1, problems.size());
+        assertTrue(problems.get(0).contains("tenant-required=true"), problems.toString());
+    }
+
+    @Test
+    @DisplayName("SHADOW 实际放量名单也必须启用 tenant-required")
+    void shadowEarlyReleaseRequiresTenantBinding() {
+        DataPermissionProperties properties = properties(DataPermissionProperties.Mode.SHADOW, "asset.material");
+        properties.setTenantRequired(false);
+
+        List<String> problems = DataPermissionEnforceReadiness.validate(
+                properties, List.of(ready("asset.material")));
+
+        assertEquals(1, problems.size());
+        assertTrue(problems.get(0).contains("tenant-required=true"), problems.toString());
     }
 
     @Test

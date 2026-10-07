@@ -103,6 +103,11 @@ public class DataPermissionEnforceReadiness {
 
         List<String> problems = new ArrayList<>();
         Set<String> configured = configuredKeys(properties.getEnforceResources(), problems);
+        boolean hasEffectiveEnforce = properties.getMode() == DataPermissionProperties.Mode.ENFORCE
+                || (properties.getMode() == DataPermissionProperties.Mode.SHADOW && !configured.isEmpty());
+        if (hasEffectiveEnforce && !properties.isTenantRequired()) {
+            problems.add("实际 ENFORCE 资源必须启用 tenant-required=true；否则无租户归属账号会回落平台默认租户，破坏租户隔离");
+        }
         Map<String, DataResourceService.Readiness> byKey = new LinkedHashMap<>();
         if (readiness != null) {
             for (DataResourceService.Readiness item : readiness) {

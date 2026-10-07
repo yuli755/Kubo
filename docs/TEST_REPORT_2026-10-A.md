@@ -548,13 +548,16 @@
 
 ### 21.1 本批次修复
 
-- `infra/scripts/check-canary-readiness.mjs` 新增配置不变量：生产 `DATA_PERMISSION_MODE=enforce` 时，`kubo.data-permission.tenant-required` 必须为 `true`；否则静态门禁失败。
-- 生产配置现在显式接入 `DATA_PERMISSION_TENANT_REQUIRED`，并由 `docker-compose.prod.yml` 传入 Spring；默认仍为 `false` 以保持迁移期 SHADOW 兼容，ENFORCE 发布必须在 `.env` 中显式设为 `true`。
-- 该门禁阻止“用户无 `user_tenant` 归属时回落平台默认租户”的迁移期兼容逻辑与正式 ENFORCE 并存，避免归属回填遗漏被静默放行。
-- 当前生产仍为 `SHADOW`，因此没有擅自改变线上兼容策略；只有切换 ENFORCE 时才触发该强约束。
+- `infra/scripts/check-canary-readiness.mjs` 与后端 `DataPermissionEnforceReadiness` 统一识别“实际 ENFORCE 资源”：生产 `mode=enforce`，或 SHADOW 阶段已配置非空 `enforce-resources` 白名单时，`tenant-required` 必须为 `true`；否则静态门禁与应用启动闸门均失败。
+- 生产配置显式接入 `DATA_PERMISSION_TENANT_REQUIRED`，并由 `docker-compose.prod.yml` 传入 Spring；当前仓库默认值改为 `true`，避免六项已列入实际放量白名单的资源继续允许无租户账号回落平台默认租户。只有明确回到 SHADOW 且清空实际放量名单，并重新通过门禁，才允许运维显式使用 `false`。
+- 新增生产配置模板注释，明确 `user_tenant` 回填与强隔离要求；门禁兼容解析 Spring `${DATA_PERMISSION_TENANT_REQUIRED:true}` 占位符，避免静态检查把占位符误判为未启用。
+- 该门禁阻止“用户无 `user_tenant` 归属时回落平台默认租户”的迁移期兼容逻辑与实际 ENFORCE 资源并存，避免归属回填遗漏被静默放行。
+- 当前生产仍为 `SHADOW`；本次没有切换运行模式，只把已配置的实际放量资源改为默认 fail-closed。
 
 ### 21.2 验证与边界
 
-- `node infra/scripts/check-canary-readiness.mjs --verbose`：通过；生产当前 SHADOW，12 项检查通过。
-- `pnpm exec vitest run src/config/__tests__/productionDeliveryAndCanary.spec.ts`：20/20 通过。
-- 该门禁是静态配置保护，不替代真实环境的 `user_tenant` 回填核对、六项资源 live readiness 或跨租户越权 UAT；生产模式继续保持 `SHADOW`。
+- `node infra/scripts/check-canary-readiness.mjs --verbose`：通过；生产当前 SHADOW、六项白名单资源存在且 tenant-required=true，共 13 项检查通过。
+- `pnpm exec vitest run src/config/__tests__/productionDeliveryAndCanary.spec.ts`：21/21 通过。
+- `mvnw -B -s settings.xml -Dtest=DataPermissionEnforceReadinessTest test`：11/11 通过；覆盖 ENFORCE 与 SHADOW 实际放量名单的 fail-closed 语义。
+- `node scripts/docker-helper.mjs --check`：10/10 通过；`git diff --check` 通过。
+- 该门禁是静态与启动期配置保护，不替代真实环境 `user_tenant` 回填核对、六项资源 live readiness、跨租户越权 UAT 或生产切换演练；生产模式继续保持 `SHADOW`。

@@ -109,9 +109,12 @@ function checkCanaryConfig() {
   }
 
   // 4.1 ENFORCE 不得与“无租户归属回落默认租户”并存；否则账号回填遗漏会被静默放行。
-  const tenantRequired = prodDp['tenant-required']
-  if (prodMode === 'enforce' && tenantRequired !== true) {
-    problems.push('生产环境进入 ENFORCE 前必须将 tenant-required=true；无租户账号回落默认租户会掩盖归属缺失并破坏强隔离')
+  const rawTenantRequired = prodDp['tenant-required']
+  const tenantPlaceholder = String(rawTenantRequired ?? '').match(/^\$\{DATA_PERMISSION_TENANT_REQUIRED:(true|false)\}$/i)
+  const tenantRequired = tenantPlaceholder ? tenantPlaceholder[1].toLowerCase() === 'true' : rawTenantRequired
+  const hasEffectiveEnforce = prodMode === 'enforce' || enforceList.length > 0
+  if (hasEffectiveEnforce && tenantRequired !== true) {
+    problems.push('生产环境存在实际 ENFORCE 资源前必须将 tenant-required=true；无租户账号回落默认租户会掩盖归属缺失并破坏强隔离')
   }
   else if (tenantRequired === true) {
     passes.push('租户归属缺失时 fail-closed：tenant-required=true')
