@@ -155,6 +155,8 @@ WHERE u.`id` = 1
 DROP PROCEDURE IF EXISTS kubo_mt_add_column;
 DROP PROCEDURE IF EXISTS kubo_mt_add_index;
 DROP PROCEDURE IF EXISTS kubo_mt_replace_unique;
+DROP PROCEDURE IF EXISTS kubo_mt_backfill_tenant;
+DROP PROCEDURE IF EXISTS kubo_mt_check_tenant;
 DELIMITER $$
 
 CREATE PROCEDURE kubo_mt_add_column(IN t VARCHAR(64), IN c VARCHAR(64), IN col_ddl TEXT)
@@ -186,28 +188,46 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.TABLES
                   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = t) THEN
     -- 表不存在 = 该资源还没建表 / 不属于本库：与 kubo_mt_add_column、kubo_mt_add_index 同构地静默跳过。
-    -- 这里原本 SIGNAL SQLSTATE 45000。CI 的 MySQL 8 job（跑真脚本、跑两遍）实测出它是有害的：
-    -- 空库上会打出 64 条 ERROR 1644，而任何非 --force 的客户端在第一条就中止 ——
-    -- 于是排在后面的 20260907（filterable_columns、data_permission_diff_log）永远建不出来，
-    -- "权限内核表"会静默缺席。真正需要响的"表在但唯一键形状不对"仍由下面的 old_idx/新键分支处理。
-    SET @s = NULL;
+    -- 不能只设置 old_idx 后继续查询：MySQL 对不存在表的 information_schema.STATISTICS 查询虽可返回空，
+    -- 但后续仍会尝试 ALTER TABLE，导致迁移在可选业务表缺席时失败。
+    SET old_idx = NULL;
+  ELSE
+    SELECT INDEX_NAME INTO old_idx
+      FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = t AND NON_UNIQUE = 0
+     GROUP BY INDEX_NAME
+    HAVING COUNT(*) = 1 AND MAX(CASE WHEN COLUMN_NAME = c THEN 1 ELSE 0 END) = 1
+     LIMIT 1;
+
+    IF old_idx IS NOT NULL THEN
+      SET @s = CONCAT('ALTER TABLE `', t, '` DROP INDEX `', old_idx, '`');
+      PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = t AND INDEX_NAME = CONCAT('uk_', t, '_tenant_', c)) THEN
+      SET @s = CONCAT('ALTER TABLE `', t, '` ADD UNIQUE KEY `uk_', t, '_tenant_', c, '` (tenant_id, `', c, '`)');
+      PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+    END IF;
   END IF;
+END$$
 
-  SELECT INDEX_NAME INTO old_idx
-    FROM information_schema.STATISTICS
-   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = t AND NON_UNIQUE = 0
-   GROUP BY INDEX_NAME
-  HAVING COUNT(*) = 1 AND MAX(CASE WHEN COLUMN_NAME = c THEN 1 ELSE 0 END) = 1
-   LIMIT 1;
-
-  IF old_idx IS NOT NULL THEN
-    SET @s = CONCAT('ALTER TABLE `', t, '` DROP INDEX `', old_idx, '`');
+CREATE PROCEDURE kubo_mt_backfill_tenant(IN t VARCHAR(64))
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = t) THEN
+    SET @s = CONCAT('UPDATE `', t, '` SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0');
+    PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+    SET @s = CONCAT('UPDATE `', t, '` SET creator_id = 1 WHERE creator_id IS NULL');
     PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
   END IF;
+END$$
 
-  IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = t AND INDEX_NAME = CONCAT('uk_', t, '_tenant_', c)) THEN
-    SET @s = CONCAT('ALTER TABLE `', t, '` ADD UNIQUE KEY `uk_', t, '_tenant_', c, '` (tenant_id, `', c, '`)');
+CREATE PROCEDURE kubo_mt_check_tenant(IN t VARCHAR(64))
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = t) THEN
+    SET @s = CONCAT('SELECT ''', t, ''' tbl, COUNT(*) bad_tenant FROM `', t, '` WHERE tenant_id IS NULL OR tenant_id = 0');
     PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
   END IF;
 END$$
@@ -329,8 +349,7 @@ CALL kubo_mt_add_column('member', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NU
 CALL kubo_mt_add_column('member', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
 CALL kubo_mt_add_index('member', 'idx_member_tenant', 'tenant_id');
 -- 可用归属列：room_id, user_id
-UPDATE `member` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `member` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
+CALL kubo_mt_backfill_tenant('member');
 
 -- [T1] wms.move  ← MoveEntity.java
 CALL kubo_mt_add_column('move', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
@@ -413,8 +432,7 @@ CALL kubo_mt_add_index('room', 'idx_room_tenant', 'tenant_id');
 -- 可用归属列：owner_id
 CALL kubo_mt_replace_unique('room', 'code');  -- 原唯一列 code → (tenant_id, code)
 CALL kubo_mt_replace_unique('room', 'name');  -- 原唯一列 name → (tenant_id, name)
-UPDATE `room` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `room` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
+CALL kubo_mt_backfill_tenant('room');
 
 -- [T1] channel.sale  ← SaleEntity.java
 CALL kubo_mt_add_column('sale', 'tenant_id', 'tenant_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT ''租户ID''');
@@ -493,8 +511,7 @@ CALL kubo_mt_add_column('user_third_login', 'tenant_id', 'tenant_id BIGINT UNSIG
 CALL kubo_mt_add_column('user_third_login', 'creator_id', 'creator_id BIGINT UNSIGNED NULL COMMENT ''创建人（owner 维度）''');
 CALL kubo_mt_add_index('user_third_login', 'idx_user_third_login_tenant', 'tenant_id');
 -- 可用归属列：user_id
-UPDATE `user_third_login` SET `tenant_id` = 1 WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-UPDATE `user_third_login` SET `creator_id` = 1 WHERE `creator_id` IS NULL;
+CALL kubo_mt_backfill_tenant('user_third_login');
 
 -- ---------------------------------------------------------------------------
 -- 3. 执行后校验（任一非 0 都不得开启 enforce；建议做成 CI 检查）
@@ -507,7 +524,7 @@ SELECT 'input' tbl, COUNT(*) bad_tenant FROM `input` WHERE `tenant_id` IS NULL O
 SELECT 'input_detail' tbl, COUNT(*) bad_tenant FROM `input_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'inventory' tbl, COUNT(*) bad_tenant FROM `inventory` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'material' tbl, COUNT(*) bad_tenant FROM `material` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'member' tbl, COUNT(*) bad_tenant FROM `member` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
+CALL kubo_mt_check_tenant('member');
 SELECT 'move' tbl, COUNT(*) bad_tenant FROM `move` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'move_detail' tbl, COUNT(*) bad_tenant FROM `move_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'output' tbl, COUNT(*) bad_tenant FROM `output` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
@@ -517,7 +534,7 @@ SELECT 'personal_token' tbl, COUNT(*) bad_tenant FROM `personal_token` WHERE `te
 SELECT 'purchase' tbl, COUNT(*) bad_tenant FROM `purchase` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'purchase_detail' tbl, COUNT(*) bad_tenant FROM `purchase_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'purchase_price' tbl, COUNT(*) bad_tenant FROM `purchase_price` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'room' tbl, COUNT(*) bad_tenant FROM `room` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
+CALL kubo_mt_check_tenant('room');
 SELECT 'sale' tbl, COUNT(*) bad_tenant FROM `sale` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'sale_detail' tbl, COUNT(*) bad_tenant FROM `sale_detail` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'sale_price' tbl, COUNT(*) bad_tenant FROM `sale_price` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
@@ -526,7 +543,7 @@ SELECT 'structure' tbl, COUNT(*) bad_tenant FROM `structure` WHERE `tenant_id` I
 SELECT 'supplier' tbl, COUNT(*) bad_tenant FROM `supplier` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'unit' tbl, COUNT(*) bad_tenant FROM `unit` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
 SELECT 'user' tbl, COUNT(*) bad_tenant FROM `user` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
-SELECT 'user_third_login' tbl, COUNT(*) bad_tenant FROM `user_third_login` WHERE `tenant_id` IS NULL OR `tenant_id` = 0;
+CALL kubo_mt_check_tenant('user_third_login');
 
 -- ---------------------------------------------------------------------------
 -- 4. 回滚

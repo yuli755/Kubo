@@ -46,7 +46,8 @@ services:
       - --enforce-gtid-consistency=ON
       - --log-bin=mysql-bin
       - --server-id=1
-      - --binlog-expire-days=7
+      # MySQL 8.0 uses seconds; 7 days keeps the PITR retention window explicit.
+      - --binlog_expire_logs_seconds=604800
       - --max-binlog-size=100M
     volumes:
       - mysql-prod-data:/var/lib/mysql

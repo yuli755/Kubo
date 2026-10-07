@@ -576,3 +576,25 @@
 - 已通过：`pnpm exec vitest run src/config/__tests__/productionDeliveryAndCanary.spec.ts` 当前 22/22；workflow 分支列表与 `production-smoke` 的 Compose build、Nginx 安全响应头、Spring Actuator health、Prometheus/Alertmanager readiness、真实 targets/alertmanagers/rules API、渲染后 Alertmanager 文件与配置状态、CVE 扫描接线均由契约测试锁定；本地 `git diff --check` 通过。
 - 已增加 `production-smoke-diagnostics` artifact：即使 smoke 失败也保留 Compose 状态、解析后的编排配置和最近 300 行服务日志，便于定位真实 runner、依赖、Docker 或 Trivy 问题；保留 14 天。
 - 该修复仍需要推送后由 GitHub Actions 实际运行确认 runner、依赖下载、JDK、Docker 与 Trivy 环境；本地静态检查不能冒充远端 workflow 成功。
+
+## 23. 隔离 staging 真实启动与监控探针（2026-10-08）
+
+### 23.1 迁移与启动证据
+
+- 在独立 Docker Compose project `spms-staging` 中，仅使用 `spms-staging-*` 容器和独立网络/卷；未执行任何生产项目卷删除。
+- 修正后的 V1 baseline 已覆盖 Hibernate 实际关系列：`input_detail.material_id`、`material.unit_id`、`move.storage_id`、`move_detail.inventory_id`、`output_detail.inventory_id/material_id`、`purchase_detail.material_id/supplier_id`、`purchase_price.material_id/supplier_id`、`sale.customer_id`、`sale_detail.material_id`、`sale_price.material_id/customer_id`；生成器输出 `40` 张表、`229` 个实体列（另有基类公共列）。
+- 干净隔离库启动时 Flyway 与 Hibernate 均通过；此前逐项暴露的缺列已复核。应用日志出现 `Started Application`，`spms-staging-server` health 为 **healthy**，容器内 `GET /actuator/health` 返回 `{"status":"UP"}`。
+- staging 使用 `SPRING_PROFILES_ACTIVE=staging` 与日志短信 provider，仅为本机无真实短信通道的启动验证；生产 profile 仍 fail-closed，缺少真实 `SPMS_SMS_PROVIDER` 会拒绝启动，未将模拟通道冒充生产证据。
+
+### 23.2 监控与 Web 证据
+
+- `spms-staging-prometheus` health 为 **healthy**，容器内 `/-/ready` 返回 `Prometheus Server is Ready.`。
+- `spms-staging-alertmanager` health 为 **healthy**，容器内 `/-/ready` 返回 `OK`。
+- `spms-staging-web` 已以独立端口 `18081` 启动且 Docker health 为 **healthy**；Nginx upstream 解析使用 staging server alias，避免固定生产容器名造成交叉引用。
+- 外部宿主机 HTTP 探针曾受本机端口/PowerShell 探针环境影响而失败，不能将其记为正式外部访问证据；后端、Prometheus、Alertmanager 的容器内 readiness 已通过。
+
+### 23.3 仍未满足的正式上线门槛
+
+- 本轮是本机隔离 staging 证据，不等于正式生产验收：尚缺正式域名/TLS、真实阿里云短信或其他外部短信触达、真实告警 Webhook 触达、租户回填与跨租户 UAT、异地备份可恢复性、真实 binlog/PITR 回放及 CVE/signing policy 结果。
+- 生产 `DATA_PERMISSION_MODE` 继续保持 `shadow`，不能仅凭 staging 启动成功切换 `enforce`；必须先完成真实 `user_tenant` 回填、六项资源 live readiness 与跨租户越权 UAT。
+- staging 中曾为定位旧数据库状态临时执行 `ALTER TABLE` 补列；这些操作只存在于隔离数据库，不作为生产迁移。生产可交付列修复仅以受控 V1 baseline 与 V1_1/V2 Flyway 文件为准。

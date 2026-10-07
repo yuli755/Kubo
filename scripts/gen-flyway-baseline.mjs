@@ -164,8 +164,12 @@ function parseEntity(file) {
     entity.columns.push({ name: name || snake(field), definition, nullable, unique, field })
   }
 
-  // 关系列：@ManyToOne 无 @JoinColumn 时，Hibernate 建 `<字段>_id`
-  for (const match of source.matchAll(/@ManyToOne[^\n]*\n(?:[ \t]*@[\w().,"={} ]*\n)*[ \t]*private\s+[\w.<>]+\s+(\w+)\s*;/g)) {
+  // 关系列：@ManyToOne 无 @JoinColumn 时，Hibernate 建 `<字段>_id`。
+  // 注释中的示例文本也可能包含 "@ManyToOne"，先剥离注释，避免把普通字段误判为关联列。
+  const relationSource = source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*$/gm, '')
+  for (const match of relationSource.matchAll(/@ManyToOne[\s\S]{0,800}?\bprivate\s+[\w.<>]+\s+(\w+)\s*;/g)) {
     const field = match[1]
     entity.columns.push({ name: `${snake(field)}_id`, definition: 'bigint UNSIGNED DEFAULT 0', nullable: true, unique: false, field, relation: true })
   }

@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS `data_field_policy` (
     `update_time` bigint UNSIGNED DEFAULT 0 NOT NULL,
     `is_disabled` tinyint(1) DEFAULT 0 NOT NULL,
     `is_published` tinyint(1) DEFAULT 0 NOT NULL,
-    `resource_id` bigint UNSIGNED,
+    `resource_id` bigint UNSIGNED NOT NULL comment '数据资源ID',
     `field_name` varchar(255),
     `role_code` varchar(255),
     `action_name` varchar(255),
@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS `data_policy` (
     `is_disabled` tinyint(1) DEFAULT 0 NOT NULL,
     `is_published` tinyint(1) DEFAULT 0 NOT NULL,
     `policy_code` varchar(255),
-    `resource_id` bigint UNSIGNED,
+    `resource_id` bigint UNSIGNED NOT NULL comment '数据资源ID',
     `subject_type` varchar(255),
     `subject_id` bigint UNSIGNED,
     `role_code` varchar(255),
@@ -272,6 +272,7 @@ CREATE TABLE IF NOT EXISTS `input_detail` (
     `is_finished` tinyint(1) DEFAULT 0,
     `quantity` double(20, 6) UNSIGNED default 0 comment '入库数量',
     `finish_quantity` double(20, 6) UNSIGNED default 0 comment '已入库数量',
+    `material_id` bigint UNSIGNED DEFAULT 0,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'input_detail';
 
@@ -308,6 +309,7 @@ CREATE TABLE IF NOT EXISTS `material` (
     `use_type` bigint UNSIGNED default 1 comment '使用方式',
     `purchase_price` double(20, 6) UNSIGNED default 0 comment '采购标准价',
     `sale_price` double(20, 6) UNSIGNED default 0 comment '销售标准价',
+    `unit_id` bigint UNSIGNED DEFAULT 0,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'material';
 
@@ -338,6 +340,7 @@ CREATE TABLE IF NOT EXISTS `move` (
     `reject_reason` varchar(255) default '' comment '驳回原因',
     `bill_code` varchar(255) default '' comment '移库单号' UNIQUE,
     `status` int UNSIGNED default 1 comment '移库状态',
+    `storage_id` bigint UNSIGNED DEFAULT 0,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'move';
 
@@ -353,6 +356,7 @@ CREATE TABLE IF NOT EXISTS `move_detail` (
     `is_finished` tinyint(1) DEFAULT 0,
     `quantity` double(20, 6) UNSIGNED default 0 comment '移动数量',
     `finish_quantity` double(20, 6) UNSIGNED default 0 comment '已移动数量',
+    `inventory_id` bigint UNSIGNED DEFAULT 0,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'move_detail';
 
@@ -385,9 +389,9 @@ CREATE TABLE IF NOT EXISTS `output` (
     `bill_code` varchar(255) default '' comment '出库单号' UNIQUE,
     `status` int UNSIGNED default 1 comment '出库状态',
     `type` int UNSIGNED default 1 comment '出库类型',
+    `picking_id` bigint UNSIGNED,
     `sale_id` bigint UNSIGNED DEFAULT 0,
     `move_id` bigint UNSIGNED DEFAULT 0,
-    `picking_id` bigint UNSIGNED DEFAULT 0,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'output';
 
@@ -403,6 +407,8 @@ CREATE TABLE IF NOT EXISTS `output_detail` (
     `is_finished` tinyint(1) DEFAULT 0,
     `quantity` double(20, 6) UNSIGNED default 0 comment '出库数量',
     `finish_quantity` double(20, 6) UNSIGNED default 0 comment '已出库数量',
+    `inventory_id` bigint UNSIGNED DEFAULT 0,
+    `material_id` bigint UNSIGNED DEFAULT 0,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'output_detail';
 
@@ -498,6 +504,8 @@ CREATE TABLE IF NOT EXISTS `purchase_detail` (
     `quantity` double(20, 6) UNSIGNED default 0 comment '采购数量',
     `price` double(20, 6) UNSIGNED default 0 comment '采购单价',
     `finish_quantity` double(20, 6) UNSIGNED default 0 comment '已入库数量',
+    `material_id` bigint UNSIGNED DEFAULT 0,
+    `supplier_id` bigint UNSIGNED DEFAULT 0,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'purchase_detail';
 
@@ -510,6 +518,8 @@ CREATE TABLE IF NOT EXISTS `purchase_price` (
     `tenant_id` bigint UNSIGNED DEFAULT 0,
     `creator_id` bigint UNSIGNED DEFAULT 0,
     `price` double(20, 6) UNSIGNED default 0 comment '采购单价',
+    `material_id` bigint UNSIGNED DEFAULT 0,
+    `supplier_id` bigint UNSIGNED DEFAULT 0,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'purchase_price';
 
@@ -539,6 +549,7 @@ CREATE TABLE IF NOT EXISTS `sale` (
     `reason` varchar(255) default '' comment '销售说明',
     `total_price` double(20, 6) UNSIGNED default 0 comment '总金额',
     `status` int UNSIGNED default 1 comment '销售状态',
+    `customer_id` bigint UNSIGNED DEFAULT 0,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'sale';
 
@@ -555,6 +566,7 @@ CREATE TABLE IF NOT EXISTS `sale_detail` (
     `quantity` double(20, 6) UNSIGNED default 0 comment '销售数量',
     `price` double(20, 6) UNSIGNED default 0 comment '销售单价',
     `finish_quantity` double(20, 6) UNSIGNED default 0 comment '已出库数量',
+    `material_id` bigint UNSIGNED DEFAULT 0,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'sale_detail';
 
@@ -567,6 +579,8 @@ CREATE TABLE IF NOT EXISTS `sale_price` (
     `tenant_id` bigint UNSIGNED DEFAULT 0,
     `creator_id` bigint UNSIGNED DEFAULT 0,
     `price` double(20, 6) UNSIGNED default 0 comment '销售单价',
+    `material_id` bigint UNSIGNED DEFAULT 0,
+    `customer_id` bigint UNSIGNED DEFAULT 0,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = 'sale_price';
 
