@@ -551,6 +551,25 @@ jobs:
           ignore-unfixed: true
           exit-code: '1'
 
+      - name: Capture production smoke diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p /tmp/production-smoke
+          docker compose -f docker-compose.prod.yml ps > /tmp/production-smoke/compose-ps.txt
+          docker compose -f docker-compose.prod.yml config > /tmp/production-smoke/compose-config.yml
+          docker compose -f docker-compose.prod.yml logs --no-color --tail=300 > /tmp/production-smoke/compose-logs.txt
+
+      - name: Upload production smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-smoke-diagnostics
+          path: /tmp/production-smoke
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Tear down smoke stack
         if: always()
         run: docker compose -f docker-compose.prod.yml down -v

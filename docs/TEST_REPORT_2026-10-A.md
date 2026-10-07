@@ -574,4 +574,5 @@
 ### 22.2 验证与边界
 
 - 已通过：`pnpm exec vitest run src/config/__tests__/productionDeliveryAndCanary.spec.ts` 当前 22/22；workflow 分支列表与 `production-smoke` 的 Compose build、Nginx 安全响应头、Spring Actuator health、Prometheus/Alertmanager readiness、真实 targets/alertmanagers/rules API、渲染后 Alertmanager 文件与配置状态、CVE 扫描接线均由契约测试锁定；本地 `git diff --check` 通过。
-- 该修复需要推送后由 GitHub Actions 实际运行确认 runner、依赖下载、JDK、Docker 与 Trivy 环境；本地静态检查不能冒充远端 workflow 成功。
+- 已增加 `production-smoke-diagnostics` artifact：即使 smoke 失败也保留 Compose 状态、解析后的编排配置和最近 300 行服务日志，便于定位真实 runner、依赖、Docker 或 Trivy 问题；保留 14 天。
+- 该修复仍需要推送后由 GitHub Actions 实际运行确认 runner、依赖下载、JDK、Docker 与 Trivy 环境；本地静态检查不能冒充远端 workflow 成功。
