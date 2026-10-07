@@ -509,6 +509,11 @@ jobs:
             sleep 10
           done
           curl --fail --retry 5 --retry-delay 2 http://127.0.0.1:18080/
+          # Nginx 安全头必须在真实容器响应上存在；源码配置正确但未被加载同样属于发布故障。
+          headers=$(curl --fail --retry 5 --retry-delay 2 -sSI http://127.0.0.1:18080/)
+          printf '%s\n' "$headers" | grep -qi '^x-content-type-options: nosniff'
+          printf '%s\n' "$headers" | grep -qi '^x-frame-options: DENY'
+          printf '%s\n' "$headers" | grep -qi '^content-security-policy:'
           # Compose 的容器状态为 healthy 还不够：显式探测 Spring Actuator，避免仅靠 Nginx 首页掩盖后端启动/路由故障。
           docker compose -f docker-compose.prod.yml exec -T server wget -qO- http://127.0.0.1:8080/actuator/health | grep -q '"status":"UP"'
           # 监控组件也必须完成自身 readiness；否则业务容器健康但告警链路可能是死的。
