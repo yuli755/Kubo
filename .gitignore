@@ -86,3 +86,16 @@ gui-test-screenshots/
 hs_err_pid*.log
 replay_pid*.log
 
+### 本机开发/巡检可丢弃工件（不入库，避免污染 git status）###
+.edge-cdp-profile*/
+dump.rdb
+infra/browser-shots/
+qc-*.err
+qc-*.json
+r54-*.json
+r54-*.txt
+r55-*.json
+r56-*.json
+run-backend.cmd
+run-frontend.cmd
+
