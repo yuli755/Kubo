@@ -41,8 +41,8 @@
 
 ### 📚 完整文档
 
-- **[STARTUP.md](./STARTUP.md)** - 完整启动指南 (环境检查、Redis 启动、项目启动)
-- **[LOGIN.md](./LOGIN.md)** - 默认账号和测试数据说明
+- **[STARTUP.md](./docs/启动与使用指南/STARTUP.md)** - 完整启动指南 (环境检查、Redis 启动、项目启动)
+- **[LOGIN.md](./docs/启动与使用指南/LOGIN.md)** - 默认账号和测试数据说明
 - **[AGENT.md](./AGENT.md)** - AI 辅助开发的工程规范、目录结构、编码风格
 - **[SPMS-Server/docs](./SPMS-Server/docs/README.md)** - 后端文档索引（数据权限施工图、真实环境验收清单、迁移脚本）
 
@@ -98,7 +98,7 @@ pnpm stack:project        # 加 `-- --json` 给脚本读
 密码: Aa123456
 ```
 
-详细信息查看 **[LOGIN.md](./LOGIN.md)**
+详细信息查看 **[LOGIN.md](./docs/启动与使用指南/LOGIN.md)**
 
 ### VS Code 推荐插件
 

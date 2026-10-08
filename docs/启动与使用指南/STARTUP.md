@@ -82,7 +82,7 @@ mysql -u root -p kubo < SPMS-Server/docs/database/migration/20260909_data_permis
 
 该脚本只建 `data_*` / `tenant` / `user_tenant` / `user_factory` 等增量表并回填归属列；
 `user`/`permission`/`material`/`contract` 等业务表仍由 JPA 建（validate 只校验结构，不建表）。
-详情见 [WHY_NO_SQL.md](./WHY_NO_SQL.md) 与 [SPMS-Server/docs/README.md](./SPMS-Server/docs/README.md)。
+详情见 [WHY_NO_SQL.md](../数据库与数据口径/WHY_NO_SQL.md) 与 [SPMS-Server/docs/README.md](../../SPMS-Server/docs/README.md)。
 
 ---
 
@@ -129,11 +129,11 @@ mysql -u root -proot -e "DROP DATABASE kubo; CREATE DATABASE kubo CHARACTER SET 
 
 | 文件 | 说明 |
 |------|------|
-| [README.md](./README.md) | 项目介绍与命令 |
+| [README.md](../../README.md) | 项目介绍与命令 |
 | [LOGIN.md](./LOGIN.md) | 登录测试和默认数据说明 |
-| [AGENT.md](./AGENT.md) | 开发规范 |
-| [WHY_NO_SQL.md](./WHY_NO_SQL.md) | JPA 建表 vs 手写迁移的现行口径 |
-| [SPMS-Server/docs/README.md](./SPMS-Server/docs/README.md) | 后端文档索引（施工图、验收清单、迁移脚本） |
+| [AGENT.md](../../AGENT.md) | 开发规范 |
+| [WHY_NO_SQL.md](../数据库与数据口径/WHY_NO_SQL.md) | JPA 建表 vs 手写迁移的现行口径 |
+| [SPMS-Server/docs/README.md](../../SPMS-Server/docs/README.md) | 后端文档索引（施工图、验收清单、迁移脚本） |
 
 ---
 
