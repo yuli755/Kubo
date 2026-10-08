@@ -3,7 +3,7 @@
 -- ============================================================================
 -- 治什么：启动日志里唯一一条、也一直被淹没的 DDL 失败——
 --   `Referencing column 'resource_id' and referenced column 'id' are incompatible`
--- 机制（docs/TEST_REPORT_2026-09-M.md §4.3）：`data_resource.id` 是 `BIGINT UNSIGNED`
+-- 机制（docs/reports/README.md §二 关键已修复问题）：`data_resource.id` 是 `BIGINT UNSIGNED`
 -- （V2:24 起），而老开发库的 `data_policy` / `data_field_policy` 是 Hibernate
 -- `ddl-auto=update` 在实体补 `columnDefinition` **之前**建的——`resource_id` 为有符号
 -- BIGINT；V2 的外键声明在 `CREATE TABLE IF NOT EXISTS` 体内（V2:57、V2:78），对已存在

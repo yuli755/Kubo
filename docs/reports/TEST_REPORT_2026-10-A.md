@@ -1,6 +1,6 @@
 # SPMS 测试报告 2026-10-A（Round 47：真机全链路测试 + 六项缺陷修复 + 证据）
 
-> 上一轮：TEST_REPORT_2026-09-N5.md（R46，commit `56a2769c`）。
+> 上一轮：TEST_REPORT_2026-09-N5（R46，commit `56a2769c`；逐轮历史报告已合并进 `docs/reports/README.md`）。
 > 本轮输入（用户原话，m01638）：「继续。模拟各种用户角色真机（浏览器）上跑通 SPMS 全链路：重启前后端 → 多角色登录 → 逐模块走完核心业务闭环（采购→入库→库存→销售→出库、主数据、系统治理工程化）测试，每步用 DOM 量测判定渲染与交互是否符合预期，发现缺陷就定位根因并自主修复，最后交付一份带证据的测试报告与 dev 提交。对于需要修复的地方，有没有现成方案可以复用？怎么写更简洁、更易维护、可扩展？还有哪些地方或方面需要补充优化修复设计的建议？」
 > 方法：Playwright（`browser_evaluate`）真机点击 + **页内 DOM 探针**（XHR 拦截 `window.__reqs`、`queryClient.invalidateQueries` 包装 `window.__invalidations`、组件树遍历 `#app.__vue_app__._instance` 递归 `subTree`）+ MySQL 直查三方对齐。每条结论 = DOM 量测 ∧ DB 复核（∧ 截图）。
 
@@ -439,7 +439,7 @@
 
 ### 15.1 建议 12 的真实状态与闭环
 
-本轮将「修复建议 12」按 `TEST_REPORT_2026-09-L.md` P2-12 解释为“控制台噪音”：ECharts `grid.containLabel` legacy 警告，以及 `Runtime directive used on component with non-element root node … at <ElTooltip>`。两项原始噪音并非本轮新造：
+本轮将「修复建议 12」按 `TEST_REPORT_2026-09-L`（见 `docs/reports/README.md`）P2-12 解释为“控制台噪音”：ECharts `grid.containLabel` legacy 警告，以及 `Runtime directive used on component with non-element root node … at <ElTooltip>`。两项原始噪音并非本轮新造：
 
 - ECharts 部分早已由 R46 的 `SecurityDashboard.vue` 改为 `outerBoundsMode/outerBoundsContain`，并由 `SecurityDashboard.spec.ts` 锁住；
 - KTable 的 ElPopover `#reference` 已包真实 `<span>`，消除了把指令挂到 ElTooltip Fragment 根节点的问题。
