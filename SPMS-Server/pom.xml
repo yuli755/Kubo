@@ -217,7 +217,7 @@
              必须用 -api 而不是 -ui：UI starter 的 SwaggerWebMvcConfigurer 无视
              springdoc.swagger-ui.enabled，始终注册 /swagger-ui/**/*index.html 这类「** 后挂片段」
              模式，Spring 6.2 的 PathPatternParser 判为非法、resourceHandlerMapping 创建失败、整机起不来
-             （2.8.15 / 2.9.1 实测）。消费 /v3/api-docs JSON 即可，见 docs/API_DOCS_GUIDE.md。 -->
+             （2.8.15 / 2.9.1 实测）。消费 /v3/api-docs JSON 即可，见 docs/reports/API_DOCS_GUIDE.md。 -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>

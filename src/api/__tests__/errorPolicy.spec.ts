@@ -247,7 +247,7 @@ describe('errorPolicy · 真机抓取的响应（2026-09，本机 8080，admin �
   /**
    * 这四条是**真载荷进 → 用户看到的那句话出**的端到端断言，不是构造数据：
    * 后端所有业务失败都是 HTTP 200 + 业务码，所以"用户读到什么"完全由这一层决定。
-   * 抓法见 docs/DESIGN_THINKING.md 案例 I / J 的实测表。
+   * 抓法见 docs/reports/DESIGN_THINKING.md 案例 I / J 的实测表。
    */
   it('403 越权：给出可搜到的权限码（张三调 /permission/getList）', () => {
     const text = notificationText(classifyBusinessError({

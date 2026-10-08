@@ -110,7 +110,7 @@ springdoc:
     # 勿换回 -ui starter：它的 SwaggerWebMvcConfigurer 无视本开关，始终注册
     # /swagger-ui/**/*index.html 这类「** 后挂片段」模式，Spring 6.2 的 PathPatternParser
     # 判为非法 → resourceHandlerMapping 创建失败、容器起不来（2.8.15 / 2.9.1 实测崩溃）。
-    # OpenAPI JSON（/v3/api-docs）不受影响，消费方式见 docs/API_DOCS_GUIDE.md。
+    # OpenAPI JSON（/v3/api-docs）不受影响，消费方式见 docs/reports/API_DOCS_GUIDE.md。
     enabled: false
   packages-to-scan: cn.hamm.spms
   # 真实路由是 /<模块>/<动作>（@Api("user") → /user/login），`/api` 前缀只存在于 Vite
