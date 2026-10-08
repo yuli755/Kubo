@@ -666,3 +666,26 @@
 - 复核时 `spms-localprod` 六个隔离容器仍为 Docker `healthy`，production profile 环境变量为 `DATA_PERMISSION_MODE=shadow`、`DATA_PERMISSION_TENANT_REQUIRED=true`；未改动现有 `kubo-*` 数据。
 - 该结果增强了代码级回归证据，但不能替代真实用户/资源/业务数据上的 `user_tenant` 全量回填、六项 live readiness 和双租户越权 UAT。
 - 隔离 production-like 数据库复核结果：`user=0`、`user_tenant=0`、`user_tenant.tenant_id IS NULL=0`。这是全新空库的结果，不是存量租户回填成功证据；因无用户和业务数据，无法在本机完成真实双租户越权 UAT。
+
+## 29. 合成跨租户样本与隔离库 live 越权验证（2026-10-08）
+
+> 本节全部基于**合成/模拟数据**（用户已授权 1+5：提供/生成贴近现实的测试数据），仅用于验证数据权限链路在运行态是否按预期工作；**不是**真实存量租户/用户/业务数据的回填或验收证据，也不能据此切换到 ENFORCE。
+
+### 29.1 合成样本
+
+- 在隔离库 `spms-localprod` 注入合成样本：`tenant=3`（含默认租户 1、租户 2/3 代码 `T20001`/`T30001`）、`user=6`、`user_tenant=7`（含一条跨租户绑定：`ops@t2.test` 默认在租户 2、同时非默认绑定租户 1）、`material=5`（租户 1→2、租户 2→2、租户 3→1）、`storage=5`、`supplier=3`、`customer=3`、`role=4`。密码为合成的 `DemoPass!2345`+固定盐，仅测试用。
+- 绑定租户运营角色 `SOUTH_OPS`（租户 2，11 项权限）与 `EAST_OPS`（租户 3，5 项物料权限），使 `ops@t2.test`/`ops@t3.test` 可访问物料读口。
+
+### 29.2 运行态跨租户验证结果（容器内 HTTP，production profile + SHADOW + tenant-required）
+
+- 以 `ops@t2.test` 登录成功，`/user/getMyTenantList` 返回其绑定租户 `[{id:2,isDefault:true},{id:1,isDefault:false}]`——租户清单只含该用户实际绑定的两个租户，正确。
+- `X-Tenant-Id: 1`（跨绑定成员租户）访问 `/material/getPage` 返回 `200`，可访问；租户上下文解析器对“已绑定租户”放行。
+- `X-Tenant-Id: 3`（非成员租户）访问 `/material/getPage` 返回 **403 `无权访问该租户：3`**——跨租户越权被租户上下文闸门拒绝。
+- 接口权限闸门生效：`ops@t2.test` 有 `Material/Storage/Inventory` 权限，访问 `/material/getPage` 为 200；但其无 `DataResource_*` 权限，访问 `/dataResource/runtime-status`、`/dataResource/enforce-readiness` 均返回 403（无权限拒绝）。
+- **关键发现——行级租户隔离依赖 data_resource/data_policy**：隔离库 `data_resource=0`、`data_policy=0`，无任何注册策略；此时 `material/getPage` 无论租户上下文如何均返回全部 `5` 条物料（`total:5`），即租户上下文闸门（403）在工作，但**行级 `tenant_id` 过滤本身没有生效**，因为数据权限的读写过滤规则完全来自 `data_resource`/`data_policy`（本次未注入策略）。
+
+### 29.3 对生产闸门的含义
+
+- 该运行态证据说明：**基础租户上下文闸门（403 非成员拒绝、getMyTenantList 精确）和接口权限闸门（403 无权限）在本机 production-profile 下已验证工作**；但**行级数据隔离在未注册 `data_resource`/`data_policy` 时不会自动套用**——这正是 ENFORCE 前置 readiness（六项资源 + 至少一条 QUERY/写策略 + shadow 证据 ≥1 EXPECTED_FILTER 且 0 异常）所守护的边界。
+- 因此：本机保持 `DATA_PERMISSION_MODE=shadow`、`DATA_PERMISSION_TENANT_REQUIRED=true`，不因合成样本切换到 ENFORCE；切换真实生产 ENFORCE 仍需真实存量数据上六项资源 readiness、全量 `user_tenant` 覆盖与双租户 UAT 签字。
+- 合成样本与运行态 HTTP 证据仅存在于隔离 `spms-localprod` 环境，未触碰 `kubo-*` 数据与配置。
